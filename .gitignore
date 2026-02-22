@@ -1,6 +1,6 @@
 dist/
 charts/*/charts/
-charts/*/Chart.lock
-.terraform/
-*.tfstate*
+charts/*/*.tgz
 result
+result-*
+.direnv/

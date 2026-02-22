@@ -1,6 +1,7 @@
-# chart-testing configuration
+remote: origin
+target-branch: main
 chart-dirs:
   - charts
-target-branch: main
-helm-extra-args: "--timeout 120s"
+chart-repos: []
+helm-extra-args: --timeout 300s
 validate-maintainers: false

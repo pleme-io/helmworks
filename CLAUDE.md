@@ -6,59 +6,82 @@ Reusable Helm chart library for pleme-io internal services.
 
 ```
 charts/
-  pleme-lib/           # Library chart (type: library) — shared named templates
-  pleme-microservice/  # HTTP services (REST/GraphQL/gRPC) with Service + ServiceMonitor
-  pleme-worker/        # Background workers (no Service)
-  pleme-web/           # Frontend web apps served by Hanabi BFF
-  pleme-cronjob/       # Scheduled CronJob workloads
-  pleme-migration/     # Database migration Jobs (Shinka pattern)
-  pleme-operator/      # Kubernetes operators with ClusterRole RBAC
-tests/                 # helm-unittest test suites per chart
-examples/              # Example values files for real services
+  pleme-lib/              # Library chart (type: library) — shared named templates
+  pleme-microservice/     # HTTP service (REST/GraphQL/gRPC)
+  pleme-worker/           # Background worker (no Service)
+  pleme-web/              # Frontend + BFF (HTTP + WebSocket)
+  pleme-cronjob/          # Scheduled jobs
+  pleme-migration/        # Shinka DatabaseMigration CRD
+  pleme-operator/         # K8s operator with RBAC
+
+tests/                    # helm-unittest suites
+examples/                 # Example values files per service
+nix/                      # Nix build helpers (consumed by flake.nix)
 ```
 
-## Architecture
+## Nix Apps
 
-- **pleme-lib** provides named templates (deployment, service, probes, security, networkpolicy)
-- Application charts depend on pleme-lib and compose its templates
-- Charts are packaged and pushed to `oci://ghcr.io/pleme-io/charts/` as OCI artifacts
-- FluxCD reconciles HelmRelease CRDs that reference these charts
-- Kustomize overlays patch HelmRelease values for environment-specific config
+All chart lifecycle operations are `nix run` commands:
 
-## Key Design Decisions
+| Command | Description |
+|---------|-------------|
+| `nix run .#lint` | Lint all charts |
+| `nix run .#lint:pleme-microservice` | Lint a specific chart |
+| `nix run .#package` | Package all charts to `dist/` |
+| `nix run .#package:pleme-microservice` | Package a specific chart |
+| `nix run .#push` | Push all charts to OCI registry |
+| `nix run .#push:pleme-microservice` | Push a specific chart |
+| `nix run .#release` | Full lifecycle: lint + package + push |
+| `nix run .#release:pleme-microservice` | Release a specific chart |
+| `nix run .#template -- pleme-microservice examples/releases.yaml` | Render templates |
 
-- **Security baseline enforced**: runAsNonRoot, readOnlyRootFilesystem, drop ALL capabilities
-- **Secrets stay outside Helm**: SOPS-encrypted Secret YAMLs, referenced via envFrom/secretKeyRef
-- **OCI distribution**: Charts pushed to GHCR, FluxCD pulls via OCI HelmRepository
-- **Kustomize overlays preserved**: Image tags, replicas, resources patched via kustomize on HelmRelease
+## Chart Architecture
 
-## Commands
+**pleme-lib** is a library chart providing named templates:
+- `pleme-lib.deployment` — standard Deployment
+- `pleme-lib.service` — ClusterIP Service
+- `pleme-lib.serviceaccount` — ServiceAccount
+- `pleme-lib.servicemonitor` — Prometheus ServiceMonitor
+- `pleme-lib.networkpolicy` — deny-all + allow-dns + allow-prometheus
+- `pleme-lib.pdb` — PodDisruptionBudget
+- `pleme-lib.hpa` — HorizontalPodAutoscaler
 
-```bash
-nix run .#lint      # Lint all charts
-nix run .#package   # Package all charts to dist/
-nix run .#push      # Push packaged charts to OCI registry
-nix run .#release   # Full lifecycle: lint, package, push
-nix develop         # Dev shell with helm + chart-testing
+Application charts invoke these via `{{- include "pleme-lib.deployment" . }}`.
+
+## Security Baseline (enforced)
+
+All charts enforce:
+- `runAsNonRoot: true`, `runAsUser: 1000`
+- `readOnlyRootFilesystem: true`
+- `allowPrivilegeEscalation: false`
+- `capabilities.drop: [ALL]`
+
+## Integration with k8s repo
+
+Charts are pushed to `oci://ghcr.io/pleme-io/charts`. FluxCD HelmReleases reference them:
+
+```yaml
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+spec:
+  chart:
+    spec:
+      chart: pleme-microservice
+      version: "0.1.0"
+      sourceRef:
+        kind: HelmRepository
+        name: pleme-charts
+        namespace: flux-system
 ```
+
+Environment-specific overrides use kustomize patches on the HelmRelease.
+Secrets stay as SOPS-encrypted Secret YAMLs — never in Helm values.
 
 ## Adding a New Chart
 
-1. Create `charts/pleme-{type}/` with `Chart.yaml` depending on `pleme-lib`
-2. Add templates that invoke `pleme-lib.*` named templates
-3. Add example values in `examples/`
-4. Add tests in `tests/pleme-{type}/`
-5. Run `nix run .#lint` to validate
-
-## Adding a Service to K8s Repo
-
-1. Create `shared/infrastructure/{service}/base/helmrelease.yaml`
-2. Reference `pleme-charts` HelmRepository and the appropriate chart
-3. Set values inline on the HelmRelease
-4. Environment overrides via kustomize patches on the HelmRelease
-
-## Anti-Patterns
-
-- Never embed secrets in Helm values — use secretKeyRef/envFrom
-- Never run `helm install` directly — always via FluxCD HelmRelease
-- Never duplicate pleme-lib templates in application charts — extend, don't copy
+1. Create `charts/<name>/` with `Chart.yaml` depending on `pleme-lib`
+2. Add template files invoking `pleme-lib.*` named templates
+3. Create `values.yaml` with sensible defaults
+4. Add tests in `tests/<name>/`
+5. Add example values in `examples/`
+6. Add to `chartDefs` list in `flake.nix`
