@@ -1,0 +1,81 @@
+suite: arachne deployment tests
+templates:
+  - templates/deployment.yaml
+values:
+  - ../../examples/arachne.yaml
+tests:
+  - it: should render a Deployment
+    asserts:
+      - isKind:
+          of: Deployment
+
+  - it: should use the correct image
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "ghcr.io/pleme-io/arachne:latest"
+
+  - it: should have Chrome sidecar when enabled
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1].name
+          value: chrome
+      - equal:
+          path: spec.template.spec.containers[1].image
+          value: "zenika/alpine-chrome:124"
+
+  - it: should set SYS_ADMIN capability on Chrome sidecar
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[1].securityContext.capabilities.add
+          content: SYS_ADMIN
+      - equal:
+          path: spec.template.spec.containers[1].securityContext.runAsUser
+          value: 0
+
+  - it: should mount /dev/shm as memory volume
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: dshm
+            emptyDir:
+              medium: Memory
+              sizeLimit: "512Mi"
+
+  - it: should inject CHROME_WS_URL env var
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CHROME_WS_URL
+            value: "ws://localhost:9222"
+
+  - it: should disable Istio injection
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["sidecar.istio.io/inject"]
+          value: "false"
+
+  - it: should set strict security on main container
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+
+  - it: should not have Chrome sidecar when disabled
+    set:
+      chrome:
+        enabled: false
+    asserts:
+      - lengthEqual:
+          path: spec.template.spec.containers
+          count: 1
+
+  - it: should set startup probe
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.containers[0].startupProbe

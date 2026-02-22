@@ -1,0 +1,181 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+  annotations:
+    {{- include "pleme-lib.fluxcdPruneDisabled" . | nindent 4 }}
+spec:
+  serviceName: {{ include "pleme-lib.fullname" . }}-headless
+  replicas: {{ .Values.replicaCount | default 1 }}
+  selector:
+    matchLabels:
+      {{- include "pleme-lib.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "pleme-lib.selectorLabels" . | nindent 8 }}
+      annotations:
+        {{- include "pleme-lib.prometheusAnnotations" . | nindent 8 }}
+        sidecar.istio.io/inject: "false"
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "pleme-lib.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- include "pleme-lib.podSecurityContext" . | nindent 8 }}
+      {{- if .Values.cache.password.enabled }}
+      initContainers:
+        - name: config-init
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag | default "latest" }}
+          imagePullPolicy: {{ .Values.image.pullPolicy | default "Always" }}
+          command: ["sh", "-c"]
+          args:
+            - |
+              cp /config/redis.conf /tmp/redis/redis.conf
+              PASS=$(cat /credentials/{{ .Values.cache.password.key | default "REDIS_PASSWORD" }})
+              sed -i "s/__REDIS_PASSWORD__/$PASS/" /tmp/redis/redis.conf
+          securityContext:
+            {{- include "pleme-lib.containerSecurityContext" . | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: runtime-config
+              mountPath: /tmp/redis
+            - name: credentials
+              mountPath: /credentials
+      {{- end }}
+      containers:
+        - name: {{ include "pleme-lib.name" . }}
+          image: {{ include "pleme-lib.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy | default "Always" }}
+          {{- with .Values.command }}
+          command:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          args:
+            {{- if .Values.cache.password.enabled }}
+            - /tmp/redis/redis.conf
+            {{- else }}
+            - /config/redis.conf
+            {{- end }}
+            {{- with .Values.args }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          ports:
+            - name: redis
+              containerPort: {{ .Values.cache.port | default 6379 }}
+              protocol: TCP
+          {{- with .Values.env }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            {{- include "pleme-lib.containerSecurityContext" . | nindent 12 }}
+          livenessProbe:
+            tcpSocket:
+              port: redis
+            initialDelaySeconds: {{ .Values.health.livenessInitialDelay | default 10 }}
+            periodSeconds: {{ .Values.health.livenessPeriod | default 10 }}
+            failureThreshold: {{ .Values.health.livenessFailureThreshold | default 3 }}
+          readinessProbe:
+            tcpSocket:
+              port: redis
+            initialDelaySeconds: {{ .Values.health.readinessInitialDelay | default 5 }}
+            periodSeconds: {{ .Values.health.readinessPeriod | default 5 }}
+            failureThreshold: {{ .Values.health.readinessFailureThreshold | default 2 }}
+          volumeMounts:
+            {{- if .Values.cache.password.enabled }}
+            - name: runtime-config
+              mountPath: /tmp/redis
+            {{- else }}
+            - name: config
+              mountPath: /config
+            {{- end }}
+            {{- if .Values.cache.persistence.enabled }}
+            - name: data
+              mountPath: /data
+            {{- end }}
+            {{- with .Values.volumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+        {{- if .Values.exporter.enabled }}
+        - name: exporter
+          image: {{ .Values.exporter.image.repository | default "oliver006/redis_exporter" }}:{{ .Values.exporter.image.tag | default "latest" }}
+          imagePullPolicy: {{ .Values.exporter.image.pullPolicy | default "Always" }}
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.exporter.port | default 9121 }}
+              protocol: TCP
+          {{- if .Values.cache.password.enabled }}
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.cache.password.secretName }}
+                  key: {{ .Values.cache.password.key | default "REDIS_PASSWORD" }}
+          {{- end }}
+          {{- with .Values.exporter.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            {{- include "pleme-lib.containerSecurityContext" . | nindent 12 }}
+        {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "pleme-lib.fullname" . }}-config
+        {{- if .Values.cache.password.enabled }}
+        - name: runtime-config
+          emptyDir: {}
+        - name: credentials
+          secret:
+            secretName: {{ .Values.cache.password.secretName }}
+        {{- end }}
+        {{- with .Values.volumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds | default 30 }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  {{- if .Values.cache.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        annotations:
+          {{- include "pleme-lib.fluxcdPruneDisabled" . | nindent 10 }}
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        {{- with .Values.cache.persistence.storageClass }}
+        storageClassName: {{ . }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.cache.persistence.size | default "1Gi" }}
+  {{- end }}

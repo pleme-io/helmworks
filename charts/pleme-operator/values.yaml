@@ -130,3 +130,14 @@ lifecycle:
   preStop:
     exec:
       command: ["/bin/sh", "-c", "sleep 15"]
+
+configMaps: []
+downwardApi:
+  enabled: false
+istio:
+  enabled: false
+podMonitor:
+  enabled: false
+prometheusRules:
+  enabled: false
+  groups: []

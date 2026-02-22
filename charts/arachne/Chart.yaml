@@ -1,0 +1,11 @@
+apiVersion: v2
+name: arachne
+description: Classifieds scraper with headless Chrome sidecar — browser automation, photo pipeline
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+
+dependencies:
+  - name: pleme-lib
+    version: "0.3.0"
+    repository: "file://../pleme-lib"

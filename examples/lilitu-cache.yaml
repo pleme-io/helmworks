@@ -1,0 +1,59 @@
+# Example values for lilitu Valkey/Redis cache
+fullnameOverride: lilitu-cache
+
+image:
+  repository: valkey/valkey
+  tag: "8-alpine"
+
+cache:
+  port: 6379
+  maxmemory: "512mb"
+  maxmemoryPolicy: allkeys-lru
+  password:
+    enabled: true
+    secretName: lilitu-cache-credentials
+    key: REDIS_PASSWORD
+  persistence:
+    enabled: true
+    size: 2Gi
+    appendfsync: everysec
+
+exporter:
+  enabled: true
+  image:
+    repository: oliver006/redis_exporter
+    tag: latest
+  port: 9121
+  resources:
+    requests:
+      cpu: 10m
+      memory: 16Mi
+    limits:
+      cpu: 50m
+      memory: 32Mi
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 768Mi
+
+monitoring:
+  enabled: true
+  port: metrics
+  path: /metrics
+
+networkPolicy:
+  enabled: true
+  additionalIngress:
+    - name: allow-backend
+      rules:
+        - from:
+            - namespaceSelector:
+                matchLabels:
+                  kubernetes.io/metadata.name: lilitu-staging
+          ports:
+            - port: 6379
+              protocol: TCP

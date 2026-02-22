@@ -1,0 +1,35 @@
+suite: pleme-namespace priorityclasses tests
+templates:
+  - templates/priorityclasses.yaml
+values:
+  - ../../examples/lilitu-namespace.yaml
+tests:
+  - it: should render 4 PriorityClasses
+    asserts:
+      - hasDocuments:
+          count: 4
+
+  - it: should set critical priority
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: PriorityClass
+      - equal:
+          path: metadata.name
+          value: lilitu-critical
+      - equal:
+          path: value
+          value: 10000000
+
+  - it: should set batch as non-preempting
+    documentIndex: 3
+    asserts:
+      - equal:
+          path: metadata.name
+          value: lilitu-batch
+      - equal:
+          path: preemptionPolicy
+          value: Never
+      - equal:
+          path: value
+          value: 100000

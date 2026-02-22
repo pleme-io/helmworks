@@ -5,7 +5,7 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
     flake-parts.url = "github:hercules-ci/flake-parts";
     substrate = {
-      url = "github:pleme-io/substrate/e87ecdef693920568ed7a19f7ddcc9641454b51a";
+      url = "github:pleme-io/substrate/9a55d1c20e69d682be315953c2355967e7e0ece6";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
@@ -29,6 +29,15 @@
             { name = "pleme-cronjob"; chartDir = ./charts/pleme-cronjob; }
             { name = "pleme-migration"; chartDir = ./charts/pleme-migration; }
             { name = "pleme-operator"; chartDir = ./charts/pleme-operator; }
+            { name = "pleme-namespace"; chartDir = ./charts/pleme-namespace; }
+            { name = "pleme-statefulset"; chartDir = ./charts/pleme-statefulset; }
+            { name = "pleme-database"; chartDir = ./charts/pleme-database; }
+            { name = "pleme-cache"; chartDir = ./charts/pleme-cache; }
+            { name = "pleme-bootstrap"; chartDir = ./charts/pleme-bootstrap; }
+            { name = "hanabi"; chartDir = ./charts/hanabi; }
+            { name = "shinka"; chartDir = ./charts/shinka; }
+            { name = "kenshi"; chartDir = ./charts/kenshi; }
+            { name = "arachne"; chartDir = ./charts/arachne; }
           ];
 
           # Use substrate's mkHelmAllApps for all chart lifecycle apps

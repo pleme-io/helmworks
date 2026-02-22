@@ -91,3 +91,29 @@ Image string
 {{- define "pleme-lib.image" -}}
 {{- printf "%s:%s" .Values.image.repository (.Values.image.tag | default "latest") }}
 {{- end }}
+
+{{/*
+Istio sidecar annotations for pod templates
+*/}}
+{{- define "pleme-lib.istioAnnotations" -}}
+{{- if .Values.istio.enabled }}
+sidecar.istio.io/inject: {{ .Values.istio.inject | default true | quote }}
+{{- with .Values.istio.excludeOutboundPorts }}
+traffic.sidecar.istio.io/excludeOutboundPorts: {{ . | quote }}
+{{- end }}
+{{- with .Values.istio.excludeInboundPorts }}
+traffic.sidecar.istio.io/excludeInboundPorts: {{ . | quote }}
+{{- end }}
+{{- if .Values.istio.holdApplicationUntilProxyStarts }}
+proxy.istio.io/config: '{"holdApplicationUntilProxyStarts": true}'
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{/*
+FluxCD prune disabled annotation — prevents FluxCD from deleting the resource
+Used for StatefulSet VCTs, database CRs, cache PVCs.
+*/}}
+{{- define "pleme-lib.fluxcdPruneDisabled" -}}
+kustomize.toolkit.fluxcd.io/prune: disabled
+{{- end }}

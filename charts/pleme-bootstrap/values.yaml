@@ -1,0 +1,100 @@
+# pleme-bootstrap default values
+# One-time setup Job (FluxCD-managed, no Helm hooks)
+
+image:
+  repository: ""
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# -- Bootstrap job configuration
+bootstrap:
+  # -- Max duration for job execution (seconds)
+  timeout: 300
+  # -- Number of retries before marking job as failed
+  backoffLimit: 3
+  # -- Auto-cleanup delay after completion (seconds)
+  ttlSecondsAfterFinished: 600
+  # -- Use host network (K3s CNI workaround)
+  hostNetwork: false
+  # -- Pod restart policy
+  restartPolicy: Never
+
+# -- Sequential init containers (run before main container)
+initContainers: []
+
+env: []
+envFrom: []
+volumeMounts: []
+volumes: []
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+priorityClassName: ""
+annotations: {}
+
+networkPolicy:
+  enabled: true
+  allowPrometheus: false
+  allowDns: true
+  additionalIngress: []
+  additionalEgress: []
+
+configMaps: []
+
+command: []
+args: []
+additionalLabels: {}
+
+# Required by pleme-lib helpers but unused by bootstrap chart
+ports: []
+service:
+  ports: []
+monitoring:
+  enabled: false
+  port: http
+  path: /metrics
+health:
+  path: /healthz
+  readyPath: /readyz
+  port: http
+startupProbe:
+  enabled: false
+downwardApi:
+  enabled: false
+istio:
+  enabled: false
+podMonitor:
+  enabled: false
+prometheusRules:
+  enabled: false

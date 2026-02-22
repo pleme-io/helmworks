@@ -1,0 +1,137 @@
+# Example values for NATS StatefulSet
+image:
+  repository: nats
+  tag: "2.10-alpine"
+
+replicaCount: 1
+
+ports:
+  - name: client
+    containerPort: 4222
+    protocol: TCP
+  - name: cluster
+    containerPort: 6222
+    protocol: TCP
+  - name: monitor
+    containerPort: 8222
+    protocol: TCP
+
+service:
+  enabled: true
+  type: ClusterIP
+  ports:
+    - name: client
+      port: 4222
+      targetPort: client
+      protocol: TCP
+    - name: monitor
+      port: 8222
+      targetPort: monitor
+      protocol: TCP
+
+health:
+  path: /healthz
+  readyPath: /healthz?js-enabled-only=true
+  port: monitor
+  livenessInitialDelay: 10
+  livenessPeriod: 30
+  livenessFailureThreshold: 3
+  readinessInitialDelay: 5
+  readinessPeriod: 10
+  readinessFailureThreshold: 3
+
+startupProbe:
+  enabled: true
+  path: /healthz
+  port: monitor
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  failureThreshold: 30
+
+args:
+  - --config=/config/nats.conf
+
+configMaps:
+  - name: nats-config
+    data:
+      nats.conf: |
+        listen: 0.0.0.0:4222
+        http: 0.0.0.0:8222
+
+        jetstream {
+          store_dir: /data/jetstream
+          max_mem: 256M
+          max_file: 5G
+        }
+
+        cluster {
+          listen: 0.0.0.0:6222
+        }
+
+volumeMounts:
+  - name: config
+    mountPath: /config
+  - name: jetstream-data
+    mountPath: /data
+
+volumes:
+  - name: config
+    configMap:
+      name: nats-config
+
+volumeClaimTemplates:
+  - name: jetstream-data
+    storage: 5Gi
+    storageClassName: local-path
+
+sidecars:
+  - name: metrics
+    image: natsio/prometheus-nats-exporter:latest
+    args:
+      - -varz
+      - -jsz=all
+      - http://localhost:8222
+    ports:
+      - name: metrics
+        containerPort: 7777
+        protocol: TCP
+    resources:
+      requests:
+        cpu: 10m
+        memory: 16Mi
+      limits:
+        cpu: 50m
+        memory: 32Mi
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop:
+          - ALL
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+monitoring:
+  enabled: true
+  port: metrics
+  path: /metrics
+  interval: 30s
+
+networkPolicy:
+  enabled: true
+  additionalIngress:
+    - name: allow-client
+      rules:
+        - from:
+            - namespaceSelector:
+                matchLabels:
+                  kubernetes.io/metadata.name: lilitu-staging
+          ports:
+            - port: 4222
+              protocol: TCP

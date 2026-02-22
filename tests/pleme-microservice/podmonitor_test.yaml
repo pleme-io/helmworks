@@ -1,0 +1,27 @@
+suite: pleme-microservice podmonitor tests
+templates:
+  - templates/podmonitor.yaml
+tests:
+  - it: should not render when podMonitor is disabled
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render a PodMonitor when enabled
+    set:
+      podMonitor:
+        enabled: true
+        port: metrics
+        path: /metrics
+        interval: 15s
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: PodMonitor
+      - equal:
+          path: spec.podMetricsEndpoints[0].port
+          value: metrics
+      - equal:
+          path: spec.podMetricsEndpoints[0].interval
+          value: 15s

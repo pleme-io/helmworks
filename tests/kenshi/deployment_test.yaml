@@ -1,0 +1,49 @@
+suite: kenshi deployment tests
+templates:
+  - templates/deployment.yaml
+values:
+  - ../../examples/kenshi.yaml
+tests:
+  - it: should render a Deployment
+    asserts:
+      - isKind:
+          of: Deployment
+
+  - it: should use the correct image
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "ghcr.io/pleme-io/kenshi:latest"
+
+  - it: should use Recreate strategy
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+
+  - it: should pass operator arg
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].args
+          value: ["operator"]
+
+  - it: should set preStop lifecycle hook
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].lifecycle.preStop.exec.command
+          value: ["/bin/sh", "-c", "sleep 15"]
+
+  - it: should set pod security context
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+
+  - it: should mount config volume
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: config
+            mountPath: /etc/kenshi
+            readOnly: true

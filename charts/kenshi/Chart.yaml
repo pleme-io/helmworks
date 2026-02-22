@@ -1,0 +1,11 @@
+apiVersion: v2
+name: kenshi
+description: GitOps-native CI/CD operator — build pipelines, test gates, ephemeral environments
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+
+dependencies:
+  - name: pleme-lib
+    version: "0.3.0"
+    repository: "file://../pleme-lib"

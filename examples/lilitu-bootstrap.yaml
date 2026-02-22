@@ -1,0 +1,61 @@
+# Example values for lilitu bootstrap job
+image:
+  repository: ghcr.io/pleme-io/lilitu-backend
+  tag: latest
+
+bootstrap:
+  timeout: 300
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 600
+  hostNetwork: false
+
+env:
+  - name: RUN_MODE
+    value: "bootstrap"
+  - name: RUST_LOG
+    value: "info"
+  - name: DATABASE_URL
+    valueFrom:
+      secretKeyRef:
+        name: lilitu-postgres-credentials
+        key: DATABASE_URL
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+configMaps:
+  - name: bootstrap-config
+    data:
+      bootstrap.toml: |
+        [admin]
+        email = "admin@lilitu.io"
+
+        [defaults]
+        locale = "en-US"
+
+volumeMounts:
+  - name: config
+    mountPath: /config
+
+volumes:
+  - name: config
+    configMap:
+      name: bootstrap-config
+
+networkPolicy:
+  enabled: true
+  additionalEgress:
+    - name: allow-postgres
+      rules:
+        - to:
+            - namespaceSelector:
+                matchLabels:
+                  kubernetes.io/metadata.name: lilitu-staging
+          ports:
+            - port: 5432
+              protocol: TCP

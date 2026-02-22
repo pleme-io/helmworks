@@ -1,0 +1,40 @@
+suite: pleme-microservice configmap tests
+templates:
+  - templates/configmap.yaml
+tests:
+  - it: should not render when configMaps is empty
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render a ConfigMap when configMaps is set
+    set:
+      configMaps:
+        - name: test-config
+          data:
+            key1: value1
+            key2: value2
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: test-config
+      - equal:
+          path: data.key1
+          value: value1
+
+  - it: should render multiple ConfigMaps
+    set:
+      configMaps:
+        - name: config-one
+          data:
+            a: "1"
+        - name: config-two
+          data:
+            b: "2"
+    asserts:
+      - hasDocuments:
+          count: 2

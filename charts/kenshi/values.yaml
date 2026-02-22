@@ -1,0 +1,221 @@
+# kenshi default values
+# GitOps-native CI/CD operator — build pipelines, test gates, ephemeral environments
+
+image:
+  repository: ghcr.io/pleme-io/kenshi
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+replicaCount: 1
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# Builder service account (minimal permissions for build pods)
+builderServiceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+# RBAC for operator (cross-namespace CRD + resource management)
+rbac:
+  create: true
+  rules:
+    # Kenshi CRDs
+    - apiGroups: ["kenshi.pleme.io"]
+      resources: ["testgates", "testgates/status", "buildpipelines", "buildpipelines/status",
+                   "testenvironments", "testenvironments/status", "builderpools", "builderpools/status",
+                   "pipelineconfigs", "pipelineconfigs/status", "scheduledbuilds", "scheduledbuilds/status",
+                   "driftwatchers", "driftwatchers/status", "deploymentpipelines", "deploymentpipelines/status",
+                   "promotions", "promotions/status", "productregistries"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    # Kubernetes workloads
+    - apiGroups: ["apps"]
+      resources: ["deployments", "statefulsets"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    # Flux image automation
+    - apiGroups: ["image.toolkit.fluxcd.io"]
+      resources: ["imagepolicies", "imagepolicies/status"]
+      verbs: ["get", "list", "watch"]
+    # Jobs (build + test execution)
+    - apiGroups: ["batch"]
+      resources: ["jobs"]
+      verbs: ["get", "list", "watch", "create", "delete"]
+    # PVCs (build workspaces)
+    - apiGroups: [""]
+      resources: ["persistentvolumeclaims"]
+      verbs: ["get", "list", "watch", "create", "delete"]
+    # Pods (builder/test management)
+    - apiGroups: [""]
+      resources: ["pods", "pods/log"]
+      verbs: ["get", "list", "watch", "create", "delete"]
+    # Config and secrets
+    - apiGroups: [""]
+      resources: ["configmaps", "secrets"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    # Services
+    - apiGroups: [""]
+      resources: ["services"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    # Ephemeral namespaces
+    - apiGroups: [""]
+      resources: ["namespaces"]
+      verbs: ["get", "list", "watch", "create", "delete"]
+    # CNPG (ephemeral databases)
+    - apiGroups: ["postgresql.cnpg.io"]
+      resources: ["clusters", "clusters/status"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    # Shinka (ephemeral migrations)
+    - apiGroups: ["shinka.pleme.io"]
+      resources: ["databasemigrations"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    # Network policies (ephemeral environments)
+    - apiGroups: ["networking.k8s.io"]
+      resources: ["networkpolicies"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    # Events
+    - apiGroups: [""]
+      resources: ["events"]
+      verbs: ["create", "patch"]
+    - apiGroups: ["events.k8s.io"]
+      resources: ["events"]
+      verbs: ["create", "patch"]
+  # Builder-specific RBAC (minimal)
+  builderRules:
+    - apiGroups: [""]
+      resources: ["pods/log"]
+      verbs: ["get"]
+    - apiGroups: [""]
+      resources: ["configmaps"]
+      verbs: ["get", "list"]
+
+args: ["operator"]
+
+ports:
+  - name: http
+    containerPort: 8080
+    protocol: TCP
+
+service:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+
+env:
+  - name: RUST_LOG
+    value: "info,kenshi=debug"
+  - name: LOG_FORMAT
+    value: "json"
+  - name: KENSHI_API_PORT
+    value: "8080"
+  - name: KENSHI_CONFIG
+    value: "/etc/kenshi/config.yaml"
+
+envFrom: []
+
+volumeMounts:
+  - name: config
+    mountPath: /etc/kenshi
+    readOnly: true
+
+volumes:
+  - name: config
+    configMap:
+      name: kenshi-config
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+health:
+  path: /healthz
+  readyPath: /readyz
+  port: http
+  livenessInitialDelay: 5
+  livenessPeriod: 10
+  livenessFailureThreshold: 3
+  readinessInitialDelay: 5
+  readinessPeriod: 5
+  readinessFailureThreshold: 2
+
+startupProbe:
+  enabled: false
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+# Singleton operator — Recreate to prevent dual reconciliation
+strategy:
+  type: Recreate
+
+terminationGracePeriodSeconds: 30
+
+lifecycle:
+  preStop:
+    exec:
+      command: ["/bin/sh", "-c", "sleep 15"]
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+monitoring:
+  enabled: true
+  port: http
+  path: /metrics
+  interval: 30s
+  scrapeTimeout: 10s
+
+networkPolicy:
+  enabled: true
+  allowPrometheus: true
+  allowDns: true
+  additionalIngress: []
+  additionalEgress: []
+
+configMaps: []
+
+prometheusRules:
+  enabled: false
+  groups: []
+
+command: []
+additionalLabels: {}
+sidecars: []
+initContainers: []
+priorityClassName: ""
+
+downwardApi:
+  enabled: false
+istio:
+  enabled: false
+podMonitor:
+  enabled: false
+autoscaling:
+  enabled: false
+pdb:
+  enabled: false
+topologySpreadConstraints: []

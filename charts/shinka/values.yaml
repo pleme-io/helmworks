@@ -1,0 +1,185 @@
+# shinka default values
+# GitOps-native database migration operator
+
+image:
+  repository: ghcr.io/pleme-io/shinka
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+replicaCount: 1
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# RBAC for cross-namespace migration management
+rbac:
+  create: true
+  rules:
+    - apiGroups: ["shinka.pleme.io"]
+      resources: ["databasemigrations", "databasemigrations/status"]
+      verbs: ["get", "list", "watch", "patch", "update"]
+    - apiGroups: ["apps"]
+      resources: ["deployments"]
+      verbs: ["get", "list", "watch"]
+    - apiGroups: ["postgresql.cnpg.io"]
+      resources: ["clusters", "clusters/status"]
+      verbs: ["get", "list", "watch"]
+    - apiGroups: ["batch"]
+      resources: ["jobs"]
+      verbs: ["get", "list", "watch", "create", "delete"]
+    - apiGroups: [""]
+      resources: ["configmaps", "secrets"]
+      verbs: ["get", "list"]
+    - apiGroups: [""]
+      resources: ["events"]
+      verbs: ["create", "patch"]
+
+ports:
+  - name: health
+    containerPort: 8080
+    protocol: TCP
+
+service:
+  type: ClusterIP
+  ports:
+    - name: health
+      port: 8080
+      targetPort: health
+      protocol: TCP
+
+env:
+  - name: RUST_LOG
+    value: "info,shinka=debug"
+  - name: LOG_FORMAT
+    value: "json"
+  - name: HEALTH_ADDR
+    value: "0.0.0.0:8080"
+  - name: DEFAULT_MIGRATION_TIMEOUT
+    value: "300"
+  - name: DEFAULT_MAX_RETRIES
+    value: "3"
+  - name: SHINKA_CONFIG
+    value: "/etc/shinka/config.yaml"
+
+envFrom: []
+
+volumeMounts:
+  - name: config
+    mountPath: /etc/shinka
+    readOnly: true
+
+volumes:
+  - name: config
+    configMap:
+      name: shinka-config
+      optional: true
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+health:
+  path: /healthz
+  readyPath: /readyz
+  port: health
+  livenessInitialDelay: 5
+  livenessPeriod: 10
+  livenessFailureThreshold: 3
+  readinessInitialDelay: 5
+  readinessPeriod: 5
+  readinessFailureThreshold: 2
+
+startupProbe:
+  enabled: false
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+# Singleton operator — Recreate to prevent dual reconciliation
+strategy:
+  type: Recreate
+
+terminationGracePeriodSeconds: 30
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+monitoring:
+  enabled: true
+  port: health
+  path: /metrics
+  interval: 30s
+  scrapeTimeout: 10s
+
+networkPolicy:
+  enabled: true
+  allowPrometheus: true
+  allowDns: true
+  additionalIngress: []
+  additionalEgress: []
+
+# Operator config (rendered as ConfigMap by overlay or separately)
+configMaps: []
+
+prometheusRules:
+  enabled: false
+  groups: []
+  # Example alert groups — enable and customize per cluster:
+  # groups:
+  #   - name: shinka-alerts
+  #     rules:
+  #       - alert: ShinkaOperatorDown
+  #         expr: up{job="shinka"} == 0
+  #         for: 2m
+  #         labels:
+  #           severity: critical
+  #       - alert: ShinkaMigrationFailed
+  #         expr: increase(shinka_migrations_total{status="failed"}[5m]) > 0
+  #         labels:
+  #           severity: critical
+  #       - alert: ShinkaMigrationSlow
+  #         expr: histogram_quantile(0.99, rate(shinka_migration_duration_seconds_bucket[10m])) > 300
+  #         for: 5m
+  #         labels:
+  #           severity: warning
+
+command: []
+args: []
+additionalLabels: {}
+sidecars: []
+initContainers: []
+priorityClassName: ""
+lifecycle: {}
+
+downwardApi:
+  enabled: false
+istio:
+  enabled: false
+podMonitor:
+  enabled: false
+autoscaling:
+  enabled: false
+pdb:
+  enabled: false
+topologySpreadConstraints: []

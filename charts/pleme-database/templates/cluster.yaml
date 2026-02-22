@@ -1,0 +1,80 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+  annotations:
+    {{- include "pleme-lib.fluxcdPruneDisabled" . | nindent 4 }}
+    sidecar.istio.io/inject: "false"
+    {{- with .Values.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  instances: {{ .Values.instances | default 1 }}
+  imageName: {{ .Values.imageName | default "ghcr.io/cloudnative-pg/postgresql:16" }}
+
+  bootstrap:
+    initdb:
+      database: {{ .Values.database.name }}
+      owner: {{ .Values.database.owner }}
+      {{- with .Values.database.secret }}
+      secret:
+        name: {{ . }}
+      {{- end }}
+      {{- with .Values.database.postInitSQL }}
+      postInitSQL:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.database.postInitApplicationSQL }}
+      postInitApplicationSQL:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+  storage:
+    size: {{ .Values.storage.size | default "10Gi" }}
+    {{- with .Values.storage.storageClass }}
+    storageClass: {{ . }}
+    {{- end }}
+    {{- if .Values.storage.resizeInUseVolumes }}
+    resizeInUseVolumes: {{ .Values.storage.resizeInUseVolumes }}
+    {{- end }}
+
+  {{- with .Values.postgresql }}
+  postgresql:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+
+  {{- if .Values.monitoring.enablePodMonitor }}
+  monitoring:
+    enablePodMonitor: true
+  {{- end }}
+
+  {{- with .Values.resources }}
+  resources:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+
+  {{- with .Values.affinity }}
+  affinity:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+
+  {{- with .Values.nodeMaintenanceWindow }}
+  nodeMaintenanceWindow:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+
+  {{- with .Values.backup }}
+  backup:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+
+  primaryUpdateStrategy: {{ .Values.primaryUpdateStrategy | default "unsupervised" }}
+  {{- with .Values.maxSyncReplicas }}
+  maxSyncReplicas: {{ . }}
+  {{- end }}
+  {{- with .Values.minSyncReplicas }}
+  minSyncReplicas: {{ . }}
+  {{- end }}

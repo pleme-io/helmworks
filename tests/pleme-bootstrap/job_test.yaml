@@ -1,0 +1,48 @@
+suite: pleme-bootstrap job tests
+templates:
+  - templates/job.yaml
+values:
+  - ../../examples/lilitu-bootstrap.yaml
+tests:
+  - it: should render a Job
+    asserts:
+      - isKind:
+          of: Job
+
+  - it: should use the correct image
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "ghcr.io/pleme-io/lilitu-backend:latest"
+
+  - it: should disable Istio injection
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["sidecar.istio.io/inject"]
+          value: "false"
+
+  - it: should set ttlSecondsAfterFinished
+    asserts:
+      - equal:
+          path: spec.ttlSecondsAfterFinished
+          value: 600
+
+  - it: should set security context
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+
+  - it: should set restart policy to Never
+    asserts:
+      - equal:
+          path: spec.template.spec.restartPolicy
+          value: Never
+
+  - it: should not have Helm hook annotations
+    asserts:
+      - isNull:
+          path: metadata.annotations["helm.sh/hook"]

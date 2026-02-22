@@ -1,0 +1,87 @@
+# Example values for arachne (classifieds scraper with Chrome sidecar)
+image:
+  repository: ghcr.io/pleme-io/arachne
+  tag: latest
+
+ports:
+  - name: http
+    containerPort: 8080
+    protocol: TCP
+
+service:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+
+env:
+  - name: RUST_LOG
+    value: "info,arachne=debug"
+  - name: LOG_FORMAT
+    value: "json"
+  - name: SCRAPE_CONCURRENCY
+    value: "4"
+  - name: SCRAPE_INTERVAL
+    value: "300"
+
+envFrom:
+  - secretRef:
+      name: arachne-secrets
+
+chrome:
+  enabled: true
+  shmSize: "512Mi"
+  args:
+    - "--no-sandbox"
+    - "--disable-gpu"
+    - "--disable-dev-shm-usage"
+    - "--remote-debugging-address=0.0.0.0"
+    - "--remote-debugging-port=9222"
+    - "--headless"
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
+
+health:
+  path: /healthz
+  readyPath: /readyz
+  port: http
+
+monitoring:
+  enabled: true
+  port: http
+  path: /metrics
+
+networkPolicy:
+  enabled: true
+  allowPrometheus: true
+  allowDns: true
+  additionalEgress:
+    - name: allow-external-sites
+      rules:
+        - to:
+            - ipBlock:
+                cidr: 0.0.0.0/0
+                except:
+                  - 10.0.0.0/8
+                  - 172.16.0.0/12
+                  - 192.168.0.0/16
+          ports:
+            - port: 443
+              protocol: TCP
+    - name: allow-postgres
+      rules:
+        - to:
+            - namespaceSelector:
+                matchLabels:
+                  kubernetes.io/metadata.name: lilitu-staging
+          ports:
+            - port: 5432
+              protocol: TCP

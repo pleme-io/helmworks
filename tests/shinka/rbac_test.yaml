@@ -1,0 +1,35 @@
+suite: shinka RBAC tests
+templates:
+  - templates/rbac.yaml
+values:
+  - ../../examples/shinka.yaml
+tests:
+  - it: should render a ClusterRole
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: ClusterRole
+
+  - it: should render a ClusterRoleBinding
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: ClusterRoleBinding
+
+  - it: should have shinka CRD rules
+    documentIndex: 0
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups: ["shinka.pleme.io"]
+            resources: ["databasemigrations"]
+            verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+  - it: should not render RBAC when disabled
+    set:
+      rbac:
+        create: false
+    asserts:
+      - hasDocuments:
+          count: 0

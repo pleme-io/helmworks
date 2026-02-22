@@ -1,0 +1,32 @@
+suite: pleme-microservice prometheusrule tests
+templates:
+  - templates/prometheusrule.yaml
+tests:
+  - it: should not render when prometheusRules is disabled
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render a PrometheusRule when enabled
+    set:
+      prometheusRules:
+        enabled: true
+        groups:
+          - name: test-rules
+            rules:
+              - alert: HighErrorRate
+                expr: rate(http_errors_total[5m]) > 0.5
+                for: 5m
+                labels:
+                  severity: warning
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: PrometheusRule
+      - equal:
+          path: metadata.labels.prometheus
+          value: main
+      - equal:
+          path: spec.groups[0].name
+          value: test-rules

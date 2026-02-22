@@ -7,6 +7,9 @@ ports:
   - name: http
     containerPort: 8080
     protocol: TCP
+  - name: metrics
+    containerPort: 9090
+    protocol: TCP
 
 service:
   type: ClusterIP
@@ -15,10 +18,73 @@ service:
       port: 8080
       targetPort: http
       protocol: TCP
+    - name: metrics
+      port: 9090
+      targetPort: metrics
+      protocol: TCP
 
 envFrom:
   - secretRef:
       name: lilitu-backend-secrets
+
+downwardApi:
+  enabled: true
+
+istio:
+  enabled: true
+  inject: true
+  holdApplicationUntilProxyStarts: true
+  excludeOutboundPorts: "9000"
+
+# Shinka database migration CRD
+shinkaMigration:
+  enabled: true
+  database:
+    cnpgClusterRef:
+      name: lilitu-postgres
+      database: lilitu
+  migrator:
+    name: sqlx-and-seaorm
+    type: sqlx
+    deploymentRef:
+      name: lilitu-backend
+    command:
+      - /bin/backend
+    env:
+      RUN_MODE: migrate
+    envFrom:
+      - secretRef:
+          name: lilitu-postgres-connection
+      - secretRef:
+          name: lilitu-backend-secrets
+    resources:
+      memoryLimit: "512Mi"
+      cpuLimit: "500m"
+      memoryRequest: "128Mi"
+      cpuRequest: "100m"
+    serviceAccountName: lilitu-backend
+  safety:
+    requireHealthyCluster: true
+    maxRetries: 3
+    checksumMode: auto-reconcile
+    continueOnFailure: false
+  timeouts:
+    migration: "5m"
+
+# Wait for migrations before starting app
+shinkaWait:
+  enabled: true
+  migrationName: lilitu-backend
+  timeoutSeconds: 300
+  retryIntervalSeconds: 5
+
+configMaps:
+  - name: lilitu-backend-config
+    data:
+      config.toml: |
+        [server]
+        host = "0.0.0.0"
+        port = 8080
 
 env:
   - name: RUST_LOG

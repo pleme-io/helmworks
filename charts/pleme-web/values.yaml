@@ -124,3 +124,14 @@ command: []
 args: []
 additionalLabels: {}
 lifecycle: {}
+
+configMaps: []
+downwardApi:
+  enabled: false
+istio:
+  enabled: false
+podMonitor:
+  enabled: false
+prometheusRules:
+  enabled: false
+  groups: []

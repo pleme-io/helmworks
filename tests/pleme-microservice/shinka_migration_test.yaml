@@ -1,0 +1,76 @@
+suite: pleme-microservice shinka migration tests
+templates:
+  - templates/shinka-migration.yaml
+tests:
+  - it: should not render DatabaseMigration when disabled
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render DatabaseMigration when enabled
+    set:
+      shinkaMigration:
+        enabled: true
+        database:
+          cnpgClusterRef:
+            name: lilitu-postgres
+            database: lilitu
+        migrator:
+          name: sqlx-and-seaorm
+          type: sqlx
+          deploymentRef:
+            name: lilitu-backend
+          command:
+            - /bin/backend
+          env:
+            RUN_MODE: migrate
+          envFrom:
+            - secretRef:
+                name: lilitu-postgres-connection
+            - secretRef:
+                name: lilitu-backend-secrets
+          resources:
+            memoryLimit: "512Mi"
+            cpuLimit: "500m"
+            memoryRequest: "128Mi"
+            cpuRequest: "100m"
+          serviceAccountName: lilitu-backend
+        safety:
+          requireHealthyCluster: true
+          maxRetries: 3
+          checksumMode: auto-reconcile
+          continueOnFailure: false
+        timeouts:
+          migration: "5m"
+    asserts:
+      - isKind:
+          of: DatabaseMigration
+      - isAPIVersion:
+          of: shinka.pleme.io/v1alpha1
+      - equal:
+          path: spec.database.cnpgClusterRef.name
+          value: lilitu-postgres
+      - equal:
+          path: spec.database.cnpgClusterRef.database
+          value: lilitu
+      - equal:
+          path: spec.migrator.name
+          value: sqlx-and-seaorm
+      - equal:
+          path: spec.migrator.type
+          value: sqlx
+      - equal:
+          path: spec.migrator.command[0]
+          value: /bin/backend
+      - equal:
+          path: spec.migrator.env.RUN_MODE
+          value: migrate
+      - equal:
+          path: spec.safety.requireHealthyCluster
+          value: true
+      - equal:
+          path: spec.safety.maxRetries
+          value: 3
+      - equal:
+          path: spec.timeouts.migration
+          value: "5m"

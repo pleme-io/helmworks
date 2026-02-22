@@ -80,6 +80,8 @@ command: []
 args: []
 additionalLabels: {}
 
+configMaps: []
+
 # Unused by cronjob but required by pleme-lib helpers
 ports: []
 service:

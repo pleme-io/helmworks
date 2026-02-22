@@ -143,6 +143,54 @@ priorityClassName: ""
 # -- Init containers
 initContainers: []
 
+# -- Sidecar containers
+sidecars: []
+
+# -- Shinka DatabaseMigration CRD (renders shinka.pleme.io/v1alpha1 DatabaseMigration)
+shinkaMigration:
+  enabled: false
+  database:
+    cnpgClusterRef:
+      name: ""
+      database: ""
+  migrator:
+    name: ""
+    type: sqlx
+    deploymentRef:
+      name: ""
+    command: []
+    env: {}
+    envFrom: []
+    resources:
+      memoryLimit: "512Mi"
+      cpuLimit: "500m"
+      memoryRequest: "128Mi"
+      cpuRequest: "100m"
+    serviceAccountName: ""
+  safety:
+    requireHealthyCluster: true
+    maxRetries: 3
+    checksumMode: auto-reconcile
+    continueOnFailure: false
+  timeouts:
+    migration: "5m"
+
+# -- Shinka wait init container (polls for migration completion before app starts)
+shinkaWait:
+  enabled: false
+  image: ghcr.io/pleme-io/shinka:amd64-latest
+  migrationName: ""
+  timeoutSeconds: 300
+  retryIntervalSeconds: 5
+  logLevel: info
+  resources:
+    requests:
+      cpu: 10m
+      memory: 16Mi
+    limits:
+      cpu: 100m
+      memory: 32Mi
+
 # -- Monitoring configuration
 monitoring:
   # -- Enable ServiceMonitor creation
@@ -202,3 +250,109 @@ additionalLabels: {}
 
 # -- Lifecycle hooks
 lifecycle: {}
+
+# -- ConfigMaps to create
+# Each entry: name (optional, defaults to {fullname}-config), data, labels, annotations
+configMaps: []
+
+# -- Downward API environment variables (POD_NAME, POD_NAMESPACE, NODE_NAME)
+downwardApi:
+  enabled: false
+
+# -- Istio sidecar configuration
+istio:
+  # -- Enable Istio annotations and resources
+  enabled: false
+  # -- Inject sidecar proxy
+  inject: true
+  # -- Exclude outbound ports from proxy
+  excludeOutboundPorts: ""
+  # -- Exclude inbound ports from proxy
+  excludeInboundPorts: ""
+  # -- Hold app startup until proxy is ready
+  holdApplicationUntilProxyStarts: false
+  # -- PeerAuthentication resources (list)
+  # peerAuthentication:
+  #   - name: my-service
+  #     mtls: STRICT
+  # -- DestinationRule resources (list)
+  # destinationRules: []
+
+# -- PodMonitor configuration (for pods not behind a Service)
+podMonitor:
+  enabled: false
+  port: metrics
+  path: /metrics
+  interval: 30s
+  # -- Custom endpoints (overrides port/path/interval)
+  # endpoints: []
+  # -- Namespace selector
+  # namespaceSelector:
+  #   matchNames: []
+
+# -- PrometheusRule configuration
+prometheusRules:
+  enabled: false
+  # -- Alert/recording rule groups
+  groups: []
+
+# -- LimitRange configuration (governance)
+limitRange:
+  enabled: false
+  container:
+    default:
+      cpu: "1"
+      memory: 1Gi
+    defaultRequest:
+      cpu: 50m
+      memory: 64Mi
+    max:
+      cpu: "2"
+      memory: 2Gi
+    min:
+      cpu: 10m
+      memory: 16Mi
+  pod:
+    max:
+      cpu: "4"
+      memory: 4Gi
+  pvc:
+    max:
+      storage: 500Gi
+    min:
+      storage: 1Gi
+
+# -- ResourceQuota configuration (governance)
+resourceQuota:
+  enabled: false
+  hard:
+    requests.cpu: "16"
+    requests.memory: 24Gi
+    limits.cpu: "32"
+    limits.memory: 48Gi
+    pods: "20"
+    persistentvolumeclaims: "10"
+    services: "10"
+    configmaps: "20"
+    secrets: "20"
+
+# -- PriorityClass configuration (governance)
+priorityClasses:
+  # -- Prefix for priority class names
+  prefix: ""
+  # -- Priority class definitions
+  classes: []
+  # Default 4-tier example:
+  # - name: critical
+  #   value: 10000000
+  #   description: "Critical platform services"
+  # - name: data
+  #   value: 10500000
+  #   description: "Data services (databases, caches)"
+  # - name: background
+  #   value: 1000000
+  #   description: "Background workers"
+  # - name: batch
+  #   value: 100000
+  #   preemptionPolicy: Never
+  #   description: "Batch jobs (non-preempting)"

@@ -1,0 +1,43 @@
+suite: pleme-microservice istio tests
+templates:
+  - templates/istio.yaml
+tests:
+  - it: should not render when istio is disabled
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render PeerAuthentication when istio is enabled
+    set:
+      istio:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: PeerAuthentication
+        documentIndex: 0
+      - equal:
+          path: spec.mtls.mode
+          value: STRICT
+        documentIndex: 0
+
+  - it: should render DestinationRule when configured
+    set:
+      istio:
+        enabled: true
+        destinationRules:
+          - name: test-dr
+            host: test-service.default.svc.cluster.local
+            trafficPolicy:
+              connectionPool:
+                tcp:
+                  maxConnections: 100
+    asserts:
+      - isKind:
+          of: DestinationRule
+        documentIndex: 1
+      - equal:
+          path: spec.host
+          value: test-service.default.svc.cluster.local
+        documentIndex: 1

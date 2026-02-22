@@ -29,6 +29,7 @@ spec:
         {{- include "pleme-lib.selectorLabels" . | nindent 8 }}
       annotations:
         {{- include "pleme-lib.prometheusAnnotations" . | nindent 8 }}
+        {{- include "pleme-lib.istioAnnotations" . | nindent 8 }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -40,9 +41,12 @@ spec:
       {{- end }}
       securityContext:
         {{- include "pleme-lib.podSecurityContext" . | nindent 8 }}
-      {{- with .Values.initContainers }}
+      {{- if or (.Values.shinkaWait).enabled (gt (len (.Values.initContainers | default list)) 0) }}
       initContainers:
+        {{- include "pleme-lib.shinkaWaitInitContainer" . | nindent 8 }}
+        {{- with .Values.initContainers }}
         {{- toYaml . | nindent 8 }}
+        {{- end }}
       {{- end }}
       containers:
         - name: {{ include "pleme-lib.name" . }}
@@ -60,9 +64,25 @@ spec:
           ports:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- with .Values.env }}
+          {{- if or .Values.downwardApi.enabled (gt (len (.Values.env | default list)) 0) }}
           env:
+            {{- if .Values.downwardApi.enabled }}
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            {{- end }}
+            {{- with .Values.env }}
             {{- toYaml . | nindent 12 }}
+            {{- end }}
           {{- end }}
           {{- with .Values.envFrom }}
           envFrom:
@@ -90,6 +110,9 @@ spec:
           lifecycle:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+        {{- range .Values.sidecars }}
+        - {{- toYaml . | nindent 10 }}
+        {{- end }}
       {{- with .Values.volumes }}
       volumes:
         {{- toYaml . | nindent 8 }}

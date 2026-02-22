@@ -1,0 +1,53 @@
+{{- if .Values.rbac.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+rules:
+  {{- toYaml .Values.rbac.rules | nindent 2 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "pleme-lib.fullname" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "pleme-lib.serviceAccountName" . }}
+    namespace: {{ include "pleme-lib.namespace" . }}
+{{- if .Values.rbac.builderRules }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}-builder
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+    app.kubernetes.io/component: builder
+rules:
+  {{- toYaml .Values.rbac.builderRules | nindent 2 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}-builder
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+    app.kubernetes.io/component: builder
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "pleme-lib.fullname" . }}-builder
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.builderServiceAccount.name | default (printf "%s-builder" (include "pleme-lib.fullname" .)) }}
+    namespace: {{ include "pleme-lib.namespace" . }}
+{{- end }}
+{{- end }}

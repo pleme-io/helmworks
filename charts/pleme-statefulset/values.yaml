@@ -1,0 +1,135 @@
+# pleme-statefulset default values
+# StatefulSet with headless service, VCTs, sidecars
+
+image:
+  repository: ""
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+replicaCount: 1
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+ports:
+  - name: http
+    containerPort: 4222
+    protocol: TCP
+
+# Client-facing service (enabled by default)
+service:
+  enabled: true
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 4222
+      targetPort: http
+      protocol: TCP
+
+env: []
+envFrom: []
+volumeMounts: []
+volumes: []
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+health:
+  path: /healthz
+  readyPath: /readyz
+  port: http
+  livenessInitialDelay: 10
+  livenessPeriod: 10
+  livenessFailureThreshold: 3
+  readinessInitialDelay: 5
+  readinessPeriod: 5
+  readinessFailureThreshold: 2
+
+startupProbe:
+  enabled: false
+  path: /healthz
+  port: http
+  initialDelaySeconds: 0
+  periodSeconds: 5
+  failureThreshold: 30
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+# -- StatefulSet update strategy
+updateStrategy:
+  type: RollingUpdate
+
+# -- Pod management policy (OrderedReady or Parallel)
+# podManagementPolicy: OrderedReady
+
+terminationGracePeriodSeconds: 30
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+initContainers: []
+
+# -- Sidecar containers (e.g., metrics exporters)
+sidecars: []
+
+# -- Volume claim templates for persistent storage
+volumeClaimTemplates: []
+# Example:
+# - name: data
+#   storage: 5Gi
+#   storageClassName: local-path
+#   accessModes: ["ReadWriteOnce"]
+
+monitoring:
+  enabled: true
+  port: http
+  path: /metrics
+  interval: 30s
+  scrapeTimeout: 10s
+
+networkPolicy:
+  enabled: true
+  allowPrometheus: true
+  allowDns: true
+  additionalIngress: []
+  additionalEgress: []
+
+command: []
+args: []
+additionalLabels: {}
+lifecycle: {}
+
+configMaps: []
+downwardApi:
+  enabled: false
+istio:
+  enabled: false
+podMonitor:
+  enabled: false
+prometheusRules:
+  enabled: false

@@ -1,0 +1,57 @@
+# Example values for lilitu namespace governance
+fullnameOverride: lilitu
+
+limitRange:
+  enabled: true
+  container:
+    default:
+      cpu: "1"
+      memory: 1Gi
+    defaultRequest:
+      cpu: 50m
+      memory: 64Mi
+    max:
+      cpu: "2"
+      memory: 2Gi
+    min:
+      cpu: 10m
+      memory: 16Mi
+  pod:
+    max:
+      cpu: "4"
+      memory: 4Gi
+  pvc:
+    max:
+      storage: 500Gi
+    min:
+      storage: 1Gi
+
+resourceQuota:
+  enabled: true
+  hard:
+    requests.cpu: "16"
+    requests.memory: 24Gi
+    limits.cpu: "32"
+    limits.memory: 48Gi
+    pods: "20"
+    persistentvolumeclaims: "10"
+    services: "10"
+    configmaps: "20"
+    secrets: "20"
+
+priorityClasses:
+  prefix: lilitu
+  classes:
+    - name: critical
+      value: 10000000
+      description: "Critical platform services"
+    - name: data
+      value: 10500000
+      description: "Data services (databases, caches)"
+    - name: background
+      value: 1000000
+      description: "Background workers"
+    - name: batch
+      value: 100000
+      preemptionPolicy: Never
+      description: "Batch jobs (non-preempting)"

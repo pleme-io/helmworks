@@ -1,0 +1,51 @@
+suite: pleme-database cluster tests
+templates:
+  - templates/cluster.yaml
+values:
+  - ../../examples/lilitu-postgres.yaml
+tests:
+  - it: should render a CNPG Cluster
+    asserts:
+      - isKind:
+          of: Cluster
+      - isAPIVersion:
+          of: postgresql.cnpg.io/v1
+
+  - it: should have FluxCD prune disabled annotation
+    asserts:
+      - equal:
+          path: metadata.annotations["kustomize.toolkit.fluxcd.io/prune"]
+          value: disabled
+
+  - it: should disable Istio injection
+    asserts:
+      - equal:
+          path: metadata.annotations["sidecar.istio.io/inject"]
+          value: "false"
+
+  - it: should configure bootstrap database
+    asserts:
+      - equal:
+          path: spec.bootstrap.initdb.database
+          value: lilitu
+      - equal:
+          path: spec.bootstrap.initdb.owner
+          value: lilitu
+
+  - it: should set storage size
+    asserts:
+      - equal:
+          path: spec.storage.size
+          value: 20Gi
+
+  - it: should enable monitoring
+    asserts:
+      - equal:
+          path: spec.monitoring.enablePodMonitor
+          value: true
+
+  - it: should set instance count
+    asserts:
+      - equal:
+          path: spec.instances
+          value: 2

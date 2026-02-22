@@ -1,0 +1,40 @@
+suite: pleme-namespace limitrange tests
+templates:
+  - templates/limitrange.yaml
+values:
+  - ../../examples/lilitu-namespace.yaml
+tests:
+  - it: should render a LimitRange
+    asserts:
+      - isKind:
+          of: LimitRange
+
+  - it: should set container defaults
+    asserts:
+      - equal:
+          path: spec.limits[0].type
+          value: Container
+      - equal:
+          path: spec.limits[0].default.cpu
+          value: "1"
+      - equal:
+          path: spec.limits[0].default.memory
+          value: 1Gi
+
+  - it: should set pod max limits
+    asserts:
+      - equal:
+          path: spec.limits[1].type
+          value: Pod
+      - equal:
+          path: spec.limits[1].max.cpu
+          value: "4"
+
+  - it: should set PVC limits
+    asserts:
+      - equal:
+          path: spec.limits[2].type
+          value: PersistentVolumeClaim
+      - equal:
+          path: spec.limits[2].max.storage
+          value: 500Gi

@@ -1,0 +1,54 @@
+suite: pleme-microservice shinka wait init container tests
+templates:
+  - templates/deployment.yaml
+values:
+  - ../../examples/releases.yaml
+tests:
+  - it: should not render init containers when shinkaWait disabled
+    asserts:
+      - isNull:
+          path: spec.template.spec.initContainers
+
+  - it: should render shinka wait init container when enabled
+    set:
+      shinkaWait:
+        enabled: true
+        migrationName: lilitu-backend
+        timeoutSeconds: 300
+        retryIntervalSeconds: 5
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: wait-for-migrations
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: RUN_MODE
+            value: "wait"
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: MIGRATION_NAME
+            value: "lilitu-backend"
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: TIMEOUT_SECONDS
+            value: "300"
+
+  - it: should render shinka wait before user init containers
+    set:
+      shinkaWait:
+        enabled: true
+        migrationName: my-service
+      initContainers:
+        - name: custom-init
+          image: busybox
+          command: ["echo", "hello"]
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: wait-for-migrations
+      - equal:
+          path: spec.template.spec.initContainers[1].name
+          value: custom-init

@@ -1,0 +1,22 @@
+suite: pleme-namespace resourcequota tests
+templates:
+  - templates/resourcequota.yaml
+values:
+  - ../../examples/lilitu-namespace.yaml
+tests:
+  - it: should render a ResourceQuota
+    asserts:
+      - isKind:
+          of: ResourceQuota
+
+  - it: should set hard limits
+    asserts:
+      - equal:
+          path: spec.hard.pods
+          value: "20"
+      - equal:
+          path: spec.hard["requests.cpu"]
+          value: "16"
+      - equal:
+          path: spec.hard["requests.memory"]
+          value: 24Gi

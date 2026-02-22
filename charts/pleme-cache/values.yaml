@@ -1,0 +1,137 @@
+# pleme-cache default values
+# Valkey/Redis cache with auto-generated redis.conf, optional exporter sidecar
+
+image:
+  repository: valkey/valkey
+  tag: "8-alpine"
+  pullPolicy: Always
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+replicaCount: 1
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+service:
+  type: ClusterIP
+
+# -- Cache configuration
+cache:
+  # -- Redis/Valkey port
+  port: 6379
+  # -- Max memory allocation
+  maxmemory: "256mb"
+  # -- Eviction policy
+  maxmemoryPolicy: allkeys-lru
+  # -- Password configuration
+  password:
+    enabled: false
+    # -- Secret containing the password
+    secretName: ""
+    # -- Key in the secret
+    key: REDIS_PASSWORD
+  # -- Persistence (AOF) configuration
+  persistence:
+    enabled: false
+    # -- Storage size for AOF data
+    size: 1Gi
+    # -- fsync policy: always, everysec, no
+    appendfsync: everysec
+    # -- Storage class
+    # storageClass: local-path
+  # -- Extra redis.conf directives (raw string)
+  # extraConfig: ""
+
+# -- Redis exporter sidecar
+exporter:
+  enabled: false
+  image:
+    repository: oliver006/redis_exporter
+    tag: latest
+    pullPolicy: Always
+  port: 9121
+  resources:
+    requests:
+      cpu: 10m
+      memory: 16Mi
+    limits:
+      cpu: 50m
+      memory: 32Mi
+
+command:
+  - valkey-server
+
+env: []
+volumeMounts: []
+volumes: []
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+health:
+  livenessInitialDelay: 10
+  livenessPeriod: 10
+  livenessFailureThreshold: 3
+  readinessInitialDelay: 5
+  readinessPeriod: 5
+  readinessFailureThreshold: 2
+
+terminationGracePeriodSeconds: 30
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+priorityClassName: ""
+
+monitoring:
+  enabled: true
+  port: metrics
+  path: /metrics
+  interval: 30s
+  scrapeTimeout: 10s
+
+networkPolicy:
+  enabled: true
+  allowPrometheus: true
+  allowDns: true
+  additionalIngress: []
+  additionalEgress: []
+
+additionalLabels: {}
+args: []
+
+# Required by pleme-lib helpers
+ports: []
+startupProbe:
+  enabled: false
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 999
+  runAsGroup: 999
+  fsGroup: 999
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+configMaps: []
+downwardApi:
+  enabled: false
+istio:
+  enabled: false
+podMonitor:
+  enabled: false
+prometheusRules:
+  enabled: false

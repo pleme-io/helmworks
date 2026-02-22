@@ -1,0 +1,107 @@
+# pleme-database default values
+# CNPG PostgreSQL Cluster custom resource
+
+nameOverride: ""
+fullnameOverride: ""
+additionalLabels: {}
+
+# -- Number of PostgreSQL instances
+instances: 1
+
+# -- PostgreSQL image
+imageName: "ghcr.io/cloudnative-pg/postgresql:16"
+
+# -- Database bootstrap configuration
+database:
+  # -- Database name (required)
+  name: ""
+  # -- Database owner role (required)
+  owner: ""
+  # -- Secret containing superuser credentials
+  secret: ""
+  # -- SQL to run after database creation (e.g., CREATE EXTENSION)
+  postInitSQL: []
+  # -- Application-level SQL to run after init
+  postInitApplicationSQL: []
+
+# -- Storage configuration
+storage:
+  size: 10Gi
+  # storageClass: local-path
+  # resizeInUseVolumes: true
+
+# -- PostgreSQL configuration parameters and pg_hba
+# postgresql:
+#   parameters:
+#     max_connections: "100"
+#     shared_buffers: "256MB"
+#   pg_hba:
+#     - host all all 10.42.0.0/16 md5
+
+# -- Monitoring
+monitoring:
+  enablePodMonitor: true
+
+# -- Resource requests/limits for PostgreSQL pods
+resources:
+  requests:
+    cpu: 200m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: "1Gi"
+
+# -- Affinity rules
+# affinity: {}
+
+# -- Node maintenance window configuration
+# nodeMaintenanceWindow: {}
+
+# -- Backup configuration
+# backup: {}
+
+# -- Primary update strategy
+primaryUpdateStrategy: unsupervised
+
+# -- Additional annotations on the Cluster CR
+annotations: {}
+
+# Required by pleme-lib helpers but unused by database chart
+image:
+  repository: ""
+  tag: latest
+ports: []
+service:
+  ports: []
+health:
+  path: /healthz
+  readyPath: /readyz
+  port: http
+startupProbe:
+  enabled: false
+serviceAccount:
+  create: false
+  name: ""
+  annotations: {}
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+networkPolicy:
+  enabled: false
+configMaps: []
+downwardApi:
+  enabled: false
+istio:
+  enabled: false
+podMonitor:
+  enabled: false
+prometheusRules:
+  enabled: false
