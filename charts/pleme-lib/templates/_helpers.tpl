@@ -40,6 +40,7 @@ Common labels
 {{- define "pleme-lib.labels" -}}
 helm.sh/chart: {{ include "pleme-lib.chart" . }}
 {{ include "pleme-lib.selectorLabels" . }}
+app: {{ include "pleme-lib.fullname" . }}
 app.kubernetes.io/version: {{ .Values.image.tag | default .Chart.AppVersion | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 app.kubernetes.io/part-of: nexus-platform

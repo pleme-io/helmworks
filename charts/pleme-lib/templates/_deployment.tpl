@@ -27,6 +27,7 @@ spec:
     metadata:
       labels:
         {{- include "pleme-lib.selectorLabels" . | nindent 8 }}
+        app: {{ include "pleme-lib.fullname" . }}
       annotations:
         {{- include "pleme-lib.prometheusAnnotations" . | nindent 8 }}
         {{- include "pleme-lib.istioAnnotations" . | nindent 8 }}
