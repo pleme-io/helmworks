@@ -5,7 +5,7 @@ PrometheusRule with raw groups passthrough.
 */}}
 
 {{- define "pleme-lib.prometheusrule" -}}
-{{- if .Values.prometheusRules.enabled }}
+{{- if (.Values.prometheusRules).enabled }}
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
@@ -16,6 +16,6 @@ metadata:
     prometheus: main
 spec:
   groups:
-    {{- toYaml .Values.prometheusRules.groups | nindent 4 }}
+    {{- toYaml (.Values.prometheusRules).groups | nindent 4 }}
 {{- end }}
 {{- end }}

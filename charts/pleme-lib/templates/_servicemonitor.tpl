@@ -3,7 +3,7 @@ pleme-lib: servicemonitor named template
 */}}
 
 {{- define "pleme-lib.servicemonitor" -}}
-{{- if .Values.monitoring.enabled }}
+{{- if (.Values.monitoring).enabled }}
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
@@ -16,9 +16,9 @@ spec:
     matchLabels:
       {{- include "pleme-lib.selectorLabels" . | nindent 6 }}
   endpoints:
-    - port: {{ .Values.monitoring.port | default "http" }}
-      path: {{ .Values.monitoring.path | default "/metrics" }}
-      interval: {{ .Values.monitoring.interval | default "30s" }}
-      scrapeTimeout: {{ .Values.monitoring.scrapeTimeout | default "10s" }}
+    - port: {{ (.Values.monitoring).port | default "http" }}
+      path: {{ (.Values.monitoring).path | default "/metrics" }}
+      interval: {{ (.Values.monitoring).interval | default "30s" }}
+      scrapeTimeout: {{ (.Values.monitoring).scrapeTimeout | default "10s" }}
 {{- end }}
 {{- end }}

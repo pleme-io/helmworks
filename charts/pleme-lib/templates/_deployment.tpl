@@ -13,7 +13,7 @@ metadata:
   labels:
     {{- include "pleme-lib.labels" . | nindent 4 }}
 spec:
-  {{- if not .Values.autoscaling.enabled }}
+  {{- if not (.Values.autoscaling).enabled }}
   replicas: {{ .Values.replicaCount | default 1 }}
   {{- end }}
   selector:
@@ -65,9 +65,9 @@ spec:
           ports:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- if or .Values.downwardApi.enabled (gt (len (.Values.env | default list)) 0) }}
+          {{- if or (.Values.downwardApi).enabled (gt (len (.Values.env | default list)) 0) }}
           env:
-            {{- if .Values.downwardApi.enabled }}
+            {{- if (.Values.downwardApi).enabled }}
             - name: POD_NAME
               valueFrom:
                 fieldRef:
@@ -99,7 +99,7 @@ spec:
             {{- include "pleme-lib.livenessProbe" . | nindent 12 }}
           readinessProbe:
             {{- include "pleme-lib.readinessProbe" . | nindent 12 }}
-          {{- if .Values.startupProbe.enabled }}
+          {{- if (.Values.startupProbe).enabled }}
           startupProbe:
             {{- include "pleme-lib.startupProbe" . | nindent 12 }}
           {{- end }}

@@ -5,7 +5,7 @@ Namespace resource quotas for CPU, memory, pods, PVCs, services, configmaps, sec
 */}}
 
 {{- define "pleme-lib.resourcequota" -}}
-{{- if .Values.resourceQuota.enabled }}
+{{- if (.Values.resourceQuota).enabled }}
 apiVersion: v1
 kind: ResourceQuota
 metadata:
@@ -15,6 +15,6 @@ metadata:
     {{- include "pleme-lib.labels" . | nindent 4 }}
 spec:
   hard:
-    {{- toYaml .Values.resourceQuota.hard | nindent 4 }}
+    {{- toYaml (.Values.resourceQuota).hard | nindent 4 }}
 {{- end }}
 {{- end }}

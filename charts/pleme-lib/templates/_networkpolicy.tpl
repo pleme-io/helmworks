@@ -9,7 +9,7 @@ Follows the pattern from k8s repo governance network policies.
 Default deny-all NetworkPolicy
 */}}
 {{- define "pleme-lib.networkpolicy" -}}
-{{- if .Values.networkPolicy.enabled }}
+{{- if (.Values.networkPolicy).enabled }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -25,7 +25,7 @@ spec:
   policyTypes:
     - Ingress
     - Egress
-{{- if .Values.networkPolicy.allowDns }}
+{{- if (.Values.networkPolicy).allowDns }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -47,7 +47,7 @@ spec:
         - port: 53
           protocol: TCP
 {{- end }}
-{{- if .Values.networkPolicy.allowPrometheus }}
+{{- if (.Values.networkPolicy).allowPrometheus }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -68,10 +68,10 @@ spec:
             matchLabels:
               kubernetes.io/metadata.name: prometheus-operator
       ports:
-        - port: {{ .Values.monitoring.port | default "http" }}
+        - port: {{ (.Values.monitoring).port | default "http" }}
           protocol: TCP
 {{- end }}
-{{- range .Values.networkPolicy.additionalIngress }}
+{{- range (.Values.networkPolicy).additionalIngress }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -89,7 +89,7 @@ spec:
   ingress:
     {{- toYaml .rules | nindent 4 }}
 {{- end }}
-{{- range .Values.networkPolicy.additionalEgress }}
+{{- range (.Values.networkPolicy).additionalEgress }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

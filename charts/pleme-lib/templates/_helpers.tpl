@@ -61,10 +61,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 Service account name
 */}}
 {{- define "pleme-lib.serviceAccountName" -}}
-{{- if .Values.serviceAccount.create }}
-{{- default (include "pleme-lib.fullname" .) .Values.serviceAccount.name }}
+{{- if (.Values.serviceAccount).create }}
+{{- default (include "pleme-lib.fullname" .) (.Values.serviceAccount).name }}
 {{- else }}
-{{- default "default" .Values.serviceAccount.name }}
+{{- default "default" (.Values.serviceAccount).name }}
 {{- end }}
 {{- end }}
 
@@ -79,10 +79,10 @@ Namespace
 Prometheus scrape annotations
 */}}
 {{- define "pleme-lib.prometheusAnnotations" -}}
-{{- if .Values.monitoring.enabled }}
+{{- if (.Values.monitoring).enabled }}
 prometheus.io/scrape: "true"
-prometheus.io/port: {{ .Values.monitoring.port | default "8080" | quote }}
-prometheus.io/path: {{ .Values.monitoring.path | default "/metrics" | quote }}
+prometheus.io/port: {{ (.Values.monitoring).port | default "8080" | quote }}
+prometheus.io/path: {{ (.Values.monitoring).path | default "/metrics" | quote }}
 {{- end }}
 {{- end }}
 
@@ -97,15 +97,15 @@ Image string
 Istio sidecar annotations for pod templates
 */}}
 {{- define "pleme-lib.istioAnnotations" -}}
-{{- if .Values.istio.enabled }}
-sidecar.istio.io/inject: {{ .Values.istio.inject | default true | quote }}
-{{- with .Values.istio.excludeOutboundPorts }}
+{{- if (.Values.istio).enabled }}
+sidecar.istio.io/inject: {{ (.Values.istio).inject | default true | quote }}
+{{- with (.Values.istio).excludeOutboundPorts }}
 traffic.sidecar.istio.io/excludeOutboundPorts: {{ . | quote }}
 {{- end }}
-{{- with .Values.istio.excludeInboundPorts }}
+{{- with (.Values.istio).excludeInboundPorts }}
 traffic.sidecar.istio.io/excludeInboundPorts: {{ . | quote }}
 {{- end }}
-{{- if .Values.istio.holdApplicationUntilProxyStarts }}
+{{- if (.Values.istio).holdApplicationUntilProxyStarts }}
 proxy.istio.io/config: '{"holdApplicationUntilProxyStarts": true}'
 {{- end }}
 {{- end }}

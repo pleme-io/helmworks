@@ -8,6 +8,11 @@
       url = "github:pleme-io/substrate/736937566433d555ab9724a732d742e02328ff62";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    forge = {
+      url = "github:pleme-io/forge/97ecfa655e1a160ca345445ac84f3ab8013b9b7d";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.substrate.follows = "substrate";
+    };
   };
 
   outputs = inputs@{ flake-parts, substrate, ... }:
@@ -20,6 +25,7 @@
 
           substrateLib = substrate.libFor {
             inherit pkgs system;
+            forge = inputs.forge.packages.${system}.default;
           };
 
           chartDefs = [

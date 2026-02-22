@@ -3,7 +3,7 @@ pleme-lib: serviceaccount named template
 */}}
 
 {{- define "pleme-lib.serviceaccount" -}}
-{{- if .Values.serviceAccount.create }}
+{{- if (.Values.serviceAccount).create }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -11,7 +11,7 @@ metadata:
   namespace: {{ include "pleme-lib.namespace" . }}
   labels:
     {{- include "pleme-lib.labels" . | nindent 4 }}
-  {{- with .Values.serviceAccount.annotations }}
+  {{- with (.Values.serviceAccount).annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}

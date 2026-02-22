@@ -5,7 +5,7 @@ Container defaults/max/min, Pod max, PVC max/min.
 */}}
 
 {{- define "pleme-lib.limitrange" -}}
-{{- if .Values.limitRange.enabled }}
+{{- if (.Values.limitRange).enabled }}
 apiVersion: v1
 kind: LimitRange
 metadata:
@@ -15,43 +15,43 @@ metadata:
     {{- include "pleme-lib.labels" . | nindent 4 }}
 spec:
   limits:
-    {{- if .Values.limitRange.container }}
+    {{- if (.Values.limitRange).container }}
     - type: Container
-      {{- with .Values.limitRange.container.default }}
+      {{- with (.Values.limitRange).container.default }}
       default:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.limitRange.container.defaultRequest }}
+      {{- with (.Values.limitRange).container.defaultRequest }}
       defaultRequest:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.limitRange.container.max }}
+      {{- with (.Values.limitRange).container.max }}
       max:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.limitRange.container.min }}
+      {{- with (.Values.limitRange).container.min }}
       min:
         {{- toYaml . | nindent 8 }}
       {{- end }}
     {{- end }}
-    {{- if .Values.limitRange.pod }}
+    {{- if (.Values.limitRange).pod }}
     - type: Pod
-      {{- with .Values.limitRange.pod.max }}
+      {{- with (.Values.limitRange).pod.max }}
       max:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.limitRange.pod.min }}
+      {{- with (.Values.limitRange).pod.min }}
       min:
         {{- toYaml . | nindent 8 }}
       {{- end }}
     {{- end }}
-    {{- if .Values.limitRange.pvc }}
+    {{- if (.Values.limitRange).pvc }}
     - type: PersistentVolumeClaim
-      {{- with .Values.limitRange.pvc.max }}
+      {{- with (.Values.limitRange).pvc.max }}
       max:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.limitRange.pvc.min }}
+      {{- with (.Values.limitRange).pvc.min }}
       min:
         {{- toYaml . | nindent 8 }}
       {{- end }}

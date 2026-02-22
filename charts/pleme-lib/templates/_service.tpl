@@ -11,9 +11,9 @@ metadata:
   labels:
     {{- include "pleme-lib.labels" . | nindent 4 }}
 spec:
-  type: {{ .Values.service.type | default "ClusterIP" }}
+  type: {{ (.Values.service).type | default "ClusterIP" }}
   ports:
-    {{- range .Values.service.ports }}
+    {{- range (.Values.service).ports }}
     - name: {{ .name }}
       port: {{ .port }}
       targetPort: {{ .targetPort }}

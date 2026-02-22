@@ -3,7 +3,7 @@ pleme-lib: poddisruptionbudget named template
 */}}
 
 {{- define "pleme-lib.pdb" -}}
-{{- if .Values.pdb.enabled }}
+{{- if (.Values.pdb).enabled }}
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
@@ -15,10 +15,10 @@ spec:
   selector:
     matchLabels:
       {{- include "pleme-lib.selectorLabels" . | nindent 6 }}
-  {{- if .Values.pdb.minAvailable }}
-  minAvailable: {{ .Values.pdb.minAvailable }}
-  {{- else if .Values.pdb.maxUnavailable }}
-  maxUnavailable: {{ .Values.pdb.maxUnavailable }}
+  {{- if (.Values.pdb).minAvailable }}
+  minAvailable: {{ (.Values.pdb).minAvailable }}
+  {{- else if (.Values.pdb).maxUnavailable }}
+  maxUnavailable: {{ (.Values.pdb).maxUnavailable }}
   {{- else }}
   minAvailable: 1
   {{- end }}

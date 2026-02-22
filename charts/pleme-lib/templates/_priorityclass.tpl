@@ -6,8 +6,8 @@ Default 4-tier: critical (10M), data (10.5M), background (1M), batch (100k non-p
 */}}
 
 {{- define "pleme-lib.priorityclasses" -}}
-{{- $prefix := .Values.priorityClasses.prefix | default (include "pleme-lib.fullname" .) -}}
-{{- range .Values.priorityClasses.classes }}
+{{- $prefix := (.Values.priorityClasses).prefix | default (include "pleme-lib.fullname" .) -}}
+{{- range (.Values.priorityClasses).classes }}
 ---
 apiVersion: scheduling.k8s.io/v1
 kind: PriorityClass

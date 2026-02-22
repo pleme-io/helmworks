@@ -8,9 +8,9 @@ PeerAuthentication and DestinationRule for Istio service mesh.
 PeerAuthentication — mTLS mode with optional per-port overrides
 */}}
 {{- define "pleme-lib.peerAuthentication" -}}
-{{- if .Values.istio.enabled }}
+{{- if (.Values.istio).enabled }}
 {{- $fullname := include "pleme-lib.fullname" . -}}
-{{- range .Values.istio.peerAuthentication | default (list (dict "name" $fullname "mtls" "STRICT")) }}
+{{- range (.Values.istio).peerAuthentication | default (list (dict "name" $fullname "mtls" "STRICT")) }}
 ---
 apiVersion: security.istio.io/v1
 kind: PeerAuthentication
@@ -37,9 +37,9 @@ spec:
 DestinationRule — circuit breaking, connection pooling, outlier detection, TLS mode
 */}}
 {{- define "pleme-lib.destinationRule" -}}
-{{- if .Values.istio.enabled }}
+{{- if (.Values.istio).enabled }}
 {{- $fullname := include "pleme-lib.fullname" . -}}
-{{- range .Values.istio.destinationRules | default list }}
+{{- range (.Values.istio).destinationRules | default list }}
 ---
 apiVersion: networking.istio.io/v1
 kind: DestinationRule
