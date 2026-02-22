@@ -5,7 +5,7 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
     flake-parts.url = "github:hercules-ci/flake-parts";
     substrate = {
-      url = "github:pleme-io/substrate/9a55d1c20e69d682be315953c2355967e7e0ece6";
+      url = "github:pleme-io/substrate/664a1f3e36ee1362a135c2f343b8e3bfb30b88f0";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
