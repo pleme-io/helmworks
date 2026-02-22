@@ -1,0 +1,28 @@
+suite: operator RBAC tests
+templates:
+  - templates/rbac.yaml
+values:
+  - ../../examples/kenshi.yaml
+tests:
+  - it: should create ClusterRole
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: ClusterRole
+
+  - it: should create ClusterRoleBinding
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: ClusterRoleBinding
+      - equal:
+          path: subjects[0].kind
+          value: ServiceAccount
+
+  - it: should not create RBAC when disabled
+    set:
+      rbac:
+        create: false
+    asserts:
+      - hasDocuments:
+          count: 0

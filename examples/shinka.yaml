@@ -1,0 +1,79 @@
+# Example values for the shinka operator
+image:
+  repository: ghcr.io/pleme-io/shinka
+  tag: latest
+
+ports:
+  - name: health
+    containerPort: 8080
+    protocol: TCP
+
+service:
+  type: ClusterIP
+  ports:
+    - name: health
+      port: 8080
+      targetPort: health
+      protocol: TCP
+
+env:
+  - name: RUST_LOG
+    value: "info,shinka=debug"
+  - name: LOG_FORMAT
+    value: "json"
+  - name: HEALTH_ADDR
+    value: "0.0.0.0:8080"
+  - name: DEFAULT_MIGRATION_TIMEOUT
+    value: "300"
+  - name: DEFAULT_MAX_RETRIES
+    value: "3"
+  - name: SHINKA_CONFIG
+    value: "/etc/shinka/config.yaml"
+
+volumeMounts:
+  - name: config
+    mountPath: /etc/shinka
+    readOnly: true
+
+volumes:
+  - name: config
+    configMap:
+      name: shinka-config
+      optional: true
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+health:
+  path: /healthz
+  readyPath: /readyz
+  port: health
+
+monitoring:
+  enabled: true
+  port: health
+  path: /metrics
+
+strategy:
+  type: Recreate
+
+rbac:
+  create: true
+  rules:
+    - apiGroups: ["shinka.pleme.io"]
+      resources: ["databasemigrations"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    - apiGroups: ["shinka.pleme.io"]
+      resources: ["databasemigrations/status"]
+      verbs: ["get", "update", "patch"]
+    - apiGroups: [""]
+      resources: ["pods", "configmaps", "secrets", "events"]
+      verbs: ["get", "list", "watch", "create", "update", "patch"]
+    - apiGroups: ["batch"]
+      resources: ["jobs"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]

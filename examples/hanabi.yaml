@@ -1,0 +1,63 @@
+# Example values for hanabi (BFF: HTTP + WebSocket)
+image:
+  repository: ghcr.io/pleme-io/hanabi
+  tag: latest
+
+ports:
+  - name: http
+    containerPort: 8080
+    protocol: TCP
+  - name: ws
+    containerPort: 8081
+    protocol: TCP
+
+service:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+    - name: ws
+      port: 8081
+      targetPort: ws
+      protocol: TCP
+
+env:
+  - name: RUST_LOG
+    value: "info,hanabi=debug"
+  - name: LOG_FORMAT
+    value: "json"
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+health:
+  path: /healthz
+  readyPath: /readyz
+  port: http
+
+monitoring:
+  enabled: true
+  port: http
+  path: /metrics
+
+networkPolicy:
+  enabled: true
+  allowPrometheus: true
+  allowDns: true
+  additionalEgress:
+    - name: allow-backend
+      rules:
+        - to:
+            - namespaceSelector:
+                matchLabels:
+                  kubernetes.io/metadata.name: lilitu-staging
+          ports:
+            - port: 8080
+              protocol: TCP

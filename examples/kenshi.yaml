@@ -1,0 +1,87 @@
+# Example values for the kenshi operator
+image:
+  repository: ghcr.io/pleme-io/kenshi
+  tag: latest
+
+args: ["operator"]
+
+ports:
+  - name: http
+    containerPort: 8080
+    protocol: TCP
+
+service:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+
+env:
+  - name: RUST_LOG
+    value: "info,kenshi=debug"
+  - name: LOG_FORMAT
+    value: "json"
+  - name: KENSHI_API_PORT
+    value: "8080"
+  - name: KENSHI_CONFIG
+    value: "/etc/kenshi/config.yaml"
+
+volumeMounts:
+  - name: config
+    mountPath: /etc/kenshi
+    readOnly: true
+
+volumes:
+  - name: config
+    configMap:
+      name: kenshi-config
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+health:
+  path: /healthz
+  readyPath: /readyz
+  port: http
+
+monitoring:
+  enabled: true
+  port: http
+  path: /metrics
+
+strategy:
+  type: Recreate
+
+lifecycle:
+  preStop:
+    exec:
+      command: ["/bin/sh", "-c", "sleep 15"]
+
+rbac:
+  create: true
+  rules:
+    - apiGroups: ["kenshi.pleme.io"]
+      resources: ["*"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    - apiGroups: ["kenshi.pleme.io"]
+      resources: ["*/status"]
+      verbs: ["get", "update", "patch"]
+    - apiGroups: [""]
+      resources: ["pods", "services", "configmaps", "secrets", "events", "namespaces"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    - apiGroups: ["apps"]
+      resources: ["deployments", "statefulsets"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    - apiGroups: ["batch"]
+      resources: ["jobs"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    - apiGroups: ["networking.k8s.io"]
+      resources: ["networkpolicies"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]

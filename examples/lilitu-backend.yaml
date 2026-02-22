@@ -1,0 +1,87 @@
+# Example values for the lilitu backend service
+image:
+  repository: ghcr.io/pleme-io/lilitu-backend
+  tag: latest
+
+ports:
+  - name: http
+    containerPort: 8080
+    protocol: TCP
+
+service:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+
+envFrom:
+  - secretRef:
+      name: lilitu-backend-secrets
+
+env:
+  - name: RUST_LOG
+    value: "info,lilitu=debug"
+  - name: LOG_FORMAT
+    value: "json"
+  - name: SERVER_HOST
+    value: "0.0.0.0"
+  - name: SERVER_PORT
+    value: "8080"
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: "1Gi"
+
+health:
+  path: /healthz
+  readyPath: /readyz
+  port: http
+
+monitoring:
+  enabled: true
+  port: http
+  path: /metrics
+
+pdb:
+  enabled: true
+  minAvailable: 1
+
+networkPolicy:
+  enabled: true
+  allowPrometheus: true
+  allowDns: true
+  additionalIngress:
+    - name: allow-hanabi
+      rules:
+        - from:
+            - namespaceSelector:
+                matchLabels:
+                  kubernetes.io/metadata.name: hanabi-system
+          ports:
+            - port: 8080
+              protocol: TCP
+  additionalEgress:
+    - name: allow-postgres
+      rules:
+        - to:
+            - namespaceSelector:
+                matchLabels:
+                  kubernetes.io/metadata.name: lilitu-staging
+          ports:
+            - port: 5432
+              protocol: TCP
+    - name: allow-redis
+      rules:
+        - to:
+            - namespaceSelector:
+                matchLabels:
+                  kubernetes.io/metadata.name: lilitu-staging
+          ports:
+            - port: 6379
+              protocol: TCP

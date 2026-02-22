@@ -1,0 +1,204 @@
+# pleme-lib default values (documentation only — library charts are not installed directly)
+#
+# These defaults are inherited by application charts that depend on pleme-lib.
+# Override them in the application chart's values.yaml or at install time.
+
+# -- Container image configuration
+image:
+  # -- Image repository (e.g., ghcr.io/pleme-io/releases)
+  repository: ""
+  # -- Image tag (overridden by kustomize overlays or HelmRelease patches)
+  tag: latest
+  # -- Image pull policy
+  pullPolicy: Always
+
+# -- Image pull secrets for private registries
+imagePullSecrets: []
+
+# -- Override the chart name
+nameOverride: ""
+# -- Override the full release name
+fullnameOverride: ""
+
+# -- Number of replicas
+replicaCount: 1
+
+# -- Service account configuration
+serviceAccount:
+  # -- Create a service account
+  create: true
+  # -- Annotations to add to the service account
+  annotations: {}
+  # -- Name override (defaults to fullname)
+  name: ""
+
+# -- Container ports
+ports:
+  - name: http
+    containerPort: 8080
+    protocol: TCP
+
+# -- Service configuration
+service:
+  # -- Service type
+  type: ClusterIP
+  # -- Service ports
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+
+# -- Environment variables
+env: []
+
+# -- Environment variables from ConfigMaps/Secrets
+envFrom: []
+
+# -- Volume mounts
+volumeMounts: []
+
+# -- Volumes
+volumes: []
+
+# -- Resource requests and limits
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
+# -- Health check configuration
+health:
+  # -- Liveness probe path
+  path: /healthz
+  # -- Readiness probe path
+  readyPath: /readyz
+  # -- Port name for probes
+  port: http
+  # -- Initial delay for liveness probe
+  livenessInitialDelay: 5
+  # -- Period for liveness probe
+  livenessPeriod: 10
+  # -- Failure threshold for liveness probe
+  livenessFailureThreshold: 3
+  # -- Initial delay for readiness probe
+  readinessInitialDelay: 5
+  # -- Period for readiness probe
+  readinessPeriod: 5
+  # -- Failure threshold for readiness probe
+  readinessFailureThreshold: 2
+
+# -- Startup probe configuration (disabled by default)
+startupProbe:
+  enabled: false
+  path: /healthz
+  port: http
+  initialDelaySeconds: 0
+  periodSeconds: 5
+  failureThreshold: 30
+
+# -- Pod security context
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+# -- Container security context (enforced baseline — not overridable without explicit opt-out)
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+# -- Deployment strategy
+strategy:
+  type: RollingUpdate
+
+# -- Termination grace period
+terminationGracePeriodSeconds: 30
+
+# -- Pod annotations
+podAnnotations: {}
+
+# -- Node selector
+nodeSelector: {}
+
+# -- Tolerations
+tolerations: []
+
+# -- Affinity rules
+affinity: {}
+
+# -- Topology spread constraints
+topologySpreadConstraints: []
+
+# -- Priority class name
+priorityClassName: ""
+
+# -- Init containers
+initContainers: []
+
+# -- Monitoring configuration
+monitoring:
+  # -- Enable ServiceMonitor creation
+  enabled: true
+  # -- Metrics port name
+  port: http
+  # -- Metrics path
+  path: /metrics
+  # -- Scrape interval
+  interval: 30s
+  # -- Scrape timeout
+  scrapeTimeout: 10s
+
+# -- NetworkPolicy configuration
+networkPolicy:
+  # -- Enable NetworkPolicy creation
+  enabled: true
+  # -- Allow ingress from Prometheus for scraping
+  allowPrometheus: true
+  # -- Allow DNS egress
+  allowDns: true
+  # -- Additional ingress rules
+  additionalIngress: []
+  # -- Additional egress rules
+  additionalEgress: []
+
+# -- PodDisruptionBudget configuration
+pdb:
+  # -- Enable PDB creation
+  enabled: false
+  # -- Minimum available pods
+  minAvailable: 1
+  # -- Maximum unavailable pods (alternative to minAvailable)
+  # maxUnavailable: 1
+
+# -- HorizontalPodAutoscaler configuration
+autoscaling:
+  # -- Enable HPA creation
+  enabled: false
+  # -- Minimum replicas
+  minReplicas: 1
+  # -- Maximum replicas
+  maxReplicas: 5
+  # -- Target CPU utilization percentage
+  targetCPUUtilizationPercentage: 80
+  # -- Target memory utilization percentage
+  # targetMemoryUtilizationPercentage: 80
+
+# -- Container command override
+command: []
+
+# -- Container args override
+args: []
+
+# -- Additional labels for all resources
+additionalLabels: {}
+
+# -- Lifecycle hooks
+lifecycle: {}

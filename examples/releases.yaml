@@ -1,0 +1,49 @@
+# Example values for the releases service (simplest microservice)
+image:
+  repository: ghcr.io/pleme-io/releases
+  tag: latest
+
+ports:
+  - name: http
+    containerPort: 8080
+    protocol: TCP
+
+service:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+
+env:
+  - name: RUST_LOG
+    value: "info,releases=debug"
+  - name: LOG_FORMAT
+    value: "json"
+  - name: SERVER_HOST
+    value: "0.0.0.0"
+  - name: SERVER_PORT
+    value: "8080"
+  - name: MAX_RELEASES
+    value: "1000"
+  - name: RELEASE_TTL_HOURS
+    value: "168"
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
+health:
+  path: /healthz
+  readyPath: /readyz
+  port: http
+
+monitoring:
+  enabled: true
+  port: http
+  path: /metrics

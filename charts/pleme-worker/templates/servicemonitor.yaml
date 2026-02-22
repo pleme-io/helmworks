@@ -1,0 +1,3 @@
+{{- if .Values.service.enabled }}
+{{- include "pleme-lib.servicemonitor" . }}
+{{- end }}

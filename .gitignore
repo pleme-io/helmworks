@@ -1,0 +1,6 @@
+dist/
+charts/*/charts/
+charts/*/Chart.lock
+.terraform/
+*.tfstate*
+result

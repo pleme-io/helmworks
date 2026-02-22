@@ -1,0 +1,75 @@
+# pleme-migration default values
+# Database migration Job managed by Shinka operator
+
+image:
+  repository: ""
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# Migration configuration
+migration:
+  databaseUrlSecret:
+    name: ""
+    key: DATABASE_URL
+  sourcePath: /app/migrations
+  timeout: 300
+  backoffLimit: 3
+
+env: []
+envFrom: []
+volumeMounts: []
+volumes: []
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+priorityClassName: ""
+
+command: []
+args: []
+additionalLabels: {}
+
+# Required by pleme-lib helpers but unused by migration
+ports: []
+service:
+  ports: []
+monitoring:
+  enabled: false
+  port: http
+  path: /metrics
+health:
+  path: /healthz
+  readyPath: /readyz
+  port: http
+startupProbe:
+  enabled: false

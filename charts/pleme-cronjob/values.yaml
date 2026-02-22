@@ -1,0 +1,94 @@
+# pleme-cronjob default values
+# Scheduled jobs: CronJob with enforced security baseline
+
+image:
+  repository: ""
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# -- Cron schedule expression (required)
+schedule: ""
+
+# -- Concurrency policy: Allow, Forbid, Replace
+concurrencyPolicy: Forbid
+
+# -- Number of successful jobs to keep
+successfulJobsHistoryLimit: 3
+
+# -- Number of failed jobs to keep
+failedJobsHistoryLimit: 3
+
+# -- Deadline for starting the job (seconds)
+# startingDeadlineSeconds: 300
+
+# -- Max duration for job execution (seconds)
+# activeDeadlineSeconds: 3600
+
+# -- Number of retries before marking job as failed
+backoffLimit: 3
+
+# -- Restart policy for the pod
+restartPolicy: OnFailure
+
+env: []
+envFrom: []
+volumeMounts: []
+volumes: []
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+
+networkPolicy:
+  enabled: true
+  allowPrometheus: false
+  allowDns: true
+  additionalIngress: []
+  additionalEgress: []
+
+command: []
+args: []
+additionalLabels: {}
+
+# Unused by cronjob but required by pleme-lib helpers
+ports: []
+service:
+  ports: []
+monitoring:
+  enabled: false
+health:
+  path: /healthz
+  readyPath: /readyz
+  port: http
+startupProbe:
+  enabled: false

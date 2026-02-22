@@ -1,0 +1,36 @@
+suite: worker deployment tests
+templates:
+  - templates/deployment.yaml
+values:
+  - ../../examples/lilitu-workers.yaml
+tests:
+  - it: should create a Deployment
+    asserts:
+      - isKind:
+          of: Deployment
+
+  - it: should use the backend image with worker RUN_MODE
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/pleme-io/lilitu-backend:amd64-latest
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: RUN_MODE
+            value: "worker"
+
+  - it: should enforce security baseline
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+
+  - it: should set priority class
+    asserts:
+      - equal:
+          path: spec.template.spec.priorityClassName
+          value: lilitu-background

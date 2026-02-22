@@ -1,0 +1,62 @@
+# Example values for deploying lilitu-workers using pleme-worker chart
+# Same image as backend, different RUN_MODE
+
+image:
+  repository: ghcr.io/pleme-io/lilitu-backend
+  tag: amd64-latest
+
+priorityClassName: lilitu-background
+
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: lilitu-workers
+
+env:
+  - name: RUN_MODE
+    value: "worker"
+  - name: ENVIRONMENT
+    value: "staging"
+  - name: PRODUCT_ID
+    value: "lilitu"
+  - name: RUST_LOG
+    value: "info,lilitu=debug"
+  - name: DATABASE_URL
+    valueFrom:
+      secretKeyRef:
+        name: lilitu-postgres-connection
+        key: DATABASE_URL
+  - name: REDIS_URL
+    valueFrom:
+      secretKeyRef:
+        name: lilitu-cache-connection
+        key: REDIS_URL
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+networkPolicy:
+  additionalEgress:
+    - name: allow-postgres
+      rules:
+        - ports:
+            - port: 5432
+              protocol: TCP
+    - name: allow-redis
+      rules:
+        - ports:
+            - port: 6379
+              protocol: TCP
+    - name: allow-nats
+      rules:
+        - ports:
+            - port: 4222
+              protocol: TCP

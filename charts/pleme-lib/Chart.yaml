@@ -1,0 +1,5 @@
+apiVersion: v2
+name: pleme-lib
+description: Shared library chart for pleme-io internal services
+type: library
+version: 0.1.0

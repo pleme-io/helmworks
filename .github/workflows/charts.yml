@@ -1,0 +1,99 @@
+name: Charts CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  CHART_REPO: oci://ghcr.io/pleme-io/charts
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - name: Build dependencies
+        run: |
+          for chart in charts/pleme-*/; do
+            [ -f "$chart/Chart.yaml" ] || continue
+            chart_type=$(grep '^type:' "$chart/Chart.yaml" | awk '{print $2}')
+            [ "$chart_type" = "library" ] && continue
+            echo "Building deps for $chart..."
+            helm dependency build "$chart"
+          done
+      - name: Lint all charts
+        run: |
+          for chart in charts/pleme-*/; do
+            [ -f "$chart/Chart.yaml" ] || continue
+            chart_type=$(grep '^type:' "$chart/Chart.yaml" | awk '{print $2}')
+            [ "$chart_type" = "library" ] && continue
+            echo "Linting $chart..."
+            helm lint "$chart"
+          done
+      - name: Template validation
+        run: |
+          for chart in charts/pleme-*/; do
+            [ -f "$chart/Chart.yaml" ] || continue
+            chart_type=$(grep '^type:' "$chart/Chart.yaml" | awk '{print $2}')
+            [ "$chart_type" = "library" ] && continue
+            echo "Templating $chart..."
+            helm template test "$chart" --set image.repository=test > /dev/null
+          done
+
+  test:
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - name: Install helm-unittest plugin
+        run: helm plugin install https://github.com/helm-unittest/helm-unittest.git
+      - name: Build dependencies
+        run: |
+          for chart in charts/pleme-*/; do
+            [ -f "$chart/Chart.yaml" ] || continue
+            chart_type=$(grep '^type:' "$chart/Chart.yaml" | awk '{print $2}')
+            [ "$chart_type" = "library" ] && continue
+            helm dependency build "$chart"
+          done
+      - name: Run unit tests
+        run: |
+          for test_dir in tests/pleme-*/; do
+            chart_name=$(basename "$test_dir")
+            echo "Testing $chart_name..."
+            helm unittest "charts/$chart_name" -f "../../tests/$chart_name/*.yaml"
+          done
+
+  package-push:
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - name: Login to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Package and push charts
+        run: |
+          mkdir -p dist
+          for chart in charts/pleme-*/; do
+            [ -f "$chart/Chart.yaml" ] || continue
+            chart_type=$(grep '^type:' "$chart/Chart.yaml" | awk '{print $2}')
+            [ "$chart_type" = "library" ] && continue
+            chart_name=$(basename "$chart")
+            echo "Packaging $chart_name..."
+            helm dependency build "$chart"
+            helm package "$chart" --destination dist/
+          done
+          for tgz in dist/*.tgz; do
+            echo "Pushing $tgz..."
+            helm push "$tgz" ${{ env.CHART_REPO }}
+          done
