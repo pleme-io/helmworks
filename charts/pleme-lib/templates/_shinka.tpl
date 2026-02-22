@@ -12,7 +12,7 @@ pleme-lib.shinkaDatabaseMigration — renders a Shinka DatabaseMigration CR
 Gated by .Values.shinkaMigration.enabled
 */}}
 {{- define "pleme-lib.shinkaDatabaseMigration" -}}
-{{- if .Values.shinkaMigration.enabled }}
+{{- if (.Values.shinkaMigration).enabled }}
 apiVersion: shinka.pleme.io/v1alpha1
 kind: DatabaseMigration
 metadata:
@@ -73,7 +73,7 @@ pleme-lib.shinkaWaitInitContainer — renders an init container that waits for m
 Gated by .Values.shinkaWait.enabled. Output is a single list item (- name: ...).
 */}}
 {{- define "pleme-lib.shinkaWaitInitContainer" -}}
-{{- if .Values.shinkaWait.enabled }}
+{{- if (.Values.shinkaWait).enabled }}
 - name: wait-for-migrations
   image: {{ .Values.shinkaWait.image | default "ghcr.io/pleme-io/shinka:amd64-latest" }}
   env:
