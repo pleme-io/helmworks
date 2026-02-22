@@ -12,7 +12,7 @@ PeerAuthentication — mTLS mode with optional per-port overrides
 {{- $fullname := include "pleme-lib.fullname" . -}}
 {{- range (.Values.istio).peerAuthentication | default (list (dict "name" $fullname "mtls" "STRICT")) }}
 ---
-apiVersion: security.istio.io/v1
+apiVersion: security.istio.io/v1beta1
 kind: PeerAuthentication
 metadata:
   name: {{ .name | default $fullname }}
@@ -41,7 +41,7 @@ DestinationRule — circuit breaking, connection pooling, outlier detection, TLS
 {{- $fullname := include "pleme-lib.fullname" . -}}
 {{- range (.Values.istio).destinationRules | default list }}
 ---
-apiVersion: networking.istio.io/v1
+apiVersion: networking.istio.io/v1beta1
 kind: DestinationRule
 metadata:
   name: {{ .name | default $fullname }}
