@@ -45,7 +45,7 @@ resources:
 
 health:
   path: /healthz
-  readyPath: /readyz
+  readyPath: /healthz
   port: http
   livenessInitialDelay: 15
   livenessPeriod: 30
@@ -93,9 +93,9 @@ chrome:
   port: 9222
   shmSize: "256Mi"
   image:
-    repository: zenika/alpine-chrome
-    tag: "124"
-    pullPolicy: IfNotPresent
+    repository: chromedp/headless-shell
+    tag: "latest"
+    pullPolicy: Always
   args:
     - "--no-sandbox"
     - "--disable-gpu"
@@ -131,7 +131,8 @@ prometheusRules:
   groups: []
 
 command: []
-args: []
+args:
+  - "serve"
 additionalLabels: {}
 priorityClassName: ""
 lifecycle: {}

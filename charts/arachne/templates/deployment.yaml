@@ -112,13 +112,15 @@ spec:
             - name: dshm
               mountPath: /dev/shm
           livenessProbe:
-            tcpSocket:
+            httpGet:
+              path: /json/version
               port: cdp
             initialDelaySeconds: 10
             periodSeconds: 30
             failureThreshold: 3
           readinessProbe:
-            tcpSocket:
+            httpGet:
+              path: /json/version
               port: cdp
             initialDelaySeconds: 5
             periodSeconds: 10
