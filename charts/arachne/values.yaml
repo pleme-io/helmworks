@@ -89,7 +89,7 @@ initContainers: []
 # Chrome headless sidecar
 chrome:
   enabled: true
-  wsUrl: "ws://localhost:9222"
+  wsUrl: "http://localhost:9222"
   port: 9222
   shmSize: "256Mi"
   image:

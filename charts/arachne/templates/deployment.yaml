@@ -59,7 +59,7 @@ spec:
           {{- end }}
           env:
             - name: CHROME_WS_URL
-              value: {{ .Values.chrome.wsUrl | default "ws://localhost:9222" | quote }}
+              value: {{ .Values.chrome.wsUrl | default "http://localhost:9222" | quote }}
             {{- with .Values.env }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

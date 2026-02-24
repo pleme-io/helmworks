@@ -22,7 +22,7 @@ tests:
           value: chrome
       - equal:
           path: spec.template.spec.containers[1].image
-          value: "zenika/alpine-chrome:124"
+          value: "chromedp/headless-shell:latest"
 
   - it: should set SYS_ADMIN capability on Chrome sidecar
     asserts:
@@ -49,7 +49,7 @@ tests:
           path: spec.template.spec.containers[0].env
           content:
             name: CHROME_WS_URL
-            value: "ws://localhost:9222"
+            value: "http://localhost:9222"
 
   - it: should disable Istio injection
     asserts:
