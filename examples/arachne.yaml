@@ -83,3 +83,16 @@ networkPolicy:
           ports:
             - port: 5432
               protocol: TCP
+
+# Scraper CronJobs
+cronjobs:
+  fatal-model:
+    schedule: "0 3 * * *"
+    site: fatal_model
+    city: sao-paulo
+    pages: 10
+  skokka:
+    schedule: "0 4 * * *"
+    site: skokka
+    city: sao-paulo
+    pages: 10

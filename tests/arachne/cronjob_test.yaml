@@ -1,0 +1,232 @@
+suite: arachne cronjob tests
+templates:
+  - templates/cronjob.yaml
+tests:
+  - it: should render CronJobs for each entry
+    values:
+      - ../../examples/arachne.yaml
+    asserts:
+      - hasDocuments:
+          count: 2
+
+  - it: should render fatal-model CronJob with correct name
+    values:
+      - ../../examples/arachne.yaml
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: CronJob
+      - matchRegex:
+          path: metadata.name
+          pattern: ".*-fatal-model$"
+
+  - it: should render skokka CronJob with correct name
+    values:
+      - ../../examples/arachne.yaml
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: CronJob
+      - matchRegex:
+          path: metadata.name
+          pattern: ".*-skokka$"
+
+  - it: should set correct schedule for fatal-model
+    values:
+      - ../../examples/arachne.yaml
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.schedule
+          value: "0 3 * * *"
+
+  - it: should set correct schedule for skokka
+    values:
+      - ../../examples/arachne.yaml
+    documentIndex: 1
+    asserts:
+      - equal:
+          path: spec.schedule
+          value: "0 4 * * *"
+
+  - it: should set concurrencyPolicy to Forbid by default
+    values:
+      - ../../examples/arachne.yaml
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.concurrencyPolicy
+          value: Forbid
+
+  - it: should have Chrome native sidecar as initContainer
+    values:
+      - ../../examples/arachne.yaml
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].name
+          value: chrome
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].restartPolicy
+          value: Always
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].image
+          value: "chromedp/headless-shell:latest"
+
+  - it: should set SYS_ADMIN on Chrome sidecar
+    values:
+      - ../../examples/arachne.yaml
+    documentIndex: 0
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].securityContext.capabilities.add
+          content: SYS_ADMIN
+
+  - it: should have Chrome startup probe
+    values:
+      - ../../examples/arachne.yaml
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].startupProbe.httpGet.path
+          value: /json/version
+
+  - it: should mount /dev/shm volume
+    values:
+      - ../../examples/arachne.yaml
+    documentIndex: 0
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.volumes
+          content:
+            name: dshm
+            emptyDir:
+              medium: Memory
+              sizeLimit: "512Mi"
+
+  - it: should set correct scraper args for fatal-model
+    values:
+      - ../../examples/arachne.yaml
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].name
+          value: scraper
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].args
+          content: "fatal_model"
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].args
+          content: "--persist"
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].args
+          content: "--photos"
+
+  - it: should inject CHROME_WS_URL into scraper
+    values:
+      - ../../examples/arachne.yaml
+    documentIndex: 0
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: CHROME_WS_URL
+            value: "http://localhost:9222"
+
+  - it: should use envFrom for secrets
+    values:
+      - ../../examples/arachne.yaml
+    documentIndex: 0
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].envFrom
+          content:
+            secretRef:
+              name: arachne-secrets
+
+  - it: should set default scraper resources
+    values:
+      - ../../examples/arachne.yaml
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].resources.requests.cpu
+          value: 100m
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].resources.requests.memory
+          value: 256Mi
+
+  - it: should set backoffLimit and activeDeadlineSeconds
+    values:
+      - ../../examples/arachne.yaml
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.backoffLimit
+          value: 2
+      - equal:
+          path: spec.jobTemplate.spec.activeDeadlineSeconds
+          value: 3600
+
+  - it: should disable Istio injection
+    values:
+      - ../../examples/arachne.yaml
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.metadata.annotations["sidecar.istio.io/inject"]
+          value: "false"
+
+  - it: should set site label
+    values:
+      - ../../examples/arachne.yaml
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: metadata.labels.site
+          value: fatal-model
+      - equal:
+          path: metadata.labels.component
+          value: scraper
+
+  - it: should render no CronJobs when cronjobs is empty
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should allow per-job resource overrides
+    set:
+      cronjobs:
+        test-job:
+          schedule: "0 1 * * *"
+          site: test_site
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "1"
+              memory: 2Gi
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].resources.requests.cpu
+          value: 500m
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].resources.limits.memory
+          value: 2Gi
+
+  - it: should allow per-job suspend override
+    set:
+      cronjobs:
+        suspended-job:
+          schedule: "0 1 * * *"
+          site: test_site
+          suspend: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: spec.suspend
+          value: true

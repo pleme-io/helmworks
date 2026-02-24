@@ -1,0 +1,122 @@
+{{/*
+CronJob template for arachne scraper jobs.
+Each entry in .Values.cronjobs becomes a CronJob with Chrome native sidecar.
+*/}}
+{{- range $name, $job := .Values.cronjobs }}
+{{- $defaults := $.Values.cronjobDefaults }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "pleme-lib.fullname" $ }}-{{ $name }}
+  namespace: {{ include "pleme-lib.namespace" $ }}
+  labels:
+    {{- include "pleme-lib.labels" $ | nindent 4 }}
+    component: scraper
+    site: {{ $name }}
+spec:
+  schedule: {{ $job.schedule | quote }}
+  concurrencyPolicy: {{ $job.concurrencyPolicy | default $defaults.concurrencyPolicy }}
+  suspend: {{ $job.suspend | default $defaults.suspend }}
+  successfulJobsHistoryLimit: {{ $job.successfulJobsHistoryLimit | default $defaults.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ $job.failedJobsHistoryLimit | default $defaults.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: {{ $job.backoffLimit | default $defaults.backoffLimit }}
+      activeDeadlineSeconds: {{ $job.activeDeadlineSeconds | default $defaults.activeDeadlineSeconds }}
+      template:
+        metadata:
+          labels:
+            {{- include "pleme-lib.selectorLabels" $ | nindent 12 }}
+            component: scraper
+            site: {{ $name }}
+          annotations:
+            sidecar.istio.io/inject: "false"
+        spec:
+          restartPolicy: {{ $job.restartPolicy | default $defaults.restartPolicy }}
+          {{- with $.Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $.Values.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $.Values.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $.Values.affinity }}
+          affinity:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumes:
+            - name: dshm
+              emptyDir:
+                medium: Memory
+                sizeLimit: {{ $.Values.chrome.shmSize | default "256Mi" }}
+          {{- if $.Values.chrome.enabled }}
+          initContainers:
+            - name: chrome
+              image: {{ $.Values.chrome.image.repository }}:{{ $.Values.chrome.image.tag }}
+              imagePullPolicy: {{ $.Values.chrome.image.pullPolicy | default "Always" }}
+              restartPolicy: Always
+              {{- with $.Values.chrome.args }}
+              args:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              ports:
+                - name: cdp
+                  containerPort: {{ $.Values.chrome.port | default 9222 }}
+                  protocol: TCP
+              startupProbe:
+                httpGet:
+                  path: /json/version
+                  port: cdp
+                initialDelaySeconds: 2
+                periodSeconds: 2
+                failureThreshold: 15
+              volumeMounts:
+                - name: dshm
+                  mountPath: /dev/shm
+              securityContext:
+                capabilities:
+                  add:
+                    - SYS_ADMIN
+              resources:
+                {{- toYaml $.Values.chrome.resources | nindent 16 }}
+          {{- end }}
+          containers:
+            - name: scraper
+              image: {{ include "pleme-lib.image" $ }}
+              imagePullPolicy: {{ $.Values.image.pullPolicy | default "Always" }}
+              args:
+                - "scrape"
+                - "--site"
+                - {{ $job.site | quote }}
+                - "--city"
+                - {{ $job.city | default "sao-paulo" | quote }}
+                - "--pages"
+                - {{ $job.pages | default 10 | quote }}
+                {{- if or ($job.persist | default $defaults.persist) }}
+                - "--persist"
+                {{- end }}
+                {{- if or ($job.photos | default $defaults.photos) }}
+                - "--photos"
+                {{- end }}
+                {{- with $job.extraArgs }}
+                {{- toYaml . | nindent 16 }}
+                {{- end }}
+              env:
+                - name: CHROME_WS_URL
+                  value: {{ $.Values.chrome.wsUrl | default "http://localhost:9222" | quote }}
+                {{- with $.Values.env }}
+                {{- toYaml . | nindent 16 }}
+                {{- end }}
+              {{- with $.Values.envFrom }}
+              envFrom:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              resources:
+                {{- toYaml ($job.resources | default $defaults.resources) | nindent 16 }}
+{{- end }}

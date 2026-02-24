@@ -148,3 +148,36 @@ pdb:
   enabled: false
 sidecars: []
 topologySpreadConstraints: []
+
+# Scraper CronJobs — each key becomes a CronJob resource
+# Chrome native sidecar is automatically injected when chrome.enabled is true
+cronjobs: {}
+  # fatal-model:
+  #   schedule: "0 3 * * *"
+  #   site: fatal_model
+  #   city: sao-paulo
+  #   pages: 10
+  # skokka:
+  #   schedule: "0 4 * * *"
+  #   site: skokka
+  #   city: sao-paulo
+  #   pages: 10
+
+# Shared CronJob defaults
+cronjobDefaults:
+  concurrencyPolicy: Forbid
+  suspend: false
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  backoffLimit: 2
+  activeDeadlineSeconds: 3600
+  restartPolicy: Never
+  persist: true
+  photos: true
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 250m
+      memory: 512Mi
