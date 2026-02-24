@@ -9,7 +9,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     forge = {
-      url = "github:pleme-io/forge/aa95c20da29a551188ce562510b61b6ae9de4fea";
+      url = "github:pleme-io/forge/c8a37b6b84646f96b2e14bd58bb30e2514f1a501";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.substrate.follows = "substrate";
     };
