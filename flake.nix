@@ -2,7 +2,7 @@
   description = "Helmworks: reusable Helm chart library for pleme-io internal services";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
     flake-parts.url = "github:hercules-ci/flake-parts";
     substrate = {
       url = "github:pleme-io/substrate/fb9cc398db7884e98dfb160daef0c4433bbc658c";
@@ -44,6 +44,7 @@
             { name = "shinka"; chartDir = ./charts/shinka; }
             { name = "kenshi"; chartDir = ./charts/kenshi; }
             { name = "arachne"; chartDir = ./charts/arachne; }
+            { name = "pleme-gpu-workload"; chartDir = ./charts/pleme-gpu-workload; }
           ];
 
           # Use substrate's mkHelmAllApps for all chart lifecycle apps
