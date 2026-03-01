@@ -1,0 +1,21 @@
+{{- if .Values.certificate.enabled }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "sekiban.certName" . }}
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+spec:
+  secretName: {{ include "sekiban.certName" . }}
+  duration: {{ .Values.certificate.duration }}
+  renewBefore: {{ .Values.certificate.renewBefore }}
+  issuerRef:
+    name: {{ .Values.certificate.issuerRef.name }}
+    kind: {{ .Values.certificate.issuerRef.kind }}
+  dnsNames:
+    - {{ include "sekiban.webhookServiceName" . }}
+    - {{ include "sekiban.webhookServiceName" . }}.{{ include "pleme-lib.namespace" . }}
+    - {{ include "sekiban.webhookServiceName" . }}.{{ include "pleme-lib.namespace" . }}.svc
+    - {{ include "sekiban.webhookServiceName" . }}.{{ include "pleme-lib.namespace" . }}.svc.cluster.local
+{{- end }}

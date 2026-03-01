@@ -44,6 +44,7 @@
             { name = "shinka"; chartDir = ./charts/shinka; }
             { name = "kenshi"; chartDir = ./charts/kenshi; }
             { name = "arachne"; chartDir = ./charts/arachne; }
+            { name = "sekiban"; chartDir = ./charts/sekiban; }
             { name = "pleme-gpu-workload"; chartDir = ./charts/pleme-gpu-workload; }
           ];
 

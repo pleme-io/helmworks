@@ -1,0 +1,37 @@
+{{- if .Values.webhook.enabled }}
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: {{ include "sekiban.webhookName" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+  annotations:
+    {{- if .Values.certificate.enabled }}
+    cert-manager.io/inject-ca-from: {{ include "pleme-lib.namespace" . }}/{{ include "sekiban.certName" . }}
+    {{- end }}
+webhooks:
+  {{- range $i, $rule := .Values.webhook.rules }}
+  - name: {{ (index $rule.resources 0) }}.sekiban.pleme.io
+    admissionReviewVersions: ["v1"]
+    sideEffects: None
+    failurePolicy: {{ $.Values.webhook.failurePolicy }}
+    matchPolicy: Equivalent
+    timeoutSeconds: {{ $.Values.webhook.timeoutSeconds }}
+    {{- with $.Values.webhook.namespaceSelector }}
+    namespaceSelector:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    clientConfig:
+      service:
+        name: {{ include "sekiban.webhookServiceName" $ }}
+        namespace: {{ include "pleme-lib.namespace" $ }}
+        path: /validate
+        port: 443
+    rules:
+      - apiGroups: {{ toJson $rule.apiGroups }}
+        apiVersions: {{ toJson $rule.apiVersions }}
+        resources: {{ toJson $rule.resources }}
+        operations: {{ toJson $rule.operations }}
+        scope: Namespaced
+  {{- end }}
+{{- end }}

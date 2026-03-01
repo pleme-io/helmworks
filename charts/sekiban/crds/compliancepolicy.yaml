@@ -1,0 +1,139 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: compliancepolicies.sekiban.pleme.io
+spec:
+  group: sekiban.pleme.io
+  names:
+    kind: CompliancePolicy
+    listKind: CompliancePolicyList
+    plural: compliancepolicies
+    singular: compliancepolicy
+    shortNames:
+      - cp
+      - cpol
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required:
+                - framework
+                - baseline
+                - testRunner
+              properties:
+                framework:
+                  type: string
+                  description: Compliance framework (e.g., NIST_800_53).
+                baseline:
+                  type: string
+                  description: Baseline level (low, moderate, high).
+                testRunner:
+                  type: object
+                  required:
+                    - runnerType
+                    - image
+                  properties:
+                    runnerType:
+                      type: string
+                      description: Type of test runner (inspec, kensa, custom).
+                    image:
+                      type: string
+                      description: Container image for the test runner.
+                    profile:
+                      type: string
+                      description: InSpec profile or test suite reference.
+                    env:
+                      type: array
+                      items:
+                        type: object
+                        required:
+                          - name
+                        properties:
+                          name:
+                            type: string
+                          value:
+                            type: string
+                          secretRef:
+                            type: object
+                            properties:
+                              name:
+                                type: string
+                              key:
+                                type: string
+                    timeoutSecs:
+                      type: integer
+                      format: int64
+                    serviceAccount:
+                      type: string
+                schedule:
+                  type: string
+                  description: Cron schedule for periodic checks.
+                excludedControls:
+                  type: array
+                  items:
+                    type: string
+                controlMappings:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - testId
+                      - controlIds
+                    properties:
+                      testId:
+                        type: string
+                      controlIds:
+                        type: array
+                        items:
+                          type: string
+                      description:
+                        type: string
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum:
+                    - Pending
+                    - Running
+                    - Compliant
+                    - NonCompliant
+                    - Error
+                lastComplianceHash:
+                  type: string
+                lastCheckedAt:
+                  type: string
+                  format: date-time
+                controlsAssessed:
+                  type: integer
+                  format: int32
+                controlsSatisfied:
+                  type: integer
+                  format: int32
+                controlsFailed:
+                  type: integer
+                  format: int32
+                message:
+                  type: string
+      additionalPrinterColumns:
+        - name: Framework
+          type: string
+          jsonPath: .spec.framework
+        - name: Baseline
+          type: string
+          jsonPath: .spec.baseline
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      subresources:
+        status: {}

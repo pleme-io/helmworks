@@ -1,0 +1,129 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: signaturegates.sekiban.pleme.io
+spec:
+  group: sekiban.pleme.io
+  names:
+    kind: SignatureGate
+    listKind: SignatureGateList
+    plural: signaturegates
+    singular: signaturegate
+    shortNames:
+      - sg
+      - sgate
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required:
+                - layers
+                - expectedSignature
+                - targetResources
+              properties:
+                layers:
+                  type: array
+                  items:
+                    type: string
+                  description: Infrastructure layers to verify.
+                expectedSignature:
+                  type: string
+                  description: Expected composite signature (blake3:hex format).
+                targetResources:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - group
+                      - kind
+                    properties:
+                      group:
+                        type: string
+                        description: API group (empty for core resources).
+                      kind:
+                        type: string
+                        description: Resource kind.
+                      operations:
+                        type: array
+                        items:
+                          type: string
+                          enum:
+                            - CREATE
+                            - UPDATE
+                            - PATCH
+                            - DELETE
+                        description: Operations to intercept (defaults to all).
+                compliancePolicy:
+                  type: string
+                  description: Name of a CompliancePolicy in the same namespace.
+                verificationIntervalSecs:
+                  type: integer
+                  format: int64
+                  description: Re-verification interval in seconds.
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum:
+                    - Pending
+                    - Verified
+                    - Failed
+                    - Stale
+                currentSignature:
+                  type: string
+                lastVerifiedAt:
+                  type: string
+                  format: date-time
+                layerStatuses:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      layer:
+                        type: string
+                      hash:
+                        type: string
+                      verified:
+                        type: boolean
+                      lastVerifiedAt:
+                        type: string
+                        format: date-time
+                      error:
+                        type: string
+                message:
+                  type: string
+                failureCount:
+                  type: integer
+                admissionDecisions:
+                  type: object
+                  properties:
+                    allowed:
+                      type: integer
+                      format: int64
+                    denied:
+                      type: integer
+                      format: int64
+      additionalPrinterColumns:
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: Signature
+          type: string
+          jsonPath: .status.currentSignature
+          priority: 1
+        - name: Verified
+          type: string
+          jsonPath: .status.lastVerifiedAt
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      subresources:
+        status: {}
