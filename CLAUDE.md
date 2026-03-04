@@ -48,6 +48,29 @@ All chart lifecycle operations are `nix run` commands:
 
 Application charts invoke these via `{{- include "pleme-lib.deployment" . }}`.
 
+Attestation templates:
+- `pleme-lib.attestationAnnotations` — sekiban.pleme.io/* integrity annotations
+- `pleme-lib.resourceAnnotations` — combined attestation + user annotations
+
+## Attestation Framework
+
+All charts support integrity attestation via `attestation.*` values:
+
+```yaml
+attestation:
+  enabled: true
+  signature: "blake3:abc..."          # Master signature
+  certificationHash: "blake3:def..."  # Product certification hash
+  complianceHash: "blake3:ghi..."     # Compliance test result hash
+  changesetHash: "blake3:jkl..."      # Changeset integrity hash
+```
+
+When enabled, `sekiban.pleme.io/*` annotations are added to Deployment and Service
+metadata. These are verified by sekiban's ValidatingAdmissionWebhook.
+
+Hashes are computed by tameshi and injected by forge CI/CD during release.
+Do NOT set these manually.
+
 ## Security Baseline (enforced)
 
 All charts enforce:

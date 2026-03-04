@@ -1,0 +1,83 @@
+suite: pleme-gpu-workload statefulset tests
+templates:
+  - templates/statefulset.yaml
+values:
+  - ../../examples/ollama.yaml
+tests:
+  - it: should render a StatefulSet
+    asserts:
+      - isKind:
+          of: StatefulSet
+
+  - it: should use the correct image
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "ollama/ollama:latest"
+
+  - it: should set serviceName for headless DNS
+    asserts:
+      - matchRegex:
+          path: spec.serviceName
+          pattern: ".*-headless$"
+
+  - it: should have FluxCD prune disabled annotation
+    asserts:
+      - equal:
+          path: metadata.annotations["kustomize.toolkit.fluxcd.io/prune"]
+          value: disabled
+
+  - it: should have privileged security context when gpu.enabled
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.privileged
+          value: true
+
+  - it: should mount /dev hostPath when gpu.enabled
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: dev
+            hostPath:
+              path: /dev
+
+  - it: should mount nvidia driver hostPath when gpu.enabled
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: nvidia-driver
+            hostPath:
+              path: /run/opengl-driver
+
+  - it: should set NVIDIA env vars when gpu.enabled
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NVIDIA_VISIBLE_DEVICES
+            value: "all"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NVIDIA_DRIVER_CAPABILITIES
+            value: "compute,utility"
+
+  - it: should render volume claim templates
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].metadata.name
+          value: models
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.resources.requests.storage
+          value: 100Gi
+      - equal:
+          path: spec.volumeClaimTemplates[0].metadata.annotations["kustomize.toolkit.fluxcd.io/prune"]
+          value: disabled
+
+  - it: should set nodeSelector
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector.kubernetes\.io/hostname
+          value: plo

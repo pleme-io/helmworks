@@ -1,0 +1,19 @@
+suite: pleme-gpu-workload headless service tests
+templates:
+  - templates/headless-service.yaml
+values:
+  - ../../examples/ollama.yaml
+tests:
+  - it: should render a headless Service
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: spec.clusterIP
+          value: None
+
+  - it: should have headless suffix in name
+    asserts:
+      - matchRegex:
+          path: metadata.name
+          pattern: ".*-headless$"

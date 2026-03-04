@@ -1,6 +1,6 @@
 apiVersion: v2
-name: pleme-microservice
-description: Application chart for HTTP services (REST/GraphQL/gRPC)
+name: pleme-gpu-workload
+description: StatefulSet for GPU-accelerated workloads (Ollama, inference servers)
 type: application
 version: 0.1.0
 appVersion: "1.0.0"

@@ -1,0 +1,36 @@
+suite: pleme-gpu-workload model pull job tests
+templates:
+  - templates/model-pull-job.yaml
+tests:
+  - it: should render a Job when modelPull.enabled
+    values:
+      - ../../examples/ollama.yaml
+    asserts:
+      - isKind:
+          of: Job
+
+  - it: should have FluxCD prune disabled annotation
+    values:
+      - ../../examples/ollama.yaml
+    asserts:
+      - equal:
+          path: metadata.annotations["kustomize.toolkit.fluxcd.io/prune"]
+          value: disabled
+
+  - it: should use the configured curl image
+    values:
+      - ../../examples/ollama.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "curlimages/curl:8.11.1"
+
+  - it: should not render when modelPull.enabled is false
+    set:
+      modelPull:
+        enabled: false
+      image:
+        repository: ollama/ollama
+    asserts:
+      - hasDocuments:
+          count: 0

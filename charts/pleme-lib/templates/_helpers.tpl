@@ -118,3 +118,42 @@ Used for StatefulSet VCTs, database CRs, cache PVCs.
 {{- define "pleme-lib.fluxcdPruneDisabled" -}}
 kustomize.toolkit.fluxcd.io/prune: disabled
 {{- end }}
+
+{{/*
+Attestation annotations for sekiban integrity verification.
+Produces sekiban.pleme.io/* annotations when attestation hashes are configured.
+These annotations are verified by sekiban's ValidatingAdmissionWebhook.
+
+Values:
+  attestation.signature       — master signature (blake3:hex)
+  attestation.certificationHash — product certification hash (blake3:hex)
+  attestation.complianceHash  — compliance test result hash (blake3:hex)
+  attestation.changesetHash   — changeset integrity hash (blake3:hex)
+*/}}
+{{- define "pleme-lib.attestationAnnotations" -}}
+{{- if (.Values.attestation).enabled }}
+{{- with (.Values.attestation).signature }}
+sekiban.pleme.io/signature: {{ . | quote }}
+{{- end }}
+{{- with (.Values.attestation).certificationHash }}
+sekiban.pleme.io/certification-hash: {{ . | quote }}
+{{- end }}
+{{- with (.Values.attestation).complianceHash }}
+sekiban.pleme.io/compliance-hash: {{ . | quote }}
+{{- end }}
+{{- with (.Values.attestation).changesetHash }}
+sekiban.pleme.io/changeset-hash: {{ . | quote }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{/*
+All resource-level annotations (metadata.annotations on Deployment, Service, etc.).
+Combines attestation annotations with any user-provided resource annotations.
+*/}}
+{{- define "pleme-lib.resourceAnnotations" -}}
+{{- include "pleme-lib.attestationAnnotations" . }}
+{{- with .Values.annotations }}
+{{ toYaml . }}
+{{- end }}
+{{- end }}

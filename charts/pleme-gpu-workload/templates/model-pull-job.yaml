@@ -1,0 +1,55 @@
+{{- if .Values.modelPull.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}-model-pull
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+  annotations:
+    {{- include "pleme-lib.fluxcdPruneDisabled" . | nindent 4 }}
+spec:
+  backoffLimit: {{ .Values.modelPull.backoffLimit | default 3 }}
+  template:
+    metadata:
+      labels:
+        {{- include "pleme-lib.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: model-pull
+    spec:
+      restartPolicy: OnFailure
+      initContainers:
+        - name: wait-for-service
+          image: {{ .Values.modelPull.image }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Waiting for {{ include "pleme-lib.fullname" . }} to be ready..."
+              until curl -sf http://{{ include "pleme-lib.fullname" . }}:{{ (index .Values.service.ports 0).port }}{{ .Values.health.readyPath | default "/" }}; do
+                echo "Service not ready, retrying in 5s..."
+                sleep 5
+              done
+              echo "Service is ready."
+      containers:
+        - name: model-pull
+          image: {{ .Values.modelPull.image }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              {{- range .Values.modelPull.models }}
+              echo "Pulling model: {{ . }}"
+              curl -sf --max-time {{ $.Values.modelPull.maxTime | default 600 }} \
+                http://{{ include "pleme-lib.fullname" $ }}:{{ (index $.Values.service.ports 0).port }}/api/pull \
+                -d '{"name": "{{ . }}", "stream": false}'
+              echo ""
+              echo "Model {{ . }} pull complete."
+              {{- end }}
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+{{- end }}

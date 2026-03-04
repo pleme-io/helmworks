@@ -1,0 +1,95 @@
+# Example values for Ollama + Llama 3.1 8B on RTX 3070
+# Usage: nix run .#template -- pleme-gpu-workload examples/ollama.yaml
+
+image:
+  repository: ollama/ollama
+  tag: latest
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+gpu:
+  enabled: true
+  privileged: true
+  driverPath: /run/opengl-driver
+  driverMountPath: /usr/local/nvidia
+  visibleDevices: "all"
+  driverCapabilities: "compute,utility"
+
+ports:
+  - name: api
+    containerPort: 11434
+    protocol: TCP
+
+service:
+  enabled: true
+  type: ClusterIP
+  ports:
+    - name: api
+      port: 11434
+      targetPort: api
+      protocol: TCP
+
+config:
+  OLLAMA_MODELS: /models
+  OLLAMA_NUM_PARALLEL: "2"
+  OLLAMA_KEEP_ALIVE: 10m
+  CUDA_VISIBLE_DEVICES: "0"
+  OLLAMA_NUM_GPU: "999"
+  OLLAMA_HOST: 0.0.0.0:11434
+
+resources:
+  requests:
+    memory: "4Gi"
+    cpu: "500m"
+  limits:
+    memory: "20Gi"
+    cpu: "4"
+
+health:
+  path: /
+  readyPath: /api/tags
+  port: api
+  livenessInitialDelay: 30
+  livenessPeriod: 30
+  livenessFailureThreshold: 3
+  readinessInitialDelay: 30
+  readinessPeriod: 10
+  readinessFailureThreshold: 3
+
+podSecurityContext:
+  runAsNonRoot: false
+  runAsUser: 0
+  fsGroup: 0
+
+securityContext:
+  privileged: true
+  allowPrivilegeEscalation: true
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop: []
+
+volumeClaimTemplates:
+  - name: models
+    storage: 100Gi
+    storageClassName: local-path
+    accessModes: ["ReadWriteOnce"]
+
+modelPull:
+  enabled: true
+  image: curlimages/curl:8.11.1
+  models:
+    - llama3.1:8b
+  backoffLimit: 3
+  maxTime: 600
+
+nodeSelector:
+  kubernetes.io/hostname: plo
+
+monitoring:
+  enabled: false
+
+networkPolicy:
+  enabled: true
+  allowPrometheus: false
+  allowDns: true

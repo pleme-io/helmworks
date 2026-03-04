@@ -10,6 +10,11 @@ metadata:
   namespace: {{ include "pleme-lib.namespace" . }}
   labels:
     {{- include "pleme-lib.labels" . | nindent 4 }}
+  {{- $resAnnotations := include "pleme-lib.resourceAnnotations" . }}
+  {{- if $resAnnotations }}
+  annotations:
+    {{- $resAnnotations | nindent 4 }}
+  {{- end }}
 spec:
   type: {{ (.Values.service).type | default "ClusterIP" }}
   ports:

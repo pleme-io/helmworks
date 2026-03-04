@@ -1,0 +1,151 @@
+# pleme-gpu-workload default values
+# GPU-accelerated StatefulSet with hostPath driver mounts, model pull Jobs
+
+image:
+  repository: ""
+  tag: latest
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+replicaCount: 1
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+ports:
+  - name: api
+    containerPort: 11434
+    protocol: TCP
+
+service:
+  enabled: true
+  type: ClusterIP
+  ports:
+    - name: api
+      port: 11434
+      targetPort: api
+      protocol: TCP
+
+env: []
+envFrom: []
+volumeMounts: []
+volumes: []
+
+# GPU configuration
+gpu:
+  enabled: true
+  privileged: true
+  driverPath: /run/opengl-driver
+  driverMountPath: /usr/local/nvidia
+  visibleDevices: "all"
+  driverCapabilities: "compute,utility"
+
+# ConfigMap for environment tuning (rendered as a single ConfigMap)
+config: {}
+# Example:
+#   OLLAMA_MODELS: /models
+#   OLLAMA_NUM_PARALLEL: "2"
+
+resources:
+  requests:
+    memory: "4Gi"
+    cpu: "500m"
+  limits:
+    memory: "20Gi"
+    cpu: "4"
+
+health:
+  path: /
+  readyPath: /api/tags
+  port: api
+  livenessInitialDelay: 30
+  livenessPeriod: 30
+  livenessFailureThreshold: 3
+  readinessInitialDelay: 30
+  readinessPeriod: 10
+  readinessFailureThreshold: 3
+
+startupProbe:
+  enabled: false
+  path: /
+  port: api
+  initialDelaySeconds: 0
+  periodSeconds: 5
+  failureThreshold: 60
+
+# GPU workloads require privileged containers — pod security is relaxed
+podSecurityContext:
+  runAsNonRoot: false
+  runAsUser: 0
+  fsGroup: 0
+
+securityContext:
+  privileged: true
+  allowPrivilegeEscalation: true
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop: []
+
+updateStrategy:
+  type: RollingUpdate
+
+terminationGracePeriodSeconds: 30
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+initContainers: []
+sidecars: []
+
+# Volume claim templates for model storage
+volumeClaimTemplates:
+  - name: models
+    storage: 100Gi
+    storageClassName: local-path
+    accessModes: ["ReadWriteOnce"]
+
+# Model pull Job (runs after StatefulSet is ready)
+modelPull:
+  enabled: true
+  image: curlimages/curl:8.11.1
+  models:
+    - llama3.1:8b
+  backoffLimit: 3
+  maxTime: 600
+
+monitoring:
+  enabled: false
+  port: api
+  path: /metrics
+  interval: 30s
+  scrapeTimeout: 10s
+
+networkPolicy:
+  enabled: true
+  allowPrometheus: false
+  allowDns: true
+  additionalIngress: []
+  additionalEgress: []
+
+command: []
+args: []
+additionalLabels: {}
+lifecycle: {}
+
+configMaps: []
+downwardApi:
+  enabled: false
+istio:
+  enabled: false
+podMonitor:
+  enabled: false
+prometheusRules:
+  enabled: false

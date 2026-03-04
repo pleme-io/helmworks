@@ -259,6 +259,28 @@ configMaps: []
 downwardApi:
   enabled: false
 
+# -- Resource-level annotations (applied to Deployment, Service, etc. metadata)
+annotations: {}
+
+# -- Attestation framework integration (sekiban integrity verification)
+# When enabled, produces sekiban.pleme.io/* annotations on all resources.
+# These are verified by sekiban's ValidatingAdmissionWebhook before resources
+# are admitted to the cluster.
+#
+# Hashes are computed by tameshi and injected by CI/CD (forge) during release.
+# Do NOT set these manually — they are populated by the build pipeline.
+attestation:
+  # -- Enable attestation annotations
+  enabled: false
+  # -- Master signature hash (blake3:hex) — Merkle root of all layer signatures
+  signature: ""
+  # -- Product certification hash (blake3:hex) — end-to-end certification result
+  certificationHash: ""
+  # -- Compliance hash (blake3:hex) — NIST/OSCAL compliance test result
+  complianceHash: ""
+  # -- Changeset hash (blake3:hex) — resource changeset integrity
+  changesetHash: ""
+
 # -- Istio sidecar configuration
 istio:
   # -- Enable Istio annotations and resources

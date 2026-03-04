@@ -1,38 +1,26 @@
-{{/*
-pleme-lib: deployment named template
-
-Produces a standard Deployment for pleme-io services.
-*/}}
-
-{{- define "pleme-lib.deployment" -}}
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: {{ include "pleme-lib.fullname" . }}
   namespace: {{ include "pleme-lib.namespace" . }}
   labels:
     {{- include "pleme-lib.labels" . | nindent 4 }}
-  {{- $resAnnotations := include "pleme-lib.resourceAnnotations" . }}
-  {{- if $resAnnotations }}
   annotations:
-    {{- $resAnnotations | nindent 4 }}
-  {{- end }}
+    {{- include "pleme-lib.fluxcdPruneDisabled" . | nindent 4 }}
 spec:
-  {{- if not (.Values.autoscaling).enabled }}
+  serviceName: {{ include "pleme-lib.fullname" . }}-headless
   replicas: {{ .Values.replicaCount | default 1 }}
-  {{- end }}
   selector:
     matchLabels:
       {{- include "pleme-lib.selectorLabels" . | nindent 6 }}
-  {{- with .Values.strategy }}
-  strategy:
+  {{- with .Values.updateStrategy }}
+  updateStrategy:
     {{- toYaml . | nindent 4 }}
   {{- end }}
   template:
     metadata:
       labels:
         {{- include "pleme-lib.selectorLabels" . | nindent 8 }}
-        app: {{ include "pleme-lib.fullname" . }}
       annotations:
         {{- include "pleme-lib.prometheusAnnotations" . | nindent 8 }}
         {{- include "pleme-lib.istioAnnotations" . | nindent 8 }}
@@ -47,17 +35,14 @@ spec:
       {{- end }}
       securityContext:
         {{- include "pleme-lib.podSecurityContext" . | nindent 8 }}
-      {{- if or (.Values.shinkaWait).enabled (gt (len (.Values.initContainers | default list)) 0) }}
+      {{- with .Values.initContainers }}
       initContainers:
-        {{- include "pleme-lib.shinkaWaitInitContainer" . | nindent 8 }}
-        {{- with .Values.initContainers }}
         {{- toYaml . | nindent 8 }}
-        {{- end }}
       {{- end }}
       containers:
         - name: {{ include "pleme-lib.name" . }}
           image: {{ include "pleme-lib.image" . }}
-          imagePullPolicy: {{ .Values.image.pullPolicy | default "Always" }}
+          imagePullPolicy: {{ .Values.image.pullPolicy | default "IfNotPresent" }}
           {{- with .Values.command }}
           command:
             {{- toYaml . | nindent 12 }}
@@ -70,9 +55,16 @@ spec:
           ports:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- if or (.Values.downwardApi).enabled (gt (len (.Values.env | default list)) 0) }}
           env:
-            {{- if (.Values.downwardApi).enabled }}
+            {{- if .Values.gpu.enabled }}
+            - name: LD_LIBRARY_PATH
+              value: "{{ .Values.gpu.driverMountPath }}/lib:{{ .Values.gpu.driverMountPath }}/lib64"
+            - name: NVIDIA_VISIBLE_DEVICES
+              value: {{ .Values.gpu.visibleDevices | quote }}
+            - name: NVIDIA_DRIVER_CAPABILITIES
+              value: {{ .Values.gpu.driverCapabilities | quote }}
+            {{- end }}
+            {{- if .Values.downwardApi.enabled }}
             - name: POD_NAME
               valueFrom:
                 fieldRef:
@@ -89,29 +81,47 @@ spec:
             {{- with .Values.env }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
-          {{- end }}
-          {{- with .Values.envFrom }}
           envFrom:
+            {{- if .Values.config }}
+            - configMapRef:
+                name: {{ include "pleme-lib.fullname" . }}-config
+            {{- end }}
+            {{- with .Values.envFrom }}
             {{- toYaml . | nindent 12 }}
-          {{- end }}
+            {{- end }}
           {{- with .Values.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          {{- if .Values.gpu.enabled }}
+          securityContext:
+            privileged: {{ .Values.gpu.privileged }}
+          {{- else }}
           securityContext:
             {{- include "pleme-lib.containerSecurityContext" . | nindent 12 }}
+          {{- end }}
           livenessProbe:
             {{- include "pleme-lib.livenessProbe" . | nindent 12 }}
           readinessProbe:
             {{- include "pleme-lib.readinessProbe" . | nindent 12 }}
-          {{- if (.Values.startupProbe).enabled }}
+          {{- if .Values.startupProbe.enabled }}
           startupProbe:
             {{- include "pleme-lib.startupProbe" . | nindent 12 }}
           {{- end }}
-          {{- with .Values.volumeMounts }}
           volumeMounts:
+            {{- range .Values.volumeClaimTemplates }}
+            - name: {{ .name }}
+              mountPath: {{ .mountPath | default (printf "/%s" .name) }}
+            {{- end }}
+            {{- if .Values.gpu.enabled }}
+            - name: dev
+              mountPath: /dev
+            - name: nvidia-driver
+              mountPath: {{ .Values.gpu.driverMountPath }}
+            {{- end }}
+            {{- with .Values.volumeMounts }}
             {{- toYaml . | nindent 12 }}
-          {{- end }}
+            {{- end }}
           {{- with .Values.lifecycle }}
           lifecycle:
             {{- toYaml . | nindent 12 }}
@@ -119,10 +129,18 @@ spec:
         {{- range .Values.sidecars }}
         - {{- toYaml . | nindent 10 }}
         {{- end }}
-      {{- with .Values.volumes }}
       volumes:
+        {{- if .Values.gpu.enabled }}
+        - name: dev
+          hostPath:
+            path: /dev
+        - name: nvidia-driver
+          hostPath:
+            path: {{ .Values.gpu.driverPath }}
+        {{- end }}
+        {{- with .Values.volumes }}
         {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- end }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds | default 30 }}
       {{- with .Values.priorityClassName }}
       priorityClassName: {{ . }}
@@ -143,4 +161,25 @@ spec:
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-{{- end }}
+  {{- with .Values.volumeClaimTemplates }}
+  volumeClaimTemplates:
+    {{- range . }}
+    - metadata:
+        name: {{ .name }}
+        annotations:
+          {{- include "pleme-lib.fluxcdPruneDisabled" $ | nindent 10 }}
+        {{- with .labels }}
+        labels:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+      spec:
+        accessModes:
+          {{- toYaml (.accessModes | default (list "ReadWriteOnce")) | nindent 10 }}
+        {{- with .storageClassName }}
+        storageClassName: {{ . }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .storage | default "1Gi" }}
+    {{- end }}
+  {{- end }}

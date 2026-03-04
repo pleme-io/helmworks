@@ -4,14 +4,25 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
     flake-parts.url = "github:hercules-ci/flake-parts";
+    fenix = {
+      url = "github:nix-community/fenix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     substrate = {
       url = "github:pleme-io/substrate/fb9cc398db7884e98dfb160daef0c4433bbc658c";
       inputs.nixpkgs.follows = "nixpkgs";
+      inputs.fenix.follows = "fenix";
     };
     forge = {
-      url = "github:pleme-io/forge/c8a37b6b84646f96b2e14bd58bb30e2514f1a501";
+      url = "github:pleme-io/forge/b099c24623b6b8c8a864c8692e6e0888c91ad812";
       inputs.nixpkgs.follows = "nixpkgs";
+      inputs.fenix.follows = "fenix";
       inputs.substrate.follows = "substrate";
+      inputs.crate2nix.follows = "crate2nix";
+    };
+    crate2nix = {
+      url = "github:nix-community/crate2nix";
+      inputs.nixpkgs.follows = "nixpkgs";
     };
   };
 
@@ -29,6 +40,7 @@
           };
 
           chartDefs = [
+            { name = "pleme-lib"; chartDir = ./charts/pleme-lib; }
             { name = "pleme-microservice"; chartDir = ./charts/pleme-microservice; }
             { name = "pleme-worker"; chartDir = ./charts/pleme-worker; }
             { name = "pleme-web"; chartDir = ./charts/pleme-web; }
