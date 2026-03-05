@@ -1,0 +1,241 @@
+# headscale default values
+# Self-hosted Tailscale coordination server
+
+image:
+  repository: ghcr.io/juanfont/headscale
+  tag: "0.25.1"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+replicaCount: 1
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+ports:
+  - name: http
+    containerPort: 8080
+    protocol: TCP
+  - name: grpc
+    containerPort: 50443
+    protocol: TCP
+  - name: metrics
+    containerPort: 9090
+    protocol: TCP
+  - name: stun
+    containerPort: 3478
+    protocol: UDP
+
+service:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+    - name: grpc
+      port: 50443
+      targetPort: grpc
+      protocol: TCP
+    - name: metrics
+      port: 9090
+      targetPort: metrics
+      protocol: TCP
+    - name: stun
+      port: 3478
+      targetPort: stun
+      protocol: UDP
+
+env: []
+envFrom: []
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
+health:
+  path: /health
+  readyPath: /health
+  port: http
+  livenessInitialDelay: 10
+  livenessPeriod: 30
+  livenessFailureThreshold: 3
+  readinessInitialDelay: 5
+  readinessPeriod: 10
+  readinessFailureThreshold: 2
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+strategy:
+  type: Recreate
+
+terminationGracePeriodSeconds: 30
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Persistent storage for SQLite database
+persistence:
+  enabled: true
+  size: 1Gi
+  storageClassName: ""
+
+# OIDC client secret — mount as file for headscale
+# Set name to enable OIDC secret volume mount
+oidcSecret:
+  name: ""
+  key: "client-secret"
+
+# Headscale configuration — rendered as /etc/headscale/config.yaml
+config:
+  server_url: "https://headscale.example.com"
+  listen_addr: "0.0.0.0:8080"
+  metrics_listen_addr: "0.0.0.0:9090"
+  grpc_listen_addr: "0.0.0.0:50443"
+  grpc_allow_insecure: false
+  noise:
+    private_key_path: /var/lib/headscale/noise_private.key
+  prefixes:
+    v4: 100.64.0.0/10
+    v6: fd7a:115c:a1e0::/48
+    allocation: sequential
+  derp:
+    server:
+      enabled: true
+      region_id: 999
+      region_code: "headscale"
+      region_name: "Headscale Embedded DERP"
+      stun_listen_addr: "0.0.0.0:3478"
+    urls:
+      - https://controlplane.tailscale.com/derpmap/default
+    auto_update_enabled: true
+    update_frequency: 24h
+  disable_check_updates: true
+  ephemeral_node_inactivity_timeout: 30m
+  database:
+    type: sqlite
+    sqlite:
+      path: /var/lib/headscale/db.sqlite
+  dns:
+    magic_dns: true
+    base_domain: headscale.net
+    nameservers:
+      global:
+        - 1.1.1.1
+        - 1.0.0.1
+  log:
+    level: info
+  policy:
+    mode: file
+    path: ""
+  oidc:
+    issuer: ""
+    client_id: ""
+    client_secret_path: /etc/headscale/oidc/client-secret
+    scope:
+      - openid
+      - profile
+      - email
+    pkce:
+      enabled: false
+    only_start_if_oidc_is_available: false
+    allowed_groups: []
+    strip_email_domain: true
+
+monitoring:
+  enabled: true
+  port: metrics
+  path: /metrics
+  interval: 30s
+  scrapeTimeout: 10s
+
+networkPolicy:
+  enabled: true
+  allowPrometheus: true
+  allowDns: true
+  additionalIngress: []
+  additionalEgress: []
+
+# Grafana dashboards via grafana-operator GrafanaDashboard CRDs
+grafana:
+  enabled: false
+  folder: Infrastructure
+  instanceSelector:
+    dashboards: grafana
+
+# Alerting rules via Prometheus Operator PrometheusRule CRDs
+prometheusRules:
+  enabled: false
+  groups:
+    - name: headscale.rules
+      rules:
+        - alert: HeadscaleDown
+          expr: up{job=~".*headscale.*"} == 0
+          for: 2m
+          labels:
+            severity: critical
+            service: headscale
+          annotations:
+            summary: "Headscale coordination server is down"
+            description: "Headscale has been unreachable for more than 2 minutes."
+        - alert: HeadscaleHighRestarts
+          expr: increase(kube_pod_container_status_restarts_total{namespace=~"headscale.*", pod=~"headscale.*"}[1h]) > 3
+          for: 5m
+          labels:
+            severity: warning
+            service: headscale
+          annotations:
+            summary: "Headscale pod restarting frequently"
+            description: "Headscale has restarted {{ $value }} times in the last hour."
+        - alert: HeadscaleHighMemory
+          expr: container_memory_working_set_bytes{namespace=~"headscale.*", pod=~"headscale.*", container="headscale"} / on(namespace, pod, container) kube_pod_container_resource_limits{resource="memory"} > 0.85
+          for: 5m
+          labels:
+            severity: warning
+            service: headscale
+          annotations:
+            summary: "Headscale memory usage above 85%"
+            description: "Headscale is using {{ $value | humanizePercentage }} of its memory limit."
+        - alert: HeadscaleHighGoroutines
+          expr: go_goroutines{job=~".*headscale.*"} > 1000
+          for: 10m
+          labels:
+            severity: warning
+            service: headscale
+          annotations:
+            summary: "Headscale goroutine count is high"
+            description: "Headscale has {{ $value }} goroutines, which may indicate a leak."
+
+istio:
+  enabled: false
+downwardApi:
+  enabled: false
+autoscaling:
+  enabled: false
+pdb:
+  enabled: false
+startupProbe:
+  enabled: false
+additionalLabels: {}

@@ -1,0 +1,38 @@
+{{/*
+Grafana dashboards via grafana-operator GrafanaDashboard CRDs.
+Automatically discovers all JSON files in dashboards/ and creates
+a GrafanaDashboard CR for each, referencing a shared ConfigMap.
+*/}}
+{{- if .Values.grafana.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}-dashboards
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+data:
+  {{- range $path, $_ := .Files.Glob "dashboards/*.json" }}
+  {{ $path | base }}: |
+{{ $.Files.Get $path | indent 4 }}
+  {{- end }}
+---
+{{- range $path, $_ := .Files.Glob "dashboards/*.json" }}
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDashboard
+metadata:
+  name: {{ include "pleme-lib.fullname" $ }}-{{ $path | base | trimSuffix ".json" }}
+  namespace: {{ include "pleme-lib.namespace" $ }}
+  labels:
+    {{- include "pleme-lib.labels" $ | nindent 4 }}
+spec:
+  instanceSelector:
+    matchLabels:
+      {{- toYaml $.Values.grafana.instanceSelector | nindent 6 }}
+  folder: {{ $.Values.grafana.folder | quote }}
+  configMapRef:
+    name: {{ include "pleme-lib.fullname" $ }}-dashboards
+    key: {{ $path | base }}
+---
+{{- end }}
+{{- end }}

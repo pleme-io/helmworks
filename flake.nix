@@ -58,6 +58,7 @@
             { name = "arachne"; chartDir = ./charts/arachne; }
             { name = "sekiban"; chartDir = ./charts/sekiban; }
             { name = "pleme-gpu-workload"; chartDir = ./charts/pleme-gpu-workload; }
+            { name = "headscale"; chartDir = ./charts/headscale; }
           ];
 
           # Use substrate's mkHelmAllApps for all chart lifecycle apps

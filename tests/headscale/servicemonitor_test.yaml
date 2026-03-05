@@ -1,0 +1,30 @@
+suite: headscale servicemonitor tests
+templates:
+  - templates/servicemonitor.yaml
+values:
+  - ../../examples/headscale.yaml
+tests:
+  - it: should render a ServiceMonitor
+    asserts:
+      - isKind:
+          of: ServiceMonitor
+
+  - it: should scrape the metrics port
+    asserts:
+      - equal:
+          path: spec.endpoints[0].port
+          value: metrics
+      - equal:
+          path: spec.endpoints[0].path
+          value: /metrics
+      - equal:
+          path: spec.endpoints[0].interval
+          value: 30s
+
+  - it: should not render when monitoring disabled
+    set:
+      monitoring:
+        enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0

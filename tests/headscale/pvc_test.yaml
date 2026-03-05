@@ -1,0 +1,41 @@
+suite: headscale pvc tests
+templates:
+  - templates/pvc.yaml
+values:
+  - ../../examples/headscale.yaml
+tests:
+  - it: should render a PersistentVolumeClaim
+    asserts:
+      - isKind:
+          of: PersistentVolumeClaim
+
+  - it: should use ReadWriteOnce access mode
+    asserts:
+      - contains:
+          path: spec.accessModes
+          content: ReadWriteOnce
+
+  - it: should request configured storage size
+    asserts:
+      - equal:
+          path: spec.resources.requests.storage
+          value: 2Gi
+
+  - it: should set storageClassName
+    asserts:
+      - equal:
+          path: spec.storageClassName
+          value: local-path
+
+  - it: should have fluxcd prune disabled annotation
+    asserts:
+      - isNotNullOrEmpty:
+          path: metadata.annotations
+
+  - it: should not render when persistence disabled
+    set:
+      persistence:
+        enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0

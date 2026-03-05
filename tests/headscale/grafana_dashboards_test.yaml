@@ -1,0 +1,19 @@
+suite: headscale grafana dashboards tests
+templates:
+  - templates/grafana-dashboards.yaml
+values:
+  - ../../examples/headscale.yaml
+tests:
+  - it: should render a ConfigMap for dashboard data
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: ConfigMap
+
+  - it: should not render when grafana disabled
+    set:
+      grafana:
+        enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0

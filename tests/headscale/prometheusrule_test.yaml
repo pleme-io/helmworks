@@ -1,0 +1,39 @@
+suite: headscale prometheusrule tests
+templates:
+  - templates/prometheusrule.yaml
+values:
+  - ../../examples/headscale.yaml
+tests:
+  - it: should render a PrometheusRule
+    asserts:
+      - isKind:
+          of: PrometheusRule
+
+  - it: should have prometheus main label
+    asserts:
+      - equal:
+          path: metadata.labels.prometheus
+          value: main
+
+  - it: should contain headscale rules group
+    asserts:
+      - equal:
+          path: spec.groups[0].name
+          value: headscale.rules
+
+  - it: should contain HeadscaleDown alert
+    asserts:
+      - equal:
+          path: spec.groups[0].rules[0].alert
+          value: HeadscaleDown
+      - equal:
+          path: spec.groups[0].rules[0].labels.severity
+          value: critical
+
+  - it: should not render when disabled
+    set:
+      prometheusRules:
+        enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0

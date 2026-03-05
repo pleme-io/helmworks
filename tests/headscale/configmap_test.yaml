@@ -1,0 +1,33 @@
+suite: headscale configmap tests
+templates:
+  - templates/configmap.yaml
+values:
+  - ../../examples/headscale.yaml
+tests:
+  - it: should render a ConfigMap
+    asserts:
+      - isKind:
+          of: ConfigMap
+
+  - it: should contain config.yaml key
+    asserts:
+      - isNotNullOrEmpty:
+          path: data["config.yaml"]
+
+  - it: should contain server_url in config
+    asserts:
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: "server_url.*headscale\\.lilitu\\.io"
+
+  - it: should contain oidc issuer in config
+    asserts:
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: "issuer.*auth\\.lilitu\\.io"
+
+  - it: should contain client_secret_path in config
+    asserts:
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: "client_secret_path.*/etc/headscale/oidc/client-secret"
