@@ -1,0 +1,198 @@
+# iac-forge default values
+# IaC code generation pipeline: tend watcher + iac-forge sync
+
+# -- Tend daemon image (long-running watcher)
+image:
+  repository: ghcr.io/pleme-io/iac-forge
+  tag: arm64-latest
+  pullPolicy: Always
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# =============================================================================
+# Tend Daemon (primary mode: Deployment watching for spec changes)
+# =============================================================================
+
+# -- tend daemon interval in seconds (how often to check for changes)
+tendInterval: 300
+
+# -- tend config.yaml content (mounted as ConfigMap)
+tendConfig: {}
+  # Example:
+  # workspaces:
+  #   - name: akeyless-specs
+  #     provider: github
+  #     base_dir: /workspace/repos
+  #     clone_method: https
+  #     discover: false
+  #     extra_repos:
+  #       - akeylesslabs/akeyless-go
+  #     watch:
+  #       enable: true
+  #       file_watches:
+  #         - name: akeyless-openapi-spec
+  #           org: akeylesslabs
+  #           repo: akeyless-go
+  #           path: api/openapi.yaml
+  #           download_to: /workspace/specs
+  #           post_hooks:
+  #             - trigger: on_change
+  #               command: iac-forge
+  #               args:
+  #                 - sync
+  #                 - "--spec-old"
+  #                 - "$PREVIOUS_FILE"
+  #                 - "--spec-new"
+  #                 - "$CURRENT_FILE"
+  #                 - "--resources"
+  #                 - /workspace/resources
+  #                 - "--output"
+  #                 - /workspace/output
+  #                 - "--backend"
+  #                 - all
+  #                 - "--auto-scaffold"
+  #                 - "--audit-log"
+  #                 - /workspace/audit/audit.jsonl
+
+# =============================================================================
+# CronJob (optional: periodic iac-forge sync as safety net)
+# =============================================================================
+
+cronjob:
+  # -- Enable periodic CronJob alongside the tend watcher
+  enabled: false
+  # -- Cron schedule expression
+  schedule: "0 */6 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  backoffLimit: 3
+  restartPolicy: OnFailure
+  # -- Command for the CronJob container
+  command: []
+  # -- Args for the CronJob container
+  args: []
+    # Example:
+    # - sync
+    # - "--spec-old"
+    # - /workspace/specs/old/openapi.yaml
+    # - "--spec-new"
+    # - /workspace/specs/new/openapi.yaml
+    # - "--resources"
+    # - /workspace/resources
+    # - "--output"
+    # - /workspace/output
+    # - "--backend"
+    # - all
+
+# =============================================================================
+# Persistence
+# =============================================================================
+
+persistence:
+  # -- Enable PVC for workspace data (repos, specs, output, cache)
+  enabled: true
+  storageClass: ""
+  accessModes:
+    - ReadWriteOnce
+  size: 10Gi
+
+# =============================================================================
+# Environment & Secrets
+# =============================================================================
+
+env: []
+  # - name: RUST_LOG
+  #   value: "info,tend=debug"
+
+envFrom: []
+  # - secretRef:
+  #     name: iac-forge-github-token
+
+# =============================================================================
+# Resources & Scheduling
+# =============================================================================
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: "1"
+    memory: 512Mi
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# =============================================================================
+# Network Policy
+# =============================================================================
+
+networkPolicy:
+  enabled: true
+  allowPrometheus: false
+  allowDns: true
+  additionalIngress: []
+  additionalEgress:
+    # Allow HTTPS egress (GitHub API + git clone)
+    - name: allow-https
+      rules:
+        - ports:
+            - port: 443
+              protocol: TCP
+
+# =============================================================================
+# ConfigMaps (pleme-lib dynamic configmaps)
+# =============================================================================
+
+configMaps: []
+
+# =============================================================================
+# Volumes (additional volumes beyond PVC and tend config)
+# =============================================================================
+
+volumeMounts: []
+volumes: []
+
+# -- Command override for the main container
+command: []
+# -- Args override for the main container
+args: []
+
+additionalLabels: {}
+
+# Unused by iac-forge but required by pleme-lib helpers
+ports: []
+service:
+  enabled: false
+  ports: []
+monitoring:
+  enabled: false
+health:
+  path: /healthz
+  readyPath: /readyz
+  port: http
+startupProbe:
+  enabled: false
