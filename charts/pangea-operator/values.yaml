@@ -1,0 +1,258 @@
+# -- Number of replicas (singleton operator)
+replicaCount: 1
+
+image:
+  # -- Container image repository
+  repository: ghcr.io/pleme-io/pangea-operator
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+  # -- Image tag (defaults to appVersion)
+  tag: ""
+
+# -- Image pull secrets
+imagePullSecrets: []
+
+# -- Override chart name
+nameOverride: ""
+# -- Override full name
+fullnameOverride: ""
+
+serviceAccount:
+  # -- Create a ServiceAccount
+  create: true
+  # -- ServiceAccount annotations
+  annotations: {}
+  # -- ServiceAccount name (auto-generated if empty)
+  name: ""
+
+rbac:
+  # -- Create ClusterRole and ClusterRoleBinding
+  create: true
+  # -- RBAC rules for the operator
+  rules:
+    # InfrastructureTemplate CRD access
+    - apiGroups: ["pangea.pleme.io"]
+      resources: ["infrastructuretemplates", "infrastructuretemplates/status"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    # PangeaNamespace CRD access
+    - apiGroups: ["pangea.pleme.io"]
+      resources: ["pangeanamespaces", "pangeanamespaces/status"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    # Events for recording reconciliation activity
+    - apiGroups: [""]
+      resources: ["events"]
+      verbs: ["create", "patch"]
+    # ConfigMaps and Secrets for template sources and credentials
+    - apiGroups: [""]
+      resources: ["configmaps", "secrets"]
+      verbs: ["get", "list", "watch"]
+    # Leader election
+    - apiGroups: ["coordination.k8s.io"]
+      resources: ["leases"]
+      verbs: ["get", "create", "update"]
+
+# -- Container ports
+ports:
+  - name: health
+    containerPort: 8080
+    protocol: TCP
+  - name: metrics
+    containerPort: 9090
+    protocol: TCP
+  - name: graphql
+    containerPort: 8081
+    protocol: TCP
+
+service:
+  # -- Service type
+  type: ClusterIP
+  # -- Service ports
+  ports:
+    - port: 8080
+      targetPort: health
+      protocol: TCP
+      name: health
+    - port: 9090
+      targetPort: metrics
+      protocol: TCP
+      name: metrics
+    - port: 8081
+      targetPort: graphql
+      protocol: TCP
+      name: graphql
+
+# -- Environment variables
+env:
+  - name: TOFU_BINARY
+    value: /usr/local/bin/tofu
+  - name: PANGEA_WORKSPACE_BASE
+    value: /var/pangea/workspaces
+  - name: RUST_LOG
+    value: pangea_operator=info
+  - name: POD_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.name
+
+# -- Extra environment variables from ConfigMaps or Secrets
+envFrom: []
+
+# -- Compiler sidecar for Ruby DSL template compilation
+sidecars:
+  - name: compiler
+    image: ghcr.io/pleme-io/pangea-compiler:latest
+    ports:
+      - name: compiler
+        containerPort: 8082
+        protocol: TCP
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+    livenessProbe:
+      httpGet:
+        path: /healthz
+        port: compiler
+      initialDelaySeconds: 10
+      periodSeconds: 30
+    readinessProbe:
+      httpGet:
+        path: /healthz
+        port: compiler
+      initialDelaySeconds: 5
+      periodSeconds: 10
+
+# -- Resource requests and limits
+resources:
+  requests:
+    cpu: 200m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 512Mi
+
+# -- Volume mounts
+volumeMounts:
+  - name: workspaces
+    mountPath: /var/pangea/workspaces
+
+# -- Volumes
+volumes:
+  - name: workspaces
+    emptyDir:
+      sizeLimit: 1Gi
+
+# -- Health probe configuration
+health:
+  # -- Liveness probe path
+  path: /healthz
+  # -- Readiness probe path
+  readyPath: /readyz
+  # -- Health port name
+  port: health
+  # -- Initial delay for liveness probe
+  initialDelaySeconds: 5
+  # -- Period between liveness probes
+  periodSeconds: 10
+
+# -- Startup probe configuration
+startupProbe:
+  enabled: true
+  httpGet:
+    path: /healthz
+    port: health
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  failureThreshold: 30
+
+# -- Deployment strategy (Recreate prevents dual reconciliation)
+strategy:
+  type: Recreate
+
+# -- Termination grace period
+terminationGracePeriodSeconds: 30
+
+# -- Pod security context
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+# -- Container security context
+securityContext:
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+# -- Pod annotations
+podAnnotations: {}
+
+# -- Node selector
+nodeSelector: {}
+
+# -- Tolerations
+tolerations: []
+
+# -- Affinity rules
+affinity: {}
+
+# -- Monitoring configuration
+monitoring:
+  enabled: true
+  path: /metrics
+  port: metrics
+
+# -- Network policy
+networkPolicy:
+  enabled: false
+
+# -- Pod disruption budget
+pdb:
+  enabled: false
+  minAvailable: 1
+
+# -- Horizontal pod autoscaler (disabled for operators)
+autoscaling:
+  enabled: false
+
+# -- Istio integration
+istio:
+  enabled: false
+
+# -- Attestation annotations (sekiban integration)
+attestation:
+  enabled: false
+
+# -- PrometheusRule alerts
+prometheusRules:
+  enabled: true
+  rules:
+    - alert: PangeaDriftDetected
+      expr: increase(pangea_drift_detected_total[5m]) > 0
+      for: 0m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Infrastructure drift detected in {{ $labels.namespace }}/{{ $labels.name }}"
+        description: "Pangea operator detected infrastructure drift that may require attention."
+    - alert: PangeaReconciliationFailing
+      expr: increase(pangea_reconciliation_errors_total[15m]) > 5
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Pangea reconciliation failing repeatedly"
+        description: "More than 5 reconciliation errors in the last 15 minutes."
+    - alert: PangeaTemplateStuck
+      expr: pangea_templates_by_phase{phase="Failed"} > 0
+      for: 30m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Pangea template stuck in Failed phase"
+        description: "One or more templates have been in Failed phase for over 30 minutes."
