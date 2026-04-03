@@ -51,9 +51,9 @@ rbac:
       resources: ["leases"]
       verbs: ["get", "create", "update"]
 
-# -- Container ports
+# -- Container ports (primary port named 'http' to match pleme-lib probe defaults)
 ports:
-  - name: health
+  - name: http
     containerPort: 8080
     protocol: TCP
   - name: metrics
@@ -69,9 +69,9 @@ service:
   # -- Service ports
   ports:
     - port: 8080
-      targetPort: health
+      targetPort: http
       protocol: TCP
-      name: health
+      name: http
     - port: 9090
       targetPort: metrics
       protocol: TCP
@@ -84,7 +84,7 @@ service:
 # -- Environment variables
 env:
   - name: TOFU_BINARY
-    value: /usr/local/bin/tofu
+    value: tofu
   - name: PANGEA_WORKSPACE_BASE
     value: /var/pangea/workspaces
   - name: RUST_LOG
@@ -152,7 +152,7 @@ health:
   # -- Readiness probe path
   readyPath: /readyz
   # -- Health port name
-  port: health
+  port: http
   # -- Initial delay for liveness probe
   initialDelaySeconds: 5
   # -- Period between liveness probes
@@ -163,7 +163,7 @@ startupProbe:
   enabled: true
   httpGet:
     path: /healthz
-    port: health
+    port: http
   initialDelaySeconds: 5
   periodSeconds: 5
   failureThreshold: 30
