@@ -1,0 +1,92 @@
+{{/*
+Custom deployment for shinryu-mcp — uses pleme-lib helpers but adds
+PVC volume mount for analytics data and ConfigMap for shikumi config.
+*/}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+spec:
+  {{- if .Values.breathing.enabled }}
+  replicas: 0
+  {{- else }}
+  replicas: {{ .Values.replicaCount | default 1 }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "pleme-lib.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "pleme-lib.selectorLabels" . | nindent 8 }}
+      annotations:
+        {{- include "pleme-lib.prometheusAnnotations" . | nindent 8 }}
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "pleme-lib.serviceAccountName" . }}
+      securityContext:
+        {{- include "pleme-lib.podSecurityContext" . | nindent 8 }}
+      containers:
+        - name: {{ include "pleme-lib.name" . }}
+          image: {{ include "pleme-lib.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy | default "Always" }}
+          args:
+            - --analytics-path
+            - {{ .Values.analytics.path }}
+          ports:
+            {{- toYaml .Values.ports | nindent 12 }}
+          env:
+            - name: RUST_LOG
+              value: "info,shinryu_mcp=debug"
+            - name: SHINRYU_REFINER_ENABLED
+              value: {{ .Values.refiner.enabled | quote }}
+            - name: SHINRYU_REFINER_INTERVAL
+              value: {{ .Values.refiner.interval_secs | quote }}
+            - name: SHINRYU_MATERIALIZER_ENABLED
+              value: {{ .Values.materializer.enabled | quote }}
+            - name: SHINRYU_MATERIALIZER_INTERVAL
+              value: {{ .Values.materializer.interval_secs | quote }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            {{- include "pleme-lib.containerSecurityContext" . | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.health.path }}
+              port: mcp
+            initialDelaySeconds: {{ .Values.health.livenessInitialDelay }}
+            periodSeconds: {{ .Values.health.livenessPeriod }}
+            failureThreshold: {{ .Values.health.livenessFailureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.health.readyPath }}
+              port: mcp
+            initialDelaySeconds: {{ .Values.health.readinessInitialDelay }}
+            periodSeconds: {{ .Values.health.readinessPeriod }}
+            failureThreshold: {{ .Values.health.readinessFailureThreshold }}
+          volumeMounts:
+            - name: analytics
+              mountPath: {{ .Values.analytics.path }}
+            - name: config
+              mountPath: /etc/shinryu
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        {{- if .Values.analytics.pvc.enabled }}
+        - name: analytics
+          persistentVolumeClaim:
+            claimName: {{ .Values.analytics.pvc.claimName }}
+        {{- else }}
+        - name: analytics
+          emptyDir: {}
+        {{- end }}
+        - name: config
+          configMap:
+            name: {{ include "pleme-lib.fullname" . }}-config
+        - name: tmp
+          emptyDir: {}
+      terminationGracePeriodSeconds: 30

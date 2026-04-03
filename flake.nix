@@ -66,6 +66,7 @@
             { name = "pleme-gpu-workload"; chartDir = ./charts/pleme-gpu-workload; }
             { name = "headscale"; chartDir = ./charts/headscale; }
             { name = "iac-forge"; chartDir = ./charts/iac-forge; }
+            { name = "pleme-shinryu"; chartDir = ./charts/pleme-shinryu; }
           ];
 
           # Use substrate's mkHelmAllApps for all chart lifecycle apps

@@ -1,0 +1,24 @@
+{{/*
+PVC for analytics data shared between Vector (writer) and shinryu-mcp (reader).
+Vector writes Bronze NDJSON, shinryu-mcp writes Silver Parquet and Gold views.
+*/}}
+{{- if .Values.analytics.pvc.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.analytics.pvc.claimName }}
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled
+spec:
+  accessModes:
+    - {{ .Values.analytics.pvc.accessMode | default "ReadWriteOnce" }}
+  {{- if .Values.analytics.pvc.storageClass }}
+  storageClassName: {{ .Values.analytics.pvc.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.analytics.pvc.size }}
+{{- end }}

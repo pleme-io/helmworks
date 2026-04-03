@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}-config
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+data:
+  shinryu-mcp.yaml: |
+    analytics_path: {{ .Values.analytics.path | quote }}
+    datafusion:
+      memory_limit_mb: {{ .Values.datafusion.memory_limit_mb }}
+      sql_timeout_secs: {{ .Values.datafusion.sql_timeout_secs }}
+    refiner:
+      enabled: {{ .Values.refiner.enabled }}
+      interval_secs: {{ .Values.refiner.interval_secs }}
+    materializer:
+      enabled: {{ .Values.materializer.enabled }}
+      interval_secs: {{ .Values.materializer.interval_secs }}
+    lifecycle:
+      bronze_retention_days: {{ .Values.lifecycle.bronze_retention_days }}
+      silver_retention_days: {{ .Values.lifecycle.silver_retention_days }}
+      gold_retention_days: {{ .Values.lifecycle.gold_retention_days }}
+    udfs:
+      burst_forge: {{ .Values.udfs.burst_forge }}

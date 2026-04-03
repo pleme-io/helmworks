@@ -1,0 +1,30 @@
+{{/*
+KEDA ScaledObject for breathable analytics.
+Scales shinryu-mcp 0→1 when new analytics data arrives in NATS.
+Scales back to 0 after sleep_after_secs of idle.
+Mirrors the Vector Consumer breathing pattern exactly.
+*/}}
+{{- if .Values.breathing.enabled }}
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    name: {{ include "pleme-lib.fullname" . }}
+  pollingInterval: 15
+  cooldownPeriod: {{ .Values.breathing.sleep_after_secs }}
+  minReplicaCount: {{ .Values.breathing.min_replicas }}
+  maxReplicaCount: {{ .Values.breathing.max_replicas }}
+  triggers:
+    - type: nats-jetstream
+      metadata:
+        natsServerMonitoringEndpoint: {{ .Values.breathing.nats.server_monitoring | quote }}
+        stream: {{ .Values.breathing.nats.stream | quote }}
+        consumer: {{ .Values.breathing.nats.consumer | quote }}
+        lagThreshold: "100"
+        activationLagThreshold: "1"
+{{- end }}
