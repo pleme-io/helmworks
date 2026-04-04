@@ -272,8 +272,8 @@ spec:
                       nullable: true
                       type: string
                     state:
-                      description: Full terraform state snapshot (from `tofu show -json`). Enables {{ steps.X.state.resource_type.resource_name.attribute }} references.
-                      nullable: true
+                      description: Full terraform state snapshot (from `tofu show -json`). Enables {{ steps.X.state.resource_type.resource_name.attribute }} references. Stored as an opaque JSON object.
+                      type: object
                     templateName:
                       description: Name of the managed InfrastructureTemplate.
                       nullable: true
