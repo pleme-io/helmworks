@@ -38,6 +38,10 @@ rbac:
     - apiGroups: ["pangea.pleme.io"]
       resources: ["pangeanamespaces", "pangeanamespaces/status"]
       verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    # InfrastructureFlow CRD access
+    - apiGroups: ["pangea.pleme.io"]
+      resources: ["infrastructureflows", "infrastructureflows/status"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
     # Events for recording reconciliation activity
     - apiGroups: [""]
       resources: ["events"]

@@ -199,6 +199,36 @@ spec:
                 description: Optional specific template name to deploy if the source file contains multiple templates.
                 nullable: true
                 type: string
+              variableRefs:
+                additionalProperties:
+                  description: Cross-template variable reference. Fetches an output from another template.
+                  properties:
+                    outputKey:
+                      description: Key in the source template's status.outputs to read.
+                      type: string
+                    templateRef:
+                      description: Reference to the source template.
+                      properties:
+                        name:
+                          description: Name of the InfrastructureTemplate.
+                          type: string
+                        namespace:
+                          description: Namespace (defaults to same namespace as the referencing template).
+                          nullable: true
+                          type: string
+                      required:
+                      - name
+                      type: object
+                  required:
+                  - outputKey
+                  - templateRef
+                  type: object
+                description: |-
+                  Cross-template variable references. Resolved before compilation by fetching the referenced template's outputs.
+
+                  Example: ```yaml variableRefs: vpc_id: templateRef: { name: vpc-template } outputKey: vpc_id ```
+                nullable: true
+                type: object
               variables:
                 additionalProperties: true
                 description: Variables to pass to the template during compilation.
