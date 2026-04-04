@@ -34,6 +34,7 @@ spec:
           image: {{ include "pleme-lib.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy | default "Always" }}
           args:
+            - --daemon
             - --analytics-path
             - {{ .Values.analytics.path }}
           ports:
