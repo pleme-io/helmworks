@@ -57,14 +57,14 @@ spec:
           livenessProbe:
             httpGet:
               path: {{ .Values.health.path }}
-              port: mcp
+              port: {{ .Values.health.port }}
             initialDelaySeconds: {{ .Values.health.livenessInitialDelay }}
             periodSeconds: {{ .Values.health.livenessPeriod }}
             failureThreshold: {{ .Values.health.livenessFailureThreshold }}
           readinessProbe:
             httpGet:
               path: {{ .Values.health.readyPath }}
-              port: mcp
+              port: {{ .Values.health.port }}
             initialDelaySeconds: {{ .Values.health.readinessInitialDelay }}
             periodSeconds: {{ .Values.health.readinessPeriod }}
             failureThreshold: {{ .Values.health.readinessFailureThreshold }}
