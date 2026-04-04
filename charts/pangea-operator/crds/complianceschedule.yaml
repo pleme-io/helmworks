@@ -1,0 +1,434 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: complianceschedules.pangea.pleme.io
+spec:
+  group: pangea.pleme.io
+  names:
+    categories: []
+    kind: ComplianceSchedule
+    plural: complianceschedules
+    shortNames:
+    - cs
+    singular: complianceschedule
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .spec.schedule
+      name: Schedule
+      type: string
+    - jsonPath: .status.lastRunAt
+      name: Last Run
+      type: date
+    - jsonPath: .status.controlSummary
+      name: Controls
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Auto-generated derived type for ComplianceScheduleSpec via `CustomResource`
+        properties:
+          spec:
+            description: ComplianceSchedule drives continuous compliance testing against live infrastructure and feeds results into the observability + gating pipeline.
+            properties:
+              attestation:
+                description: Tameshi attestation configuration.
+                nullable: true
+                properties:
+                  certificationRef:
+                    description: Reference to a sekiban Certification to update.
+                    nullable: true
+                    type: string
+                  enabled:
+                    default: true
+                    description: Enable BLAKE3 attestation of compliance results.
+                    type: boolean
+                  heartbeatChainUri:
+                    description: S3 URI for HeartbeatChain persistence.
+                    nullable: true
+                    type: string
+                  layerTypes:
+                    description: Layer types to collect and hash for CertificationArtifact.
+                    items:
+                      type: string
+                    type: array
+                  signatureGateRef:
+                    description: Reference to a sekiban SignatureGate to update with compliance hash.
+                    nullable: true
+                    type: string
+                type: object
+              onChange:
+                description: Trigger a run when referenced InfrastructureTemplates change.
+                items:
+                  description: Reference to another InfrastructureTemplate.
+                  properties:
+                    name:
+                      description: Name of the InfrastructureTemplate.
+                      type: string
+                    namespace:
+                      description: Namespace (defaults to same namespace as the referencing template).
+                      nullable: true
+                      type: string
+                  required:
+                  - name
+                  type: object
+                type: array
+              parallelism:
+                default: 2
+                description: Maximum concurrent suite executions.
+                format: uint32
+                minimum: 0.0
+                type: integer
+              providerCredentials:
+                description: Provider credentials for test execution (AWS, etc.).
+                nullable: true
+                properties:
+                  aws:
+                    description: AWS credentials configuration.
+                    nullable: true
+                    properties:
+                      region:
+                        description: Region to use for AWS operations.
+                        nullable: true
+                        type: string
+                      roleArn:
+                        description: Optional role ARN to assume.
+                        nullable: true
+                        type: string
+                      secretRef:
+                        description: Secret containing AWS credentials.
+                        properties:
+                          name:
+                            description: Name of the Secret.
+                            type: string
+                          namespace:
+                            description: Namespace of the Secret (defaults to same namespace as the resource).
+                            nullable: true
+                            type: string
+                        required:
+                        - name
+                        type: object
+                    required:
+                    - secretRef
+                    type: object
+                  cloudflare:
+                    description: Cloudflare credentials configuration.
+                    nullable: true
+                    properties:
+                      secretRef:
+                        description: Secret containing Cloudflare API token.
+                        properties:
+                          name:
+                            description: Name of the Secret.
+                            type: string
+                          namespace:
+                            description: Namespace of the Secret (defaults to same namespace as the resource).
+                            nullable: true
+                            type: string
+                        required:
+                        - name
+                        type: object
+                    required:
+                    - secretRef
+                    type: object
+                type: object
+              reporting:
+                default:
+                  retentionDays: 0
+                description: Reporting/observability destinations.
+                properties:
+                  prometheus:
+                    description: Expose Prometheus metrics.
+                    nullable: true
+                    properties:
+                      enabled:
+                        default: true
+                        description: Enable Prometheus metrics.
+                        type: boolean
+                      prefix:
+                        default: pangea_compliance_
+                        description: Metric name prefix (e.g., "pangea_compliance_").
+                        type: string
+                    type: object
+                  retentionDays:
+                    default: 90
+                    description: Report retention in days.
+                    format: uint32
+                    minimum: 0.0
+                    type: integer
+                  s3:
+                    description: Store reports in S3.
+                    nullable: true
+                    properties:
+                      bucket:
+                        description: S3 bucket name.
+                        type: string
+                      credentialsSecretRef:
+                        description: Credentials for S3 access.
+                        nullable: true
+                        properties:
+                          name:
+                            description: Name of the Secret.
+                            type: string
+                          namespace:
+                            description: Namespace of the Secret (defaults to same namespace as the resource).
+                            nullable: true
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      prefix:
+                        default: compliance-reports/
+                        description: S3 key prefix.
+                        type: string
+                      region:
+                        description: AWS region.
+                        nullable: true
+                        type: string
+                    required:
+                    - bucket
+                    type: object
+                  vector:
+                    description: Emit structured events to Vector/Shinryu.
+                    nullable: true
+                    properties:
+                      encoding:
+                        default: json
+                        description: 'Encoding format: "json" (default) or "logfmt".'
+                        type: string
+                      endpoint:
+                        description: Vector endpoint (e.g., "vector.observe.svc:6514").
+                        type: string
+                      topic:
+                        default: infrastructure-compliance
+                        description: Topic/source name for events.
+                        type: string
+                    required:
+                    - endpoint
+                    type: object
+                type: object
+              runnerImage:
+                description: Container image for the test runner Jobs.
+                nullable: true
+                type: string
+              schedule:
+                description: Cron schedule for compliance runs (e.g., "0 */6 * * *"). If omitted, runs only on infrastructure change events.
+                nullable: true
+                type: string
+              suites:
+                description: Compliance test suites to execute.
+                items:
+                  description: A single compliance suite to execute.
+                  properties:
+                    config:
+                      description: Additional runner configuration.
+                      type: object
+                    controlFamilies:
+                      description: NIST 800-53 control family mappings for this suite. Used for compliance reporting and OSCAL export.
+                      items:
+                        type: string
+                      type: array
+                    name:
+                      description: Unique name within this schedule.
+                      type: string
+                    profile:
+                      description: Runner-specific profile name or path.
+                      nullable: true
+                      type: string
+                    runner:
+                      description: Which runner executes this suite.
+                      enum:
+                      - kensa
+                      - inSpec
+                      - script
+                      type: string
+                    timeout:
+                      default: 15m
+                      description: Timeout for this suite. Defaults to "15m".
+                      type: string
+                    waivers:
+                      description: Specific controls to skip (waiver).
+                      items:
+                        type: string
+                      type: array
+                  required:
+                  - name
+                  - runner
+                  type: object
+                type: array
+              suspend:
+                default: false
+                description: Suspend scheduling (manual runs still allowed).
+                type: boolean
+            required:
+            - suites
+            type: object
+          status:
+            description: Status of a ComplianceSchedule.
+            nullable: true
+            properties:
+              complianceHash:
+                description: Aggregate compliance hash (BLAKE3 of all suite results).
+                nullable: true
+                type: string
+              conditions:
+                description: Kubernetes-style conditions.
+                items:
+                  description: Kubernetes-style condition.
+                  properties:
+                    lastTransitionTime:
+                      description: Last time the condition transitioned.
+                      format: date-time
+                      type: string
+                    message:
+                      description: Human-readable message.
+                      type: string
+                    reason:
+                      description: Machine-readable reason for the condition.
+                      type: string
+                    status:
+                      description: Status of the condition (True, False, Unknown).
+                      type: string
+                    type:
+                      description: Type of condition.
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              consecutiveCompliant:
+                default: 0
+                description: Number of consecutive compliant runs.
+                format: uint32
+                minimum: 0.0
+                type: integer
+              consecutiveNonCompliant:
+                default: 0
+                description: Number of consecutive non-compliant runs.
+                format: uint32
+                minimum: 0.0
+                type: integer
+              controlSummary:
+                description: Human-readable control summary (e.g., "118/120 controls passed").
+                nullable: true
+                type: string
+              lastRunAt:
+                description: Timestamp of last completed run.
+                format: date-time
+                nullable: true
+                type: string
+              nextRunAt:
+                description: Timestamp of next scheduled run.
+                format: date-time
+                nullable: true
+                type: string
+              observedGeneration:
+                default: 0
+                description: Last observed generation.
+                format: int64
+                type: integer
+              phase:
+                description: Current phase.
+                enum:
+                - Idle
+                - Running
+                - Compliant
+                - NonCompliant
+                - Error
+                nullable: true
+                type: string
+              suites:
+                description: Per-suite results from last run.
+                items:
+                  description: Result of a single compliance suite execution.
+                  properties:
+                    completedAt:
+                      description: Timestamp of completion.
+                      format: date-time
+                      nullable: true
+                      type: string
+                    controlsAssessed:
+                      default: 0
+                      description: Number of controls assessed.
+                      format: uint32
+                      minimum: 0.0
+                      type: integer
+                    controlsFailed:
+                      default: 0
+                      description: Number of controls failed.
+                      format: uint32
+                      minimum: 0.0
+                      type: integer
+                    controlsPassed:
+                      default: 0
+                      description: Number of controls passed.
+                      format: uint32
+                      minimum: 0.0
+                      type: integer
+                    controlsSkipped:
+                      default: 0
+                      description: Number of controls skipped (waived).
+                      format: uint32
+                      minimum: 0.0
+                      type: integer
+                    duration:
+                      description: Execution duration.
+                      nullable: true
+                      type: string
+                    failedControls:
+                      description: Failed control IDs (e.g., ["AC-3", "AU-2"]).
+                      items:
+                        type: string
+                      type: array
+                    jobName:
+                      description: K8s Job name that executed this suite.
+                      nullable: true
+                      type: string
+                    name:
+                      description: Suite name.
+                      type: string
+                    passed:
+                      description: Whether the suite passed.
+                      type: boolean
+                    resultHash:
+                      description: BLAKE3 hash of this suite's results.
+                      nullable: true
+                      type: string
+                    runner:
+                      description: Runner used.
+                      enum:
+                      - kensa
+                      - inSpec
+                      - script
+                      type: string
+                  required:
+                  - name
+                  - passed
+                  - runner
+                  type: object
+                type: array
+              totalRuns:
+                default: 0
+                description: Total runs completed.
+                format: uint64
+                minimum: 0.0
+                type: integer
+            type: object
+        required:
+        - spec
+        title: ComplianceSchedule
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

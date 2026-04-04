@@ -1,0 +1,651 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: imagepipelines.pangea.pleme.io
+spec:
+  group: pangea.pleme.io
+  names:
+    categories: []
+    kind: ImagePipeline
+    plural: imagepipelines
+    shortNames:
+    - ip
+    singular: imagepipeline
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .status.build.amiId
+      name: AMI
+      type: string
+    - jsonPath: .status.deploy.planSummary
+      name: Plan
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Auto-generated derived type for ImagePipelineSpec via `CustomResource`
+        properties:
+          spec:
+            description: 'ImagePipeline orchestrates the full AMI lifecycle: build → test → deploy → verify → complete (or rollback).'
+            properties:
+              build:
+                description: 'Phase 1: Build configuration.'
+                properties:
+                  providerCredentials:
+                    description: Provider credentials for the build.
+                    nullable: true
+                    properties:
+                      aws:
+                        description: AWS credentials configuration.
+                        nullable: true
+                        properties:
+                          region:
+                            description: Region to use for AWS operations.
+                            nullable: true
+                            type: string
+                          roleArn:
+                            description: Optional role ARN to assume.
+                            nullable: true
+                            type: string
+                          secretRef:
+                            description: Secret containing AWS credentials.
+                            properties:
+                              name:
+                                description: Name of the Secret.
+                                type: string
+                              namespace:
+                                description: Namespace of the Secret (defaults to same namespace as the resource).
+                                nullable: true
+                                type: string
+                            required:
+                            - name
+                            type: object
+                        required:
+                        - secretRef
+                        type: object
+                      cloudflare:
+                        description: Cloudflare credentials configuration.
+                        nullable: true
+                        properties:
+                          secretRef:
+                            description: Secret containing Cloudflare API token.
+                            properties:
+                              name:
+                                description: Name of the Secret.
+                                type: string
+                              namespace:
+                                description: Namespace of the Secret (defaults to same namespace as the resource).
+                                nullable: true
+                                type: string
+                            required:
+                            - name
+                            type: object
+                        required:
+                        - secretRef
+                        type: object
+                    type: object
+                  source:
+                    description: Source of the Packer template (Ruby DSL or pre-compiled JSON).
+                    properties:
+                      configMapRef:
+                        description: Reference to a ConfigMap containing the template.
+                        nullable: true
+                        properties:
+                          key:
+                            description: Key within the ConfigMap containing the template.
+                            type: string
+                          name:
+                            description: Name of the ConfigMap.
+                            type: string
+                          namespace:
+                            description: Namespace of the ConfigMap (defaults to same namespace as the InfrastructureTemplate).
+                            nullable: true
+                            type: string
+                        required:
+                        - key
+                        - name
+                        type: object
+                      gitRepository:
+                        description: Reference to a Git repository containing the template.
+                        nullable: true
+                        properties:
+                          path:
+                            description: Path to the template file within the repository.
+                            type: string
+                          ref:
+                            default: main
+                            description: Git reference (branch, tag, or commit SHA).
+                            type: string
+                          secretRef:
+                            description: Reference to a Secret containing Git credentials.
+                            nullable: true
+                            properties:
+                              name:
+                                description: Name of the Secret.
+                                type: string
+                              namespace:
+                                description: Namespace of the Secret (defaults to same namespace as the resource).
+                                nullable: true
+                                type: string
+                            required:
+                            - name
+                            type: object
+                          url:
+                            description: Git repository URL.
+                            type: string
+                        required:
+                        - path
+                        - url
+                        type: object
+                      inline:
+                        description: Inline Ruby DSL template content.
+                        nullable: true
+                        type: string
+                    type: object
+                  timeout:
+                    description: Build timeout. Defaults to "45m".
+                    nullable: true
+                    type: string
+                  variables:
+                    additionalProperties: true
+                    description: Variables injected into `packer build`.
+                    type: object
+                required:
+                - source
+                type: object
+              deploy:
+                description: 'Phase 3+4: Deploy and verify configuration.'
+                properties:
+                  amiVariable:
+                    description: Name of the variable in the template that holds the AMI ID.
+                    type: string
+                  approval:
+                    default:
+                      mode: manual
+                    description: Approval mode for the deploy phase.
+                    properties:
+                      mode:
+                        default: manual
+                        description: 'Mode: "auto", "manual", or "webhook".'
+                        type: string
+                      webhookUrl:
+                        description: Webhook URL (required when mode is "webhook").
+                        nullable: true
+                        type: string
+                    type: object
+                  healthChecks:
+                    description: Post-apply health checks to verify the deployment.
+                    items:
+                      description: Post-deploy health check.
+                      properties:
+                        checkType:
+                          description: Type of health check.
+                          properties:
+                            http:
+                              description: HTTP GET probe.
+                              nullable: true
+                              properties:
+                                endpoint:
+                                  description: URL to probe.
+                                  type: string
+                                expectedStatus:
+                                  description: Expected HTTP status code.
+                                  format: uint16
+                                  minimum: 0.0
+                                  type: integer
+                              required:
+                              - endpoint
+                              - expectedStatus
+                              type: object
+                            kubernetes:
+                              description: Kubernetes resource check via a Job.
+                              nullable: true
+                              properties:
+                                check:
+                                  description: kubectl/script command to execute.
+                                  type: string
+                                kubeconfigSecretRef:
+                                  description: Secret containing kubeconfig for the target cluster.
+                                  properties:
+                                    name:
+                                      description: Name of the Secret.
+                                      type: string
+                                    namespace:
+                                      description: Namespace of the Secret (defaults to same namespace as the resource).
+                                      nullable: true
+                                      type: string
+                                  required:
+                                  - name
+                                  type: object
+                              required:
+                              - check
+                              - kubeconfigSecretRef
+                              type: object
+                            tcp:
+                              description: TCP connection probe.
+                              nullable: true
+                              properties:
+                                endpoint:
+                                  description: Host:port to connect to.
+                                  type: string
+                              required:
+                              - endpoint
+                              type: object
+                          type: object
+                        interval:
+                          default: 10s
+                          description: Interval between retries. Defaults to "10s".
+                          type: string
+                        name:
+                          description: Human-readable name for this check.
+                          type: string
+                        retries:
+                          default: 10
+                          description: Number of retries before failing. Defaults to 10.
+                          format: uint32
+                          minimum: 0.0
+                          type: integer
+                      required:
+                      - checkType
+                      - name
+                      type: object
+                    type: array
+                  planAssertions:
+                    description: Pre-apply assertions evaluated against the `tofu plan` output.
+                    items:
+                      description: Pre-apply assertion evaluated against the infrastructure plan.
+                      properties:
+                        name:
+                          description: Human-readable name for this assertion.
+                          type: string
+                        rule:
+                          description: The assertion rule.
+                          properties:
+                            allowedResourceTypes:
+                              description: Only these resource types may be changed.
+                              items:
+                                type: string
+                              type: array
+                            forbiddenResourceTypes:
+                              description: These resource types must NOT be changed.
+                              items:
+                                type: string
+                              type: array
+                            maxAdded:
+                              description: Maximum number of resources that may be added.
+                              format: uint32
+                              minimum: 0.0
+                              nullable: true
+                              type: integer
+                            maxDestroyed:
+                              description: Maximum number of resources that may be destroyed.
+                              format: uint32
+                              minimum: 0.0
+                              nullable: true
+                              type: integer
+                            maxTotalChanged:
+                              description: Maximum total resources changed (added + changed + destroyed).
+                              format: uint32
+                              minimum: 0.0
+                              nullable: true
+                              type: integer
+                          type: object
+                      required:
+                      - name
+                      - rule
+                      type: object
+                    type: array
+                  rollback:
+                    description: Rollback configuration. If omitted, no automatic rollback.
+                    nullable: true
+                    properties:
+                      autoRollbackOn:
+                        default: []
+                        description: Conditions that trigger automatic rollback.
+                        items:
+                          description: Conditions that trigger automatic rollback.
+                          enum:
+                          - healthCheckFailure
+                          - planAssertionFailure
+                          - applyFailure
+                          type: string
+                        type: array
+                      enabled:
+                        default: true
+                        description: Enable automatic rollback.
+                        type: boolean
+                      retainFailedAmi:
+                        default: true
+                        description: Keep the failed AMI for debugging instead of deregistering it.
+                        type: boolean
+                    type: object
+                  targetTemplateRef:
+                    description: Reference to the InfrastructureTemplate to update with the new AMI ID.
+                    properties:
+                      name:
+                        description: Name of the InfrastructureTemplate.
+                        type: string
+                      namespace:
+                        description: Namespace (defaults to same namespace as the referencing template).
+                        nullable: true
+                        type: string
+                    required:
+                    - name
+                    type: object
+                required:
+                - amiVariable
+                - targetTemplateRef
+                type: object
+              suspend:
+                default: false
+                description: Suspend reconciliation.
+                type: boolean
+              test:
+                description: 'Phase 2: Test configuration. Omit to skip testing.'
+                nullable: true
+                properties:
+                  failurePolicy:
+                    description: Failure policy for the test phase.
+                    nullable: true
+                    properties:
+                      cleanupSnapshots:
+                        default: false
+                        description: Delete orphaned EBS snapshots on AMI deregistration.
+                        type: boolean
+                      deregisterAmi:
+                        default: false
+                        description: Deregister the AMI on test failure.
+                        type: boolean
+                    type: object
+                  providerCredentials:
+                    description: Provider credentials for test infrastructure.
+                    nullable: true
+                    properties:
+                      aws:
+                        description: AWS credentials configuration.
+                        nullable: true
+                        properties:
+                          region:
+                            description: Region to use for AWS operations.
+                            nullable: true
+                            type: string
+                          roleArn:
+                            description: Optional role ARN to assume.
+                            nullable: true
+                            type: string
+                          secretRef:
+                            description: Secret containing AWS credentials.
+                            properties:
+                              name:
+                                description: Name of the Secret.
+                                type: string
+                              namespace:
+                                description: Namespace of the Secret (defaults to same namespace as the resource).
+                                nullable: true
+                                type: string
+                            required:
+                            - name
+                            type: object
+                        required:
+                        - secretRef
+                        type: object
+                      cloudflare:
+                        description: Cloudflare credentials configuration.
+                        nullable: true
+                        properties:
+                          secretRef:
+                            description: Secret containing Cloudflare API token.
+                            properties:
+                              name:
+                                description: Name of the Secret.
+                                type: string
+                              namespace:
+                                description: Namespace of the Secret (defaults to same namespace as the resource).
+                                nullable: true
+                                type: string
+                            required:
+                            - name
+                            type: object
+                        required:
+                        - secretRef
+                        type: object
+                    type: object
+                  suites:
+                    description: Test suites to run (DAG-ordered).
+                    items:
+                      description: A single test suite within the DAG.
+                      properties:
+                        config:
+                          description: Type-specific configuration (JSON value interpreted per suite_type).
+                          type: object
+                        dependsOn:
+                          description: Suite names that must complete successfully before this suite runs.
+                          items:
+                            type: string
+                          type: array
+                        name:
+                          description: Unique name for this suite within the AmiTest.
+                          type: string
+                        suiteType:
+                          description: Type of test to run.
+                          enum:
+                          - packerTest
+                          - clusterTest
+                          - inSpec
+                          - script
+                          type: string
+                        timeout:
+                          default: 15m
+                          description: Timeout for this suite. Defaults to "15m".
+                          type: string
+                      required:
+                      - name
+                      - suiteType
+                      type: object
+                    type: array
+                required:
+                - suites
+                type: object
+            required:
+            - build
+            - deploy
+            type: object
+          status:
+            description: Status of an ImagePipeline.
+            nullable: true
+            properties:
+              build:
+                description: Build phase results.
+                nullable: true
+                properties:
+                  amiId:
+                    description: AMI ID produced by the build.
+                    nullable: true
+                    type: string
+                  amiRegion:
+                    description: AWS region of the built AMI.
+                    nullable: true
+                    type: string
+                  packerBuildRef:
+                    description: Name of the child PackerBuild CR.
+                    type: string
+                required:
+                - packerBuildRef
+                type: object
+              completedAt:
+                description: Timestamp when pipeline completed.
+                format: date-time
+                nullable: true
+                type: string
+              conditions:
+                description: Kubernetes-style conditions.
+                items:
+                  description: Kubernetes-style condition.
+                  properties:
+                    lastTransitionTime:
+                      description: Last time the condition transitioned.
+                      format: date-time
+                      type: string
+                    message:
+                      description: Human-readable message.
+                      type: string
+                    reason:
+                      description: Machine-readable reason for the condition.
+                      type: string
+                    status:
+                      description: Status of the condition (True, False, Unknown).
+                      type: string
+                    type:
+                      description: Type of condition.
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              deploy:
+                description: Deploy phase results.
+                nullable: true
+                properties:
+                  approvedAt:
+                    description: When the plan was approved.
+                    format: date-time
+                    nullable: true
+                    type: string
+                  approvedBy:
+                    description: Who approved the plan (for manual approval mode).
+                    nullable: true
+                    type: string
+                  expectedVsActual:
+                    description: Comparison of expected vs actual changes.
+                    items:
+                      description: 'Comparison of a single resource change: expected vs actual.'
+                      properties:
+                        actual:
+                          description: What actually happened.
+                          type: string
+                        expected:
+                          description: What the plan predicted.
+                          type: string
+                        matched:
+                          description: Whether expected matched actual.
+                          type: boolean
+                        resource:
+                          description: Resource address (e.g., "aws_launch_template.control_plane").
+                          type: string
+                      required:
+                      - actual
+                      - expected
+                      - matched
+                      - resource
+                      type: object
+                    type: array
+                  planHash:
+                    description: Hash of the pending plan.
+                    nullable: true
+                    type: string
+                  planSummary:
+                    description: Plan summary from `tofu plan` (e.g., "+0 ~2 -0").
+                    nullable: true
+                    type: string
+                  previousAmiId:
+                    description: AMI ID before the pipeline started (for rollback).
+                    nullable: true
+                    type: string
+                type: object
+              observedGeneration:
+                default: 0
+                description: Last observed generation of the spec.
+                format: int64
+                type: integer
+              phase:
+                description: Current phase of the pipeline.
+                enum:
+                - Pending
+                - Building
+                - Testing
+                - Planning
+                - AwaitingApproval
+                - Applying
+                - Verifying
+                - Completed
+                - Failed
+                - RollingBack
+                nullable: true
+                type: string
+              startedAt:
+                description: Timestamp when pipeline started.
+                format: date-time
+                nullable: true
+                type: string
+              test:
+                description: Test phase results.
+                nullable: true
+                properties:
+                  amiTestRef:
+                    description: Name of the child AmiTest CR.
+                    type: string
+                  passed:
+                    description: Whether all test suites passed.
+                    nullable: true
+                    type: boolean
+                  summary:
+                    description: Human-readable summary (e.g., "3/3 passed").
+                    nullable: true
+                    type: string
+                required:
+                - amiTestRef
+                type: object
+              verification:
+                description: Verification phase results.
+                nullable: true
+                properties:
+                  allPassed:
+                    default: false
+                    description: Whether all health checks passed.
+                    type: boolean
+                  healthChecks:
+                    description: Per-check results.
+                    items:
+                      description: Result of a single health check.
+                      properties:
+                        attempts:
+                          description: Number of attempts made.
+                          format: uint32
+                          minimum: 0.0
+                          type: integer
+                        error:
+                          description: Error message if failed.
+                          nullable: true
+                          type: string
+                        name:
+                          description: Check name (matches HealthCheck.name).
+                          type: string
+                        passed:
+                          description: Whether the check passed.
+                          type: boolean
+                      required:
+                      - attempts
+                      - name
+                      - passed
+                      type: object
+                    type: array
+                type: object
+            type: object
+        required:
+        - spec
+        title: ImagePipeline
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

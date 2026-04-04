@@ -1,0 +1,185 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: synthesizerformats.pangea.pleme.io
+spec:
+  group: pangea.pleme.io
+  names:
+    categories: []
+    kind: SynthesizerFormat
+    plural: synthesizerformats
+    shortNames:
+    - sf
+    singular: synthesizerformat
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.sectionSummary
+      name: Sections
+      type: string
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Auto-generated derived type for SynthesizerFormatSpec via `CustomResource`
+        properties:
+          spec:
+            description: SynthesizerFormat declares a synthesizer output format that the compiler sidecar can materialize on the fly.
+            properties:
+              arraySections:
+                description: 'Sections that are arrays of typed objects. Each entry in the array gets a type field derived from the DSL method''s first argument (e.g., `synth.builder(:amazon_ebs, ...)` → `{"type": "amazon-ebs"}`).'
+                items:
+                  description: Specification for an array section.
+                  properties:
+                    allowName:
+                      default: true
+                      description: Whether to include an optional "name" field from the DSL's second positional argument. Defaults to true.
+                      type: boolean
+                    keyTransform:
+                      description: Key transform override for this section. If unset, uses the format default.
+                      enum:
+                      - none
+                      - snake-to-kebab
+                      - snake-to-camel
+                      - snake-to-screaming
+                      nullable: true
+                      type: string
+                    methodAlias:
+                      description: If set, the DSL method name is this value instead of the auto-singularized section name. E.g., section "post-processors" auto-singularizes to "post-processor"; override to use "post_processor" instead.
+                      nullable: true
+                      type: string
+                    name:
+                      description: Section name in the output JSON (e.g., "builders", "provisioners").
+                      type: string
+                    typeField:
+                      default: type
+                      description: Name of the field that holds the type identifier within each entry. Defaults to "type".
+                      type: string
+                  required:
+                  - name
+                  type: object
+                type: array
+              compileEndpoint:
+                description: Optional convenience endpoint path to register on the compiler sidecar. E.g., "/compile-packer" creates a dedicated endpoint that doesn't require the `format` field in the request body.
+                nullable: true
+                type: string
+              description:
+                description: Human-readable description of what this format produces.
+                nullable: true
+                type: string
+              extendModules:
+                description: Ruby modules to extend the synthesizer with before evaluation. These must be available in the compiler sidecar's load path.
+                items:
+                  type: string
+                type: array
+              keyTransform:
+                default: none
+                description: Default key transform applied to all hash keys in the output. Individual sections can override this.
+                enum:
+                - none
+                - snake-to-kebab
+                - snake-to-camel
+                - snake-to-screaming
+                type: string
+              mapSections:
+                description: 'Sections that are key-value maps. Entries are stored by name (e.g., `synth.variable(:ami_id, ...)` → `{"ami_id": {...}}`).'
+                items:
+                  description: Specification for a map section.
+                  properties:
+                    keyTransform:
+                      description: Key transform override for this section.
+                      enum:
+                      - none
+                      - snake-to-kebab
+                      - snake-to-camel
+                      - snake-to-screaming
+                      nullable: true
+                      type: string
+                    methodAlias:
+                      description: DSL method alias override.
+                      nullable: true
+                      type: string
+                    name:
+                      description: Section name in the output JSON (e.g., "variables", "env").
+                      type: string
+                  required:
+                  - name
+                  type: object
+                type: array
+              preamble:
+                description: Static preamble Ruby code injected before the user source. Useful for requiring libraries or defining helper methods.
+                nullable: true
+                type: string
+            type: object
+          status:
+            description: Status of a SynthesizerFormat.
+            nullable: true
+            properties:
+              conditions:
+                description: Kubernetes-style conditions.
+                items:
+                  description: Kubernetes-style condition.
+                  properties:
+                    lastTransitionTime:
+                      description: Last time the condition transitioned.
+                      format: date-time
+                      type: string
+                    message:
+                      description: Human-readable message.
+                      type: string
+                    reason:
+                      description: Machine-readable reason for the condition.
+                      type: string
+                    status:
+                      description: Status of the condition (True, False, Unknown).
+                      type: string
+                    type:
+                      description: Type of condition.
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              dslMethods:
+                description: Generated DSL method names for documentation.
+                items:
+                  type: string
+                type: array
+              error:
+                description: Validation error if phase is Invalid.
+                nullable: true
+                type: string
+              observedGeneration:
+                default: 0
+                description: Last observed generation.
+                format: int64
+                type: integer
+              phase:
+                description: Current phase.
+                enum:
+                - Ready
+                - Invalid
+                nullable: true
+                type: string
+              sectionSummary:
+                description: Human-readable summary of sections (e.g., "3 array, 1 map").
+                nullable: true
+                type: string
+            type: object
+        required:
+        - spec
+        title: SynthesizerFormat
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

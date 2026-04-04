@@ -1,1 +1,20 @@
-{{- include "pleme-lib.deployment" . }}
+{{/*
+Custom deployment that injects executor env vars into the pleme-lib deployment.
+We prepend the executor env vars to .Values.env before calling pleme-lib.
+*/}}
+{{- $executorEnv := list
+  (dict "name" "TOFU_BINARY" "value" (.Values.executor.tofu.binary | default "/usr/local/bin/tofu"))
+  (dict "name" "PANGEA_TIMEOUT" "value" (printf "%v" (.Values.executor.tofu.timeout | default 600)))
+  (dict "name" "PACKER_BINARY" "value" (.Values.executor.packer.binary | default "/usr/local/bin/packer"))
+  (dict "name" "PACKER_TIMEOUT" "value" (printf "%v" (.Values.executor.packer.timeout | default 2700)))
+  (dict "name" "PANGEA_WORKSPACE_BASE" "value" (.Values.executor.workspaceBase | default "/var/pangea/workspaces"))
+  (dict "name" "COMPILER_ENDPOINT" "value" (.Values.compilerEndpoint | default "http://localhost:8082"))
+-}}
+{{- if .Values.executor.verbose }}
+{{- $executorEnv = append $executorEnv (dict "name" "PANGEA_VERBOSE" "value" "true") }}
+{{- end }}
+{{- $mergedValues := deepCopy .Values }}
+{{- $_ := set $mergedValues "env" (concat $executorEnv (.Values.env | default list)) }}
+{{- $ctx := deepCopy . }}
+{{- $_ := set $ctx "Values" $mergedValues }}
+{{- include "pleme-lib.deployment" $ctx }}

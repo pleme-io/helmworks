@@ -1,9 +1,11 @@
 apiVersion: v2
 name: pangea-operator
-description: Pangea infrastructure operator — manages InfrastructureTemplate CRDs with OpenTofu backend
+description: >-
+  Pangea infrastructure operator — manages 9 CRDs for infrastructure lifecycle,
+  AMI pipeline, compliance testing, and dynamic synthesizer formats.
 type: application
-version: 0.1.0
-appVersion: "0.1.0"
+version: 0.2.0
+appVersion: "0.2.0"
 
 dependencies:
   - name: pleme-lib

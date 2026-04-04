@@ -30,30 +30,51 @@ rbac:
   create: true
   # -- RBAC rules for the operator
   rules:
-    # InfrastructureTemplate CRD access
+    # ── Infrastructure CRDs ──
     - apiGroups: ["pangea.pleme.io"]
-      resources: ["infrastructuretemplates", "infrastructuretemplates/status"]
+      resources: ["infrastructuretemplates", "infrastructuretemplates/status", "infrastructuretemplates/finalizers"]
       verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-    # PangeaNamespace CRD access
     - apiGroups: ["pangea.pleme.io"]
       resources: ["pangeanamespaces", "pangeanamespaces/status"]
       verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-    # InfrastructureFlow CRD access
     - apiGroups: ["pangea.pleme.io"]
-      resources: ["infrastructureflows", "infrastructureflows/status"]
+      resources: ["infrastructureflows", "infrastructureflows/status", "infrastructureflows/finalizers"]
       verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-    # Events for recording reconciliation activity
+    # ── Image Pipeline CRDs ──
+    - apiGroups: ["pangea.pleme.io"]
+      resources: ["packerbuilds", "packerbuilds/status", "packerbuilds/finalizers"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    - apiGroups: ["pangea.pleme.io"]
+      resources: ["amitests", "amitests/status", "amitests/finalizers"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    - apiGroups: ["pangea.pleme.io"]
+      resources: ["imagepipelines", "imagepipelines/status", "imagepipelines/finalizers"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    # ── Compliance CRDs ──
+    - apiGroups: ["pangea.pleme.io"]
+      resources: ["complianceschedules", "complianceschedules/status", "complianceschedules/finalizers"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    - apiGroups: ["pangea.pleme.io"]
+      resources: ["compliancebindings", "compliancebindings/status"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    # ── Meta CRDs ──
+    - apiGroups: ["pangea.pleme.io"]
+      resources: ["synthesizerformats", "synthesizerformats/status"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    # ── Supporting resources ──
     - apiGroups: [""]
       resources: ["events"]
       verbs: ["create", "patch"]
-    # ConfigMaps and Secrets for template sources and credentials
     - apiGroups: [""]
       resources: ["configmaps", "secrets"]
       verbs: ["get", "list", "watch"]
-    # Leader election
     - apiGroups: ["coordination.k8s.io"]
       resources: ["leases"]
-      verbs: ["get", "create", "update"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    # ── Batch Jobs (AmiTest + ComplianceSchedule create Jobs) ──
+    - apiGroups: ["batch"]
+      resources: ["jobs"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 
 # -- Container ports (primary port named 'http' to match pleme-lib probe defaults)
 ports:
@@ -85,12 +106,25 @@ service:
       protocol: TCP
       name: graphql
 
-# -- Environment variables
+# -- Executor configuration for external tool invocation
+executor:
+  tofu:
+    # -- Path to OpenTofu binary inside the container
+    binary: /usr/local/bin/tofu
+    # -- Timeout in seconds for tofu operations
+    timeout: 600
+  packer:
+    # -- Path to Packer binary inside the container
+    binary: /usr/local/bin/packer
+    # -- Timeout in seconds for packer builds
+    timeout: 2700
+  # -- Base directory for template workspaces
+  workspaceBase: /var/pangea/workspaces
+  # -- Enable verbose executor logging
+  verbose: false
+
+# -- Environment variables (executor config is auto-generated, add extras here)
 env:
-  - name: TOFU_BINARY
-    value: tofu
-  - name: PANGEA_WORKSPACE_BASE
-    value: /var/pangea/workspaces
   - name: RUST_LOG
     value: pangea_operator=info
   - name: POD_NAME
@@ -101,10 +135,16 @@ env:
 # -- Extra environment variables from ConfigMaps or Secrets
 envFrom: []
 
-# -- Compiler sidecar for Ruby DSL template compilation
+# -- Compiler sidecar endpoint (operator connects here for DSL compilation)
+compilerEndpoint: http://localhost:8082
+
+# -- Sidecar containers rendered by pleme-lib into the pod spec.
+# The compiler sidecar compiles Ruby DSL to Terraform/Packer JSON.
+# Set to [] to disable the compiler (only pre-compiled JSON templates will work).
 sidecars:
   - name: compiler
     image: ghcr.io/pleme-io/pangea-compiler:latest
+    imagePullPolicy: IfNotPresent
     ports:
       - name: compiler
         containerPort: 8082
@@ -115,7 +155,7 @@ sidecars:
         memory: 128Mi
       limits:
         cpu: 500m
-        memory: 256Mi
+        memory: 512Mi
     livenessProbe:
       httpGet:
         path: /healthz
@@ -128,6 +168,18 @@ sidecars:
         port: compiler
       initialDelaySeconds: 5
       periodSeconds: 10
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 65534
+      readOnlyRootFilesystem: false
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: [ALL]
+    volumeMounts:
+      - name: workspaces
+        mountPath: /var/pangea/workspaces
+      - name: tmp
+        mountPath: /tmp
 
 # -- Resource requests and limits
 resources:
@@ -138,16 +190,37 @@ resources:
     cpu: "1"
     memory: 512Mi
 
-# -- Volume mounts
+# -- Workspace persistence
+workspace:
+  # -- Volume type: emptyDir (ephemeral) or pvc (persistent)
+  type: emptyDir
+  emptyDir:
+    # -- Size limit for ephemeral workspace
+    sizeLimit: 2Gi
+  pvc:
+    # -- Storage class for persistent workspace
+    storageClass: ""
+    # -- Access modes
+    accessModes:
+      - ReadWriteOnce
+    # -- Storage size
+    size: 10Gi
+
+# -- Volume mounts for the operator container
 volumeMounts:
   - name: workspaces
     mountPath: /var/pangea/workspaces
+  - name: tmp
+    mountPath: /tmp
 
-# -- Volumes
+# -- Volumes (auto-generated from workspace config, add extras here)
 volumes:
   - name: workspaces
     emptyDir:
-      sizeLimit: 1Gi
+      sizeLimit: 2Gi
+  - name: tmp
+    emptyDir:
+      sizeLimit: 256Mi
 
 # -- Health probe configuration
 health:
@@ -260,3 +333,45 @@ prometheusRules:
       annotations:
         summary: "Pangea template stuck in Failed phase"
         description: "One or more templates have been in Failed phase for over 30 minutes."
+    # ── Image Pipeline alerts ──
+    - alert: PackerBuildFailed
+      expr: pangea_packer_builds_by_phase{phase="Failed"} > 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Packer build {{ $labels.name }} failed in {{ $labels.namespace }}"
+        description: "A PackerBuild CR has been in Failed phase for over 5 minutes."
+    - alert: ImagePipelineStuck
+      expr: pangea_image_pipelines_by_phase{phase!~"Completed|Pending|Failed"} > 0
+      for: 60m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Image pipeline {{ $labels.name }} stuck in {{ $labels.phase }}"
+        description: "An ImagePipeline has been in a non-terminal phase for over 60 minutes."
+    - alert: AmiTestFailed
+      expr: pangea_ami_tests_by_phase{phase="Failed"} > 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "AMI test {{ $labels.name }} failed in {{ $labels.namespace }}"
+        description: "An AmiTest CR has test suites in Failed phase."
+    # ── Compliance alerts ──
+    - alert: ComplianceNonCompliant
+      expr: pangea_compliance_schedules_by_phase{phase="NonCompliant"} > 0
+      for: 0m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Compliance schedule {{ $labels.name }} is non-compliant"
+        description: "Infrastructure compliance checks failed. Bound targets may be gated."
+    - alert: ComplianceBindingGating
+      expr: pangea_compliance_bindings_gated_targets > 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "{{ $value }} targets gated by compliance binding {{ $labels.name }}"
+        description: "Infrastructure targets are suspended due to compliance failure."
