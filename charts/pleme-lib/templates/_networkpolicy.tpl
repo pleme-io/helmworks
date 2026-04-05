@@ -67,6 +67,11 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: prometheus-operator
+        {{- range (.Values.networkPolicy).prometheusNamespaces }}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ . }}
+        {{- end }}
       ports:
         - port: {{ (.Values.monitoring).port | default "http" }}
           protocol: TCP
