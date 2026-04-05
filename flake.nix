@@ -64,6 +64,7 @@
             { name = "arachne"; chartDir = ./charts/arachne; }
             { name = "sekiban"; chartDir = ./charts/sekiban; }
             { name = "pleme-gpu-workload"; chartDir = ./charts/pleme-gpu-workload; }
+            { name = "pleme-wasm"; chartDir = ./charts/pleme-wasm; }
             { name = "headscale"; chartDir = ./charts/headscale; }
             { name = "iac-forge"; chartDir = ./charts/iac-forge; }
             { name = "pleme-shinryu"; chartDir = ./charts/pleme-shinryu; }

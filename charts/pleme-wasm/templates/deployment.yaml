@@ -1,0 +1,43 @@
+{{/*
+Custom deployment that constructs wasmtime/wasmer command with WASI capabilities
+before calling pleme-lib.deployment.
+*/}}
+{{- $wasmValues := .Values.wasm | default dict -}}
+{{- $runtime := $wasmValues.runtime | default "wasmtime" -}}
+{{- $modulePath := $wasmValues.modulePath | default "/app/module.wasm" -}}
+{{- $capabilities := $wasmValues.capabilities | default dict -}}
+{{- $componentModel := $wasmValues.componentModel | default false -}}
+
+{{- /* Build runtime command with WASI capabilities */ -}}
+{{- $command := list $runtime "run" -}}
+{{- if $componentModel -}}
+  {{- $command = append $command "--wasm" -}}
+  {{- $command = append $command "component-model" -}}
+{{- end -}}
+{{- if ($capabilities.network | default false) -}}
+  {{- $command = append $command "--wasi" -}}
+  {{- $command = append $command "network" -}}
+{{- end -}}
+{{- if ($capabilities.tcpListen | default "") -}}
+  {{- $command = append $command "--tcplisten" -}}
+  {{- $command = append $command $capabilities.tcpListen -}}
+{{- end -}}
+{{- if ($capabilities.env | default false) -}}
+  {{- $command = append $command "--wasi" -}}
+  {{- $command = append $command "inherit-env" -}}
+{{- end -}}
+{{- range ($capabilities.dirs | default list) -}}
+  {{- $command = append $command "--dir" -}}
+  {{- $command = append $command . -}}
+{{- end -}}
+{{- range ($wasmValues.extraFlags | default list) -}}
+  {{- $command = append $command . -}}
+{{- end -}}
+{{- $command = append $command $modulePath -}}
+
+{{- /* Deep-copy values and override command before passing to pleme-lib */ -}}
+{{- $mergedValues := deepCopy .Values }}
+{{- $_ := set $mergedValues "command" $command }}
+{{- $ctx := deepCopy . }}
+{{- $_ := set $ctx "Values" $mergedValues }}
+{{- include "pleme-lib.deployment" $ctx }}
