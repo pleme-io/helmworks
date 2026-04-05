@@ -1,0 +1,155 @@
+# Wasm Operator values
+replicaCount: 1
+
+image:
+  repository: ghcr.io/pleme-io/wasm-platform
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets:
+  - name: ghcr-pull
+
+# Deployment strategy — singleton operator, no dual reconciliation
+strategy:
+  type: Recreate
+
+# Multi-port setup
+ports:
+  - name: http
+    containerPort: 8080
+    protocol: TCP
+  - name: metrics
+    containerPort: 9090
+    protocol: TCP
+  - name: graphql
+    containerPort: 8081
+    protocol: TCP
+
+service:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+    - name: metrics
+      port: 9090
+      targetPort: metrics
+    - name: graphql
+      port: 8081
+      targetPort: graphql
+
+# Operator configuration
+env:
+  - name: HEALTH_ADDR
+    value: "0.0.0.0:8080"
+  - name: METRICS_ADDR
+    value: "0.0.0.0:9090"
+  - name: GRAPHQL_ADDR
+    value: "0.0.0.0:8081"
+  - name: WASM_REGISTRY_URL
+    value: "http://wasm-registry.wasm-system.svc.cluster.local:5000"
+  - name: DATABASE_URL
+    value: "sqlite:///var/wasm/data/wasm.db"
+  - name: RUST_LOG
+    value: wasm_operator=info,wasm_engine=info
+  - name: POD_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.name
+
+# Resource limits
+resources:
+  requests:
+    cpu: 200m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 512Mi
+
+# Workspace volume for module storage and SQLite
+volumes:
+  - name: workspace
+    emptyDir:
+      sizeLimit: 5Gi
+
+volumeMounts:
+  - name: workspace
+    mountPath: /var/wasm/data
+
+# Security
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  readOnlyRootFilesystem: true
+
+# Health probes
+healthCheck:
+  liveness:
+    httpGet:
+      path: /healthz
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 15
+  readiness:
+    httpGet:
+      path: /readyz
+      port: http
+    initialDelaySeconds: 5
+    periodSeconds: 10
+  startup:
+    httpGet:
+      path: /healthz
+      port: http
+    failureThreshold: 30
+    periodSeconds: 2
+
+# RBAC for CRDs
+rbac:
+  create: true
+  rules:
+    - apiGroups: ["wasm.pleme.io"]
+      resources:
+        - computeunits
+        - computeunits/status
+        - wasmmodules
+        - wasmmodules/status
+        - wasmexecutions
+        - wasmexecutions/status
+        - wasmworkloads
+        - wasmworkloads/status
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    - apiGroups: ["apps"]
+      resources: ["deployments"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    - apiGroups: ["batch"]
+      resources: ["jobs", "cronjobs"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    - apiGroups: [""]
+      resources: ["configmaps", "services", "pods"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    - apiGroups: ["autoscaling"]
+      resources: ["horizontalpodautoscalers"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    - apiGroups: ["networking.k8s.io"]
+      resources: ["networkpolicies"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    - apiGroups: ["pangea.pleme.io"]
+      resources: ["infrastructuretemplates", "infrastructuretemplates/status"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    - apiGroups: ["keda.sh"]
+      resources: ["scaledobjects"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# Node selector
+nodeSelector:
+  kubernetes.io/arch: arm64
+
+# Monitoring
+monitoring:
+  enabled: true
+  interval: 30s
+  path: /metrics
+  port: metrics
+
+prometheusRules:
+  enabled: false

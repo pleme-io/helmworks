@@ -1,0 +1,10 @@
+apiVersion: v2
+name: wasm-operator
+description: Wasm/WASI compute platform operator — manages ComputeUnit, WasmModule, WasmExecution, WasmWorkload CRDs
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+dependencies:
+  - name: pleme-lib
+    version: "~0.4.0"
+    repository: "file://../pleme-lib"
