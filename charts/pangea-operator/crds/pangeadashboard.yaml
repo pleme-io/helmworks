@@ -1,0 +1,94 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: pangeadashboards.pangea.pleme.io
+spec:
+  group: pangea.pleme.io
+  names:
+    kind: PangeaDashboard
+    listKind: PangeaDashboardList
+    plural: pangeadashboards
+    singular: pangeadashboard
+    shortNames:
+      - pd
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      additionalPrinterColumns:
+        - name: Folder
+          type: string
+          jsonPath: .spec.folder
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: Dashboard
+          type: string
+          jsonPath: .status.dashboardUid
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      subresources:
+        status: {}
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required:
+                - source
+              properties:
+                source:
+                  type: object
+                  description: "Dashboard source — inline Ruby DSL or ConfigMap reference"
+                  x-kubernetes-preserve-unknown-fields: true
+                grafanaInstanceSelector:
+                  type: object
+                  additionalProperties:
+                    type: string
+                  description: "Label selector for the target Grafana instance"
+                folder:
+                  type: string
+                  description: "Grafana folder name"
+                overwrite:
+                  type: boolean
+                  default: true
+                  description: "Whether to overwrite existing dashboard"
+                extendModules:
+                  type: array
+                  items:
+                    type: string
+                  description: "Ruby modules to extend before evaluation"
+                message:
+                  type: string
+                  description: "Version tracking commit message"
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum:
+                    - Pending
+                    - Synthesizing
+                    - Ready
+                    - Failed
+                configMapName:
+                  type: string
+                grafanaDashboardName:
+                  type: string
+                dashboardUid:
+                  type: string
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                observedGeneration:
+                  type: integer
+                  format: int64
+                error:
+                  type: string
+                sourceHash:
+                  type: string
