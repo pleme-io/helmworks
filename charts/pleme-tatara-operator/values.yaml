@@ -28,7 +28,7 @@ rbac:
   rules:
     # NixBuild CRD operations
     - apiGroups: ["tatara.pleme.io"]
-      resources: ["nixbuilds", "nixbuilds/status", "nixbuildpools", "flakesources"]
+      resources: ["nixbuilds", "nixbuilds/status", "nixbuildpools", "flakesources", "flakesources/status", "flakeorgs", "flakeorgs/status"]
       verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
     # Events for status reporting
     - apiGroups: [""]
