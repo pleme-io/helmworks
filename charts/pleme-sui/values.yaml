@@ -120,7 +120,16 @@ pdb:
   enabled: true
   minAvailable: 1
 
+# --- Nix build agent ---
+# Phase 1: sui shells out to `nix build`. Needs writable /nix/store, root user.
+# Phase 2 (sui-eval + sui-build): can re-lock to nonRoot.
+nixAgent:
+  enabled: false  # override in cluster patch when agent mode runs nix
+  storageSize: 50Gi  # PVC for /nix/store (persists built paths between restarts)
+
 # --- Security ---
+# When nixAgent.enabled, podSecurityContext/securityContext are overridden
+# in the deployment template to allow nix builds.
 podSecurityContext:
   runAsNonRoot: true
   runAsUser: 65534
