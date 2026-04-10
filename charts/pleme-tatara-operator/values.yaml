@@ -59,14 +59,14 @@ health:
 
 ports:
   - name: health
-    containerPort: 8080
+    containerPort: 8081
     protocol: TCP
 
 service:
   type: ClusterIP
   ports:
     - name: health
-      port: 8080
+      port: 8081
       targetPort: health
 
 # --- Security (locked down) ---
