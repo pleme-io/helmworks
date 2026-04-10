@@ -11,21 +11,23 @@ imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
-# --- KEDA autoscaling (THE key elasticity feature) ---
-keda:
+# --- Breathability (zero-scale via KEDA + NATS) ---
+# Builders only exist when NATS build queue has work. Cost = $0 idle.
+breathability:
   enabled: true
-  minReplicaCount: 0      # ZERO when idle
-  maxReplicaCount: 4
-  cooldownPeriod: 300      # 5 min idle → scale to zero
+  targetKind: StatefulSet
+  min: 0
+  max: 4
+  cooldown: 300
   pollingInterval: 15
-  # NATS JetStream trigger
-  nats:
-    serverURL: "nats://nats.nats.svc:4222"
-    stream: BUILD
-    consumer: builder
-    # Scale up when ANY messages are pending
-    lagThreshold: "1"
-    activationLagThreshold: "0"
+  trigger:
+    type: nats-jetstream
+    nats:
+      serverURL: "nats://nats.nats.svc:4222"
+      stream: BUILD
+      consumer: builder
+      lagThreshold: "1"
+      activationLagThreshold: "0"
 
 # --- Builder config ---
 builder:

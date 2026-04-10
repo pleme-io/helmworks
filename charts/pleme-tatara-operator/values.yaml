@@ -90,6 +90,10 @@ strategy:
 
 terminationGracePeriodSeconds: 30
 
+# --- Breathability (disabled — operator is always-on, micro footprint) ---
+breathability:
+  enabled: false
+
 # --- PDB ---
 pdb:
   enabled: false

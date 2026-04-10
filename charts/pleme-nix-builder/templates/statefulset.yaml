@@ -6,9 +6,9 @@ metadata:
     {{- include "pleme-nix-builder.labels" . | nindent 4 }}
 spec:
   serviceName: {{ include "pleme-nix-builder.fullname" . }}
-  # Replicas managed by KEDA when keda.enabled=true.
+  # Replicas managed by KEDA when breathability.enabled=true.
   # KEDA overrides this value at runtime (0→N).
-  replicas: {{ if .Values.keda.enabled }}0{{ else }}1{{ end }}
+  replicas: {{ if .Values.breathability.enabled }}0{{ else }}1{{ end }}
   selector:
     matchLabels:
       {{- include "pleme-nix-builder.selectorLabels" . | nindent 6 }}
