@@ -69,6 +69,9 @@
             { name = "headscale"; chartDir = ./charts/headscale; }
             { name = "iac-forge"; chartDir = ./charts/iac-forge; }
             { name = "pleme-shinryu"; chartDir = ./charts/pleme-shinryu; }
+            { name = "pleme-attic"; chartDir = ./charts/pleme-attic; }
+            { name = "pleme-tatara-operator"; chartDir = ./charts/pleme-tatara-operator; }
+            { name = "pleme-nix-builder"; chartDir = ./charts/pleme-nix-builder; }
           ];
 
           # Use substrate's mkHelmAllApps for all chart lifecycle apps
