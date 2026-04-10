@@ -21,7 +21,7 @@ serviceAccount:
 attic:
   listen: "0.0.0.0:8080"
   # API endpoint (internal cluster URL)
-  apiEndpoint: "http://attic.{{ .Release.Namespace }}.svc.cluster.local/"
+  apiEndpoint: ""
   softDeleteCaches: false
   requireProofOfPossession: false
 

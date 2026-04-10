@@ -7,7 +7,7 @@ metadata:
 data:
   server.toml: |
     listen = "{{ .Values.attic.listen }}"
-    api-endpoint = "{{ .Values.attic.apiEndpoint }}"
+    api-endpoint = "{{ default (printf "http://%s.%s.svc.cluster.local/" (include "pleme-attic.fullname" .) .Release.Namespace) .Values.attic.apiEndpoint }}"
     soft-delete-caches = {{ .Values.attic.softDeleteCaches }}
     require-proof-of-possession = {{ .Values.attic.requireProofOfPossession }}
 
@@ -28,10 +28,10 @@ data:
     level = {{ .Values.attic.compression.level }}
 
     [chunking]
-    nar-size-threshold = {{ .Values.attic.chunking.narSizeThreshold }}
-    min-size = {{ .Values.attic.chunking.minSize }}
-    avg-size = {{ .Values.attic.chunking.avgSize }}
-    max-size = {{ .Values.attic.chunking.maxSize }}
+    nar-size-threshold = {{ .Values.attic.chunking.narSizeThreshold | int }}
+    min-size = {{ .Values.attic.chunking.minSize | int }}
+    avg-size = {{ .Values.attic.chunking.avgSize | int }}
+    max-size = {{ .Values.attic.chunking.maxSize | int }}
 
     [garbage-collection]
     interval = "{{ .Values.attic.gc.interval }}"
