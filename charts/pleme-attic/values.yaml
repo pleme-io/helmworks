@@ -105,12 +105,14 @@ health:
   livenessPeriodSeconds: 30
   readinessPeriodSeconds: 10
 
-# --- Autoscaling ---
+# --- Autoscaling (HPA — elastic under push load) ---
+# Attic scales up when builders push concurrently.
+# NATS BUILD.request queue + KEDA maxReplicas act as upstream throttle.
 autoscaling:
-  enabled: false
+  enabled: true
   minReplicas: 1
   maxReplicas: 3
-  targetCPUUtilization: 80
+  targetCPUUtilization: 70
 
 # --- PDB ---
 pdb:
