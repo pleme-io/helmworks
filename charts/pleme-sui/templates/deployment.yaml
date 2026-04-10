@@ -99,6 +99,13 @@ spec:
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          {{- if .Values.mode.agent.enabled }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: eval-cache
+              mountPath: /var/lib/sui
+          {{- end }}
           {{- end }}
           {{- with .Values.resources }}
           resources:
@@ -128,4 +135,12 @@ spec:
         - name: tmp
           emptyDir:
             sizeLimit: 10Gi
+      {{- else if .Values.mode.agent.enabled }}
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 10Gi
+        - name: eval-cache
+          emptyDir:
+            sizeLimit: 20Gi
       {{- end }}
