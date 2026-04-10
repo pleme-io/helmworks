@@ -1,0 +1,139 @@
+# pleme-sui — unified Nix build + cache platform (ro)
+# One binary: sui agent (NATS consumer) + sui cache serve (HTTP binary cache)
+
+image:
+  repository: ghcr.io/pleme-io/sui
+  tag: amd64-latest
+  pullPolicy: Always
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+replicaCount: 1
+
+serviceAccount:
+  create: true
+  annotations: {}
+
+# --- sui modes ---
+# Both agent and cache run in the same pod.
+# sui agent consumes NATS builds; sui cache serves HTTP.
+mode:
+  # Build agent — consumes from NATS, builds, pushes to S3
+  agent:
+    enabled: true
+    nats:
+      url: "nats://nats.nats.svc:4222"
+      stream: BUILD
+      consumer: sui-agent
+  # Cache server — serves nix binary cache HTTP protocol
+  cache:
+    enabled: true
+    listen: "0.0.0.0:5000"
+    priority: 40
+    backend: s3
+    s3:
+      bucket: ""
+      region: us-east-1
+      endpoint: ""
+    signing:
+      secretName: ""
+      secretKey: signing-key
+
+# --- Resources ---
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    cpu: 4000m
+    memory: 8Gi
+
+# --- Ports ---
+ports:
+  - name: cache
+    containerPort: 5000
+    protocol: TCP
+
+service:
+  type: ClusterIP
+  ports:
+    - name: cache
+      port: 80
+      targetPort: cache
+
+# --- Health ---
+health:
+  path: /nix-cache-info
+  port: cache
+  startupFailureThreshold: 5
+  startupPeriodSeconds: 10
+  livenessPeriodSeconds: 30
+  readinessPeriodSeconds: 10
+
+# --- Breathability (KEDA zero-scale + HPA serving) ---
+breathability:
+  enabled: true
+  targetKind: Deployment
+  min: 0
+  max: 4
+  cooldown: 300
+  pollingInterval: 15
+  trigger:
+    type: nats-jetstream
+    nats:
+      serverURL: "nats://nats.nats.svc:4222"
+      stream: BUILD
+      consumer: sui-agent
+      lagThreshold: "1"
+      activationLagThreshold: "0"
+  hpa:
+    enabled: true
+    min: 1
+    max: 3
+    targetCPU: 70
+
+# --- Delivery ---
+delivery:
+  enabled: true
+  tier: durable
+  nats:
+    url: "nats://nats.nats.svc:4222"
+    stream: BUILD
+    consumer: sui-agent
+
+# --- Alerts ---
+alerts:
+  enabled: true
+  podRestarting:
+    enabled: true
+    threshold: 3
+    severity: critical
+  highMemory:
+    enabled: true
+    threshold: 85
+    severity: warning
+
+# --- PDB ---
+pdb:
+  enabled: true
+  minAvailable: 1
+
+# --- Security ---
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65534
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+# --- Scheduling ---
+nodeSelector: {}
+tolerations: []
+affinity: {}
+terminationGracePeriodSeconds: 30

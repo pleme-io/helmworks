@@ -1,0 +1,98 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pleme-sui.fullname" . }}
+  labels:
+    {{- include "pleme-sui.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.breathability.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "pleme-sui.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "pleme-sui.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "pleme-sui.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      containers:
+        - name: sui
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if and .Values.mode.agent.enabled .Values.mode.cache.enabled }}
+          # Both agent + cache: start agent (it also serves cache)
+          args:
+            - agent
+            - --nats-url={{ .Values.mode.agent.nats.url }}
+            - --stream={{ .Values.mode.agent.nats.stream }}
+            - --consumer={{ .Values.mode.agent.nats.consumer }}
+            - --cache-url=http://localhost:5000
+            - --cache-name={{ default "main" .Values.mode.cache.s3.bucket }}
+          {{- else if .Values.mode.cache.enabled }}
+          # Cache-only mode
+          args:
+            - cache
+            - serve
+            - --listen={{ .Values.mode.cache.listen }}
+          {{- else if .Values.mode.agent.enabled }}
+          # Agent-only mode
+          args:
+            - agent
+            - --nats-url={{ .Values.mode.agent.nats.url }}
+            - --stream={{ .Values.mode.agent.nats.stream }}
+            - --consumer={{ .Values.mode.agent.nats.consumer }}
+          {{- end }}
+          env:
+            - name: RUST_LOG
+              value: info
+            {{- if .Values.mode.cache.s3.bucket }}
+            - name: AWS_REGION
+              value: {{ .Values.mode.cache.s3.region }}
+            {{- end }}
+          {{- with .Values.ports }}
+          ports:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.health.path }}
+              port: {{ .Values.health.port }}
+            failureThreshold: {{ .Values.health.startupFailureThreshold }}
+            periodSeconds: {{ .Values.health.startupPeriodSeconds }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.health.path }}
+              port: {{ .Values.health.port }}
+            periodSeconds: {{ .Values.health.livenessPeriodSeconds }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.health.path }}
+              port: {{ .Values.health.port }}
+            periodSeconds: {{ .Values.health.readinessPeriodSeconds }}
