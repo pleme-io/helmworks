@@ -1,0 +1,97 @@
+# pleme-nix-builder — elastic Nix build workers (ro platform)
+# THIS is the zero-scale component: KEDA scales 0→N based on NATS build queue depth.
+# When no builds are queued, zero pods exist. Cost = $0 idle.
+
+image:
+  repository: ghcr.io/pleme-io/nix-builder
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# --- KEDA autoscaling (THE key elasticity feature) ---
+keda:
+  enabled: true
+  minReplicaCount: 0      # ZERO when idle
+  maxReplicaCount: 4
+  cooldownPeriod: 300      # 5 min idle → scale to zero
+  pollingInterval: 15
+  # NATS JetStream trigger
+  nats:
+    serverURL: "nats://nats.nats.svc:4222"
+    stream: BUILD
+    consumer: builder
+    # Scale up when ANY messages are pending
+    lagThreshold: "1"
+    activationLagThreshold: "0"
+
+# --- Builder config ---
+builder:
+  # SSH port for nix remote builds
+  sshPort: 22
+  # Nix configuration
+  nix:
+    maxJobs: auto
+    cores: 0
+    # GC thresholds (bytes)
+    minFree: 5368709120    # 5GB
+    maxFree: 10737418240   # 10GB
+    # Substituters (Attic first, then upstream)
+    substituters:
+      - "http://attic.nix-cache.svc:80/main"
+      - "https://cache.nixos.org"
+    trustedPublicKeys: []
+    # Post-build hook for Attic push
+    postBuildHook:
+      enabled: true
+      atticServer: "http://attic.nix-cache.svc:80"
+      cacheName: main
+
+# --- Resources (builder needs real compute) ---
+resources:
+  requests:
+    cpu: 2000m
+    memory: 4Gi
+  limits:
+    cpu: 4000m
+    memory: 12Gi
+
+# --- Storage ---
+storage:
+  size: 100Gi
+  storageClass: ""
+
+# --- Security (privileged required for nix-daemon) ---
+privileged: true
+
+podSecurityContext: {}
+
+# --- Service (headless for SSH) ---
+service:
+  type: ClusterIP
+  clusterIP: None
+  sessionAffinity: ClientIP
+  sessionAffinityTimeout: 10800
+
+# --- Scheduling ---
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# --- SSH keys ---
+ssh:
+  # Secret containing authorized_keys for remote builds
+  authorizedKeysSecretName: ""
+  authorizedKeysSecretKey: authorized-keys
+
+# --- Attic auth ---
+attic:
+  # Secret containing .netrc for Attic token auth
+  netrcSecretName: ""
+  netrcSecretKey: netrc
+
+# --- PDB ---
+pdb:
+  enabled: false

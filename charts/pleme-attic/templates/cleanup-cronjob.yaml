@@ -1,0 +1,42 @@
+{{- if .Values.cleanup.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "pleme-attic.fullname" . }}-cleanup
+  labels:
+    {{- include "pleme-attic.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.cleanup.schedule | quote }}
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          {{- with .Values.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          containers:
+            - name: cleanup
+              image: "{{ .Values.postgres.image.repository }}:{{ .Values.postgres.image.tag }}"
+              command:
+                - sh
+                - -c
+                - |
+                  psql "$DATABASE_URL" -c "
+                    DELETE FROM object
+                    WHERE created_at < NOW() - INTERVAL '{{ .Values.attic.gc.defaultRetentionPeriod }}'
+                    AND id NOT IN (SELECT DISTINCT object_id FROM chunkref WHERE object_id IS NOT NULL);
+                  "
+              env:
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.attic.database.secretName }}
+                      key: {{ .Values.attic.database.secretKey }}
+              {{- with .Values.cleanup.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+{{- end }}

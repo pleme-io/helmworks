@@ -1,0 +1,116 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pleme-attic.fullname" . }}
+  labels:
+    {{- include "pleme-attic.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "pleme-attic.selectorLabels" . | nindent 6 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        {{- include "pleme-attic.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "pleme-attic.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- if .Values.initContainers.waitForPostgres.enabled }}
+      initContainers:
+        - name: wait-for-postgres
+          image: {{ .Values.initContainers.waitForPostgres.image }}
+          command:
+            - sh
+            - -c
+            - |
+              until pg_isready -h {{ include "pleme-attic.postgresFullname" . }} -p 5432 -U {{ .Values.postgres.user }}; do
+                echo "Waiting for PostgreSQL..."
+                sleep 2
+              done
+          {{- with .Values.initContainers.waitForPostgres.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- end }}
+      containers:
+        - name: attic
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["-f", "/etc/attic/server.toml"]
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: ATTIC_SERVER_DATABASE__URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.attic.database.secretName }}
+                  key: {{ .Values.attic.database.secretKey }}
+            - name: ATTIC_SERVER_TOKEN_HS256_SECRET_BASE64
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.attic.jwt.secretName }}
+                  key: {{ .Values.attic.jwt.secretKey }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/attic
+              readOnly: true
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.health.path }}
+              port: {{ .Values.health.port }}
+            failureThreshold: {{ .Values.health.startupFailureThreshold }}
+            periodSeconds: {{ .Values.health.startupPeriodSeconds }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.health.path }}
+              port: {{ .Values.health.port }}
+            periodSeconds: {{ .Values.health.livenessPeriodSeconds }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.health.path }}
+              port: {{ .Values.health.port }}
+            periodSeconds: {{ .Values.health.readinessPeriodSeconds }}
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 5"]
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "pleme-attic.fullname" . }}-config

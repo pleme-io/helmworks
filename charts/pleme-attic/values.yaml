@@ -1,0 +1,151 @@
+# pleme-attic — Nix binary cache (ro platform)
+# Attic server + PostgreSQL backend + S3 storage via IRSA.
+
+image:
+  repository: ghcr.io/pleme-io/attic-server
+  tag: amd64-latest
+  pullPolicy: Always
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+replicaCount: 1
+
+serviceAccount:
+  create: true
+  annotations: {}
+  # eks.amazonaws.com/role-arn: "" — set per cluster for IRSA
+
+# --- Attic server configuration ---
+attic:
+  listen: "0.0.0.0:8080"
+  # API endpoint (internal cluster URL)
+  apiEndpoint: "http://attic.{{ .Release.Namespace }}.svc.cluster.local/"
+  softDeleteCaches: false
+  requireProofOfPossession: false
+
+  database:
+    # Full URL-encoded connection string from secret
+    secretName: ""
+    secretKey: database-url
+
+  jwt:
+    secretName: ""
+    secretKey: jwt-secret
+
+  storage:
+    type: s3
+    region: us-east-1
+    bucket: ""
+    # endpoint: "" — omit for AWS S3, set for MinIO/RustFS
+
+  compression:
+    type: zstd
+    level: 3
+
+  chunking:
+    narSizeThreshold: 262144
+    minSize: 262144
+    avgSize: 1048576
+    maxSize: 4194304
+
+  gc:
+    interval: "12h"
+    defaultRetentionPeriod: "90d"
+
+# --- PostgreSQL sidecar ---
+postgres:
+  enabled: true
+  image:
+    repository: postgres
+    tag: "16.8-alpine"
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  storage:
+    size: 10Gi
+    storageClass: ""
+  secretName: ""
+  secretKey: postgres-password
+  user: attic
+  database: attic
+
+# --- Cleanup CronJob ---
+cleanup:
+  enabled: true
+  schedule: "0 */4 * * *"
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
+
+# --- Attic server resources (elastic: tiny when idle) ---
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 1000m
+    memory: 2Gi
+
+# --- Probes ---
+health:
+  path: /
+  port: http
+  startupFailureThreshold: 5
+  startupPeriodSeconds: 12
+  livenessPeriodSeconds: 30
+  readinessPeriodSeconds: 10
+
+# --- Autoscaling ---
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilization: 80
+
+# --- PDB ---
+pdb:
+  enabled: true
+  minAvailable: 1
+
+# --- Security ---
+podSecurityContext:
+  runAsNonRoot: false
+
+securityContext: {}
+
+# --- Scheduling ---
+nodeSelector: {}
+tolerations: []
+affinity: {}
+terminationGracePeriodSeconds: 120
+
+# --- Networking ---
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: http
+
+networkPolicy:
+  enabled: true
+  allowDns: true
+  allowPrometheus: true
+
+# --- Init container postgres wait ---
+initContainers:
+  waitForPostgres:
+    enabled: true
+    image: postgres:16.8-alpine
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi

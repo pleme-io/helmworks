@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pleme-attic.fullname" . }}-config
+  labels:
+    {{- include "pleme-attic.labels" . | nindent 4 }}
+data:
+  server.toml: |
+    listen = "{{ .Values.attic.listen }}"
+    api-endpoint = "{{ .Values.attic.apiEndpoint }}"
+    soft-delete-caches = {{ .Values.attic.softDeleteCaches }}
+    require-proof-of-possession = {{ .Values.attic.requireProofOfPossession }}
+
+    # Database URL injected via ATTIC_SERVER_DATABASE__URL env var.
+    [database]
+    url = "postgresql://placeholder:placeholder@localhost:5432/placeholder"
+
+    [storage]
+    type = "{{ .Values.attic.storage.type }}"
+    region = "{{ .Values.attic.storage.region }}"
+    bucket = "{{ .Values.attic.storage.bucket }}"
+    {{- if .Values.attic.storage.endpoint }}
+    endpoint = "{{ .Values.attic.storage.endpoint }}"
+    {{- end }}
+
+    [compression]
+    type = "{{ .Values.attic.compression.type }}"
+    level = {{ .Values.attic.compression.level }}
+
+    [chunking]
+    nar-size-threshold = {{ .Values.attic.chunking.narSizeThreshold }}
+    min-size = {{ .Values.attic.chunking.minSize }}
+    avg-size = {{ .Values.attic.chunking.avgSize }}
+    max-size = {{ .Values.attic.chunking.maxSize }}
+
+    [garbage-collection]
+    interval = "{{ .Values.attic.gc.interval }}"
+    default-retention-period = "{{ .Values.attic.gc.defaultRetentionPeriod }}"
+
+    # JWT signing secret injected via ATTIC_SERVER_TOKEN_HS256_SECRET_BASE64 env var.
+    [jwt.signing]
+    token-hs256-secret-base64 = "cGxhY2Vob2xkZXI="

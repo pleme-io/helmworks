@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pleme-nix-builder.fullname" . }}-config
+  labels:
+    {{- include "pleme-nix-builder.labels" . | nindent 4 }}
+data:
+  nix.conf: |
+    max-jobs = {{ .Values.builder.nix.maxJobs }}
+    cores = {{ .Values.builder.nix.cores }}
+    min-free = {{ .Values.builder.nix.minFree }}
+    max-free = {{ .Values.builder.nix.maxFree }}
+    experimental-features = nix-command flakes
+    substituters = {{ .Values.builder.nix.substituters | join " " }}
+    {{- if .Values.builder.nix.trustedPublicKeys }}
+    trusted-public-keys = {{ .Values.builder.nix.trustedPublicKeys | join " " }}
+    {{- end }}
+    {{- if .Values.builder.nix.postBuildHook.enabled }}
+    post-build-hook = /etc/nix/post-build-hook.sh
+    {{- end }}
+  {{- if .Values.builder.nix.postBuildHook.enabled }}
+  post-build-hook.sh: |
+    #!/bin/sh
+    set -eu
+    exec attic push {{ .Values.builder.nix.postBuildHook.cacheName }} \
+      --server {{ .Values.builder.nix.postBuildHook.atticServer }} \
+      "$OUT_PATHS"
+  {{- end }}

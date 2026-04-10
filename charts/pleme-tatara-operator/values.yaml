@@ -1,0 +1,130 @@
+# pleme-tatara-operator — NixBuild CRD controller (ro platform)
+# Stateless operator: watches NixBuild CRs, publishes to NATS, updates status.
+
+image:
+  repository: ghcr.io/pleme-io/tatara-operator
+  tag: amd64-latest
+  pullPolicy: Always
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+replicaCount: 1
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# --- Operator config ---
+operator:
+  natsUrl: "nats://nats.nats.svc:4222"
+  logLevel: info
+
+# --- RBAC ---
+rbac:
+  create: true
+  rules:
+    # NixBuild CRD operations
+    - apiGroups: ["tatara.pleme.io"]
+      resources: ["nixbuilds", "nixbuilds/status", "nixbuildpools", "flakesources"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    # Events for status reporting
+    - apiGroups: [""]
+      resources: ["events"]
+      verbs: ["create", "patch"]
+    # ConfigMaps for leader election
+    - apiGroups: ["coordination.k8s.io"]
+      resources: ["leases"]
+      verbs: ["get", "create", "update"]
+
+# --- Resources (micro footprint — stateless controller) ---
+resources:
+  requests:
+    cpu: 25m
+    memory: 48Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi
+
+# --- Health probes ---
+health:
+  path: /health
+  port: health
+  livenessInitialDelay: 10
+  livenessPeriod: 30
+  readinessInitialDelay: 5
+  readinessPeriod: 10
+
+ports:
+  - name: health
+    containerPort: 8080
+    protocol: TCP
+
+service:
+  type: ClusterIP
+  ports:
+    - name: health
+      port: 8080
+      targetPort: health
+
+# --- Security (locked down) ---
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65534
+  fsGroup: 65534
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+# Operators use Recreate to avoid dual-reconciliation
+strategy:
+  type: Recreate
+
+terminationGracePeriodSeconds: 30
+
+# --- PDB ---
+pdb:
+  enabled: false
+
+# --- Scheduling ---
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# --- Network ---
+networkPolicy:
+  enabled: true
+  allowDns: true
+  allowPrometheus: true
+  additionalEgress:
+    # NATS
+    - name: allow-nats
+      rules:
+        - to:
+            - namespaceSelector:
+                matchLabels:
+                  kubernetes.io/metadata.name: nats
+          ports:
+            - port: 4222
+              protocol: TCP
+    # K8s API server
+    - name: allow-kube-api
+      rules:
+        - to:
+            - ipBlock:
+                cidr: 0.0.0.0/0
+          ports:
+            - port: 443
+              protocol: TCP
+
+# --- CRDs (installed separately or via chart) ---
+crds:
+  install: true

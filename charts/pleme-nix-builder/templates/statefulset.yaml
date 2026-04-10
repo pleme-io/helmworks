@@ -1,0 +1,114 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "pleme-nix-builder.fullname" . }}
+  labels:
+    {{- include "pleme-nix-builder.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "pleme-nix-builder.fullname" . }}
+  # Replicas managed by KEDA when keda.enabled=true.
+  # KEDA overrides this value at runtime (0→N).
+  replicas: {{ if .Values.keda.enabled }}0{{ else }}1{{ end }}
+  selector:
+    matchLabels:
+      {{- include "pleme-nix-builder.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "pleme-nix-builder.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.privileged }}
+      # Privileged required for nix-daemon (mount namespaces, chroot)
+      securityContext: {}
+      {{- else }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- end }}
+      containers:
+        - name: builder
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: ssh
+              containerPort: {{ .Values.builder.sshPort }}
+              protocol: TCP
+          {{- if .Values.privileged }}
+          securityContext:
+            privileged: true
+          {{- end }}
+          volumeMounts:
+            - name: nix-store
+              mountPath: /nix
+            - name: nix-config
+              mountPath: /etc/nix
+              readOnly: true
+            {{- if .Values.ssh.authorizedKeysSecretName }}
+            - name: ssh-keys
+              mountPath: /root/.ssh
+              readOnly: true
+            {{- end }}
+            {{- if .Values.attic.netrcSecretName }}
+            - name: netrc
+              mountPath: /root/.netrc
+              subPath: netrc
+              readOnly: true
+            {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          readinessProbe:
+            tcpSocket:
+              port: ssh
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          livenessProbe:
+            tcpSocket:
+              port: ssh
+            initialDelaySeconds: 30
+            periodSeconds: 60
+      volumes:
+        - name: nix-config
+          configMap:
+            name: {{ include "pleme-nix-builder.fullname" . }}-config
+        {{- if .Values.ssh.authorizedKeysSecretName }}
+        - name: ssh-keys
+          secret:
+            secretName: {{ .Values.ssh.authorizedKeysSecretName }}
+            defaultMode: 0600
+        {{- end }}
+        {{- if .Values.attic.netrcSecretName }}
+        - name: netrc
+          secret:
+            secretName: {{ .Values.attic.netrcSecretName }}
+            defaultMode: 0600
+        {{- end }}
+  volumeClaimTemplates:
+    - metadata:
+        name: nix-store
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- if .Values.storage.storageClass }}
+        storageClassName: {{ .Values.storage.storageClass }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.storage.size }}

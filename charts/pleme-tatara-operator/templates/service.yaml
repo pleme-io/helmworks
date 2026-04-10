@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pleme-tatara-operator.fullname" . }}
+  labels:
+    {{- include "pleme-tatara-operator.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    {{- include "pleme-tatara-operator.selectorLabels" . | nindent 4 }}
+  {{- with .Values.service.ports }}
+  ports:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
