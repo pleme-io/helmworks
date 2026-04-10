@@ -94,6 +94,34 @@ attic:
   netrcSecretName: ""
   netrcSecretKey: netrc
 
+# --- Delivery (NATS consumer — durable tier) ---
+delivery:
+  enabled: true
+  tier: durable
+  nats:
+    url: "nats://nats.nats.svc:4222"
+    stream: BUILD
+    consumer: builder
+  retry:
+    maxDeliver: 3
+    ackWait: "300s"
+
+# --- Alerts (build health monitoring) ---
+alerts:
+  enabled: true
+  podRestarting:
+    enabled: true
+    threshold: 2
+    severity: critical
+  highMemory:
+    enabled: true
+    threshold: 85
+    severity: warning
+  highErrorRate:
+    enabled: false
+  highLatency:
+    enabled: false
+
 # --- PDB ---
 pdb:
   enabled: false

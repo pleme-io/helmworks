@@ -94,6 +94,22 @@ terminationGracePeriodSeconds: 30
 breathability:
   enabled: false
 
+# --- Alerts (operator health monitoring) ---
+alerts:
+  enabled: true
+  podRestarting:
+    enabled: true
+    threshold: 3
+    severity: critical
+  highMemory:
+    enabled: true
+    threshold: 85
+    severity: warning
+  highErrorRate:
+    enabled: false
+  highLatency:
+    enabled: false
+
 # --- PDB ---
 pdb:
   enabled: false

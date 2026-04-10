@@ -117,6 +117,41 @@ breathability:
     max: 3
     targetCPU: 70
 
+# --- Delivery (cache receives pushes — durable tier) ---
+delivery:
+  enabled: false
+
+# --- Resilience (circuit breaker for cache serving) ---
+resilience:
+  enabled: false
+  circuitBreaker:
+    consecutive5xx: 5
+    interval: 30s
+    baseEjectionTime: 30s
+  connectionPool:
+    maxConnections: 200
+    http2MaxRequests: 200
+
+# --- Alerts (cache health monitoring) ---
+alerts:
+  enabled: true
+  podRestarting:
+    enabled: true
+    threshold: 2
+    severity: critical
+  highMemory:
+    enabled: true
+    threshold: 85
+    severity: warning
+  highErrorRate:
+    enabled: true
+    threshold: 10
+    severity: warning
+  highLatency:
+    enabled: true
+    thresholdMs: 2000
+    severity: warning
+
 # --- PDB ---
 pdb:
   enabled: true
