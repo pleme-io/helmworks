@@ -23,6 +23,7 @@ mode:
   # Build agent — consumes from NATS, builds, pushes to S3
   agent:
     enabled: true
+    strategy: lockfile  # lockfile | eval | nix
     nats:
       url: "nats://nats.nats.svc:4222"
       stream: BUILD

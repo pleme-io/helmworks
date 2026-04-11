@@ -53,6 +53,7 @@ spec:
             - --consumer={{ .Values.mode.agent.nats.consumer }}
             - --cache-url=http://localhost:5000
             - --cache-name={{ default "main" .Values.mode.cache.s3.bucket }}
+            - --strategy={{ .Values.mode.agent.strategy }}
           {{- else if .Values.mode.cache.enabled }}
           # Cache-only mode
           args:
@@ -73,6 +74,10 @@ spec:
             {{- if .Values.mode.cache.s3.bucket }}
             - name: AWS_REGION
               value: {{ .Values.mode.cache.s3.region }}
+            {{- end }}
+            {{- if .Values.mode.agent.enabled }}
+            - name: XDG_CACHE_HOME
+              value: /var/lib/sui
             {{- end }}
             {{- if .Values.nixAgent.enabled }}
             - name: NIX_CONFIG
