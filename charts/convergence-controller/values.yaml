@@ -29,16 +29,27 @@ rbac:
         - convergenceservices/status
         - processtables
         - processtables/status
-      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-    # InfrastructureFlow (pangea-operator composition)
+      verbs: ["get", "list", "watch", "create", "update", "patch"]
+    # Convergence CRD status subresources (separate for safety)
+    - apiGroups: ["convergence.pleme.io"]
+      resources:
+        - convergenceprocesses/status
+        - convergenceplatforms/status
+        - convergenceservices/status
+        - processtables/status
+      verbs: ["get", "patch"]
+    # InfrastructureFlow (pangea-operator composition — needs delete for teardown)
     - apiGroups: ["pangea.pleme.io"]
       resources:
         - infrastructureflows
-        - infrastructureflows/status
         - infrastructuretemplates
-        - infrastructuretemplates/status
       verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-    # FluxCD resources (monitoring child clusters)
+    - apiGroups: ["pangea.pleme.io"]
+      resources:
+        - infrastructureflows/status
+        - infrastructuretemplates/status
+      verbs: ["get", "list", "watch"]
+    # FluxCD resources (read-only monitoring)
     - apiGroups: ["kustomize.toolkit.fluxcd.io"]
       resources: ["kustomizations"]
       verbs: ["get", "list", "watch"]
@@ -48,11 +59,19 @@ rbac:
     - apiGroups: ["source.toolkit.fluxcd.io"]
       resources: ["gitrepositories", "helmrepositories"]
       verbs: ["get", "list", "watch"]
-    # Core resources (secrets, events, namespaces)
+    # Secrets (create for bootstrap, patch for updates, no delete)
     - apiGroups: [""]
-      resources: ["secrets", "configmaps", "events", "namespaces"]
-      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-    # Nodes (health monitoring)
+      resources: ["secrets"]
+      verbs: ["get", "list", "watch", "create", "patch"]
+    # Events (write-only for audit trail)
+    - apiGroups: [""]
+      resources: ["events"]
+      verbs: ["create"]
+    # Namespaces (read + create for child processes)
+    - apiGroups: [""]
+      resources: ["namespaces"]
+      verbs: ["get", "list", "watch", "create"]
+    # Nodes (read-only health monitoring)
     - apiGroups: [""]
       resources: ["nodes"]
       verbs: ["get", "list", "watch"]

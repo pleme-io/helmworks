@@ -2,7 +2,7 @@ apiVersion: v2
 name: convergence-controller
 description: Convergence process controller — spawns K8s clusters as convergence processes from CRDs
 type: application
-version: 0.1.0
+version: 0.1.1
 appVersion: "0.1.0"
 
 dependencies:
