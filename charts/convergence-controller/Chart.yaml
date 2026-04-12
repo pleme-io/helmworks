@@ -1,0 +1,11 @@
+apiVersion: v2
+name: convergence-controller
+description: Convergence process controller — spawns K8s clusters as convergence processes from CRDs
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+
+dependencies:
+  - name: pleme-lib
+    version: "~0.4.0"
+    repository: "file://../pleme-lib"
