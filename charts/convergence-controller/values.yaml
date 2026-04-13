@@ -29,7 +29,7 @@ rbac:
         - convergenceservices/status
         - processtables
         - processtables/status
-      verbs: ["get", "list", "watch", "create", "update", "patch"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
     # Convergence CRD status subresources (separate for safety)
     - apiGroups: ["convergence.pleme.io"]
       resources:
@@ -59,18 +59,18 @@ rbac:
     - apiGroups: ["source.toolkit.fluxcd.io"]
       resources: ["gitrepositories", "helmrepositories"]
       verbs: ["get", "list", "watch"]
-    # Secrets (create for bootstrap, patch for updates, no delete)
+    # Secrets (full lifecycle — finalizers must clean up bootstrap secrets)
     - apiGroups: [""]
       resources: ["secrets"]
-      verbs: ["get", "list", "watch", "create", "patch"]
+      verbs: ["get", "list", "watch", "create", "patch", "delete"]
     # Events (write-only for audit trail)
     - apiGroups: [""]
       resources: ["events"]
       verbs: ["create"]
-    # Namespaces (read + create for child processes)
+    # Namespaces (full lifecycle — child process namespaces must be cleaned up)
     - apiGroups: [""]
       resources: ["namespaces"]
-      verbs: ["get", "list", "watch", "create"]
+      verbs: ["get", "list", "watch", "create", "delete"]
     # Nodes (read-only health monitoring)
     - apiGroups: [""]
       resources: ["nodes"]
@@ -104,6 +104,11 @@ health:
   path: /healthz
   readyPath: /readyz
   port: health
+
+# Graceful shutdown: drain child processes before dying.
+# Each cluster's controller catches SIGTERM and cascades teardown to its
+# direct children. 10 minutes allows deep trees to unwind bottom-up.
+terminationGracePeriodSeconds: 600
 
 strategy:
   type: Recreate
