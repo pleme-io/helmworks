@@ -73,6 +73,7 @@
             { name = "pleme-tatara-operator"; chartDir = ./charts/pleme-tatara-operator; }
             { name = "pleme-nix-builder"; chartDir = ./charts/pleme-nix-builder; }
             { name = "pleme-sui"; chartDir = ./charts/pleme-sui; }
+            { name = "convergence-controller"; chartDir = ./charts/convergence-controller; }
           ];
 
           # Use substrate's mkHelmAllApps for all chart lifecycle apps
