@@ -66,12 +66,18 @@ garage:
     metricsTokenSecretName: ""
     metricsTokenSecretKey: metrics-token
 
-  # Replication factor. "none" = no replication (single node, dev/home).
-  # "1" same as none. "2" = needs ≥2 nodes. "3" = needs ≥3 nodes.
-  replicationMode: "none"
+  # Replication factor (Garage v2+ uses an integer). 1 = no replication
+  # (single node, home/dev). 2 = needs ≥2 nodes. 3 = needs ≥3 nodes
+  # spread across distinct zones.
+  replicationFactor: 1
+
+  # Required when replicationFactor = 1 (no quorum possible).
+  # Set to "consistent" when running multi-replica.
+  consistencyMode: "dangerous"
 
   # Block size — Garage chunks objects into blocks of this size.
-  blockSize: 1048576
+  # Strings with capacity suffixes work too: "1M", "256K", etc.
+  blockSize: "1M"
 
   # Compression level (zstd). 0 disables, range 1..19. Default 1 = fast.
   compressionLevel: 1

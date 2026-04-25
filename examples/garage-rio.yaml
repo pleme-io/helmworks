@@ -7,7 +7,8 @@ fullnameOverride: garage
 replicaCount: 1
 
 garage:
-  replicationMode: "none"
+  replicationFactor: 1
+  consistencyMode: "dangerous"
   rpc:
     secretName: garage-credentials
     secretKey: rpc-secret

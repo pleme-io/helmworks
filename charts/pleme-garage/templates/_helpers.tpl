@@ -7,9 +7,15 @@ Garage-specific helpers. Generic naming/labels live in pleme-lib.
 metadata_dir = "{{ .Values.garage.metadataDir }}"
 data_dir     = "{{ .Values.garage.dataDir }}"
 
-replication_mode = "{{ .Values.garage.replicationMode }}"
-block_size       = {{ .Values.garage.blockSize }}
-compression_level = {{ .Values.garage.compressionLevel }}
+# Garage v2+: integer replication_factor (1 = no replication, single-
+# node home setup; 3 = 3-way replication once peers join). consistency_mode
+# is "consistent" by default but "dangerous" is required when factor=1
+# (no quorum to enforce). Bump factor + flip back to "consistent" when
+# you have multiple zones.
+replication_factor = {{ .Values.garage.replicationFactor | int }}
+consistency_mode   = "{{ .Values.garage.consistencyMode }}"
+block_size         = "{{ .Values.garage.blockSize }}"
+compression_level  = {{ .Values.garage.compressionLevel | int }}
 
 # rpc_secret is read from the file referenced below (Garage native).
 rpc_secret_file = "/etc/garage/secrets/{{ .Values.garage.rpc.secretKey }}"
