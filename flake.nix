@@ -75,6 +75,8 @@
             { name = "pleme-sui"; chartDir = ./charts/pleme-sui; }
             { name = "convergence-controller"; chartDir = ./charts/convergence-controller; }
             { name = "pangea-operator"; chartDir = ./charts/pangea-operator; }
+            { name = "pleme-garage"; chartDir = ./charts/pleme-garage; }
+            { name = "pleme-ocis"; chartDir = ./charts/pleme-ocis; }
           ];
 
           # Use substrate's mkHelmAllApps for all chart lifecycle apps

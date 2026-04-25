@@ -1,0 +1,168 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+  annotations:
+    {{- include "pleme-lib.fluxcdPruneDisabled" . | nindent 4 }}
+spec:
+  serviceName: {{ include "pleme-lib.fullname" . }}-headless
+  replicas: {{ .Values.replicaCount | default 1 }}
+  podManagementPolicy: {{ .Values.podManagementPolicy | default "OrderedReady" }}
+  {{- with .Values.updateStrategy }}
+  updateStrategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "pleme-lib.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "pleme-lib.selectorLabels" . | nindent 8 }}
+      annotations:
+        {{- include "pleme-lib.prometheusAnnotations" . | nindent 8 }}
+        sidecar.istio.io/inject: "false"
+        checksum/config: {{ include "pleme-garage.config" . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "pleme-lib.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- include "pleme-lib.podSecurityContext" . | nindent 8 }}
+      containers:
+        - name: {{ include "pleme-lib.name" . }}
+          image: {{ include "pleme-lib.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy | default "IfNotPresent" }}
+          command: ["/garage"]
+          args: ["server"]
+          env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: GARAGE_RPC_PUBLIC_ADDR
+              value: "$(POD_IP):{{ .Values.garage.rpc.publicPort }}"
+            - name: GARAGE_CONFIG_FILE
+              value: /etc/garage/garage.toml
+            {{- with .Values.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          ports:
+            - name: rpc
+              containerPort: 3901
+              protocol: TCP
+            - name: s3
+              containerPort: 3900
+              protocol: TCP
+            {{- if .Values.garage.s3Web.enabled }}
+            - name: s3web
+              containerPort: 3902
+              protocol: TCP
+            {{- end }}
+            - name: admin
+              containerPort: 3903
+              protocol: TCP
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            {{- include "pleme-lib.containerSecurityContext" . | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.health.path | default "/health" }}
+              port: {{ .Values.health.port | default "admin" }}
+            initialDelaySeconds: {{ .Values.health.livenessInitialDelay | default 30 }}
+            periodSeconds: {{ .Values.health.livenessPeriod | default 30 }}
+            failureThreshold: {{ .Values.health.livenessFailureThreshold | default 3 }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.health.path | default "/health" }}
+              port: {{ .Values.health.port | default "admin" }}
+            initialDelaySeconds: {{ .Values.health.readinessInitialDelay | default 10 }}
+            periodSeconds: {{ .Values.health.readinessPeriod | default 10 }}
+            failureThreshold: {{ .Values.health.readinessFailureThreshold | default 3 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/garage
+              readOnly: true
+            - name: secrets
+              mountPath: /etc/garage/secrets
+              readOnly: true
+            - name: meta
+              mountPath: {{ .Values.garage.metadataDir }}
+            - name: data
+              mountPath: {{ .Values.garage.dataDir }}
+            - name: tmp
+              mountPath: /tmp
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "pleme-lib.fullname" . }}-config
+        - name: secrets
+          projected:
+            sources:
+              - secret:
+                  name: {{ required "garage.rpc.secretName is required" .Values.garage.rpc.secretName }}
+                  items:
+                    - key: {{ .Values.garage.rpc.secretKey }}
+                      path: {{ .Values.garage.rpc.secretKey }}
+              - secret:
+                  name: {{ required "garage.admin.adminTokenSecretName is required" .Values.garage.admin.adminTokenSecretName }}
+                  items:
+                    - key: {{ .Values.garage.admin.adminTokenSecretKey }}
+                      path: {{ .Values.garage.admin.adminTokenSecretKey }}
+              - secret:
+                  name: {{ required "garage.admin.metricsTokenSecretName is required" .Values.garage.admin.metricsTokenSecretName }}
+                  items:
+                    - key: {{ .Values.garage.admin.metricsTokenSecretKey }}
+                      path: {{ .Values.garage.admin.metricsTokenSecretKey }}
+        - name: tmp
+          emptyDir: {}
+  {{- if .Values.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: meta
+        labels:
+          {{- include "pleme-lib.labels" . | nindent 10 }}
+      spec:
+        accessModes: ["{{ .Values.persistence.meta.accessMode }}"]
+        {{- with .Values.persistence.storageClass }}
+        storageClassName: {{ . }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.persistence.meta.size }}
+    - metadata:
+        name: data
+        labels:
+          {{- include "pleme-lib.labels" . | nindent 10 }}
+      spec:
+        accessModes: ["{{ .Values.persistence.data.accessMode }}"]
+        {{- with .Values.persistence.storageClass }}
+        storageClassName: {{ . }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.persistence.data.size }}
+  {{- end }}

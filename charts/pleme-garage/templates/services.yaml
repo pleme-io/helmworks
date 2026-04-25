@@ -1,0 +1,60 @@
+{{- if .Values.services.s3.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}-s3
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+    app.kubernetes.io/component: s3-api
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "pleme-lib.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: s3
+      port: {{ .Values.services.s3.port }}
+      targetPort: s3
+      protocol: TCP
+{{- end }}
+{{- if .Values.services.s3Web.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}-s3web
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+    app.kubernetes.io/component: s3-web
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "pleme-lib.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: s3web
+      port: {{ .Values.services.s3Web.port }}
+      targetPort: s3web
+      protocol: TCP
+{{- end }}
+{{- if .Values.services.admin.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}-admin
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+    app.kubernetes.io/component: admin
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "pleme-lib.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: admin
+      port: {{ .Values.services.admin.port }}
+      targetPort: admin
+      protocol: TCP
+{{- end }}

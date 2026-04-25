@@ -1,0 +1,168 @@
+# pleme-garage default values
+# Garage S3-compatible object store — designed for small geo-replicated
+# self-hosted clusters. See https://garagehq.deuxfleurs.fr/ for upstream
+# docs. This chart wraps it in pleme-io conventions: pleme-lib templates,
+# enforced security baseline, NetworkPolicy, ServiceMonitor, headless
+# Service for cluster RPC.
+#
+# Single-replica deployments (replicaCount: 1, replicationMode: "none")
+# are valid for "personal Drive" use on a single home server. Bump to 3
+# replicas + replicationMode: "3" once you have peers (TN + RN homes).
+
+image:
+  repository: dxflrs/garage
+  tag: "v2.1.0"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+replicaCount: 1
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# --- Garage configuration --------------------------------------------------
+garage:
+  # metadata + data dirs are mounted via persistence below
+  metadataDir: /var/lib/garage/meta
+  dataDir: /var/lib/garage/data
+
+  # Cluster RPC — bind on all addrs inside the pod, peers discover each
+  # other through the headless Service (rpc_public_addr derived per pod).
+  rpc:
+    bindAddr: "[::]:3901"
+    publicPort: 3901
+    # The shared cluster secret. Source: SOPS Secret with key `rpc-secret`
+    # (32 hex chars). Generate: openssl rand -hex 32
+    secretName: ""
+    secretKey: rpc-secret
+
+  # S3 API — what your Drive front-end (oCIS / Nextcloud / rclone) hits.
+  s3Api:
+    bindAddr: "[::]:3900"
+    region: "garage"
+    rootDomain: ".s3.garage.local"
+
+  # S3 web hosting (static-site mode). Off by default; set enabled=true
+  # to expose `<bucket>.web.garage.local` style URLs.
+  s3Web:
+    enabled: false
+    bindAddr: "[::]:3902"
+    rootDomain: ".web.garage.local"
+    indexDocument: index.html
+
+  # Admin API — Prometheus metrics + cluster ops + bucket mgmt.
+  admin:
+    bindAddr: "[::]:3903"
+    # Source: SOPS Secret with key `admin-token` (random string).
+    # Generate: openssl rand -base64 32
+    adminTokenSecretName: ""
+    adminTokenSecretKey: admin-token
+    # Token used to authenticate metrics scrapes — same secret usually.
+    metricsTokenSecretName: ""
+    metricsTokenSecretKey: metrics-token
+
+  # Replication factor. "none" = no replication (single node, dev/home).
+  # "1" same as none. "2" = needs ≥2 nodes. "3" = needs ≥3 nodes.
+  replicationMode: "none"
+
+  # Block size — Garage chunks objects into blocks of this size.
+  blockSize: 1048576
+
+  # Compression level (zstd). 0 disables, range 1..19. Default 1 = fast.
+  compressionLevel: 1
+
+  # Optional: extra raw garage.toml contents merged into the rendered
+  # config. Use sparingly — prefer adding typed knobs above.
+  extraConfig: ""
+
+# --- Persistence ----------------------------------------------------------
+# Garage's metadata DB (sled/sqlite/lmdb) lives in metadataDir. Data
+# blocks live in dataDir. Both should survive pod restarts.
+persistence:
+  enabled: true
+  # storageClass: local-path  # rio uses local-path-provisioner
+  meta:
+    size: 5Gi
+    accessMode: ReadWriteOnce
+  data:
+    size: 100Gi
+    accessMode: ReadWriteOnce
+
+# --- Services -------------------------------------------------------------
+# Garage exposes 3 logical endpoints. Each gets its own ClusterIP service
+# so consumers can name them precisely (eg the S3 API for oCIS, the admin
+# API for Prometheus).
+services:
+  rpc:
+    enabled: true
+    port: 3901
+  s3:
+    enabled: true
+    port: 3900
+  s3Web:
+    enabled: false
+    port: 3902
+  admin:
+    enabled: true
+    port: 3903
+
+# --- Resources ------------------------------------------------------------
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+
+# --- Probes ---------------------------------------------------------------
+# Garage's /health is exposed on the admin port.
+health:
+  port: admin
+  path: /health
+  livenessInitialDelay: 30
+  livenessPeriod: 30
+  livenessFailureThreshold: 3
+  readinessInitialDelay: 10
+  readinessPeriod: 10
+  readinessFailureThreshold: 3
+
+# --- Pod placement --------------------------------------------------------
+nodeSelector: {}
+tolerations: []
+affinity: {}
+podAnnotations: {}
+
+# --- Update strategy ------------------------------------------------------
+updateStrategy:
+  type: RollingUpdate
+podManagementPolicy: OrderedReady
+
+# --- ServiceMonitor (Prometheus operator) ---------------------------------
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  scrapeTimeout: 10s
+  # additionalLabels: {}
+
+# --- NetworkPolicy --------------------------------------------------------
+# Defaults follow pleme-lib (deny-all + allow-dns + allow-prometheus).
+# Set additional ingress allowlist for clients that should reach S3 API
+# (e.g. the oCIS namespace).
+networkPolicy:
+  enabled: true
+  # Extra ingress rules — list of {from: [...], ports: [...]}.
+  # Example: allow oCIS namespace to hit S3 API:
+  #   - from:
+  #       - namespaceSelector:
+  #           matchLabels:
+  #             kubernetes.io/metadata.name: drive
+  #     ports:
+  #       - protocol: TCP
+  #         port: 3900
+  extraIngress: []

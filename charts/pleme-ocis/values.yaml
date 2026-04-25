@@ -1,0 +1,141 @@
+# pleme-ocis default values
+# OwnCloud Infinite Scale — single Go binary, S3-backed personal Drive
+# with native macOS/Windows/Linux desktop sync clients, iOS/Android apps,
+# auto-photo-upload, public share links. Designed to pair with
+# pleme-garage as the S3 backend.
+
+image:
+  repository: owncloud/ocis
+  tag: "7.4.0"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+replicaCount: 1
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# --- oCIS configuration ---------------------------------------------------
+ocis:
+  # Public URL the clients hit. End-users type this into the desktop/
+  # mobile app. Set to whatever your ingress / Cloudflare Tunnel exposes.
+  url: "https://drive.example.com"
+
+  # Logging
+  logLevel: info        # trace | debug | info | warn | error
+  logColor: false
+  logPretty: false
+
+  # Insecure flag — set true only when self-signed certs are in play and
+  # you can't fix the chain. Defaults to off (let the ingress handle TLS).
+  insecure: false
+
+  # --- Built-in IDP (LibreGraph + Konnect) ---
+  # Single-tenant — no LDAP/external IDP required. The admin user below
+  # is created on first boot.
+  admin:
+    # Source: SOPS Secret with key `admin-password`
+    passwordSecretName: ""
+    passwordSecretKey: admin-password
+    # Username (UPN). Email-shaped works too.
+    userName: admin
+
+  # --- IDP signing keys ---
+  # The token signing key + Konnect encryption secret. Both 32+ random
+  # bytes. Generate: openssl rand -hex 32
+  idp:
+    secretName: ""
+    jwtSecretKey: jwt-secret
+    konnectSigningKey: konnect-signing-key
+    konnectEncryptionSecret: konnect-encryption-secret
+    machineAuthApiKey: machine-auth-api-key
+    revaTransferSecret: reva-transfer-secret
+    storageSystemSecret: storage-system-secret
+
+  # --- Storage backend ---
+  # Two modes: "ocis" (local POSIX, the default) or "s3ng" (S3 next-gen).
+  # For the Garage pairing we use s3ng.
+  storage:
+    backend: s3ng
+
+    # Where oCIS keeps its OWN state (IDP keys, indexes, web assets).
+    # Even with s3ng for user blobs, oCIS needs ~1-2 GiB of local state.
+    localBaseDir: /var/lib/ocis
+
+    # S3 backend (only consulted when backend == s3ng)
+    s3:
+      endpoint: "http://garage-s3.drive.svc:3900"
+      region: "garage"
+      bucket: "ocis-data"
+      forcePathStyle: true       # Garage requires path-style addressing
+      # SOPS Secret holding the bucket access keys
+      credentialsSecretName: ""
+      accessKeyKey: access-key
+      secretKeyKey: secret-key
+
+  # --- Tracing (optional, off by default) ---
+  tracing:
+    enabled: false
+    endpoint: ""
+    collector: ""
+
+# --- Service --------------------------------------------------------------
+service:
+  enabled: true
+  type: ClusterIP
+  port: 9200
+  # ingressClassName / annotations belong on the Ingress (ship separately)
+
+# --- Persistence ----------------------------------------------------------
+# oCIS local state — IDP signing keys, search indexes, registered users
+# directory. NOT user file data (that's in Garage).
+persistence:
+  enabled: true
+  # storageClass: local-path
+  size: 5Gi
+  accessMode: ReadWriteOnce
+
+# --- Resources ------------------------------------------------------------
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 1500m
+    memory: 1Gi
+
+# --- Probes ---------------------------------------------------------------
+health:
+  port: http
+  livenessPath: /
+  readinessPath: /
+  livenessInitialDelay: 30
+  livenessPeriod: 30
+  livenessFailureThreshold: 3
+  readinessInitialDelay: 10
+  readinessPeriod: 10
+  readinessFailureThreshold: 3
+
+# --- Pod placement --------------------------------------------------------
+nodeSelector: {}
+tolerations: []
+affinity: {}
+podAnnotations: {}
+
+# --- ServiceMonitor (Prometheus operator) ---------------------------------
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  scrapeTimeout: 10s
+  # additionalLabels: {}
+
+# --- NetworkPolicy --------------------------------------------------------
+networkPolicy:
+  enabled: true
+  # Extra ingress allowlist (eg ingress-nginx namespace)
+  extraIngress: []

@@ -1,0 +1,125 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+  annotations:
+    {{- include "pleme-lib.fluxcdPruneDisabled" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount | default 1 }}
+  strategy:
+    # oCIS keeps state in a single PVC; use Recreate to avoid two pods
+    # racing on the same RWO volume.
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "pleme-lib.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "pleme-lib.selectorLabels" . | nindent 8 }}
+      annotations:
+        {{- include "pleme-lib.prometheusAnnotations" . | nindent 8 }}
+        sidecar.istio.io/inject: "false"
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "pleme-lib.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- include "pleme-lib.podSecurityContext" . | nindent 8 }}
+      # oCIS bootstraps state on first boot — initialise the data dir
+      # if empty so the main container starts cleanly.
+      initContainers:
+        - name: init-config
+          image: {{ include "pleme-lib.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy | default "IfNotPresent" }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              if [ ! -f {{ .Values.ocis.storage.localBaseDir }}/config/ocis.yaml ]; then
+                echo "First boot — initialising oCIS state directory"
+                ocis init --insecure true --force-overwrite || true
+              fi
+          env:
+            - name: OCIS_CONFIG_DIR
+              value: {{ printf "%s/config" .Values.ocis.storage.localBaseDir | quote }}
+            - name: OCIS_BASE_DATA_PATH
+              value: {{ .Values.ocis.storage.localBaseDir | quote }}
+          securityContext:
+            {{- include "pleme-lib.containerSecurityContext" . | nindent 12 }}
+          volumeMounts:
+            - name: state
+              mountPath: {{ .Values.ocis.storage.localBaseDir }}
+            - name: tmp
+              mountPath: /tmp
+      containers:
+        - name: {{ include "pleme-lib.name" . }}
+          image: {{ include "pleme-lib.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy | default "IfNotPresent" }}
+          command: ["/usr/bin/ocis"]
+          args: ["server"]
+          env:
+            {{- include "pleme-ocis.envVars" . | nindent 12 }}
+            {{- with .Values.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: 9200
+              protocol: TCP
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            {{- include "pleme-lib.containerSecurityContext" . | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.health.livenessPath | default "/" }}
+              port: {{ .Values.health.port | default "http" }}
+              scheme: HTTPS
+            initialDelaySeconds: {{ .Values.health.livenessInitialDelay | default 30 }}
+            periodSeconds: {{ .Values.health.livenessPeriod | default 30 }}
+            failureThreshold: {{ .Values.health.livenessFailureThreshold | default 3 }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.health.readinessPath | default "/" }}
+              port: {{ .Values.health.port | default "http" }}
+              scheme: HTTPS
+            initialDelaySeconds: {{ .Values.health.readinessInitialDelay | default 10 }}
+            periodSeconds: {{ .Values.health.readinessPeriod | default 10 }}
+            failureThreshold: {{ .Values.health.readinessFailureThreshold | default 3 }}
+          volumeMounts:
+            - name: state
+              mountPath: {{ .Values.ocis.storage.localBaseDir }}
+            - name: tmp
+              mountPath: /tmp
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        - name: state
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "pleme-lib.fullname" . }}-state
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: tmp
+          emptyDir: {}

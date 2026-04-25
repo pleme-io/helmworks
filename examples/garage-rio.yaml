@@ -1,0 +1,48 @@
+# Example values for rio's pleme-garage deployment (Bristol, TN).
+# Single-replica home-server mode. Bumps to 3-replica replication once
+# mar (Parnamirim, RN) is online — flip replicationMode to "3" and
+# scale replicaCount via Helm release.
+fullnameOverride: garage
+
+replicaCount: 1
+
+garage:
+  replicationMode: "none"
+  rpc:
+    secretName: garage-credentials
+    secretKey: rpc-secret
+  admin:
+    adminTokenSecretName: garage-credentials
+    adminTokenSecretKey: admin-token
+    metricsTokenSecretName: garage-credentials
+    metricsTokenSecretKey: metrics-token
+
+persistence:
+  storageClass: local-path
+  meta:
+    size: 5Gi
+  data:
+    size: 200Gi
+
+# Allow oCIS in the same namespace to reach S3
+networkPolicy:
+  enabled: true
+  extraIngress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: pleme-ocis
+      ports:
+        - protocol: TCP
+          port: 3900
+
+serviceMonitor:
+  enabled: false   # flip on once kube-prometheus-stack is on rio
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 2000m
+    memory: 2Gi
