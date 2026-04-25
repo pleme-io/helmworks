@@ -1,0 +1,17 @@
+apiVersion: v2
+name: pleme-lareira-canary
+description: |
+  Test-only consumer chart that exercises every pleme-lareira helper.
+  Used by helm lint, helm template, and helm-unittest to verify the
+  library chart renders cleanly when fully enabled.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+
+dependencies:
+  - name: pleme-lib
+    version: "~0.5.0"
+    repository: "file://../pleme-lib"
+  - name: pleme-lareira
+    version: "~0.1.0"
+    repository: "file://../pleme-lareira"

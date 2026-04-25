@@ -1,0 +1,14 @@
+apiVersion: v2
+name: lareira-forgejo
+description: pleme-lareira home-services chart for Forgejo (self-hosted git forge).
+type: application
+version: 0.1.0
+appVersion: "9.0.3"
+
+dependencies:
+  - name: pleme-lib
+    version: "~0.5.0"
+    repository: "file://../pleme-lib"
+  - name: pleme-lareira
+    version: "~0.1.0"
+    repository: "file://../pleme-lareira"

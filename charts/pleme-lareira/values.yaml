@@ -1,0 +1,199 @@
+# pleme-lareira — default values.
+#
+# Library charts are not installed directly. These defaults are inherited by
+# any consumer chart that lists `pleme-lareira` as a dependency. Override in
+# the consumer's `values.yaml` or per-environment via FluxCD HelmRelease
+# values overrides.
+
+# ─── Default-off master toggle ──────────────────────────────────────────
+# Every home-services chart defaults to `enabled: false`. Consumer chart
+# templates must wrap their bodies in `{{- if .Values.enabled }}...{{- end }}`
+# so the default render is empty. Flip this to true in the HelmRelease
+# (typically per-cluster) to actually deploy the workload.
+enabled: false
+
+# ─── Resources sized for homelab idle ───────────────────────────────────
+# pleme-lib defaults to 50m / 64Mi requests; that's still big for ~30
+# largely-idle home services on rio's 32 GB. Tighten requests, leave
+# limits roomy enough that an active service doesn't get throttled.
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# ─── Observability — opt-in per service ─────────────────────────────────
+# Most upstream home-service images don't expose Prometheus metrics on
+# /metrics. Default off; flip on per chart when an exporter is wired or
+# the upstream supports it natively.
+monitoring:
+  enabled: false
+
+# Common alert rules from `pleme-lareira.alerts.common` are NOT auto-bound
+# by setting prometheusRules.enabled=true alone — the consumer must pass
+# `groups` explicitly. See alerts.commonRules below.
+prometheusRules:
+  enabled: false
+  groups: []
+
+# ─── NetworkPolicy ──────────────────────────────────────────────────────
+# Defense in depth stays on. Override per chart when an upstream service
+# needs broader egress (image hosts, OAuth providers, etc.).
+networkPolicy:
+  enabled: true
+  allowPrometheus: true
+  allowDns: true
+  additionalIngress: []
+  additionalEgress: []
+
+# ─── PDB / HPA — usually irrelevant on single-node K3s ──────────────────
+pdb:
+  enabled: false
+autoscaling:
+  enabled: false
+
+# ─── Breathability (KEDA-driven scale-to-zero) ──────────────────────────
+# pleme-lib ships NATS-JetStream-driven breathability. For homelab
+# workloads, the typical trigger is either (a) HTTP requests via
+# keda-http-add-on or (b) a cron schedule (sleep overnight). Both are
+# off by default; enable per chart for memory-hungry services.
+breathability:
+  enabled: false
+  # Cron-based scaling — wake during waking hours, sleep overnight.
+  cron:
+    enabled: false
+    timezone: America/New_York
+    start: "0 7 * * *"          # wake at 07:00 local
+    end: "0 23 * * *"           # sleep at 23:00 local
+    desiredReplicas: 1
+
+# ─── Cloudflare Tunnel exposure ─────────────────────────────────────────
+# rio's cloudflared runs on the host (NixOS module). Setting expose=true
+# stamps the Service with annotations that the host-side cloudflared
+# config-reconciler reads to add an ingress entry. The chart itself
+# does NOT run cloudflared as a Pod — that breaks tunnel ownership.
+cloudflared:
+  # Mark this service for public exposure via the host-level cloudflared.
+  expose: false
+  # Public hostname (e.g., "vault.example.com"). Required when expose=true.
+  hostname: ""
+  # Service port to forward to (port name from .Values.ports). Defaults to
+  # the first declared port.
+  port: ""
+  # Cloudflare Access policy app name (optional — gate the tunnel behind
+  # Cloudflare Access if you want SSO without running Authentik).
+  accessApp: ""
+
+# ─── Authentik forward-auth ─────────────────────────────────────────────
+# Wires nginx-ingress forward-auth to Authentik's embedded outpost so the
+# service inherits SSO. Requires the authentik infra chart deployed.
+authentik:
+  enabled: false
+  # URL of the Authentik outpost. Default points at the in-cluster
+  # embedded outpost the authentik chart deploys.
+  outpostUrl: "http://ak-outpost-authentik-embedded-outpost.authentik.svc.cluster.local:9000"
+  # auth-request endpoint (auto-derived from outpostUrl when empty).
+  authRequestUrl: ""
+  # auth-signin redirect (auto-derived from outpostUrl when empty).
+  authSigninUrl: ""
+
+# ─── LAN-side ingress (local-only access) ───────────────────────────────
+# Complement to / alternative to Cloudflare Tunnel for services that
+# should stay on the LAN.
+ingress:
+  enabled: false
+  className: nginx
+  annotations: {}
+  hosts: []
+  # Example:
+  # hosts:
+  #   - host: app.rio.lan
+  #     paths:
+  #       - path: /
+  #         pathType: Prefix
+  tls:
+    # Provision a TLS cert via cert-manager. Cluster needs a ClusterIssuer.
+    enabled: false
+    issuer: selfsigned
+    # Override the Secret name (defaults to {fullname}-tls).
+    secretName: ""
+
+# ─── Persistent storage (ZFS-backed via local-path-provisioner) ─────────
+# rio mounts /var/lib/k3s-storage on the ZFS pool/k3s dataset; local-path
+# binds PVCs there. zfsDataset is informational — drives "which dataset
+# is full?" alerts.
+persistence:
+  enabled: false
+  storageClass: local-path
+  accessModes:
+    - ReadWriteOnce
+  size: 10Gi
+  mountPath: /data
+  subPath: ""
+  # Informational hint for alert routing — the actual ZFS dataset that
+  # backs this PVC. Doesn't change provisioning.
+  zfsDataset: "pool/data"
+  # Pin the PVC to a specific node (single-node clusters). Empty = no pin.
+  nodeName: ""
+
+# ─── Restic backup CronJob ──────────────────────────────────────────────
+# Spawns a CronJob alongside the workload that mounts the same PVC and
+# pushes incremental backups to a restic repo (typically Cloudflare R2
+# free tier for the critical-small tier).
+backup:
+  enabled: false
+  schedule: "0 3 * * *"
+  # Paths inside the mounted volume to back up.
+  paths:
+    - "/data"
+  # Secret holding RESTIC_PASSWORD + backend creds (AWS_*, B2_*, etc.) +
+  # RESTIC_REPOSITORY URL. Required when enabled=true.
+  repositoryEnvFrom:
+    secretName: ""
+  # Retention policy passed to `restic forget --prune`.
+  retention:
+    daily: 7
+    weekly: 4
+    monthly: 6
+    yearly: 1
+  # Restic image — pinned for reproducibility.
+  image:
+    repository: restic/restic
+    tag: 0.18.0
+    pullPolicy: IfNotPresent
+  # Resources — restic is mostly I/O bound, light on CPU.
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  # Verify a sample of backups weekly. Defaults off; expensive on cold
+  # remotes (B2/R2). Schedule is independent.
+  verify:
+    enabled: false
+    schedule: "0 4 * * 0"      # 04:00 Sundays
+    readDataSubset: "10%"
+
+# ─── Alert routing ──────────────────────────────────────────────────────
+# pleme-lareira ships a "common alerts" template at
+# `pleme-lareira.alerts.common` that emits a baseline set of
+# PrometheusRule groups (Pod down, restarting, OOMKilled, PVC near full,
+# restic stale). Each consumer chart can include and merge.
+alerts:
+  # Pull in the common rule groups.
+  common:
+    enabled: false
+    # Severity for emitted alerts (info / warning / critical). Routes to
+    # different ntfy topics via Alertmanager config (separate infra chart).
+    severity: warning
+    # Threshold (percent) for PVC-near-full alert.
+    pvcUsedPercentThreshold: 85
+    # Window (minutes) before "pod down" / "restarting" fires.
+    podDownForMinutes: 5
+    restartsLastHourThreshold: 5
+  # ntfy topic this service routes to. Empty = inherits cluster default.
+  ntfyTopic: ""

@@ -1,0 +1,129 @@
+# HedgeDoc — real-time collaborative markdown editing. Used by the wife
+# and her editor for manuscript collaboration.
+#
+# Required secret (SOPS-rendered): hedgedoc-env containing
+#   CMD_DB_URL=postgres://hedgedoc:...@.../hedgedoc
+#   CMD_SESSION_SECRET=...
+
+enabled: false
+
+image:
+  repository: quay.io/hedgedoc/hedgedoc
+  tag: "1.10.2"
+  pullPolicy: IfNotPresent
+
+serviceAccount:
+  create: true
+
+ports:
+  - name: http
+    containerPort: 3000
+    protocol: TCP
+
+service:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+      protocol: TCP
+
+envFrom:
+  - secretRef:
+      name: hedgedoc-env
+      optional: true
+
+env:
+  - name: CMD_DOMAIN
+    value: "notes.rio.lan"
+  - name: CMD_PROTOCOL_USESSL
+    value: "true"
+  - name: CMD_URL_ADDPORT
+    value: "false"
+  - name: CMD_ALLOW_EMAIL_REGISTER
+    value: "false"
+  - name: CMD_ALLOW_FREEURL
+    value: "true"
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+
+persistence:
+  enabled: false
+  storageClass: local-path
+  size: 5Gi
+  mountPath: /hedgedoc/public/uploads
+  zfsDataset: pool/data
+
+ingress:
+  enabled: false
+  className: nginx
+  hosts:
+    - host: notes.rio.lan
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    enabled: false
+    issuer: selfsigned
+  annotations:
+    # WebSockets for live collaboration
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+
+authentik:
+  enabled: false
+
+cloudflared:
+  expose: false
+  hostname: ""
+
+backup:
+  enabled: false
+  schedule: "0 3 * * *"
+  paths: ["/hedgedoc/public/uploads"]
+  repositoryEnvFrom:
+    secretName: ""
+  retention:
+    daily: 7
+    weekly: 4
+    monthly: 6
+    yearly: 1
+  image:
+    repository: restic/restic
+    tag: "0.18.0"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+monitoring:
+  enabled: false
+
+prometheusRules:
+  enabled: false
+
+alerts:
+  common:
+    enabled: false
+  ntfyTopic: rio-hedgedoc
+
+networkPolicy:
+  enabled: true
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL

@@ -1,0 +1,138 @@
+# Jellyfin — open-source media server. CPU transcoding only on rio
+# (no GPU); 1-2 streams comfortable, more depends on bitrate.
+
+enabled: false
+
+image:
+  repository: docker.io/jellyfin/jellyfin
+  tag: "10.10.3"
+  pullPolicy: IfNotPresent
+
+serviceAccount:
+  create: true
+
+ports:
+  - name: http
+    containerPort: 8096
+    protocol: TCP
+  - name: dlna-udp
+    containerPort: 1900
+    protocol: UDP
+  - name: dlna-tcp
+    containerPort: 7359
+    protocol: UDP
+
+service:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8096
+      targetPort: http
+      protocol: TCP
+
+env:
+  - name: JELLYFIN_PublishedServerUrl
+    value: "https://jellyfin.rio.lan"
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 512Mi
+  limits:
+    cpu: 4000m
+    memory: 2Gi
+
+# Jellyfin needs both /config (small, persistent) and /media (large,
+# hostPath for the curated library). The library mounts via hostPath
+# directly to /srv/pool/media — declared in extraVolumes below since
+# the library helper only handles the /data PVC pattern.
+persistence:
+  enabled: false
+  storageClass: local-path
+  size: 20Gi
+  mountPath: /config
+  zfsDataset: pool/data
+
+# Cache mount + media library hostPath
+volumes:
+  - name: cache
+    emptyDir:
+      sizeLimit: 10Gi
+  - name: media
+    hostPath:
+      path: /srv/pool/media
+      type: Directory
+
+volumeMounts:
+  - name: cache
+    mountPath: /cache
+  - name: media
+    mountPath: /media
+    readOnly: true
+
+ingress:
+  enabled: false
+  className: nginx
+  hosts:
+    - host: jellyfin.rio.lan
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    enabled: false
+    issuer: selfsigned
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+
+authentik:
+  enabled: false   # Jellyfin has its own auth
+
+cloudflared:
+  expose: false
+  hostname: ""
+
+backup:
+  enabled: false   # Library is reproducible; back up only /config
+  schedule: "0 4 * * 0"
+  paths: ["/config"]
+  repositoryEnvFrom:
+    secretName: ""
+  retention:
+    daily: 0
+    weekly: 4
+    monthly: 6
+    yearly: 1
+  image:
+    repository: restic/restic
+    tag: "0.18.0"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+monitoring:
+  enabled: false
+
+prometheusRules:
+  enabled: false
+
+alerts:
+  common:
+    enabled: false
+  ntfyTopic: rio-jellyfin
+
+networkPolicy:
+  enabled: true
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL

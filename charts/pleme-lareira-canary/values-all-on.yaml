@@ -1,0 +1,102 @@
+# Canary "everything-enabled" overlay. Used by `helm template` smoke
+# tests to verify every pleme-lareira helper renders cleanly.
+
+enabled: true
+
+image:
+  repository: ghcr.io/pleme-io/canary
+  tag: latest
+
+monitoring:
+  enabled: true
+
+prometheusRules:
+  enabled: true
+
+networkPolicy:
+  enabled: true
+
+pdb:
+  enabled: true
+
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    - host: canary.rio.lan
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    enabled: true
+    issuer: selfsigned
+
+authentik:
+  enabled: true
+  outpostUrl: "http://ak-outpost.authentik.svc.cluster.local:9000"
+
+cloudflared:
+  expose: true
+  hostname: canary.example.com
+  port: http
+  accessApp: canary
+
+persistence:
+  enabled: true
+  storageClass: local-path
+  size: 1Gi
+  mountPath: /data
+  zfsDataset: pool/data
+  nodeName: rio
+
+backup:
+  enabled: true
+  schedule: "0 3 * * *"
+  paths:
+    - "/data"
+  repositoryEnvFrom:
+    secretName: canary-restic
+  retention:
+    daily: 7
+    weekly: 4
+    monthly: 6
+    yearly: 1
+  image:
+    repository: restic/restic
+    tag: "0.18.0"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  verify:
+    enabled: true
+    schedule: "0 4 * * 0"
+    readDataSubset: "10%"
+
+breathability:
+  enabled: true
+  cron:
+    enabled: true
+    timezone: America/New_York
+    start: "0 7 * * *"
+    end: "0 23 * * *"
+    desiredReplicas: 1
+  trigger:
+    type: nats-jetstream
+    nats:
+      serverURL: "nats://nats.nats.svc:4222"
+      stream: CANARY
+      consumer: canary
+
+alerts:
+  common:
+    enabled: true
+    severity: warning
+    pvcUsedPercentThreshold: 85
+    podDownForMinutes: 5
+    restartsLastHourThreshold: 5
+  ntfyTopic: rio-canary

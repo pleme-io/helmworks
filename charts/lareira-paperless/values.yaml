@@ -1,0 +1,124 @@
+# Paperless-ngx — scan + OCR + tag system for documents.
+# Requires PostgreSQL + Redis (separate charts); secret holds creds.
+
+enabled: false
+
+image:
+  repository: ghcr.io/paperless-ngx/paperless-ngx
+  tag: "2.13.5"
+  pullPolicy: IfNotPresent
+
+serviceAccount:
+  create: true
+
+ports:
+  - name: http
+    containerPort: 8000
+    protocol: TCP
+
+service:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+      protocol: TCP
+
+envFrom:
+  - secretRef:
+      name: paperless-env
+      optional: true
+
+env:
+  - name: PAPERLESS_URL
+    value: "https://paperless.rio.lan"
+  - name: PAPERLESS_DBENGINE
+    value: postgresql
+  - name: PAPERLESS_PORT
+    value: "8000"
+  - name: PAPERLESS_TIME_ZONE
+    value: America/New_York
+  - name: PAPERLESS_OCR_LANGUAGE
+    value: eng
+  - name: PAPERLESS_TASK_WORKERS
+    value: "2"
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 2000m
+    memory: 2Gi
+
+persistence:
+  enabled: false
+  storageClass: local-path
+  size: 20Gi
+  mountPath: /usr/src/paperless/data
+  zfsDataset: pool/data
+
+ingress:
+  enabled: false
+  className: nginx
+  hosts:
+    - host: paperless.rio.lan
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    enabled: false
+    issuer: selfsigned
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+
+authentik:
+  enabled: false
+
+cloudflared:
+  expose: false
+  hostname: ""
+
+backup:
+  enabled: false
+  schedule: "0 3 * * *"
+  paths: ["/usr/src/paperless/data"]
+  repositoryEnvFrom:
+    secretName: ""
+  retention:
+    daily: 7
+    weekly: 4
+    monthly: 6
+    yearly: 1
+  image:
+    repository: restic/restic
+    tag: "0.18.0"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+monitoring:
+  enabled: false
+
+prometheusRules:
+  enabled: false
+
+alerts:
+  common:
+    enabled: false
+  ntfyTopic: rio-paperless
+
+networkPolicy:
+  enabled: true
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL

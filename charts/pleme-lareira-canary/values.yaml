@@ -1,0 +1,75 @@
+# pleme-lareira-canary — defaults.
+#
+# Default render is empty (enabled=false). The tests/ flip enabled=true
+# to exercise the helpers. Used to validate pleme-lareira itself.
+
+enabled: false
+
+image:
+  repository: ghcr.io/pleme-io/canary
+  tag: latest
+
+# Standard ports for canary http
+ports:
+  - name: http
+    containerPort: 8080
+    protocol: TCP
+
+service:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+
+# Enable everything when the canary tests want full coverage
+monitoring:
+  enabled: false
+
+prometheusRules:
+  enabled: false
+  groups: []
+
+networkPolicy:
+  enabled: true
+
+ingress:
+  enabled: false
+  className: nginx
+  hosts:
+    - host: canary.rio.lan
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    enabled: false
+    issuer: selfsigned
+
+authentik:
+  enabled: false
+
+cloudflared:
+  expose: false
+  hostname: ""
+
+persistence:
+  enabled: false
+  storageClass: local-path
+  size: 1Gi
+  mountPath: /data
+  zfsDataset: pool/data
+
+backup:
+  enabled: false
+  repositoryEnvFrom:
+    secretName: ""
+
+breathability:
+  enabled: false
+  cron:
+    enabled: false
+
+alerts:
+  common:
+    enabled: false

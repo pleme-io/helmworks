@@ -1,0 +1,217 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "pleme-lareira values",
+  "description": "Home-services library chart — values schema. Inherited by consumer charts; consumer charts may add their own properties.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "enabled": {
+      "type": "boolean",
+      "description": "Master toggle. Default false — every home-services chart is opt-in."
+    },
+    "monitoring": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" }
+      }
+    },
+    "prometheusRules": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "groups": {
+          "type": "array",
+          "items": { "type": "object" }
+        }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "allowPrometheus": { "type": "boolean" },
+        "allowDns": { "type": "boolean" }
+      }
+    },
+    "pdb": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" }
+      }
+    },
+    "autoscaling": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" }
+      }
+    },
+    "breathability": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "cron": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "timezone": { "type": "string" },
+            "start": { "type": "string" },
+            "end": { "type": "string" },
+            "desiredReplicas": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "cloudflared": {
+      "type": "object",
+      "properties": {
+        "expose": { "type": "boolean" },
+        "hostname": { "type": "string" },
+        "port": { "type": "string" },
+        "accessApp": { "type": "string" }
+      },
+      "if": { "properties": { "expose": { "const": true } } },
+      "then": {
+        "required": ["hostname"],
+        "properties": {
+          "hostname": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "authentik": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "outpostUrl": { "type": "string", "format": "uri" },
+        "authRequestUrl": { "type": "string" },
+        "authSigninUrl": { "type": "string" }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "className": { "type": "string" },
+        "annotations": { "type": "object" },
+        "hosts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["host"],
+            "properties": {
+              "host": { "type": "string" },
+              "paths": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": { "type": "string" },
+                    "pathType": {
+                      "type": "string",
+                      "enum": ["Prefix", "Exact", "ImplementationSpecific"]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tls": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "issuer": { "type": "string" },
+            "secretName": { "type": "string" }
+          }
+        }
+      }
+    },
+    "persistence": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "storageClass": { "type": "string" },
+        "accessModes": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["ReadWriteOnce", "ReadOnlyMany", "ReadWriteMany", "ReadWriteOncePod"] }
+        },
+        "size": { "type": "string", "pattern": "^[0-9]+(Ki|Mi|Gi|Ti|Pi|Ei|K|M|G|T|P|E)?$" },
+        "mountPath": { "type": "string" },
+        "subPath": { "type": "string" },
+        "zfsDataset": { "type": "string" },
+        "nodeName": { "type": "string" }
+      }
+    },
+    "backup": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "schedule": { "type": "string" },
+        "paths": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "repositoryEnvFrom": {
+          "type": "object",
+          "properties": {
+            "secretName": { "type": "string" }
+          }
+        },
+        "retention": {
+          "type": "object",
+          "properties": {
+            "daily": { "type": "integer", "minimum": 0 },
+            "weekly": { "type": "integer", "minimum": 0 },
+            "monthly": { "type": "integer", "minimum": 0 },
+            "yearly": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "image": {
+          "type": "object",
+          "properties": {
+            "repository": { "type": "string" },
+            "tag": { "type": "string" },
+            "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+          }
+        },
+        "verify": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "schedule": { "type": "string" },
+            "readDataSubset": { "type": "string" }
+          }
+        }
+      },
+      "if": { "properties": { "enabled": { "const": true } } },
+      "then": {
+        "properties": {
+          "repositoryEnvFrom": {
+            "required": ["secretName"],
+            "properties": {
+              "secretName": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    },
+    "alerts": {
+      "type": "object",
+      "properties": {
+        "common": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "severity": {
+              "type": "string",
+              "enum": ["info", "warning", "critical"]
+            },
+            "pvcUsedPercentThreshold": { "type": "number", "minimum": 0, "maximum": 100 },
+            "podDownForMinutes": { "type": "integer", "minimum": 0 },
+            "restartsLastHourThreshold": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "ntfyTopic": { "type": "string" }
+      }
+    }
+  }
+}

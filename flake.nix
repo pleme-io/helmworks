@@ -47,6 +47,8 @@
 
           chartDefs = [
             { name = "pleme-lib"; chartDir = ./charts/pleme-lib; }
+            { name = "pleme-lareira"; chartDir = ./charts/pleme-lareira; }
+            { name = "pleme-lareira-canary"; chartDir = ./charts/pleme-lareira-canary; }
             { name = "pleme-microservice"; chartDir = ./charts/pleme-microservice; }
             { name = "pleme-worker"; chartDir = ./charts/pleme-worker; }
             { name = "pleme-web"; chartDir = ./charts/pleme-web; }
@@ -58,6 +60,17 @@
             { name = "pleme-database"; chartDir = ./charts/pleme-database; }
             { name = "pleme-cache"; chartDir = ./charts/pleme-cache; }
             { name = "pleme-bootstrap"; chartDir = ./charts/pleme-bootstrap; }
+            # ── pleme-lareira home-services consumers (rio cluster) ──
+            { name = "lareira-vaultwarden"; chartDir = ./charts/lareira-vaultwarden; }
+            { name = "lareira-immich"; chartDir = ./charts/lareira-immich; }
+            { name = "lareira-jellyfin"; chartDir = ./charts/lareira-jellyfin; }
+            { name = "lareira-paperless"; chartDir = ./charts/lareira-paperless; }
+            { name = "lareira-adguard"; chartDir = ./charts/lareira-adguard; }
+            { name = "lareira-home-assistant"; chartDir = ./charts/lareira-home-assistant; }
+            { name = "lareira-ntfy"; chartDir = ./charts/lareira-ntfy; }
+            { name = "lareira-forgejo"; chartDir = ./charts/lareira-forgejo; }
+            { name = "lareira-hedgedoc"; chartDir = ./charts/lareira-hedgedoc; }
+            { name = "lareira-listmonk"; chartDir = ./charts/lareira-listmonk; }
             { name = "hanabi"; chartDir = ./charts/hanabi; }
             { name = "shinka"; chartDir = ./charts/shinka; }
             { name = "kenshi"; chartDir = ./charts/kenshi; }

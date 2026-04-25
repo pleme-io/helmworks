@@ -1,0 +1,123 @@
+# ntfy — pub/sub HTTP push notifications. Self-hosted target for
+# Alertmanager → phone for cluster + service alerts.
+
+enabled: false
+
+image:
+  repository: docker.io/binwiederhier/ntfy
+  tag: "v2.11.0"
+  pullPolicy: IfNotPresent
+
+serviceAccount:
+  create: true
+
+ports:
+  - name: http
+    containerPort: 80
+    protocol: TCP
+
+service:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+
+command:
+  - /usr/bin/ntfy
+  - serve
+
+env:
+  - name: NTFY_LISTEN_HTTP
+    value: ":80"
+  - name: NTFY_BASE_URL
+    value: "https://ntfy.rio.lan"
+  - name: NTFY_CACHE_FILE
+    value: "/var/cache/ntfy/cache.db"
+  - name: NTFY_AUTH_FILE
+    value: "/var/lib/ntfy/user.db"
+  - name: NTFY_AUTH_DEFAULT_ACCESS
+    value: "deny-all"
+  - name: NTFY_BEHIND_PROXY
+    value: "true"
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    cpu: 500m
+    memory: 128Mi
+
+persistence:
+  enabled: false
+  storageClass: local-path
+  size: 1Gi
+  mountPath: /var/cache/ntfy
+  zfsDataset: pool/data
+
+ingress:
+  enabled: false
+  className: nginx
+  hosts:
+    - host: ntfy.rio.lan
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    enabled: false
+    issuer: selfsigned
+
+authentik:
+  enabled: false   # ntfy has its own ACL system
+
+cloudflared:
+  expose: false
+  hostname: ""
+
+backup:
+  enabled: false
+  schedule: "0 3 * * *"
+  paths: ["/var/cache/ntfy", "/var/lib/ntfy"]
+  repositoryEnvFrom:
+    secretName: ""
+  retention:
+    daily: 7
+    weekly: 4
+    monthly: 6
+    yearly: 1
+  image:
+    repository: restic/restic
+    tag: "0.18.0"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+monitoring:
+  enabled: false
+
+prometheusRules:
+  enabled: false
+
+alerts:
+  common:
+    enabled: false
+  # ntfy itself shouldn't alert through ntfy — chicken/egg. Use the
+  # public ntfy.sh as the ntfy-for-ntfy backstop.
+  ntfyTopic: ""
+
+networkPolicy:
+  enabled: true
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL

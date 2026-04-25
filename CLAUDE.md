@@ -108,3 +108,114 @@ Secrets stay as SOPS-encrypted Secret YAMLs — never in Helm values.
 4. Add tests in `tests/<name>/`
 5. Add example values in `examples/`
 6. Add to `chartDefs` list in `flake.nix`
+
+## pleme-lareira — home-services specialization
+
+`pleme-lareira` is a thin library chart layered on `pleme-lib` for
+homelab / family / household / single-author workloads (`lareira` is
+Brazilian-Portuguese for *hearth* — the warm centre where the family
+gathers). It does not replace `pleme-lib`; consumer charts depend on
+both.
+
+What `pleme-lareira` adds:
+
+- **Default-off master toggle**: every consumer chart starts with
+  `enabled: false`. Templates render empty by default; flip
+  `enabled: true` in the FluxCD HelmRelease values to actually deploy.
+  This keeps a 30-service homelab repo safe from accidental enable-all
+  on merge to main.
+- **`pleme-lareira.allResources`**: one helper that delegates to
+  `pleme-lib` (Deployment, Service, ServiceAccount, NetworkPolicy,
+  ServiceMonitor, PDB) plus `pleme-lareira` (Ingress, PVC, restic
+  CronJob, alerts, breathability). Each consumer chart needs only
+  `templates/all.yaml: {{ include "pleme-lareira.allResources" . }}`.
+- **Authentik forward-auth** (`pleme-lareira.authentik.annotations`):
+  nginx-ingress annotations that bounce unauthenticated requests
+  through the Authentik embedded outpost.
+- **Cloudflare Tunnel marker** (`pleme-lareira.cloudflared.serviceAnnotations`):
+  Service annotations the host-side cloudflared reconciler reads to
+  populate tunnel ingress entries. The cloudflared daemon stays on the
+  host (NixOS module) for ownership reasons.
+- **ZFS-aware PVC** (`pleme-lareira.pvc`): local-path-provisioner PVC
+  with optional node pinning + ZFS dataset hint surfaced as labels for
+  alert routing.
+- **Restic backup CronJob** (`pleme-lareira.restic.cronjob`): mounts the
+  PVC read-only, runs `restic backup` + `restic forget --prune` on a
+  schedule. Optional weekly verify CronJob.
+- **Common alerts** (`pleme-lareira.alerts.common`): baseline
+  PrometheusRule covering PodDown, PodRestarting, PodOOMKilled,
+  PvcUsedHigh (when persistence enabled), ResticBackupStale +
+  ResticBackupFailing (when backup enabled).
+- **Cron-driven breathability** (`pleme-lareira.breathability.cron`):
+  KEDA `ScaledObject` with cron trigger — wake during the day, sleep
+  overnight. Composes with `pleme-lib`'s NATS-driven trigger.
+
+### Consumer chart skeleton
+
+```yaml
+# Chart.yaml
+dependencies:
+  - { name: pleme-lib,      version: "~0.5.0", repository: "file://../pleme-lib" }
+  - { name: pleme-lareira,  version: "~0.1.0", repository: "file://../pleme-lareira" }
+```
+
+```yaml
+# templates/all.yaml
+{{- include "pleme-lareira.allResources" . }}
+```
+
+```yaml
+# values.yaml — minimum
+enabled: false
+image: { repository: …, tag: … }
+ports: [{ name: http, containerPort: …, protocol: TCP }]
+service:
+  type: ClusterIP
+  ports: [{ name: http, port: …, targetPort: http, protocol: TCP }]
+serviceAccount: { create: true }
+persistence: { enabled: false, size: 10Gi, mountPath: /data, zfsDataset: pool/data }
+ingress: { enabled: false, className: nginx, hosts: [...] }
+backup:
+  enabled: false
+  image: { repository: restic/restic, tag: "0.18.0", pullPolicy: IfNotPresent }
+  resources: { requests: { cpu: 50m, memory: 64Mi }, limits: { cpu: 500m, memory: 256Mi } }
+```
+
+### Existing pleme-lareira-based charts
+
+| Chart | Service | Default port | Dataset |
+|---|---|---|---|
+| `lareira-vaultwarden` | Bitwarden-compatible password manager | 80 | pool/data |
+| `lareira-immich` | Photo / video library (Google Photos alt) | 2283 | pool/photos |
+| `lareira-jellyfin` | Media server | 8096 | pool/data + hostPath /srv/pool/media |
+| `lareira-paperless` | OCR document archive (Paperless-ngx) | 8000 | pool/data |
+| `lareira-adguard` | Network DNS ad-blocker (AdGuard Home) | 53/80 | pool/data |
+| `lareira-home-assistant` | Smart-home automation | 8123 | pool/data |
+| `lareira-ntfy` | Push-notification server | 80 | pool/data |
+| `lareira-forgejo` | Self-hosted git forge | 3000/22 | pool/data |
+| `lareira-hedgedoc` | Real-time collaborative markdown | 3000 | pool/data |
+| `lareira-listmonk` | Newsletter / mailing-list | 9000 | pool/data |
+
+Reference cluster: [`pleme-io/k8s/clusters/rio`](../k8s/clusters/rio).
+
+### Testing
+
+`helm lint` clean for every chart. `helm template` against default
+values produces empty output (default-off). The `pleme-lareira-canary`
+chart exercises every helper at once and is used to validate library
+edits.
+
+```bash
+# Lint everything
+nix run .#lint
+
+# Smoke test default-off behaviour
+for c in lareira-*; do
+  out=$(helm template smoke charts/$c)
+  [[ -z "$out" ]] || echo "FAIL: $c rendered with default values"
+done
+
+# Validate canary fully renders
+helm template canary charts/pleme-lareira-canary \
+  -f charts/pleme-lareira-canary/values-all-on.yaml | grep -E "^kind:" | sort | uniq -c
+```

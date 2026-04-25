@@ -1,0 +1,126 @@
+# Forgejo — self-hosted git forge for manuscripts + private repos.
+# Defaults to sqlite; flip env to postgres + add lareira-postgresql for scale.
+
+enabled: false
+
+image:
+  repository: codeberg.org/forgejo/forgejo
+  tag: "9.0.3"
+  pullPolicy: IfNotPresent
+
+serviceAccount:
+  create: true
+
+ports:
+  - name: http
+    containerPort: 3000
+    protocol: TCP
+  - name: ssh
+    containerPort: 22
+    protocol: TCP
+
+service:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+      protocol: TCP
+    - name: ssh
+      port: 22
+      targetPort: ssh
+      protocol: TCP
+
+env:
+  - name: USER_UID
+    value: "1000"
+  - name: USER_GID
+    value: "1000"
+  - name: FORGEJO__server__DOMAIN
+    value: "git.rio.lan"
+  - name: FORGEJO__server__ROOT_URL
+    value: "https://git.rio.lan/"
+  - name: FORGEJO__service__DISABLE_REGISTRATION
+    value: "true"
+  - name: FORGEJO__database__DB_TYPE
+    value: "sqlite3"
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 256Mi
+  limits:
+    cpu: 2000m
+    memory: 1Gi
+
+persistence:
+  enabled: false
+  storageClass: local-path
+  size: 20Gi
+  mountPath: /data
+  zfsDataset: pool/data
+
+ingress:
+  enabled: false
+  className: nginx
+  hosts:
+    - host: git.rio.lan
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    enabled: false
+    issuer: selfsigned
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "1g"
+
+authentik:
+  enabled: false
+
+cloudflared:
+  expose: false
+  hostname: ""
+
+backup:
+  enabled: false
+  schedule: "0 3 * * *"
+  paths: ["/data"]
+  repositoryEnvFrom:
+    secretName: ""
+  retention:
+    daily: 7
+    weekly: 4
+    monthly: 6
+    yearly: 1
+  image:
+    repository: restic/restic
+    tag: "0.18.0"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+monitoring:
+  enabled: false
+
+prometheusRules:
+  enabled: false
+
+alerts:
+  common:
+    enabled: false
+  ntfyTopic: rio-forgejo
+
+networkPolicy:
+  enabled: true
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL
