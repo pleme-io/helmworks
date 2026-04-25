@@ -84,7 +84,7 @@ spec:
             httpGet:
               path: {{ .Values.health.livenessPath | default "/" }}
               port: {{ .Values.health.port | default "http" }}
-              scheme: HTTPS
+              scheme: {{ ternary "HTTP" "HTTPS" .Values.ocis.insecure }}
             initialDelaySeconds: {{ .Values.health.livenessInitialDelay | default 30 }}
             periodSeconds: {{ .Values.health.livenessPeriod | default 30 }}
             failureThreshold: {{ .Values.health.livenessFailureThreshold | default 3 }}
@@ -92,7 +92,7 @@ spec:
             httpGet:
               path: {{ .Values.health.readinessPath | default "/" }}
               port: {{ .Values.health.port | default "http" }}
-              scheme: HTTPS
+              scheme: {{ ternary "HTTP" "HTTPS" .Values.ocis.insecure }}
             initialDelaySeconds: {{ .Values.health.readinessInitialDelay | default 10 }}
             periodSeconds: {{ .Values.health.readinessPeriod | default 10 }}
             failureThreshold: {{ .Values.health.readinessFailureThreshold | default 3 }}

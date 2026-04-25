@@ -17,6 +17,18 @@ entirely via env vars — see https://doc.owncloud.com/ocis/next/deployment/serv
   value: {{ .Values.ocis.logPretty | quote }}
 - name: OCIS_INSECURE
   value: {{ .Values.ocis.insecure | quote }}
+{{- if .Values.ocis.insecure }}
+# Plain HTTP everywhere — no internal self-signed cert. Required when
+# the service sits behind a TLS-terminating proxy (Cloudflared, ingress
+# controller, etc.) and you don't want the proxy to bear with cert
+# verification.
+- name: PROXY_TLS
+  value: "false"
+- name: PROXY_HTTP_ADDR
+  value: "0.0.0.0:9200"
+- name: OCIS_LDAP_URI
+  value: "ldap://localhost:9235"
+{{- end }}
 - name: OCIS_BASE_DATA_PATH
   value: {{ .Values.ocis.storage.localBaseDir | quote }}
 - name: OCIS_CONFIG_DIR
