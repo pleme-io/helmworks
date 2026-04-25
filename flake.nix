@@ -61,6 +61,7 @@
             { name = "pleme-cache"; chartDir = ./charts/pleme-cache; }
             { name = "pleme-bootstrap"; chartDir = ./charts/pleme-bootstrap; }
             # ── pleme-lareira home-services consumers (rio cluster) ──
+            # Family Tier 1 — broadest household value
             { name = "lareira-vaultwarden"; chartDir = ./charts/lareira-vaultwarden; }
             { name = "lareira-immich"; chartDir = ./charts/lareira-immich; }
             { name = "lareira-jellyfin"; chartDir = ./charts/lareira-jellyfin; }
@@ -68,9 +69,31 @@
             { name = "lareira-adguard"; chartDir = ./charts/lareira-adguard; }
             { name = "lareira-home-assistant"; chartDir = ./charts/lareira-home-assistant; }
             { name = "lareira-ntfy"; chartDir = ./charts/lareira-ntfy; }
+            # Family Tier 2 — quality-of-life household services
+            { name = "lareira-joplin"; chartDir = ./charts/lareira-joplin; }
+            { name = "lareira-audiobookshelf"; chartDir = ./charts/lareira-audiobookshelf; }
+            { name = "lareira-calibre-web"; chartDir = ./charts/lareira-calibre-web; }
+            { name = "lareira-kavita"; chartDir = ./charts/lareira-kavita; }
+            { name = "lareira-komga"; chartDir = ./charts/lareira-komga; }
+            { name = "lareira-mealie"; chartDir = ./charts/lareira-mealie; }
+            { name = "lareira-linkding"; chartDir = ./charts/lareira-linkding; }
+            { name = "lareira-miniflux"; chartDir = ./charts/lareira-miniflux; }
+            { name = "lareira-stirling-pdf"; chartDir = ./charts/lareira-stirling-pdf; }
+            { name = "lareira-frigate"; chartDir = ./charts/lareira-frigate; }
+            { name = "lareira-cups"; chartDir = ./charts/lareira-cups; }
+            # Creative cousin — movie producer surface
+            { name = "lareira-postgres"; chartDir = ./charts/lareira-postgres; }
+            { name = "lareira-stash"; chartDir = ./charts/lareira-stash; }
+            { name = "lareira-resourcespace"; chartDir = ./charts/lareira-resourcespace; }
+            { name = "lareira-screener-delivery"; chartDir = ./charts/lareira-screener-delivery; }
+            # Creative wife — children's-book author surface
             { name = "lareira-forgejo"; chartDir = ./charts/lareira-forgejo; }
             { name = "lareira-hedgedoc"; chartDir = ./charts/lareira-hedgedoc; }
+            { name = "lareira-outline"; chartDir = ./charts/lareira-outline; }
+            { name = "lareira-penpot"; chartDir = ./charts/lareira-penpot; }
             { name = "lareira-listmonk"; chartDir = ./charts/lareira-listmonk; }
+            { name = "lareira-cal-com"; chartDir = ./charts/lareira-cal-com; }
+            { name = "lareira-pandoc-render"; chartDir = ./charts/lareira-pandoc-render; }
             { name = "hanabi"; chartDir = ./charts/hanabi; }
             { name = "shinka"; chartDir = ./charts/shinka; }
             { name = "kenshi"; chartDir = ./charts/kenshi; }

@@ -1,0 +1,86 @@
+# Outline — modern wiki with collaborative editing. BSL-licensed but free
+# to self-host. Used by the wife's writing team for shared notes and
+# project documents.
+#
+# Required Secret: outline-env with
+#   DATABASE_URL=postgres://...
+#   REDIS_URL=redis://...
+#   SECRET_KEY=...   (openssl rand -hex 32)
+#   UTILS_SECRET=... (openssl rand -hex 32)
+#   AWS_ACCESS_KEY_ID=...
+#   AWS_SECRET_ACCESS_KEY=...
+#   AWS_S3_UPLOAD_BUCKET_NAME=...
+#   AWS_S3_UPLOAD_BUCKET_URL=...
+
+enabled: false
+
+image:
+  repository: docker.io/outlinewiki/outline
+  tag: "0.81.0"
+  pullPolicy: IfNotPresent
+
+serviceAccount: { create: true }
+
+ports:
+  - { name: http, containerPort: 3000, protocol: TCP }
+
+service:
+  type: ClusterIP
+  ports:
+    - { name: http, port: 3000, targetPort: http, protocol: TCP }
+
+envFrom:
+  - secretRef: { name: outline-env, optional: true }
+
+env:
+  - { name: PORT, value: "3000" }
+  - { name: URL, value: "https://wiki.rio.lan" }
+  - { name: FORCE_HTTPS, value: "true" }
+  - { name: NODE_ENV, value: production }
+
+resources:
+  requests: { cpu: 100m, memory: 256Mi }
+  limits:   { cpu: 2000m, memory: 1Gi }
+
+# Outline stores attachments in S3 by env. Local PVC is just for /var/lib/outline.
+persistence:
+  enabled: false
+  storageClass: local-path
+  size: 5Gi
+  mountPath: /var/lib/outline/data
+  zfsDataset: pool/data
+
+ingress:
+  enabled: false
+  className: nginx
+  hosts:
+    - host: wiki.rio.lan
+      paths: [ { path: /, pathType: Prefix } ]
+  tls: { enabled: false, issuer: selfsigned }
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+
+authentik: { enabled: false }
+cloudflared: { expose: false, hostname: "" }
+
+backup:
+  enabled: false
+  schedule: "0 3 * * *"
+  paths: ["/var/lib/outline/data"]
+  repositoryEnvFrom: { secretName: "" }
+  retention: { daily: 7, weekly: 4, monthly: 6, yearly: 1 }
+  image: { repository: restic/restic, tag: "0.18.0", pullPolicy: IfNotPresent }
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits:   { cpu: 500m, memory: 256Mi }
+
+monitoring: { enabled: false }
+prometheusRules: { enabled: false }
+alerts: { common: { enabled: false }, ntfyTopic: rio-outline }
+networkPolicy: { enabled: true }
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities: { drop: [ALL] }

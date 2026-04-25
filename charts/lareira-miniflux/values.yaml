@@ -1,0 +1,57 @@
+# Miniflux — minimalist RSS reader. Stateless; needs PostgreSQL via miniflux-env.
+
+enabled: false
+
+image:
+  repository: docker.io/miniflux/miniflux
+  tag: "2.2.4"
+  pullPolicy: IfNotPresent
+
+serviceAccount: { create: true }
+
+ports:
+  - { name: http, containerPort: 8080, protocol: TCP }
+
+service:
+  type: ClusterIP
+  ports:
+    - { name: http, port: 8080, targetPort: http, protocol: TCP }
+
+envFrom:
+  - secretRef: { name: miniflux-env, optional: true }
+
+env:
+  - { name: LISTEN_ADDR, value: "0.0.0.0:8080" }
+  - { name: BASE_URL, value: "https://rss.rio.lan/" }
+  - { name: RUN_MIGRATIONS, value: "1" }
+
+resources:
+  requests: { cpu: 25m, memory: 64Mi }
+  limits:   { cpu: 500m, memory: 256Mi }
+
+# Miniflux is stateless — no PVC.
+persistence: { enabled: false }
+
+ingress:
+  enabled: false
+  className: nginx
+  hosts:
+    - host: rss.rio.lan
+      paths: [ { path: /, pathType: Prefix } ]
+  tls: { enabled: false, issuer: selfsigned }
+
+authentik: { enabled: false }
+cloudflared: { expose: false, hostname: "" }
+
+# Backups irrelevant — state is in PostgreSQL (backed up by lareira-postgres).
+backup: { enabled: false }
+
+monitoring: { enabled: false }
+prometheusRules: { enabled: false }
+alerts: { common: { enabled: false }, ntfyTopic: rio-miniflux }
+networkPolicy: { enabled: true }
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities: { drop: [ALL] }

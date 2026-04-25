@@ -1,0 +1,82 @@
+# Cal.com — Calendly alternative. Used for the wife's school visits +
+# illustrator calls + the cousin's client meetings.
+#
+# Required Secret: calcom-env with
+#   DATABASE_URL=postgres://...
+#   NEXTAUTH_SECRET=... (openssl rand -base64 32)
+#   CALENDSO_ENCRYPTION_KEY=... (openssl rand -hex 32)
+#   NEXT_PUBLIC_WEBAPP_URL=https://book.rio.lan
+#   NEXT_PUBLIC_WEBSITE_URL=https://book.rio.lan
+
+enabled: false
+
+image:
+  repository: docker.io/calcom/cal.com
+  tag: "v4.7.6"
+  pullPolicy: IfNotPresent
+
+serviceAccount: { create: true }
+
+ports:
+  - { name: http, containerPort: 3000, protocol: TCP }
+
+service:
+  type: ClusterIP
+  ports:
+    - { name: http, port: 3000, targetPort: http, protocol: TCP }
+
+envFrom:
+  - secretRef: { name: calcom-env, optional: true }
+
+env:
+  - { name: NEXT_PUBLIC_WEBAPP_URL, value: "https://book.rio.lan" }
+  - { name: NEXT_PUBLIC_WEBSITE_URL, value: "https://book.rio.lan" }
+
+resources:
+  requests: { cpu: 100m, memory: 512Mi }
+  limits:   { cpu: 2000m, memory: 2Gi }
+
+# Cal.com is mostly stateless — DB is external. Local PVC just for
+# uploads / cache.
+persistence:
+  enabled: false
+  storageClass: local-path
+  size: 5Gi
+  mountPath: /app/uploads
+  zfsDataset: pool/data
+
+ingress:
+  enabled: false
+  className: nginx
+  hosts:
+    - host: book.rio.lan
+      paths: [ { path: /, pathType: Prefix } ]
+  tls: { enabled: false, issuer: selfsigned }
+
+authentik: { enabled: false }
+cloudflared:
+  # Public booking links require external reachability; CF Tunnel is
+  # the typical path.
+  expose: false
+  hostname: ""
+
+backup:
+  enabled: false
+  schedule: "0 3 * * *"
+  paths: ["/app/uploads"]
+  repositoryEnvFrom: { secretName: "" }
+  retention: { daily: 7, weekly: 4, monthly: 6, yearly: 1 }
+  image: { repository: restic/restic, tag: "0.18.0", pullPolicy: IfNotPresent }
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits:   { cpu: 500m, memory: 256Mi }
+
+monitoring: { enabled: false }
+prometheusRules: { enabled: false }
+alerts: { common: { enabled: false }, ntfyTopic: rio-cal-com }
+networkPolicy: { enabled: true }
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities: { drop: [ALL] }

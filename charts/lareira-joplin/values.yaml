@@ -1,0 +1,105 @@
+# Joplin Server — encrypted note sync. Backs the mobile + desktop Joplin
+# clients. Defaults to PostgreSQL; supply joplin-env Secret with
+# DB_CLIENT, POSTGRES_*, APP_BASE_URL.
+
+enabled: false
+
+image:
+  repository: docker.io/joplin/server
+  tag: "3.1.6"
+  pullPolicy: IfNotPresent
+
+serviceAccount:
+  create: true
+
+ports:
+  - name: http
+    containerPort: 22300
+    protocol: TCP
+
+service:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 22300
+      targetPort: http
+      protocol: TCP
+
+envFrom:
+  - secretRef:
+      name: joplin-env
+      optional: true
+
+env:
+  - name: APP_PORT
+    value: "22300"
+  - name: APP_BASE_URL
+    value: "https://joplin.rio.lan"
+  - name: DB_CLIENT
+    value: pg
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 1000m
+    memory: 512Mi
+
+persistence:
+  enabled: false
+  storageClass: local-path
+  size: 5Gi
+  mountPath: /home/joplin/data
+  zfsDataset: pool/data
+
+ingress:
+  enabled: false
+  className: nginx
+  hosts:
+    - host: joplin.rio.lan
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    enabled: false
+    issuer: selfsigned
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+
+authentik:
+  enabled: false
+cloudflared:
+  expose: false
+  hostname: ""
+
+backup:
+  enabled: false
+  schedule: "0 3 * * *"
+  paths: ["/home/joplin/data"]
+  repositoryEnvFrom:
+    secretName: ""
+  retention:
+    daily: 7
+    weekly: 4
+    monthly: 6
+    yearly: 1
+  image:
+    repository: restic/restic
+    tag: "0.18.0"
+    pullPolicy: IfNotPresent
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits:   { cpu: 500m, memory: 256Mi }
+
+monitoring: { enabled: false }
+prometheusRules: { enabled: false }
+alerts:
+  common: { enabled: false }
+  ntfyTopic: rio-joplin
+networkPolicy: { enabled: true }
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities: { drop: [ALL] }

@@ -1,0 +1,70 @@
+# Mealie — recipe manager. Family-shared. Needs PostgreSQL via mealie-env.
+
+enabled: false
+
+image:
+  repository: ghcr.io/mealie-recipes/mealie
+  tag: "v2.5.0"
+  pullPolicy: IfNotPresent
+
+serviceAccount: { create: true }
+
+ports:
+  - { name: http, containerPort: 9000, protocol: TCP }
+
+service:
+  type: ClusterIP
+  ports:
+    - { name: http, port: 9000, targetPort: http, protocol: TCP }
+
+envFrom:
+  - secretRef: { name: mealie-env, optional: true }
+
+env:
+  - { name: TZ, value: America/New_York }
+  - { name: BASE_URL, value: "https://recipes.rio.lan" }
+  - { name: ALLOW_SIGNUP, value: "false" }
+  - { name: DB_ENGINE, value: postgres }
+
+resources:
+  requests: { cpu: 50m, memory: 256Mi }
+  limits:   { cpu: 1000m, memory: 1Gi }
+
+persistence:
+  enabled: false
+  storageClass: local-path
+  size: 5Gi
+  mountPath: /app/data
+  zfsDataset: pool/data
+
+ingress:
+  enabled: false
+  className: nginx
+  hosts:
+    - host: recipes.rio.lan
+      paths: [ { path: /, pathType: Prefix } ]
+  tls: { enabled: false, issuer: selfsigned }
+
+authentik: { enabled: false }
+cloudflared: { expose: false, hostname: "" }
+
+backup:
+  enabled: false
+  schedule: "0 3 * * *"
+  paths: ["/app/data"]
+  repositoryEnvFrom: { secretName: "" }
+  retention: { daily: 7, weekly: 4, monthly: 6, yearly: 1 }
+  image: { repository: restic/restic, tag: "0.18.0", pullPolicy: IfNotPresent }
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits:   { cpu: 500m, memory: 256Mi }
+
+monitoring: { enabled: false }
+prometheusRules: { enabled: false }
+alerts: { common: { enabled: false }, ntfyTopic: rio-mealie }
+networkPolicy: { enabled: true }
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities: { drop: [ALL] }

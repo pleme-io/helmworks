@@ -1,0 +1,110 @@
+# Frigate — NVR + AI object detection for home cameras.
+#
+# CPU-only inference is workable for 1-2 cameras. For 3+ cameras add a
+# Coral / Hailo accelerator and pass it through (privileged: true +
+# device mount). Note: Coral is the deferred hardware buy in
+# nodes/rio/CLAUDE.md "What the PCIe slot could hold".
+#
+# Required: a config.yml mounted from a ConfigMap (frigate-config), camera
+# RTSP URLs in MQTT/USER credentials Secret, /media/frigate writable on
+# host /srv/pool/media/frigate.
+
+enabled: false
+
+image:
+  repository: ghcr.io/blakeblackshear/frigate
+  tag: "stable"
+  pullPolicy: IfNotPresent
+
+serviceAccount: { create: true }
+
+ports:
+  - { name: http,    containerPort: 5000, protocol: TCP }
+  - { name: rtsp,    containerPort: 8554, protocol: TCP }
+  - { name: webrtc,  containerPort: 8555, protocol: TCP }
+  - { name: webrtc-u, containerPort: 8555, protocol: UDP }
+
+service:
+  type: ClusterIP
+  ports:
+    - { name: http,   port: 5000, targetPort: http,   protocol: TCP }
+    - { name: rtsp,   port: 8554, targetPort: rtsp,   protocol: TCP }
+    - { name: webrtc, port: 8555, targetPort: webrtc, protocol: TCP }
+
+envFrom:
+  - secretRef: { name: frigate-env, optional: true }
+
+env:
+  - { name: TZ, value: America/New_York }
+  - { name: FRIGATE_RTSP_PASSWORD, value: "" }   # populated by frigate-env
+
+resources:
+  requests: { cpu: 250m, memory: 1Gi }
+  limits:   { cpu: 4000m, memory: 4Gi }
+
+persistence:
+  enabled: false
+  storageClass: local-path
+  size: 5Gi
+  mountPath: /config
+  zfsDataset: pool/data
+
+# Frigate needs:
+#  - /media/frigate writable for clips + recordings (host-backed)
+#  - /tmp/cache for tensorflow inference cache (large emptyDir)
+#  - /dev/bus/usb if Coral USB is present (skip on rio today)
+volumes:
+  - name: media
+    hostPath: { path: /srv/pool/media/frigate, type: DirectoryOrCreate }
+  - name: cache
+    emptyDir: { medium: Memory, sizeLimit: 2Gi }
+  - name: config-ro
+    configMap: { name: frigate-config, optional: true }
+
+volumeMounts:
+  - { name: media,     mountPath: /media/frigate }
+  - { name: cache,     mountPath: /tmp/cache }
+  - { name: config-ro, mountPath: /config/config.yml, subPath: config.yml }
+
+ingress:
+  enabled: false
+  className: nginx
+  hosts:
+    - host: frigate.rio.lan
+      paths: [ { path: /, pathType: Prefix } ]
+  tls: { enabled: false, issuer: selfsigned }
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+
+authentik: { enabled: false }
+cloudflared: { expose: false, hostname: "" }
+
+backup:
+  enabled: false
+  schedule: "0 3 * * *"
+  # Don't back up the recording archive — too large + reproducible.
+  # Just config + the small clips DB.
+  paths: ["/config"]
+  repositoryEnvFrom: { secretName: "" }
+  retention: { daily: 7, weekly: 4, monthly: 6, yearly: 1 }
+  image: { repository: restic/restic, tag: "0.18.0", pullPolicy: IfNotPresent }
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits:   { cpu: 500m, memory: 256Mi }
+
+monitoring: { enabled: false }
+prometheusRules: { enabled: false }
+alerts: { common: { enabled: false }, ntfyTopic: rio-frigate }
+networkPolicy:
+  enabled: true
+  # Cameras typically push to Frigate via RTSP; allow that
+  additionalIngress:
+    - { from: [], ports: [ { port: 8554, protocol: TCP } ] }
+
+# Frigate's ffmpeg + tensorflow needs to write to /tmp/cache + /media
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities: { drop: [ALL] }

@@ -1,0 +1,74 @@
+# CUPS — Common Unix Print System. AirPrint + IPP for the family.
+#
+# CUPS in K8s is awkward — printer drivers are typically host-installed
+# and IPP requires multicast for discovery. The chart works for IPP-
+# direct printing (admin sets up the printer in the CUPS admin UI). For
+# AirPrint discovery, run an Avahi reflector or pin the Service to a
+# stable LAN IP.
+
+enabled: false
+
+image:
+  repository: docker.io/olbat/cupsd
+  tag: latest
+  pullPolicy: IfNotPresent
+
+serviceAccount: { create: true }
+
+ports:
+  - { name: ipp, containerPort: 631, protocol: TCP }
+
+service:
+  type: ClusterIP
+  ports:
+    - { name: ipp, port: 631, targetPort: ipp, protocol: TCP }
+
+env:
+  - { name: TZ, value: America/New_York }
+
+resources:
+  requests: { cpu: 25m, memory: 64Mi }
+  limits:   { cpu: 500m, memory: 256Mi }
+
+persistence:
+  enabled: false
+  storageClass: local-path
+  size: 1Gi
+  mountPath: /etc/cups
+  zfsDataset: pool/data
+
+ingress:
+  enabled: false
+  className: nginx
+  hosts:
+    - host: print.rio.lan
+      paths: [ { path: /, pathType: Prefix } ]
+  tls: { enabled: false, issuer: selfsigned }
+
+authentik: { enabled: false }
+cloudflared: { expose: false, hostname: "" }
+
+backup:
+  enabled: false
+  schedule: "0 3 * * *"
+  paths: ["/etc/cups"]
+  repositoryEnvFrom: { secretName: "" }
+  retention: { daily: 7, weekly: 4, monthly: 6, yearly: 1 }
+  image: { repository: restic/restic, tag: "0.18.0", pullPolicy: IfNotPresent }
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits:   { cpu: 500m, memory: 256Mi }
+
+monitoring: { enabled: false }
+prometheusRules: { enabled: false }
+alerts: { common: { enabled: false }, ntfyTopic: rio-cups }
+networkPolicy:
+  enabled: true
+  additionalIngress:
+    - { from: [], ports: [ { port: 631, protocol: TCP } ] }
+
+# CUPS needs to write to /etc/cups + /var/spool/cups + /var/log/cups
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities: { drop: [ALL] }

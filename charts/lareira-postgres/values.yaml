@@ -1,0 +1,85 @@
+# PostgreSQL — single-instance DB used as the shared backing store for
+# family services (mealie, miniflux, paperless, hedgedoc, listmonk,
+# outline, cal-com) and the cousin's DaVinci Resolve shared project DB.
+#
+# Not the production-grade pleme-database CRD path — that's CNPG-based
+# and overkill for a homelab single-node cluster. This is just a
+# StatefulSet-shaped Deployment with a PVC.
+#
+# Required Secret (SOPS-rendered): postgres-env with
+#   POSTGRES_PASSWORD=...
+# Per-database creation: use init scripts via postgres-init ConfigMap or
+# manage application-level via psql.
+
+enabled: false
+
+image:
+  repository: docker.io/library/postgres
+  tag: "16.6-bookworm"
+  pullPolicy: IfNotPresent
+
+serviceAccount: { create: true }
+
+ports:
+  - { name: pg, containerPort: 5432, protocol: TCP }
+
+service:
+  type: ClusterIP
+  ports:
+    - { name: pg, port: 5432, targetPort: pg, protocol: TCP }
+
+envFrom:
+  - secretRef: { name: postgres-env, optional: true }
+
+env:
+  - { name: PGDATA, value: /var/lib/postgresql/data/pgdata }
+  - { name: POSTGRES_INITDB_ARGS, value: "--encoding=UTF8 --locale=C" }
+
+resources:
+  requests: { cpu: 100m, memory: 256Mi }
+  limits:   { cpu: 2000m, memory: 2Gi }
+
+persistence:
+  enabled: false
+  storageClass: local-path
+  size: 20Gi
+  mountPath: /var/lib/postgresql/data
+  zfsDataset: pool/data
+
+ingress: { enabled: false }    # PG never exposed via HTTP ingress
+
+authentik: { enabled: false }
+cloudflared: { expose: false, hostname: "" }
+
+backup:
+  enabled: false
+  schedule: "0 2 * * *"
+  paths: ["/var/lib/postgresql/data"]
+  repositoryEnvFrom: { secretName: "" }
+  retention: { daily: 14, weekly: 8, monthly: 12, yearly: 2 }
+  image: { repository: restic/restic, tag: "0.18.0", pullPolicy: IfNotPresent }
+  resources:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits:   { cpu: 1000m, memory: 512Mi }
+
+monitoring: { enabled: false }
+prometheusRules: { enabled: false }
+alerts: { common: { enabled: false }, ntfyTopic: rio-postgres-critical }
+networkPolicy:
+  enabled: true
+  # Allow consumer apps in any namespace to dial :5432
+  additionalIngress:
+    - { from: [], ports: [ { port: 5432, protocol: TCP } ] }
+
+# Postgres needs to write to /var/lib/postgresql/data + /tmp + /run
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities: { drop: [ALL] }
+
+# Run as the postgres image's default UID (999) — not 1000 as pleme-lib enforces
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 999
+  runAsGroup: 999
+  fsGroup: 999

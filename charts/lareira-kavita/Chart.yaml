@@ -1,0 +1,14 @@
+apiVersion: v2
+name: lareira-kavita
+description: pleme-lareira home-services chart for Kavita (manga, comics, ebook reader).
+type: application
+version: 0.1.0
+appVersion: "0.8.6"
+
+dependencies:
+  - name: pleme-lib
+    version: "~0.5.0"
+    repository: "file://../pleme-lib"
+  - name: pleme-lareira
+    version: "~0.1.0"
+    repository: "file://../pleme-lareira"

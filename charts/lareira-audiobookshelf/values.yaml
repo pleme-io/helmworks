@@ -1,0 +1,101 @@
+# Audiobookshelf — audiobook + podcast streaming server.
+# Hosts the family's audio library; mobile clients available.
+
+enabled: false
+
+image:
+  repository: ghcr.io/advplyr/audiobookshelf
+  tag: "2.17.7"
+  pullPolicy: IfNotPresent
+
+serviceAccount: { create: true }
+
+ports:
+  - name: http
+    containerPort: 80
+    protocol: TCP
+
+service:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+
+env:
+  - name: TZ
+    value: America/New_York
+  - name: PORT
+    value: "80"
+
+resources:
+  requests: { cpu: 50m, memory: 128Mi }
+  limits:   { cpu: 2000m, memory: 1Gi }
+
+persistence:
+  enabled: false
+  storageClass: local-path
+  size: 5Gi
+  mountPath: /config
+  zfsDataset: pool/data
+
+# Audiobook + podcast libraries mount via hostPath from the media dataset
+volumes:
+  - name: audiobooks
+    hostPath:
+      path: /srv/pool/media/audiobooks
+      type: DirectoryOrCreate
+  - name: podcasts
+    hostPath:
+      path: /srv/pool/media/podcasts
+      type: DirectoryOrCreate
+  - name: metadata
+    emptyDir: {}
+
+volumeMounts:
+  - name: audiobooks
+    mountPath: /audiobooks
+  - name: podcasts
+    mountPath: /podcasts
+  - name: metadata
+    mountPath: /metadata
+
+ingress:
+  enabled: false
+  className: nginx
+  hosts:
+    - host: abs.rio.lan
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: { enabled: false, issuer: selfsigned }
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+
+authentik: { enabled: false }
+cloudflared: { expose: false, hostname: "" }
+
+backup:
+  enabled: false
+  schedule: "0 4 * * 0"
+  paths: ["/config"]
+  repositoryEnvFrom: { secretName: "" }
+  retention: { daily: 0, weekly: 4, monthly: 6, yearly: 1 }
+  image: { repository: restic/restic, tag: "0.18.0", pullPolicy: IfNotPresent }
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits:   { cpu: 500m, memory: 256Mi }
+
+monitoring: { enabled: false }
+prometheusRules: { enabled: false }
+alerts:
+  common: { enabled: false }
+  ntfyTopic: rio-audiobookshelf
+networkPolicy: { enabled: true }
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities: { drop: [ALL] }

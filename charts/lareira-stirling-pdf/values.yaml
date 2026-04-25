@@ -1,0 +1,60 @@
+# Stirling-PDF — split / merge / OCR / redact / watermark PDFs in the
+# browser. Useful for the wife's print-ready file workflow + family.
+
+enabled: false
+
+image:
+  repository: docker.io/frooodle/s-pdf
+  tag: "0.42.0"
+  pullPolicy: IfNotPresent
+
+serviceAccount: { create: true }
+
+ports:
+  - { name: http, containerPort: 8080, protocol: TCP }
+
+service:
+  type: ClusterIP
+  ports:
+    - { name: http, port: 8080, targetPort: http, protocol: TCP }
+
+env:
+  - { name: TZ, value: America/New_York }
+  - { name: SECURITY_ENABLE_LOGIN, value: "false" }
+
+resources:
+  requests: { cpu: 100m, memory: 256Mi }
+  limits:   { cpu: 2000m, memory: 1Gi }
+
+persistence:
+  enabled: false
+  storageClass: local-path
+  size: 1Gi
+  mountPath: /usr/share/tessdata
+  zfsDataset: pool/data
+
+ingress:
+  enabled: false
+  className: nginx
+  hosts:
+    - host: pdf.rio.lan
+      paths: [ { path: /, pathType: Prefix } ]
+  tls: { enabled: false, issuer: selfsigned }
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "200m"
+
+authentik: { enabled: false }
+cloudflared: { expose: false, hostname: "" }
+
+# State is just OCR language packs — restic not particularly useful.
+backup: { enabled: false }
+
+monitoring: { enabled: false }
+prometheusRules: { enabled: false }
+alerts: { common: { enabled: false }, ntfyTopic: rio-stirling-pdf }
+networkPolicy: { enabled: true }
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities: { drop: [ALL] }
