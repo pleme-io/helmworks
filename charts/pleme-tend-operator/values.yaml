@@ -1,0 +1,151 @@
+# pleme-tend-operator — Fleet update controller (Phase 1: flake.lock).
+# Owns:
+#   FlakeUpdatePolicy   (per-repo desirability + gates + window)
+#   FlakeUpdateProposal (one proposed advance, lifecycle phase)
+#   FlakeUpdateRollout  (DAG snapshot + frontier index)
+# See pleme-io/tend/docs/OPERATOR-DESIGN.md.
+
+image:
+  repository: ghcr.io/pleme-io/tend
+  # Built with `--features operator`. Default tag pinned to amd64
+  # since rio is x86_64; cluster overlays for arm64 nodes can patch.
+  tag: amd64-latest
+  pullPolicy: Always
+
+imagePullSecrets:
+  - name: ghcr-credentials
+
+nameOverride: ""
+fullnameOverride: ""
+
+# Single replica — operator is a singleton reconciler. Multi-replica
+# would need leader election (not yet implemented).
+replicaCount: 1
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# ── Operator config ─────────────────────────────────────────────────
+operator:
+  logLevel: "info,tend=debug,kube=info"
+
+  # Path the workspace ConfigMap is mounted at. Operator reads tend's
+  # workspace truth from here so it sees the same repos the host's
+  # tend daemon would.
+  workspaceConfigPath: /etc/tend/config.yaml
+
+  # Polling cadence for upstream HEAD lookups. Default mirrors tend
+  # daemon's existing 300s cycle.
+  pollIntervalSeconds: 300
+
+  # Max parallel verification gates running at any moment across all
+  # in-flight rollouts. Sized for rio's single-node K3s; bump for
+  # larger clusters.
+  maxParallelGates: 4
+
+# ── Workspace config (mounted into pod) ─────────────────────────────
+# Either inline the workspace config here, OR set existingConfigMap
+# to reference a ConfigMap created out-of-band (e.g. seeded from the
+# operator's host filesystem via a tatara-script systemd unit).
+workspaceConfig:
+  existingConfigMap: ""
+  inline: |
+    # Default: empty workspace list — operator runs but has nothing
+    # to reconcile until cluster overrides this. For rio see
+    # k8s/clusters/rio/infrastructure/tend-operator/configmap.yaml.
+    workspaces: []
+
+# ── GitHub auth ─────────────────────────────────────────────────────
+# Token for GitHub HEAD-resolver. Operator falls back to
+# /etc/github/token (mounted from the secret below) when GITHUB_TOKEN
+# env is unset.
+github:
+  existingSecret: ""           # e.g. "github-token" — must contain key `token`
+  secretKey: "token"
+
+# ── RBAC ────────────────────────────────────────────────────────────
+rbac:
+  create: true
+  rules:
+    # CRDs the operator owns
+    - apiGroups: ["fleet.pleme.io"]
+      resources:
+        - "flakeupdatepolicies"
+        - "flakeupdatepolicies/status"
+        - "flakeupdateproposals"
+        - "flakeupdateproposals/status"
+        - "flakeupdaterollouts"
+        - "flakeupdaterollouts/status"
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    # Events for status reporting
+    - apiGroups: [""]
+      resources: ["events"]
+      verbs: ["create", "patch"]
+    # Leader election (future-proof; current code is single-replica)
+    - apiGroups: ["coordination.k8s.io"]
+      resources: ["leases"]
+      verbs: ["get", "create", "update"]
+
+# ── Resources ───────────────────────────────────────────────────────
+# Single-node sizing. The operator itself is light; verification
+# gates (nix build, cargo test, forge ci) shell out to subprocesses
+# which can be heavy — those gates ideally run on JIT builders, not
+# in this pod.
+resources:
+  requests:
+    cpu: 50m
+    memory: 96Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+terminationGracePeriodSeconds: 30
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: false  # needs to write flake.lock during apply path
+  runAsNonRoot: true
+  runAsUser: 1000
+
+# ── Service (metrics) ───────────────────────────────────────────────
+service:
+  type: ClusterIP
+  ports:
+    metrics: 9090
+
+# ── ServiceMonitor (vmagent picks this up via VMOperator converter) ─
+serviceMonitor:
+  enabled: false   # enable once Phase 1 has metrics emission wired
+  interval: 30s
+
+# ── Workload sources volume ─────────────────────────────────────────
+# Operator needs git working trees on disk to run gates / write pins.
+# Two ways to provide them:
+#   - persistent volume claim (operator clones via tend on demand)
+#   - host path (only viable for single-node, e.g. rio)
+workspace:
+  volume:
+    type: emptyDir            # "emptyDir" | "persistentVolumeClaim" | "hostPath"
+    pvc:
+      storageClass: local-path
+      size: 50Gi
+    hostPath: ""              # e.g. "/var/lib/tend-workspace" on rio
+
+# ── CRD installation ────────────────────────────────────────────────
+# Toggle to false if installing CRDs out-of-band (e.g. via Flux's
+# CRD chart). Default true means the chart owns CRD lifecycle.
+installCRDs: true
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

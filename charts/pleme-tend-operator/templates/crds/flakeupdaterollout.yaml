@@ -1,0 +1,80 @@
+{{- if .Values.installCRDs -}}
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: flakeupdaterollouts.fleet.pleme.io
+spec:
+  group: fleet.pleme.io
+  names:
+    kind: FlakeUpdateRollout
+    listKind: FlakeUpdateRolloutList
+    plural: flakeupdaterollouts
+    singular: flakeupdaterollout
+    shortNames: ["fro"]
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Trigger
+          type: string
+          jsonPath: .spec.trigger
+        - name: CurrentWave
+          type: integer
+          jsonPath: .status.currentWave
+        - name: Started
+          type: date
+          jsonPath: .spec.startedAt
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      schema:
+        openAPIV3Schema:
+          type: object
+          required: ["spec"]
+          properties:
+            spec:
+              type: object
+              required: ["waves", "trigger", "startedAt"]
+              properties:
+                waves:
+                  type: array
+                  items:
+                    type: object
+                    required: ["index", "proposals"]
+                    properties:
+                      index: { type: integer, format: int32 }
+                      proposals:
+                        type: array
+                        items:
+                          type: object
+                          required: ["namespace", "name"]
+                          properties:
+                            namespace: { type: string }
+                            name: { type: string }
+                trigger:
+                  type: string
+                  enum: ["UpstreamAdvance", "ManualReplay", "PolicyChange"]
+                startedAt: { type: string, format: date-time }
+            status:
+              type: object
+              properties:
+                currentWave: { type: integer, format: int32 }
+                completedAt: { type: string, format: date-time }
+                failedAt: { type: string, format: date-time }
+                failureReason: { type: string }
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type: { type: string }
+                      status: { type: string }
+                      reason: { type: string }
+                      message: { type: string }
+                      lastTransitionTime: { type: string, format: date-time }
+                observedGeneration: { type: integer, format: int64 }
+{{- end }}

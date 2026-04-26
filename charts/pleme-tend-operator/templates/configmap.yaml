@@ -1,0 +1,11 @@
+{{- if not .Values.workspaceConfig.existingConfigMap -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pleme-tend-operator.fullname" . }}-workspace
+  labels:
+    {{- include "pleme-tend-operator.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+{{ .Values.workspaceConfig.inline | indent 4 }}
+{{- end }}

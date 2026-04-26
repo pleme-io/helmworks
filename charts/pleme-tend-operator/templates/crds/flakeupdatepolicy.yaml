@@ -1,0 +1,89 @@
+{{- if .Values.installCRDs -}}
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: flakeupdatepolicies.fleet.pleme.io
+spec:
+  group: fleet.pleme.io
+  names:
+    kind: FlakeUpdatePolicy
+    listKind: FlakeUpdatePolicyList
+    plural: flakeupdatepolicies
+    singular: flakeupdatepolicy
+    shortNames: ["fup"]
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Workspace
+          type: string
+          jsonPath: .spec.repo.workspace
+        - name: Repo
+          type: string
+          jsonPath: .spec.repo.repo
+        - name: DefaultMode
+          type: string
+          jsonPath: .spec.defaultMode
+        - name: Inputs
+          type: integer
+          jsonPath: .status.trackedInputs
+          description: Number of inputs the operator is tracking
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      schema:
+        openAPIV3Schema:
+          type: object
+          required: ["spec"]
+          properties:
+            spec:
+              type: object
+              required: ["repo"]
+              properties:
+                repo:
+                  type: object
+                  required: ["workspace", "repo"]
+                  properties:
+                    workspace: { type: string }
+                    repo: { type: string }
+                inputs:
+                  type: object
+                  additionalProperties:
+                    type: string
+                    enum: ["Locked", "Auto", "Gated", "Forbidden"]
+                defaultMode:
+                  type: string
+                  enum: ["Locked", "Auto", "Gated", "Forbidden"]
+                  default: "Gated"
+                gates:
+                  type: array
+                  items: { type: string }
+                window:
+                  type: object
+                  properties:
+                    cron: { type: string }
+            status:
+              type: object
+              properties:
+                trackedInputs:
+                  type: array
+                  items: { type: string }
+                lastObservedLockHash: { type: string }
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type: { type: string }
+                      status: { type: string }
+                      reason: { type: string }
+                      message: { type: string }
+                      lastTransitionTime: { type: string, format: date-time }
+                observedGeneration:
+                  type: integer
+                  format: int64
+{{- end }}

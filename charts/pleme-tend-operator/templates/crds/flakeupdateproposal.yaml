@@ -1,0 +1,114 @@
+{{- if .Values.installCRDs -}}
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: flakeupdateproposals.fleet.pleme.io
+spec:
+  group: fleet.pleme.io
+  names:
+    kind: FlakeUpdateProposal
+    listKind: FlakeUpdateProposalList
+    plural: flakeupdateproposals
+    singular: flakeupdateproposal
+    shortNames: ["fpr"]
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Repo
+          type: string
+          jsonPath: .spec.repo.repo
+        - name: Input
+          type: string
+          jsonPath: .spec.input
+        - name: To
+          type: string
+          jsonPath: .spec.to.rev
+          priority: 1
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: Approved
+          type: boolean
+          jsonPath: .spec.approved
+        - name: Wave
+          type: integer
+          jsonPath: .status.dagWave
+          priority: 1
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      schema:
+        openAPIV3Schema:
+          type: object
+          required: ["spec"]
+          properties:
+            spec:
+              type: object
+              required: ["repo", "input", "from", "to", "discoveredAt", "policyNamespace", "policyName"]
+              properties:
+                repo:
+                  type: object
+                  required: ["workspace", "repo"]
+                  properties:
+                    workspace: { type: string }
+                    repo: { type: string }
+                input: { type: string }
+                from: { $ref: "#/properties/spec/definitions/flakeRev" }
+                to: { $ref: "#/properties/spec/definitions/flakeRev" }
+                discoveredAt: { type: string, format: date-time }
+                policyNamespace: { type: string }
+                policyName: { type: string }
+                approved: { type: boolean, default: false }
+              definitions:
+                flakeRev:
+                  type: object
+                  required: ["url", "rev"]
+                  properties:
+                    url: { type: string }
+                    rev: { type: string }
+                    narHash: { type: string }
+                    lastModified: { type: integer, format: int64 }
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum:
+                    [
+                      "Pending",
+                      "Verifying",
+                      "Verified",
+                      "Applying",
+                      "Applied",
+                      "Failed",
+                      "Stale",
+                    ]
+                gateResults:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name: { type: string }
+                      passed: { type: boolean }
+                      durationMs: { type: integer, format: int64 }
+                      logExcerpt: { type: string }
+                dagWave: { type: integer, format: int32 }
+                appliedCommit: { type: string }
+                error: { type: string }
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type: { type: string }
+                      status: { type: string }
+                      reason: { type: string }
+                      message: { type: string }
+                      lastTransitionTime: { type: string, format: date-time }
+                observedGeneration: { type: integer, format: int64 }
+{{- end }}
