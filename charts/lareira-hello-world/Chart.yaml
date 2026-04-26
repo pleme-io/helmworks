@@ -1,0 +1,24 @@
+apiVersion: v2
+name: lareira-hello-world
+description: |
+  The canonical pleme-io WASM/WASI breathable service. Hello, world.
+
+  Demonstrates the full meta-framework end-to-end:
+  Layer 0 (tatara-lisp source) → Layer 1 (WASM artifact) → Layer 2
+  (ComputeUnit) → Layer 3 (pleme-computeunit library) → Layer 4
+  (this consumer chart) → Layer 5 (FluxCD deployment).
+
+  Cold-start ~3s; idle resident: 0 pods. KEDA HTTP scales 0→N→0
+  with 10min cooldown — feels always-on for typical use.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+
+keywords: [hello-world, example, lareira, breathable, wasm, tatara-lisp]
+maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]
+home: https://github.com/pleme-io/programs/tree/main/hello-world
+
+dependencies:
+  - name: pleme-computeunit
+    version: "~0.1.0"
+    repository: "file://../pleme-computeunit"

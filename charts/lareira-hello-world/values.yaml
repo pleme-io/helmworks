@@ -1,0 +1,81 @@
+# lareira-hello-world — the canonical pleme-io WASM service.
+
+pleme-computeunit:
+  enabled: false
+
+  module:
+    source: "github:pleme-io/programs/hello-world/main.tlisp?ref=v0.1.0"
+
+  trigger:
+    service:
+      port: 8080
+      paths: ["/", "/hello", "/healthz"]
+      hosts:
+        - hello.tatara-system.svc.cluster.local
+        - hello.quero.cloud
+      breathability:
+        enabled: true
+        minReplicas: 0          # full scale-to-zero
+        maxReplicas: 5
+        cooldownPeriod: 600      # 10-minute warm window
+        targetPendingRequests: 1
+
+  capabilities:
+    - http-in:0.0.0.0:8080
+    - kube-downward-api
+
+  resources:
+    requests: { cpu: 50m,  memory: 64Mi }
+    limits:   { cpu: 500m, memory: 256Mi }
+
+  config:
+    greeting: Hello
+    audience: world
+    punctuation: "!"
+    debug: false
+
+  service:
+    type: ClusterIP
+
+  observability:
+    serviceMonitor:
+      enabled: true
+      interval: 30s
+    prometheusRule:
+      enabled: true
+      rules:
+        # Service unreachable while requests are pending — first cold
+        # start of the day failed; KEDA might be misconfigured.
+        - alert: HelloWorldDown
+          expr: |
+            absent(up{job="hello-world"}) == 1
+            and on() rate(nginx_ingress_controller_requests{service="hello-world"}[5m]) > 0
+          for: 5m
+          labels: { severity: warning, component: lareira-hello-world }
+          annotations:
+            summary: "hello-world unreachable while traffic is pending"
+            description: "Either KEDA HTTP isn't waking the pod, or wasm-engine is failing to instantiate. Check tatara-system events."
+            runbook_url: "https://runbooks.pleme.io/lareira-hello-world/down"
+
+        # 5xx burst — the WASM module is panicking on requests.
+        - alert: HelloWorld5xxBurst
+          expr: |
+            sum(rate(hello_world_requests_total{status=~"5.."}[5m])) > 0.1
+          for: 5m
+          labels: { severity: warning, component: lareira-hello-world }
+          annotations:
+            summary: "hello-world serving 5xx errors"
+            description: "Something inside the WASM module is failing. Check the engine pod's logs for tatara-lisp evaluation errors."
+            runbook_url: "https://runbooks.pleme.io/lareira-hello-world/5xx"
+
+        # Cold-start churn — keeps cycling 0→1→0; cooldown too aggressive
+        # OR there's a probe / KEDA misconfig keeping it from settling.
+        - alert: HelloWorldColdStartChurn
+          expr: |
+            increase(wasm_engine_cold_starts_total{compute_unit="hello-world"}[10m]) > 5
+          for: 0m
+          labels: { severity: info, component: lareira-hello-world }
+          annotations:
+            summary: "hello-world cold-starting >5 times in 10m"
+            description: "Either the cooldownPeriod is too short for this cluster's traffic pattern OR the pod is being killed by an OOM/probe. Check engine pod events."
+            runbook_url: "https://runbooks.pleme.io/lareira-hello-world/cold-start-churn"
