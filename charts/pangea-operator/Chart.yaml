@@ -3,12 +3,13 @@ name: pangea-operator
 description: >-
   Pangea infrastructure operator — manages 9 CRDs for infrastructure lifecycle,
   AMI pipeline, compliance testing, and dynamic synthesizer formats. v0.3.0
-  adds the breathable worker pool tier (per-class Deployments scaled 0→N→0
-  by KEDA on the pangea_workunit_pending_total gauge) — opt-in via
-  workers.enabled, default off for backward compat.
+  adds per-resource policy engine (autoApply / requireApproval / refuse rules
+  with type/address/action/risk/attribute match) and state-settling tracker
+  (count + drift fingerprint, configurable escalation when the system can't
+  reach steady state). Defaults to aggressive auto-apply on every change.
 type: application
-version: 0.2.1
-appVersion: "0.2.1"
+version: 0.3.0
+appVersion: "0.3.0"
 
 dependencies:
   - name: pleme-lib

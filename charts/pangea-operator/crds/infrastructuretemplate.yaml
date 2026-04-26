@@ -1,3 +1,4 @@
+---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
@@ -47,6 +48,17 @@ spec:
                 items:
                   type: string
                 type: array
+              defaultDecision:
+                description: |-
+                  Decision applied to changes that match no rule in `policies`. If unset, defaults to `autoApply` — the operator aggressively settles drift on every change at every risk level. Set this to `refuse` to make the policy list strictly opt-in (only changes explicitly allowed by a rule may be applied), or to `requireApproval` to gate everything not explicitly auto-applied.
+
+                  `spec.autoApprove` is no longer consulted by this engine; it remains in the schema for legacy compatibility but does not override `defaultDecision`.
+                enum:
+                - autoApply
+                - requireApproval
+                - refuse
+                nullable: true
+                type: string
               destroyProtection:
                 default: false
                 description: |-
@@ -59,6 +71,61 @@ spec:
               pangeaNamespace:
                 description: Pangea namespace for state isolation. This determines the PostgreSQL schema used for state storage.
                 type: string
+              policies:
+                description: |-
+                  Per-resource policy rules controlling what the operator may do without human approval. Evaluated top-to-bottom against each resource change in a plan; the FIRST matching rule's `decision` applies. Changes that match no rule fall back to `defaultDecision` (or to `autoApprove` if `defaultDecision` is unset).
+
+                  Aggregation across all changes: - any `refuse`          → operator marks plan Failed, won't apply - else any `requireApproval` → operator waits for `approvedPlanHash` - else                  → operator applies immediately
+
+                  Empty list = behave exactly as before (`autoApprove` controls everything). Use this to express things like "auto-apply low-risk DNS creates, require approval for any `cloudflare_dns_record` delete, refuse any `cloudflare_zone` destroy".
+                items:
+                  description: One policy rule. Match clauses use AND semantics (all set fields must match the change); within a clause, list entries use OR semantics (any list entry that matches counts). Empty / omitted clauses are wildcards.
+                  properties:
+                    decision:
+                      description: What the controller may do for changes this rule matches.
+                      enum:
+                      - autoApply
+                      - requireApproval
+                      - refuse
+                      type: string
+                    match:
+                      description: Match criteria. All set fields must match (AND); within each list, any entry counts (OR).
+                      properties:
+                        actions:
+                          description: 'Restrict to specific actions. Empty = any action. Valid values: `create`, `update`, `delete`, `replace`.'
+                          items:
+                            type: string
+                          type: array
+                        addressPatterns:
+                          description: Regular expressions matched against the full resource address (e.g. `^cloudflare_dns_record\\.rio-.*$`). Invalid regexes are rejected at evaluation time and logged — they never silently match nothing.
+                          items:
+                            type: string
+                          type: array
+                        attributes:
+                          description: Glob patterns against the changed-attribute names. Matches if ANY of the change's attributes matches ANY of these patterns. Useful for "require approval if `ttl` or any `secret*` field changes".
+                          items:
+                            type: string
+                          type: array
+                        resourceTypes:
+                          description: Glob patterns against the terraform resource type (e.g. `cloudflare_dns_record`, `cloudflare_*`, `aws_iam_*`). Only `*` (zero-or-more chars) is supported — keeps matching trivial and predictable.
+                          items:
+                            type: string
+                          type: array
+                        riskLevels:
+                          description: 'Restrict to specific risk levels. Empty = any risk. Valid values: `none`, `low`, `medium`, `high`.'
+                          items:
+                            type: string
+                          type: array
+                      type: object
+                    name:
+                      description: Human-readable label. Surfaced in `status.driftDetails[].matchedPolicy` and in the per-rule planSummary, so a quick `kubectl describe` shows which rule triggered which decision.
+                      type: string
+                  required:
+                  - decision
+                  - match
+                  - name
+                  type: object
+                type: array
               providerCredentials:
                 description: Provider credentials configuration.
                 nullable: true
@@ -132,6 +199,28 @@ spec:
                     format: uint32
                     minimum: 0.0
                     type: integer
+                type: object
+              settlingPolicy:
+                description: |-
+                  Bounds on how long the operator may keep cycling through drift→apply→drift loops before declaring the template stuck. State settling is the operator's primary success metric — when it can't reach a settled state after the configured number of cycles, this is escalated loudly via a `Settled=False` condition + Warning event.
+
+                  Defaults: 5 cycles, then `fail` (transition to Failed, surface the address list of resources that keep re-drifting).
+                nullable: true
+                properties:
+                  maxConsecutiveDriftCycles:
+                    default: 5
+                    description: Maximum allowed consecutive drift cycles before escalation. A "cycle" is one Ready→Drifted→(plan→apply)→Ready transition where the post-apply drift check still reports changes. Defaults to 5.
+                    format: uint32
+                    minimum: 0.0
+                    type: integer
+                  onExhaustion:
+                    default: fail
+                    description: 'What to do when `maxConsecutiveDriftCycles` is exceeded. Defaults to `fail` — the loudest signal: phase Failed, error message naming the stuck resources, Warning event, condition `Settled=False reason=StuckInDriftLoop`. The point is to make it impossible to ignore a system that can''t reach steady state.'
+                    enum:
+                    - fail
+                    - alert
+                    - continue
+                    type: string
                 type: object
               source:
                 description: Source of the infrastructure template.
@@ -339,28 +428,45 @@ spec:
                   - type
                   type: object
                 type: array
+              consecutiveDriftCycles:
+                default: 0
+                description: State-settling counter. Counts consecutive drift cycles where applying a plan does NOT result in a clean drift check. Reset to zero when a Ready→Ready transition sees no drift. Drives `SettlingPolicy` escalation.
+                format: uint32
+                minimum: 0.0
+                type: integer
               driftDetails:
-                description: 'Per-resource drift / change detail from the last plan. Populated whenever a plan reports has_changes. Lets external observers see WHICH resources changed and HOW without parsing raw tofu output. Capped to 50 entries (full list available via the operator''s GraphQL API for large plans).'
+                description: Per-resource drift / change detail from the last plan. Populated whenever a plan reports `has_changes`. Lets external observers see WHICH resources changed and HOW without parsing raw tofu output. Capped to 50 entries (full list available via the operator's GraphQL API for large plans).
                 items:
-                  description: Per-resource drift / change detail from a plan.
+                  description: |-
+                    Per-resource drift / change detail from a plan.
+
+                    One entry per resource the plan would touch. Action is the terraform action category; risk is a heuristic so observers can quickly triage (a `delete` on a destroy-protected resource is `high`, a no-op refresh is `none`, a single-attribute update is `low`). `attributes` lists the field names that differ — values are intentionally elided so secrets don't leak into the K8s API.
                   properties:
-                    address:
-                      description: Terraform resource address (e.g. cloudflare_dns_record.foo).
-                      type: string
                     action:
                       description: 'Action category: create | update | delete | replace | noop.'
                       type: string
-                    risk:
-                      description: 'Risk heuristic: none | low | medium | high.'
+                    address:
+                      description: Terraform resource address (e.g. `cloudflare_dns_record.foo`).
                       type: string
                     attributes:
                       description: Attribute names that differ between current and desired state. Empty for create / delete (no per-attr diff applies).
                       items:
                         type: string
                       type: array
+                    matchedPolicy:
+                      description: Name of the `PolicyRule` that matched this change, or `<default>` if no rule matched and the default decision was applied. Absent means policy evaluation didn't run.
+                      nullable: true
+                      type: string
+                    policyDecision:
+                      description: 'Resolved policy decision for this specific change. Set when `spec.policies` is non-empty or `spec.defaultDecision` is non-null. Values: `autoApply` | `requireApproval` | `refuse`. Absent means policy evaluation didn''t run (legacy `autoApprove`-only mode).'
+                      nullable: true
+                      type: string
+                    risk:
+                      description: 'Risk heuristic: none | low | medium | high.'
+                      type: string
                   required:
-                  - address
                   - action
+                  - address
                   - risk
                   type: object
                 type: array
@@ -425,6 +531,39 @@ spec:
                 description: Human-readable summary of the last plan.
                 nullable: true
                 type: string
+              policyEvaluation:
+                description: Aggregate result of evaluating `spec.policies` against the last plan's drift details. Drives the plan→apply gate. Absent when the template uses legacy `autoApprove`-only mode (no `policies` and no `defaultDecision`).
+                nullable: true
+                properties:
+                  aggregate:
+                    description: Worst decision across all changes. Drives the plan→apply transition.
+                    type: string
+                  autoApplyCount:
+                    default: 0
+                    description: Number of changes that resolved to `autoApply`.
+                    format: uint32
+                    minimum: 0.0
+                    type: integer
+                  refuseCount:
+                    default: 0
+                    description: Number of changes that resolved to `refuse`. Non-zero means `aggregate == refuse` and the plan is blocked.
+                    format: uint32
+                    minimum: 0.0
+                    type: integer
+                  refusedAddresses:
+                    description: Sample of refused resource addresses (capped at 10) to give quick triage signal in `kubectl describe`.
+                    items:
+                      type: string
+                    type: array
+                  requireApprovalCount:
+                    default: 0
+                    description: Number of changes that resolved to `requireApproval`.
+                    format: uint32
+                    minimum: 0.0
+                    type: integer
+                required:
+                - aggregate
+                type: object
               resources:
                 description: Summary of managed resources.
                 nullable: true
@@ -458,6 +597,11 @@ spec:
                 description: PostgreSQL state key path.
                 nullable: true
                 type: string
+              stuckResources:
+                description: Resource addresses that keep showing up in successive drift cycles — the "stuck" set. Computed as the intersection of drift-detail addresses across the last N cycles. Capped at 20 for status hygiene; full set available via the operator's GraphQL API. Empty when `consecutiveDriftCycles == 0`.
+                items:
+                  type: string
+                type: array
             type: object
         required:
         - spec
