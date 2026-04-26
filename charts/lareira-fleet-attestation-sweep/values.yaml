@@ -1,0 +1,38 @@
+pleme-computeunit:
+  enabled: false
+
+  module:
+    source: "github:pleme-io/programs/fleet-attestation-sweep/main.tlisp?ref=v0.1.0"
+
+  trigger:
+    oneShot:
+      args: ["--clusters=plo,rio,seph"]
+
+  capabilities:
+    - kube-resource-list@pangea.pleme.io/pangeaarchitectures
+    - kube-resource-list@v1/secrets
+    - kube-event-emit
+    - http-out:registry.pleme.io
+    - http-out:*.pleme.io       # cross-cluster K8s API access
+
+  resources:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits:   { cpu: 1000m, memory: 512Mi }
+
+  elasticity:
+    program:
+      ttlSecondsAfterFinished: 60
+
+  observability:
+    prometheusRule:
+      enabled: true
+      rules:
+        - alert: FleetAttestationFailures
+          expr: |
+            fleet_attestation_failed_total > 0
+          for: 0m
+          labels: { severity: critical, component: lareira-fleet-attestation-sweep }
+          annotations:
+            summary: "{{ $value }} clusters failed attestation verification"
+            description: "Most recent fleet sweep found attestation chain breaks. Check the CR status for the failed-architecture list."
+            runbook_url: "https://runbooks.pleme.io/lareira-fleet-attestation-sweep/failures"

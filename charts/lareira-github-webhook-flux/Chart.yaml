@@ -1,0 +1,15 @@
+apiVersion: v2
+name: lareira-github-webhook-flux
+description: |
+  GitHub webhook receiver — verifies HMAC signatures and kicks the
+  matching FluxCD GitRepository to reconcile immediately. Consumer
+  chart for the github-webhook-flux tatara-lisp program.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords: [webhook, flux, github, lareira, computeunit, breathable]
+maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]
+dependencies:
+  - name: pleme-computeunit
+    version: "~0.1.0"
+    repository: "file://../pleme-computeunit"

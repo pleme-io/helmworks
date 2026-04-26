@@ -1,0 +1,55 @@
+pleme-computeunit:
+  enabled: false
+
+  module:
+    source: "github:pleme-io/programs/thumbnail-fn/main.tlisp?ref=v0.1.0"
+
+  trigger:
+    event:
+      source: "nats:rio.events.photo.uploaded"
+      batch_size: 10
+      cooldown: "60s"
+      lagThreshold: "10"
+
+  capabilities:
+    - nats-subscribe@rio.events.photo.uploaded
+    - nats-publish@rio.events.photo.thumbnailed
+    - s3-read@rio-photos-originals
+    - s3-write@rio-photos-thumbnails
+    - kube-secret-read@photos/s3-credentials
+
+  resources:
+    requests: { cpu: 200m, memory: 256Mi }
+    limits:   { cpu: 2000m, memory: 1Gi }    # bursty image work
+
+  config:
+    s3Region: us-east-1
+    originalsBucket: rio-photos-originals
+    thumbnailsBucket: rio-photos-thumbnails
+    natsUrl: nats://nats.nats.svc:4222
+    thumbnailSubject: rio.events.photo.thumbnailed
+    variants:
+      - { name: small,  width: 200,  height: 200,  fit: cover,   format: webp, quality: 80 }
+      - { name: medium, width: 800,  height: 800,  fit: cover,   format: webp, quality: 85 }
+      - { name: large,  width: 1920, height: 1920, fit: contain, format: webp, quality: 90 }
+
+  function:
+    scaling:
+      minReplicas: 0
+      maxReplicas: 20
+      pollingInterval: 15
+      cooldownPeriod: 60
+
+  observability:
+    prometheusRule:
+      enabled: true
+      rules:
+        - alert: ThumbnailFnLagGrowing
+          expr: |
+            stan_subscriber_pending_messages{queue_group=~"thumbnail-fn.*"} > 100
+          for: 5m
+          labels: { severity: warning, component: lareira-thumbnail-fn }
+          annotations:
+            summary: "thumbnail-fn falling behind upload rate"
+            description: "NATS pending messages > 100 for 5m. Either raise maxReplicas or check why the function pods aren't scaling."
+            runbook_url: "https://runbooks.pleme.io/lareira-thumbnail-fn/lag"

@@ -1,0 +1,42 @@
+pleme-computeunit:
+  enabled: false
+
+  module:
+    source: "github:pleme-io/programs/dns-reconciler/main.tlisp?ref=v0.1.0"
+
+  trigger:
+    watch:
+      crd: dns.pleme.io/DnsReconciler
+      and:
+        - { group: "v1",                kind: "Service" }
+        - { group: "networking.k8s.io", kind: "Ingress" }
+
+  capabilities:
+    - kube-cr-watch@dns.pleme.io/dnsreconcilers
+    - kube-cr-watch@v1/services
+    - kube-cr-watch@networking.k8s.io/ingresses
+    - kube-secret-read@dns-system/cloudflare-pangea
+    - http-out:api.cloudflare.com
+
+  resources:
+    requests: { cpu: 50m,  memory: 64Mi }
+    limits:   { cpu: 500m, memory: 256Mi }
+
+  # Optional: render a default DnsReconciler policy CR. Operators
+  # typically set this in their cluster overlay rather than the chart.
+  policy:
+    enabled: false
+
+  observability:
+    prometheusRule:
+      enabled: true
+      rules:
+        - alert: DnsReconcilerSyncErrors
+          expr: |
+            increase(dns_reconciler_sync_errors_total[15m]) > 5
+          for: 5m
+          labels: { severity: warning, component: lareira-dns-reconciler }
+          annotations:
+            summary: "DNS reconciler sync errors elevated"
+            description: ">5 errors in 15m. Check DNS provider creds + network egress."
+            runbook_url: "https://runbooks.pleme.io/lareira-dns-reconciler/sync-errors"

@@ -1,0 +1,16 @@
+apiVersion: v2
+name: lareira-thumbnail-fn
+description: |
+  Event-driven async function — subscribe to NATS photo upload events,
+  generate thumbnail variants, write to S3, emit completion events.
+  Demonstrates the `function` shape (event-driven Lambda-style)
+  formalized in theory/WASM-PACKAGING.md §IV.1.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords: [function, async, nats, image, thumbnail, lareira, computeunit]
+maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]
+dependencies:
+  - name: pleme-computeunit
+    version: "~0.1.0"
+    repository: "file://../pleme-computeunit"

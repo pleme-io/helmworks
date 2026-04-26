@@ -1,0 +1,20 @@
+apiVersion: v2
+name: lareira-convergence-controller
+description: |
+  The platform's convergence controller — re-implementation of
+  pleme-io/tatara/tatara-reconciler as a tatara-lisp program. Closes
+  the recursive loop: the runtime that runs ComputeUnit-defined
+  programs is itself running a ComputeUnit-defined program.
+
+  Migration phasing α (review) → β (parallel-run with Rust controller
+  via Process.spec.runtime: lisp opt-in) → γ (default lisp) →
+  δ (deprecate Rust controller). See theory/WASM-RUNTIME-COMPLETE.md §III.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords: [convergence, controller, tatara, reconciler, lareira, computeunit]
+maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]
+dependencies:
+  - name: pleme-computeunit
+    version: "~0.1.0"
+    repository: "file://../pleme-computeunit"

@@ -1,0 +1,53 @@
+pleme-computeunit:
+  enabled: false
+
+  module:
+    source: "github:pleme-io/programs/convergence-controller/main.tlisp?ref=v0.1.0"
+
+  trigger:
+    watch:
+      crd: tatara.pleme.io/Process
+      and:
+        - { group: "tatara.pleme.io/v1alpha1",       kind: "ProcessTable" }
+        - { group: "kustomize.toolkit.fluxcd.io/v1", kind: "Kustomization" }
+        - { group: "helm.toolkit.fluxcd.io/v2",      kind: "HelmRelease" }
+
+  capabilities:
+    - kube-cr-watch@tatara.pleme.io/processes
+    - kube-cr-watch@tatara.pleme.io/processtables
+    - kube-cr-watch@kustomize.toolkit.fluxcd.io/kustomizations
+    - kube-cr-watch@helm.toolkit.fluxcd.io/helmreleases
+    - kube-cr-write@kustomize.toolkit.fluxcd.io/kustomizations
+    - kube-cr-write@helm.toolkit.fluxcd.io/helmreleases
+    - kube-cr-write@tatara.pleme.io/processes
+    - kube-event-emit
+    - http-out:registry.pleme.io
+    - http-out:openclaw.tatara-system.svc.cluster.local
+
+  resources:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits:   { cpu: 1000m, memory: 512Mi }
+
+  observability:
+    prometheusRule:
+      enabled: true
+      rules:
+        - alert: ConvergenceControllerStuck
+          expr: |
+            tatara_process_phase_duration_seconds{phase!="Succeeded",phase!="Failed"} > 1800
+          for: 30m
+          labels: { severity: warning, component: lareira-convergence-controller }
+          annotations:
+            summary: "Process stuck in non-terminal phase for >30 min"
+            description: "Process {{ $labels.process }} has been in {{ $labels.phase }} for over 30 minutes. Either FluxCD is stuck applying or the controller's state machine is wedged. Check the CR's events."
+            runbook_url: "https://runbooks.pleme.io/lareira-convergence-controller/stuck"
+
+        - alert: ConvergenceControllerAttestationFailures
+          expr: |
+            increase(tatara_attestation_failures_total[15m]) > 3
+          for: 0m
+          labels: { severity: critical, component: lareira-convergence-controller }
+          annotations:
+            summary: "Convergence attestation chain failures detected"
+            description: ">3 BLAKE3 attestation failures in 15m. Either tameshi is misconfigured or the artifact source has been tampered with."
+            runbook_url: "https://runbooks.pleme.io/lareira-convergence-controller/attestation"

@@ -1,0 +1,16 @@
+apiVersion: v2
+name: lareira-fleet-attestation-sweep
+description: |
+  One-shot fleet attestation re-verification program. Apply once,
+  runs once, writes a structured report to the CR's status, deletes
+  itself after 60s. Consumer chart for the
+  github:pleme-io/programs/fleet-attestation-sweep tatara-lisp program.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords: [attestation, tameshi, audit, lareira, computeunit, oneShot]
+maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]
+dependencies:
+  - name: pleme-computeunit
+    version: "~0.1.0"
+    repository: "file://../pleme-computeunit"

@@ -1,0 +1,16 @@
+apiVersion: v2
+name: lareira-dns-reconciler
+description: |
+  DNS reconciler — sync K8s Services + Ingresses with the
+  `dns.pleme.io/host` annotation to a DNS provider zone. Consumer
+  chart for the github:pleme-io/programs/dns-reconciler tatara-lisp
+  program. Replaces ExternalDNS.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords: [dns, controller, lareira, computeunit]
+maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]
+dependencies:
+  - name: pleme-computeunit
+    version: "~0.1.0"
+    repository: "file://../pleme-computeunit"
