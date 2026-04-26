@@ -124,8 +124,10 @@ service:
     metrics: 9090
 
 # ── ServiceMonitor (vmagent picks this up via VMOperator converter) ─
+# Operator emits Prometheus metrics on :9090/metrics covering proposal
+# lifecycle, gate outcomes, apply outcomes, and reconcile errors.
 serviceMonitor:
-  enabled: false   # enable once Phase 1 has metrics emission wired
+  enabled: true
   interval: 30s
 
 # ── Workload sources volume ─────────────────────────────────────────
