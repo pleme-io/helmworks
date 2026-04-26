@@ -1,0 +1,25 @@
+apiVersion: v2
+name: lareira-keda
+description: |
+  KEDA core for pleme-io home-edge clusters. Wraps kedacore/keda with
+  bounded resources + the canonical operator-down alert. Companion to
+  lareira-keda-http, which adds the HTTP-driven scaler add-on.
+
+  Default-OFF (enabled: false).
+type: application
+version: 0.1.0
+appVersion: "2.16.1"
+
+keywords: [keda, autoscaling, breathable, lareira]
+maintainers:
+  - name: drzzln
+    email: drzzln@protonmail.com
+
+dependencies:
+  - name: pleme-lib
+    version: "~0.5.0"
+    repository: "file://../pleme-lib"
+  - name: keda
+    version: "2.16.1"
+    repository: "https://kedacore.github.io/charts"
+    condition: keda.enabled

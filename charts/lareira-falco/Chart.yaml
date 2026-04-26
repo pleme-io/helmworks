@@ -1,0 +1,11 @@
+apiVersion: v2
+name: lareira-falco
+description: Falco runtime threat detection for pleme-io clusters. Wraps falcosecurity/falco with eBPF + falcosidekick → ntfy webhook routing.
+type: application
+version: 0.1.0
+appVersion: "4.20.0"
+keywords: [falco, runtime-security, ebpf, lareira]
+maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]
+dependencies:
+  - { name: pleme-lib, version: "~0.5.0", repository: "file://../pleme-lib" }
+  - { name: falco, version: "4.20.0", repository: "https://falcosecurity.github.io/charts", condition: falco.enabled }

@@ -1,0 +1,27 @@
+enabled: false
+policyController:
+  enabled: true
+  webhook:
+    replicaCount: 1
+    resources: { requests: { cpu: 10m, memory: 64Mi }, limits: { cpu: 500m, memory: 256Mi } }
+    configData:
+      # Default: allow images with no matching ClusterImagePolicy. Flip
+      # to "deny" once an org-wide allowlist policy is committed.
+      no-match-policy: allow
+  cosign:
+    cosignSignaturesEnabled: true
+
+observability:
+  prometheusRule:
+    enabled: true
+    rules:
+      - alert: PolicyControllerWebhookDown
+        expr: |
+          absent(kube_deployment_status_replicas_available{deployment="policy-controller-webhook"})
+          or kube_deployment_status_replicas_available{deployment="policy-controller-webhook"} == 0
+        for: 2m
+        labels: { severity: warning, component: lareira-policy-controller }
+        annotations:
+          summary: "Policy controller webhook down — image signature verification disabled"
+          description: "If no-match-policy=deny was set, this would fail-closed. With current allow default, signed-image enforcement is silently skipped until restored."
+          runbook_url: "https://runbooks.pleme.io/lareira-policy-controller/down"

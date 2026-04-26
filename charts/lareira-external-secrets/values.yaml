@@ -1,0 +1,28 @@
+enabled: false
+externalSecrets:
+  enabled: true
+  replicaCount: 1
+  leaderElect: true
+  installCRDs: true
+  webhook:
+    replicaCount: 1
+    resources: { requests: { cpu: 10m, memory: 32Mi }, limits: { cpu: 500m, memory: 256Mi } }
+  certController:
+    replicaCount: 1
+    resources: { requests: { cpu: 10m, memory: 32Mi }, limits: { cpu: 500m, memory: 256Mi } }
+  resources: { requests: { cpu: 50m, memory: 128Mi }, limits: { cpu: 1000m, memory: 512Mi } }
+  serviceMonitor: { enabled: true }
+
+observability:
+  prometheusRule:
+    enabled: true
+    rules:
+      - alert: ExternalSecretsSyncFailing
+        expr: |
+          increase(external_secrets_sync_calls_error[15m]) > 5
+        for: 5m
+        labels: { severity: warning, component: lareira-external-secrets }
+        annotations:
+          summary: "External Secrets sync failing repeatedly"
+          description: ">5 sync errors in 15m. Check ClusterSecretStore + provider connectivity (Akeyless, AWS SM, etc)."
+          runbook_url: "https://runbooks.pleme.io/lareira-external-secrets/sync-failing"

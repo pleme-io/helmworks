@@ -1,0 +1,53 @@
+# lareira-keda — pleme-io KEDA core defaults.
+
+enabled: false
+
+keda:
+  enabled: true
+  resources:
+    operator:
+      requests: { cpu: 50m, memory: 128Mi }
+      limits:   { cpu: 1000m, memory: 512Mi }
+    metricServer:
+      requests: { cpu: 50m, memory: 128Mi }
+      limits:   { cpu: 1000m, memory: 512Mi }
+    webhooks:
+      requests: { cpu: 10m, memory: 32Mi }
+      limits:   { cpu: 500m, memory: 128Mi }
+  prometheus:
+    metricServer:
+      enabled: true
+      serviceMonitor:
+        enabled: true
+    operator:
+      enabled: true
+      serviceMonitor:
+        enabled: true
+
+observability:
+  prometheusRule:
+    enabled: true
+    rules:
+      - alert: KedaOperatorDown
+        expr: |
+          absent(kube_deployment_status_replicas_available{deployment="keda-operator"})
+          or kube_deployment_status_replicas_available{deployment="keda-operator"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: lareira-keda
+        annotations:
+          summary: "KEDA operator has 0 ready replicas"
+          description: "Every breathable workload (ScaledObject + ScaledJob) is now unmanaged. Check kube-system events + node pressure."
+          runbook_url: "https://runbooks.pleme.io/lareira-keda/operator-down"
+      - alert: KedaScaledObjectsErroring
+        expr: |
+          increase(keda_scaled_object_errors_total[15m]) > 5
+        for: 5m
+        labels:
+          severity: warning
+          component: lareira-keda
+        annotations:
+          summary: "KEDA reporting >5 ScaledObject errors in 15m"
+          description: "Check the operator logs; common causes: trigger metric source unreachable, RBAC drift, malformed ScaledObject spec."
+          runbook_url: "https://runbooks.pleme.io/lareira-keda/scaled-object-errors"

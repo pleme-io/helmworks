@@ -1,0 +1,24 @@
+apiVersion: v2
+name: lareira-vm-stack
+description: |
+  victoria-metrics-k8s-stack for pleme-io home-edge clusters. Wraps the
+  upstream chart with single-node defaults (VMSingle, not VMCluster),
+  the canonical Grafana datasources for VMSingle + VictoriaLogs, and
+  alert rules.
+type: application
+version: 0.1.0
+appVersion: "0.39.0"
+
+keywords: [observability, victoriametrics, prometheus, grafana, alertmanager, lareira]
+maintainers:
+  - name: drzzln
+    email: drzzln@protonmail.com
+
+dependencies:
+  - name: pleme-lib
+    version: "~0.5.0"
+    repository: "file://../pleme-lib"
+  - name: victoria-metrics-k8s-stack
+    version: "0.39.0"
+    repository: "https://victoriametrics.github.io/helm-charts/"
+    condition: vmStack.enabled

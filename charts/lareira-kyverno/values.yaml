@@ -1,0 +1,31 @@
+enabled: false
+kyverno:
+  enabled: true
+  admissionController:
+    replicas: 1
+    resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { cpu: 1000m, memory: 1Gi } }
+  backgroundController:
+    enabled: true
+    replicas: 1
+    resources: { requests: { cpu: 50m, memory: 128Mi }, limits: { cpu: 500m, memory: 512Mi } }
+  cleanupController:
+    enabled: true
+    replicas: 1
+  reportsController:
+    enabled: true
+    replicas: 1
+
+observability:
+  prometheusRule:
+    enabled: true
+    rules:
+      - alert: KyvernoAdmissionDown
+        expr: |
+          absent(kube_deployment_status_replicas_available{deployment="kyverno-admission-controller"})
+          or kube_deployment_status_replicas_available{deployment="kyverno-admission-controller"} == 0
+        for: 2m
+        labels: { severity: critical, component: lareira-kyverno }
+        annotations:
+          summary: "Kyverno admission controller down — every admit/mutate webhook fails"
+          description: "All ClusterPolicies in enforce mode now block writes. If failurePolicy is Fail, the cluster's admission path is broken."
+          runbook_url: "https://runbooks.pleme.io/lareira-kyverno/admission-down"

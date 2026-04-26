@@ -1,0 +1,24 @@
+{{- if .Values.enabled }}
+{{- if and .Values.observability .Values.observability.prometheusRule .Values.observability.prometheusRule.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "lareira-victoria-logs.fullname" . }}
+  labels:
+    {{- include "lareira-victoria-logs.labels" . | nindent 4 }}
+    role: alert-rules
+spec:
+  groups:
+    - name: lareira-victoria-logs
+      interval: 30s
+      rules:
+        {{- range .Values.observability.prometheusRule.rules }}
+        - alert: {{ .alert }}
+          expr: {{ .expr | toYaml | nindent 12 }}
+          for: {{ .for | default "0m" }}
+          labels: {{ toYaml .labels | nindent 12 }}
+          annotations: {{ toYaml .annotations | nindent 12 }}
+        {{- end }}
+{{- end }}
+{{- end }}

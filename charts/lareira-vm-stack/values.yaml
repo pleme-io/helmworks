@@ -1,0 +1,174 @@
+# lareira-vm-stack — pleme-io defaults for victoria-metrics-k8s-stack.
+#
+# Single-replica everything (rio is single-node). Tunable per cluster.
+# VMCluster is intentionally OFF (use VMSingle for home-edge); turn on
+# only if running multi-node with HA.
+
+enabled: false
+
+vmStack:
+  enabled: true
+  nameOverride: vm
+  fullnameOverride: vm
+
+  # ── VMSingle: the metric store ──────────────────────────────────────
+  vmsingle:
+    enabled: true
+    spec:
+      retentionPeriod: "14d"
+      storageDataPath: /vm-data
+      storage:
+        accessModes: [ReadWriteOnce]
+        storageClassName: local-path
+        resources:
+          requests: { storage: 30Gi }
+      resources:
+        requests: { cpu: 100m, memory: 512Mi }
+        limits:   { cpu: 2000m, memory: 2Gi }
+
+  vmcluster:
+    enabled: false
+
+  # ── VMAgent: scrape ServiceMonitor + PodMonitor + VMScrape ──────────
+  vmagent:
+    enabled: true
+    spec:
+      replicaCount: 1
+      scrapeInterval: 30s
+      externalLabels: {}            # cluster: rio etc → set in cluster overlay
+      resources:
+        requests: { cpu: 100m, memory: 256Mi }
+        limits:   { cpu: 1000m, memory: 1Gi }
+      selectAllByDefault: true
+
+  # ── VMAlert: evaluate rules → Alertmanager ─────────────────────────
+  vmalert:
+    enabled: true
+    spec:
+      evaluationInterval: 30s
+      replicaCount: 1
+      resources:
+        requests: { cpu: 50m, memory: 128Mi }
+        limits:   { cpu: 1000m, memory: 512Mi }
+      selectAllByDefault: true
+      notifier:
+        url: "http://vmalertmanager-vm.monitoring.svc:9093"
+
+  # ── Alertmanager: routing tree owned by AlertmanagerConfig CRDs ─────
+  alertmanager:
+    enabled: true
+    spec:
+      replicaCount: 1
+      retention: 120h
+      storage:
+        volumeClaimTemplate:
+          spec:
+            storageClassName: local-path
+            accessModes: [ReadWriteOnce]
+            resources: { requests: { storage: 5Gi } }
+      resources:
+        requests: { cpu: 10m, memory: 64Mi }
+        limits:   { cpu: 500m, memory: 256Mi }
+    config:
+      route:
+        receiver: blackhole
+        group_by: [namespace, alertname]
+        group_wait: 30s
+        group_interval: 5m
+        repeat_interval: 12h
+      receivers:
+        - name: blackhole
+
+  # ── Grafana: queries vmsingle + victoria-logs ──────────────────────
+  # Pangea-grafana / pangea-dashboards owns folders + dashboards via the
+  # Grafana HTTP API. Sidecar dashboards/datasources are DISABLED.
+  grafana:
+    enabled: true
+    replicas: 1
+    adminUser: admin
+    admin:
+      existingSecret: grafana-admin
+      userKey: admin-user
+      passwordKey: admin-password
+    persistence:
+      enabled: true
+      type: pvc
+      storageClassName: local-path
+      size: 5Gi
+    resources:
+      requests: { cpu: 50m, memory: 128Mi }
+      limits:   { cpu: 1000m, memory: 512Mi }
+    sidecar:
+      dashboards: { enabled: false }
+      datasources: { enabled: false }
+    datasources:
+      datasources.yaml:
+        apiVersion: 1
+        datasources:
+          - name: VictoriaMetrics
+            type: prometheus
+            uid: vm
+            access: proxy
+            url: http://vmsingle-vm.monitoring.svc:8429
+            isDefault: true
+          - name: VictoriaLogs
+            type: VictoriaLogs
+            uid: vlogs
+            access: proxy
+            url: http://victoria-logs.monitoring.svc:9428
+    plugins:
+      - victoriametrics-logs-datasource
+
+  # ── Default scrape targets — K3s/embedded-only ─────────────────────
+  kubelet: { enabled: true }
+  kubeApiServer: { enabled: true }
+  coreDns: { enabled: true }
+  kubeControllerManager: { enabled: false }
+  kubeScheduler: { enabled: false }
+  kubeEtcd: { enabled: false }
+  kubeProxy: { enabled: false }
+  nodeExporter: { enabled: false }   # NixOS host runs node_exporter directly
+
+  defaultRules:
+    create: true
+
+# Grafana scale-to-zero — opt-in; requires lareira-keda-http installed.
+# When enabled, an HTTPScaledObject scales the Grafana Deployment 0→1
+# on first inbound request (cooldown 600s default).
+grafanaBreathability:
+  enabled: false
+  scaling:
+    minReplicas: 0
+    maxReplicas: 2
+    cooldownPeriod: 600
+    targetPendingRequests: 1
+  hosts:
+    - grafana.example.com   # cluster overrides
+
+observability:
+  prometheusRule:
+    enabled: true
+    rules:
+      - alert: VMSingleDown
+        expr: |
+          absent(kube_statefulset_status_replicas_available{statefulset=~"vmsingle.*"})
+          or kube_statefulset_status_replicas_available{statefulset=~"vmsingle.*"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: lareira-vm-stack
+        annotations:
+          summary: "VMSingle has 0 ready replicas — metric ingest broken"
+          description: "vmagent → VMSingle write path is down. New metrics aren't being persisted; existing ones still queryable from buffer if vmagent is still running."
+          runbook_url: "https://runbooks.pleme.io/lareira-vm-stack/vmsingle-down"
+      - alert: VMAgentScrapeErrors
+        expr: |
+          sum(rate(vm_promscrape_scrapes_failed_total[5m])) > 1
+        for: 10m
+        labels:
+          severity: warning
+          component: lareira-vm-stack
+        annotations:
+          summary: "vmagent failing >1 scrape/sec for 10m"
+          description: "Some scrape targets unreachable. Check ServiceMonitor selectors, network policies, or target pod readiness."
+          runbook_url: "https://runbooks.pleme.io/lareira-vm-stack/scrape-errors"

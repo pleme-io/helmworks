@@ -1,0 +1,11 @@
+apiVersion: v2
+name: lareira-external-secrets
+description: External Secrets Operator for pleme-io clusters. Wraps external-secrets/external-secrets with bounded resources + alerts.
+type: application
+version: 0.1.0
+appVersion: "0.10.7"
+keywords: [external-secrets, akeyless, sops, lareira]
+maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]
+dependencies:
+  - { name: pleme-lib, version: "~0.5.0", repository: "file://../pleme-lib" }
+  - { name: external-secrets, version: "0.10.7", repository: "https://charts.external-secrets.io", condition: externalSecrets.enabled }

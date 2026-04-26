@@ -1,0 +1,9 @@
+/Users/luis.d/code/github/pleme-io/helmworks/charts/pleme-storage-elastic/image/target/release/deps/enum_ordinalize_derive-57aa58ae5248eea7.d: /Users/luis.d/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enum-ordinalize-derive-4.3.2/src/lib.rs /Users/luis.d/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enum-ordinalize-derive-4.3.2/src/int128.rs /Users/luis.d/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enum-ordinalize-derive-4.3.2/src/int_wrapper.rs /Users/luis.d/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enum-ordinalize-derive-4.3.2/src/panic.rs /Users/luis.d/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enum-ordinalize-derive-4.3.2/src/variant_type.rs
+
+/Users/luis.d/code/github/pleme-io/helmworks/charts/pleme-storage-elastic/image/target/release/deps/libenum_ordinalize_derive-57aa58ae5248eea7.dylib: /Users/luis.d/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enum-ordinalize-derive-4.3.2/src/lib.rs /Users/luis.d/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enum-ordinalize-derive-4.3.2/src/int128.rs /Users/luis.d/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enum-ordinalize-derive-4.3.2/src/int_wrapper.rs /Users/luis.d/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enum-ordinalize-derive-4.3.2/src/panic.rs /Users/luis.d/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enum-ordinalize-derive-4.3.2/src/variant_type.rs
+
+/Users/luis.d/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enum-ordinalize-derive-4.3.2/src/lib.rs:
+/Users/luis.d/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enum-ordinalize-derive-4.3.2/src/int128.rs:
+/Users/luis.d/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enum-ordinalize-derive-4.3.2/src/int_wrapper.rs:
+/Users/luis.d/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enum-ordinalize-derive-4.3.2/src/panic.rs:
+/Users/luis.d/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enum-ordinalize-derive-4.3.2/src/variant_type.rs:

@@ -1,0 +1,52 @@
+# lareira-ingress-nginx — pleme-io ingress controller defaults.
+
+enabled: false
+
+ingressNginx:
+  enabled: true
+  controller:
+    replicaCount: 1
+    service:
+      # Single-node K3s default — NodePort because servicelb is disabled.
+      # Override service.type=LoadBalancer for cloud clusters.
+      type: NodePort
+      nodePorts:
+        http: 30080
+        https: 30443
+    resources:
+      requests: { cpu: 50m, memory: 128Mi }
+      limits:   { cpu: 1000m, memory: 512Mi }
+    ingressClassResource:
+      default: true
+    metrics:
+      enabled: true   # ServiceMonitor below picks this up
+      serviceMonitor:
+        enabled: true
+
+observability:
+  prometheusRule:
+    enabled: true
+    rules:
+      - alert: IngressNginxDown
+        expr: |
+          absent(kube_deployment_status_replicas_available{deployment=~".*ingress-nginx-controller"})
+          or kube_deployment_status_replicas_available{deployment=~".*ingress-nginx-controller"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: lareira-ingress-nginx
+        annotations:
+          summary: "ingress-nginx controller has 0 ready replicas"
+          description: "Every Ingress on the cluster is unreachable. Check controller pod events + node status."
+          runbook_url: "https://runbooks.pleme.io/lareira-ingress-nginx/down"
+      - alert: IngressNginx5xxBurst
+        expr: |
+          sum(rate(nginx_ingress_controller_requests{status=~"5.."}[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+          component: lareira-ingress-nginx
+        annotations:
+          summary: "ingress-nginx serving >5 5xx/sec for 5m"
+          description: "Backend services may be degraded. Check downstream pod logs + the rio-warning ntfy topic."
+          runbook_url: "https://runbooks.pleme.io/lareira-ingress-nginx/5xx-burst"

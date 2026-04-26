@@ -1,0 +1,1 @@
+/Users/luis.d/code/github/pleme-io/helmworks/charts/pleme-storage-elastic/image/target/release/pleme-storage-elastic: /Users/luis.d/code/github/pleme-io/helmworks/charts/pleme-storage-elastic/image/src/main.rs

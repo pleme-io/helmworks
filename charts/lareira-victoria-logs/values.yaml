@@ -1,0 +1,49 @@
+# lareira-victoria-logs — pleme-io VictoriaLogs defaults.
+
+enabled: false
+
+victoriaLogs:
+  enabled: true
+  server:
+    enabled: true
+    replicaCount: 1
+    retentionPeriod: 30d
+    retentionDiskSpaceUsage: 50GiB
+    persistentVolume:
+      enabled: true
+      storageClassName: local-path
+      size: 50Gi
+    resources:
+      requests: { cpu: 100m, memory: 256Mi }
+      limits:   { cpu: 2000m, memory: 2Gi }
+  serviceMonitor:
+    enabled: true
+
+observability:
+  prometheusRule:
+    enabled: true
+    rules:
+      - alert: VictoriaLogsDown
+        expr: |
+          absent(kube_statefulset_status_replicas_available{statefulset="victoria-logs"})
+          or kube_statefulset_status_replicas_available{statefulset="victoria-logs"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          component: lareira-victoria-logs
+        annotations:
+          summary: "VictoriaLogs has 0 ready replicas"
+          description: "Log ingest from Vector is failing. New logs are buffered in Vector's local disk; resolve before that buffer fills."
+          runbook_url: "https://runbooks.pleme.io/lareira-victoria-logs/down"
+      - alert: VictoriaLogsDiskNearFull
+        expr: |
+          kubelet_volume_stats_used_bytes{persistentvolumeclaim=~"vl-volume.*"}
+            / kubelet_volume_stats_capacity_bytes{persistentvolumeclaim=~"vl-volume.*"} > 0.85
+        for: 10m
+        labels:
+          severity: warning
+          component: lareira-victoria-logs
+        annotations:
+          summary: "VictoriaLogs PVC >85% full"
+          description: "Retention will start dropping data. pleme-storage-elastic should auto-expand if labelled breathable=true; otherwise the operator must intervene."
+          runbook_url: "https://runbooks.pleme.io/lareira-victoria-logs/disk-full"

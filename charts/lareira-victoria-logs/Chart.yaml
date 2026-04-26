@@ -1,0 +1,23 @@
+apiVersion: v2
+name: lareira-victoria-logs
+description: |
+  VictoriaLogs single-binary log store. Pleme-io's Loki replacement.
+  Wraps victoriametrics/victoria-logs-single with retention defaults
+  + ServiceMonitor + storage-elastic-friendly PVC labelling.
+type: application
+version: 0.1.0
+appVersion: "0.12.2"
+
+keywords: [logs, victorialogs, observability, lareira]
+maintainers:
+  - name: drzzln
+    email: drzzln@protonmail.com
+
+dependencies:
+  - name: pleme-lib
+    version: "~0.5.0"
+    repository: "file://../pleme-lib"
+  - name: victoria-logs-single
+    version: "0.12.2"
+    repository: "https://victoriametrics.github.io/helm-charts/"
+    condition: victoriaLogs.enabled

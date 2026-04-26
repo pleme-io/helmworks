@@ -1,0 +1,65 @@
+# lareira-cert-manager — pleme-io defaults for cert-manager.
+
+enabled: false
+
+certManager:
+  enabled: true
+  crds:
+    enabled: true
+  resources:
+    requests: { cpu: 10m, memory: 32Mi }
+    limits:   { cpu: 500m, memory: 256Mi }
+  webhook:
+    resources:
+      requests: { cpu: 10m, memory: 32Mi }
+      limits:   { cpu: 500m, memory: 256Mi }
+  cainjector:
+    resources:
+      requests: { cpu: 10m, memory: 32Mi }
+      limits:   { cpu: 500m, memory: 256Mi }
+
+# Self-signed ClusterIssuer for LAN-only services (default).
+# Disable + provide your own ACME ClusterIssuer for public TLS.
+selfSignedIssuer:
+  enabled: true
+  name: selfsigned
+
+# ACME (Let's Encrypt) ClusterIssuer — opt-in.
+# Provide an `email:` and a solver below to generate public certs.
+acmeIssuer:
+  enabled: false
+  name: letsencrypt
+  email: ""
+  server: https://acme-v02.api.letsencrypt.org/directory
+  # http01 solver via the in-cluster ingress class.
+  solver:
+    http01:
+      ingress:
+        class: nginx
+
+observability:
+  prometheusRule:
+    enabled: true
+    rules:
+      - alert: CertManagerExpiringSoon
+        expr: |
+          avg by (exported_namespace, name) (certmanager_certificate_expiration_timestamp_seconds - time()) < 7 * 24 * 3600
+        for: 1h
+        labels:
+          severity: warning
+          component: lareira-cert-manager
+        annotations:
+          summary: "Certificate {{ $labels.name }} expires in <7d"
+          description: "cert-manager certificate {{ $labels.exported_namespace }}/{{ $labels.name }} expires in less than 7 days; renewal must succeed before then."
+          runbook_url: "https://runbooks.pleme.io/lareira-cert-manager/expiring"
+      - alert: CertManagerRenewalFailing
+        expr: |
+          increase(certmanager_certificate_renewal_errors_total[1h]) > 3
+        for: 0m
+        labels:
+          severity: critical
+          component: lareira-cert-manager
+        annotations:
+          summary: "Cert renewal failing repeatedly"
+          description: ">3 renewal errors in the last hour. Check the cert-manager logs."
+          runbook_url: "https://runbooks.pleme.io/lareira-cert-manager/renewal-failing"

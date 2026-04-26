@@ -1,0 +1,51 @@
+enabled: false
+falco:
+  enabled: true
+  driver:
+    enabled: true
+    kind: modern_ebpf
+  falco:
+    json_output: true
+    json_include_output_property: true
+    log_level: info
+    priority: notice
+    buffered_outputs: true
+    syscall_event_drops:
+      actions: [log, alert]
+      rate: 0.03333
+      max_burst: 10
+    load_plugins: []
+  falcosidekick:
+    enabled: true
+    replicaCount: 1
+    resources: { requests: { cpu: 50m, memory: 64Mi }, limits: { cpu: 500m, memory: 256Mi } }
+    config:
+      priority: warning
+      webhook:
+        # Default: in-cluster ntfy at /rio-falco. Override per-cluster
+        # via ntfyWebhook below.
+        address: "http://ntfy.ntfy.svc.cluster.local/rio-falco"
+        method: POST
+        # falcosidekick's customHeaders is a CSV string, not a map.
+        customHeaders: "Title:rio falco,Priority:high,Tags:rotating_light,shield"
+  resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { cpu: 1000m, memory: 1Gi } }
+  serviceMonitor: { create: true }
+
+# Per-cluster override for the ntfy webhook URL (Title, Priority, Tags too).
+ntfyWebhook:
+  url: "http://ntfy.ntfy.svc.cluster.local/rio-falco"
+  title: "rio falco"
+
+observability:
+  prometheusRule:
+    enabled: true
+    rules:
+      - alert: FalcoEventsDropping
+        expr: |
+          rate(falcosecurity_falco_n_drops[5m]) > 0.1
+        for: 5m
+        labels: { severity: warning, component: lareira-falco }
+        annotations:
+          summary: "Falco syscall buffer dropping events"
+          description: "Falco kernel buffer overflowing — runtime detection blind spots possible. Check max_burst / rate config."
+          runbook_url: "https://runbooks.pleme.io/lareira-falco/drops"

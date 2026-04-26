@@ -1,0 +1,36 @@
+enabled: false
+trivyOperator:
+  enabled: true
+  operator:
+    replicas: 1
+    scanJobsConcurrentLimit: 2
+    scanJobTimeout: 5m
+    vulnerabilityScannerEnabled: true
+    configAuditScannerEnabled: true
+    rbacAssessmentScannerEnabled: true
+    exposedSecretScannerEnabled: true
+    infraAssessmentScannerEnabled: true
+    sbomGeneration: true
+    metricsVulnIdEnabled: false
+  trivy:
+    severity: "HIGH,CRITICAL"
+    ignoreUnfixed: true
+    timeout: 5m0s
+    resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { cpu: 1000m, memory: 1Gi } }
+  serviceMonitor: { enabled: true }
+  targetNamespaces: ""
+  excludeNamespaces: "kube-system,trivy-system,flux-system"
+
+observability:
+  prometheusRule:
+    enabled: true
+    rules:
+      - alert: TrivyCriticalVulnsFound
+        expr: |
+          sum(trivy_image_vulnerabilities{severity="Critical"}) > 0
+        for: 0m
+        labels: { severity: warning, component: lareira-trivy-operator }
+        annotations:
+          summary: "Critical CVE detected in cluster images"
+          description: "{{ $value }} CRITICAL vulnerabilities reported across deployed images. Check VulnerabilityReport CRDs."
+          runbook_url: "https://runbooks.pleme.io/lareira-trivy-operator/critical-cves"
