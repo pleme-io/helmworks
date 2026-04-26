@@ -1,0 +1,195 @@
+{{/*
+Render one ComputeUnit (+ per-shape sidecars) per entry in
+.Values.programs. Each entry's defaults inherit from .Values.defaults.
+
+This is the heart of the fleet-programs chart: it iterates a typed
+list and emits the same set of resources pleme-computeunit emits for
+a single program — but for N programs at once, in one Helm release.
+*/}}
+{{- if .Values.enabled }}
+{{- $defaults := .Values.defaults -}}
+{{- range $p := .Values.programs }}
+{{- include "lareira-fleet-programs.validate-entry" $p -}}
+{{- $shape := include "lareira-fleet-programs.shape" $p -}}
+{{- $ns := default $defaults.namespace (default $.Values.defaultNamespace $p.namespace) -}}
+{{- $resources := default $defaults.resources $p.resources -}}
+{{- $caps := default (list) $p.capabilities -}}
+{{- $cfg := default (dict) $p.config -}}
+---
+apiVersion: wasm.pleme.io/v1alpha1
+kind: ComputeUnit
+metadata:
+  name: {{ $p.name }}
+  namespace: {{ $ns }}
+  labels:
+    {{- include "lareira-fleet-programs.labels" $ | nindent 4 }}
+    pleme.pleme.io/shape: {{ $shape }}
+    pleme.pleme.io/program: {{ $p.name }}
+spec:
+  module:
+    {{- if $p.module.source }}
+    source: {{ $p.module.source | quote }}
+    {{- end }}
+    {{- if $p.module.blake3 }}
+    blake3: {{ $p.module.blake3 | quote }}
+    {{- end }}
+    {{- if $p.module.oci }}
+    oci: {{ $p.module.oci | quote }}
+    {{- end }}
+  trigger:
+    {{- toYaml $p.trigger | nindent 4 }}
+  {{- with $caps }}
+  capabilities:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  resources:
+    {{- toYaml $resources | nindent 4 }}
+  {{- with $cfg }}
+  config:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $p.elasticity }}
+  elasticity:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+
+{{/* Service shape — emit Service + (optional) HTTPScaledObject */}}
+{{- if $p.trigger.service }}
+{{- $svc := $p.trigger.service }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $p.name }}
+  namespace: {{ $ns }}
+  labels: {{- include "lareira-fleet-programs.labels" $ | nindent 4 }}
+spec:
+  type: {{ default "ClusterIP" $svc.serviceType }}
+  selector:
+    pleme.pleme.io/computeunit: {{ $p.name }}
+  ports:
+    - { name: http, port: {{ default 8080 $svc.port }}, targetPort: {{ default 8080 $svc.port }} }
+    - { name: metrics, port: 9090, targetPort: 9090 }
+{{- if and $svc.breathability $svc.breathability.enabled }}
+---
+apiVersion: http.keda.sh/v1alpha1
+kind: HTTPScaledObject
+metadata:
+  name: {{ $p.name }}
+  namespace: {{ $ns }}
+  labels: {{- include "lareira-fleet-programs.labels" $ | nindent 4 }}
+spec:
+  hosts:
+    {{- range $svc.hosts }}
+    - {{ . | quote }}
+    {{- end }}
+  pathPrefixes:
+    {{- range $svc.paths }}
+    - {{ . | quote }}
+    {{- end }}
+  scaleTargetRef:
+    kind: Deployment
+    apiVersion: apps/v1
+    name: {{ $p.name }}
+    service: {{ $p.name }}
+    port: {{ default 8080 $svc.port }}
+  replicas:
+    min: {{ default 0 $svc.breathability.minReplicas }}
+    max: {{ default 5 $svc.breathability.maxReplicas }}
+  scaledownPeriod: {{ default 600 $svc.breathability.cooldownPeriod }}
+  scalingMetric:
+    requestRate:
+      granularity: 1s
+      targetValue: {{ default 1 $svc.breathability.targetPendingRequests }}
+      window: 30s
+{{- end }}
+{{- end }}
+
+{{/* Function shape — emit KEDA ScaledObject for the event source */}}
+{{- if $p.trigger.event }}
+{{- $ev := $p.trigger.event }}
+{{- $source := $ev.source | toString }}
+{{- $scaling := default (dict) $p.scaling }}
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ $p.name }}
+  namespace: {{ $ns }}
+  labels: {{- include "lareira-fleet-programs.labels" $ | nindent 4 }}
+spec:
+  scaleTargetRef:
+    kind: Deployment
+    apiVersion: apps/v1
+    name: {{ $p.name }}
+  minReplicaCount: {{ default 0 $scaling.minReplicas }}
+  maxReplicaCount: {{ default 10 $scaling.maxReplicas }}
+  pollingInterval: {{ default 15 $scaling.pollingInterval }}
+  cooldownPeriod: {{ default 60 $scaling.cooldownPeriod }}
+  triggers:
+    {{- if hasPrefix "nats:" $source }}
+    - type: stan
+      metadata:
+        natsServerMonitoringEndpoint: {{ default "nats://nats.nats.svc:8222" $ev.natsMonitoring }}
+        queueGroup: {{ default $p.name $ev.queueGroup }}
+        durableName: {{ default $p.name $ev.durableName }}
+        subject: {{ trimPrefix "nats:" $source | quote }}
+        lagThreshold: {{ default "10" $ev.lagThreshold | quote }}
+    {{- else if hasPrefix "kafka:" $source }}
+    - type: kafka
+      metadata:
+        bootstrapServers: {{ default "kafka:9092" $ev.kafkaBootstrap }}
+        topic: {{ trimPrefix "kafka:" $source | quote }}
+        consumerGroup: {{ default $p.name $ev.consumerGroup }}
+        lagThreshold: {{ default "10" $ev.lagThreshold | quote }}
+    {{- else if hasPrefix "sqs:" $source }}
+    - type: aws-sqs-queue
+      metadata:
+        queueURL: {{ trimPrefix "sqs:" $source | quote }}
+        queueLength: {{ default "5" $ev.lagThreshold | quote }}
+        awsRegion: {{ default "us-east-1" $ev.awsRegion }}
+    {{- else }}
+    {{- fail (printf "fleet program %q: unknown event source prefix %q" $p.name $source) }}
+    {{- end }}
+{{- end }}
+
+{{/* Controller shape — optional policy CR */}}
+{{- if and $p.policy $p.policy.enabled }}
+---
+apiVersion: {{ $p.policy.apiVersion }}
+kind: {{ $p.policy.kind }}
+metadata:
+  name: {{ default $p.name $p.policy.name }}
+  namespace: {{ $ns }}
+  labels: {{- include "lareira-fleet-programs.labels" $ | nindent 4 }}
+spec:
+  {{- toYaml $p.policy.spec | nindent 2 }}
+{{- end }}
+
+{{/* Per-program PrometheusRule */}}
+{{- if and $p.observability $p.observability.prometheusRule $p.observability.prometheusRule.enabled $p.observability.prometheusRule.rules }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ $p.name }}
+  namespace: {{ $ns }}
+  labels:
+    {{- include "lareira-fleet-programs.labels" $ | nindent 4 }}
+    role: alert-rules
+spec:
+  groups:
+    - name: {{ $p.name }}
+      interval: 30s
+      rules:
+        {{- range $p.observability.prometheusRule.rules }}
+        - alert: {{ .alert }}
+          expr: {{ .expr | toYaml | nindent 12 }}
+          for: {{ .for | default "0m" }}
+          labels: {{ toYaml .labels | nindent 12 }}
+          annotations: {{ toYaml .annotations | nindent 12 }}
+        {{- end }}
+{{- end }}
+
+{{- end }}
+{{- end }}

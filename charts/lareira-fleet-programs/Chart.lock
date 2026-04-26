@@ -1,0 +1,6 @@
+dependencies:
+- name: pleme-computeunit
+  repository: file://../pleme-computeunit
+  version: 0.1.0
+digest: sha256:97448347d50bbc9e2d7e980db3d0de557d40cfbbe951fee1780b7129d84bfe51
+generated: "2026-04-25T22:13:31.285178-04:00"

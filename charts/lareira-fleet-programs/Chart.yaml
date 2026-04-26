@@ -1,0 +1,31 @@
+apiVersion: v2
+name: lareira-fleet-programs
+description: |
+  Declare every WASM/WASI program the cluster runs in one Helm release.
+  Takes a list of program specs in values.programs; renders one
+  ComputeUnit (plus per-shape sidecars) per entry by including the
+  pleme-computeunit library chart's templates.
+
+  This is the "pull programs from git and just run them on the cluster"
+  surface — the cluster's program inventory becomes a single
+  declarative file. Add a program: append a list entry. Remove: delete
+  the entry. Bump version: change ?ref=<tag>.
+
+  The cluster reaches "perfect state" when this Helm release is in
+  sync with the values file — FluxCD reconciles, the wasm-operator
+  fetches every URL, compiles + caches, dispatches.
+
+  See theory/FLEET-DECLARATION.md for the full design.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+
+keywords: [fleet, programs, computeunit, wasm, lareira]
+maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]
+
+dependencies:
+  - name: pleme-computeunit
+    version: "~0.1.0"
+    repository: "file://../pleme-computeunit"
+    condition: pleme-computeunit.enabled    # never enabled directly; we
+                                            # render multiple CUs ourselves
