@@ -305,6 +305,92 @@ istio:
 attestation:
   enabled: false
 
+# ── Breathable worker pool (NEW in v0.4.x — opt-in) ───────────────────
+# When enabled: true, the controller stops running tofu plan/apply
+# inline and instead emits PangeaWorkUnit CRs that are claimed by
+# scale-to-zero worker pods (per-class Deployments scaled by KEDA on
+# the pangea_workunit_pending_total{work_class=...} gauge).
+#
+# Backward-compat: workers.enabled defaults false. Existing v0.2.x
+# deployments keep running the inline executor with no behavior change.
+# Flip to true once the operator has emitted PangeaWorkClass CRs and
+# the matching worker pools are healthy.
+#
+# See: pangea-operator/docs/design/0003-helmworks-chart-and-breathable-workers.md
+workers:
+  enabled: false
+
+  # KEDA must be installed in the cluster (the pleme-io standard infra).
+  keda:
+    enabled: true
+    # Prometheus-compatible metrics store the controller writes to + KEDA
+    # scrapes from. Defaults match the rio cluster's vm-k8s-stack VMSingle.
+    prometheusUrl: http://vmsingle-vm.monitoring.svc:8429
+
+  # Defaults shared by every worker class. Per-class entries below
+  # override individual fields.
+  scaling:
+    pollingInterval: 15      # seconds; KEDA poll cadence
+    cooldownPeriod: 300      # seconds idle before scale-to-zero
+    targetPendingPerReplica: 1
+
+  # Provider plugin cache — RWX PVC mounted into all worker pods at
+  # ~/.terraform/plugin-cache/. Avoids re-downloading provider plugins
+  # per pod. Set enabled: false to skip; each pod will fetch cold.
+  providerPluginCache:
+    enabled: false
+    storageClassName: ""
+    size: 5Gi
+    accessMode: ReadWriteMany
+
+  # Per-class pools. Each enabled class gets its own Deployment, KEDA
+  # ScaledObject, and PangeaWorkClass CR. Authors set spec.workClass
+  # on parent CRs (PangeaArchitecture / InfrastructureTemplate /
+  # PangeaNamespace); the controller looks the class up to dispatch.
+  classes:
+    small:
+      enabled: true
+      image:
+        repository: ghcr.io/pleme-io/pangea-operator-worker
+        tag: ""
+        pullPolicy: IfNotPresent
+      resources:
+        requests: { cpu: 100m, memory: 256Mi }
+        limits:   { cpu: 1, memory: 1Gi }
+      timeout: 5m
+      concurrencyPerWorker: 1
+      scaling:
+        minReplicas: 0
+        maxReplicas: 5
+
+    medium:
+      enabled: true
+      image:
+        repository: ghcr.io/pleme-io/pangea-operator-worker
+        tag: ""
+      resources:
+        requests: { cpu: 500m, memory: 1Gi }
+        limits:   { cpu: 2, memory: 2Gi }
+      timeout: 15m
+      concurrencyPerWorker: 1
+      scaling:
+        minReplicas: 0
+        maxReplicas: 10
+
+    large:
+      enabled: false           # opt-in — for big tofu graphs only
+      image:
+        repository: ghcr.io/pleme-io/pangea-operator-worker
+        tag: ""
+      resources:
+        requests: { cpu: 2, memory: 4Gi }
+        limits:   { cpu: 4, memory: 8Gi }
+      timeout: 30m
+      concurrencyPerWorker: 1
+      scaling:
+        minReplicas: 0
+        maxReplicas: 3
+
 # -- PrometheusRule alerts
 prometheusRules:
   enabled: true

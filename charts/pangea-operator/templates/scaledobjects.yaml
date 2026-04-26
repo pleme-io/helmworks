@@ -1,0 +1,48 @@
+{{/*
+KEDA ScaledObjects — one per worker class. Each scales the matching
+pangea-worker Deployment based on Pangea's `pangea_workunit_pending_total`
+gauge filtered by `work_class` label.
+
+Renders only when `workers.enabled: true` AND `workers.keda.enabled: true`.
+Default off — preserves backwards compat with the inline-executor v0.2.0
+shape of this chart.
+*/}}
+{{- if and .Values.workers .Values.workers.enabled }}
+{{- if .Values.workers.keda.enabled }}
+{{- range $class, $cfg := .Values.workers.classes }}
+{{- if $cfg.enabled }}
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "pangea-operator.fullname" $ }}-worker-{{ $class }}
+  labels:
+    {{- include "pleme-lib.labels" $ | nindent 4 }}
+    pangea.pleme.io/work-class: {{ $class }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    # Matches the pleme-worker chart's Deployment naming. The release
+    # name is the umbrella's Release.Name; the alias (workerSmall /
+    # workerMedium / workerLarge) becomes the chart name in pleme-worker's
+    # fullname template, so we reproduce that here.
+    name: {{ printf "%s-worker%s" $.Release.Name (title $class) }}
+  minReplicaCount: {{ $cfg.scaling.minReplicas }}
+  maxReplicaCount: {{ $cfg.scaling.maxReplicas }}
+  pollingInterval: {{ $.Values.workers.scaling.pollingInterval }}
+  cooldownPeriod:  {{ $.Values.workers.scaling.cooldownPeriod }}
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: {{ $.Values.workers.keda.prometheusUrl | quote }}
+        metricName: pangea_workunit_pending_{{ $class }}
+        threshold: {{ $.Values.workers.scaling.targetPendingPerReplica | quote }}
+        # Sum across all controllers (in case of HA). The controller
+        # exposes one labelled gauge series per WorkUnit class.
+        query: |-
+          sum(pangea_workunit_pending_total{work_class="{{ $class }}"})
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

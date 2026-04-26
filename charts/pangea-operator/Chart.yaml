@@ -2,10 +2,13 @@ apiVersion: v2
 name: pangea-operator
 description: >-
   Pangea infrastructure operator — manages 9 CRDs for infrastructure lifecycle,
-  AMI pipeline, compliance testing, and dynamic synthesizer formats.
+  AMI pipeline, compliance testing, and dynamic synthesizer formats. v0.3.0
+  adds the breathable worker pool tier (per-class Deployments scaled 0→N→0
+  by KEDA on the pangea_workunit_pending_total gauge) — opt-in via
+  workers.enabled, default off for backward compat.
 type: application
-version: 0.2.0
-appVersion: "0.2.0"
+version: 0.3.0
+appVersion: "0.4.0-alpha"
 
 dependencies:
   - name: pleme-lib

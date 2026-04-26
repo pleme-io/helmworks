@@ -1,0 +1,37 @@
+{{/*
+PangeaWorkClass CRs — one per declared class in values.workers.classes.
+The controller reads these to choose the worker PodTemplate when
+dispatching a PangeaWorkUnit. Authors set spec.workClass on the parent
+CR (PangeaArchitecture / InfrastructureTemplate); the controller looks
+up the WorkClass by name to pick resources/timeout.
+
+CRD definition itself is in templates/crds/ (rendered before this file
+in helm 3's ordering).
+*/}}
+{{- if and .Values.workers .Values.workers.enabled }}
+{{- range $class, $cfg := .Values.workers.classes }}
+{{- if $cfg.enabled }}
+---
+apiVersion: pangea.pleme.io/v1alpha1
+kind: PangeaWorkClass
+metadata:
+  name: {{ $class }}
+  labels:
+    {{- include "pleme-lib.labels" $ | nindent 4 }}
+spec:
+  resources:
+    requests:
+      cpu: {{ $cfg.resources.requests.cpu | quote }}
+      memory: {{ $cfg.resources.requests.memory | quote }}
+    limits:
+      cpu: {{ $cfg.resources.limits.cpu | quote }}
+      memory: {{ $cfg.resources.limits.memory | quote }}
+  workerImage:
+    repository: {{ $cfg.image.repository | quote }}
+    tag: {{ default $.Chart.AppVersion $cfg.image.tag | quote }}
+    pullPolicy: {{ default "IfNotPresent" $cfg.image.pullPolicy | quote }}
+  timeout: {{ default "15m" $cfg.timeout | quote }}
+  concurrencyPerWorker: {{ default 1 $cfg.concurrencyPerWorker }}
+{{- end }}
+{{- end }}
+{{- end }}
