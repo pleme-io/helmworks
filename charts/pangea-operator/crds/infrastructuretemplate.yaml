@@ -339,6 +339,31 @@ spec:
                   - type
                   type: object
                 type: array
+              driftDetails:
+                description: 'Per-resource drift / change detail from the last plan. Populated whenever a plan reports has_changes. Lets external observers see WHICH resources changed and HOW without parsing raw tofu output. Capped to 50 entries (full list available via the operator''s GraphQL API for large plans).'
+                items:
+                  description: Per-resource drift / change detail from a plan.
+                  properties:
+                    address:
+                      description: Terraform resource address (e.g. cloudflare_dns_record.foo).
+                      type: string
+                    action:
+                      description: 'Action category: create | update | delete | replace | noop.'
+                      type: string
+                    risk:
+                      description: 'Risk heuristic: none | low | medium | high.'
+                      type: string
+                    attributes:
+                      description: Attribute names that differ between current and desired state. Empty for create / delete (no per-attr diff applies).
+                      items:
+                        type: string
+                      type: array
+                  required:
+                  - address
+                  - action
+                  - risk
+                  type: object
+                type: array
               failureCount:
                 default: 0
                 description: Number of consecutive failures.

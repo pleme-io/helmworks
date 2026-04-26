@@ -7,8 +7,8 @@ description: >-
   by KEDA on the pangea_workunit_pending_total gauge) — opt-in via
   workers.enabled, default off for backward compat.
 type: application
-version: 0.3.0
-appVersion: "0.4.0-alpha"
+version: 0.2.1
+appVersion: "0.2.1"
 
 dependencies:
   - name: pleme-lib
