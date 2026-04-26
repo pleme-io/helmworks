@@ -1,0 +1,147 @@
+{{/*
+Pangea Operator Grafana dashboard.
+
+Loaded by kube-prometheus-stack's grafana sidecar via the
+`grafana_dashboard: "1"` label. Gated on .Values.grafanaDashboard.enabled
+so clusters without grafana don't get a stranded ConfigMap.
+
+Panels:
+  - per-template phase + Settled state matrix
+  - consecutive drift cycles trend
+  - policy decisions by type
+  - high-risk pending changes
+  - reconciliation throughput + error rate
+*/}}
+{{- if .Values.grafanaDashboard.enabled -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}-dashboard
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+    grafana_dashboard: "1"
+data:
+  pangea-operator.json: |
+    {
+      "title": "Pangea Operator",
+      "uid": "pangea-operator",
+      "schemaVersion": 39,
+      "tags": ["pangea", "infrastructure", "iac"],
+      "timezone": "browser",
+      "time": { "from": "now-6h", "to": "now" },
+      "refresh": "30s",
+      "panels": [
+        {
+          "id": 1,
+          "type": "stat",
+          "title": "Templates Settled / Total",
+          "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+          "targets": [
+            { "refId": "A", "expr": "sum(pangea_settled)" },
+            { "refId": "B", "expr": "count(pangea_settled)" }
+          ],
+          "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+        },
+        {
+          "id": 2,
+          "type": "stat",
+          "title": "Templates by Phase",
+          "gridPos": { "x": 6, "y": 0, "w": 12, "h": 4 },
+          "targets": [
+            { "refId": "A", "expr": "sum by (phase) (pangea_templates_by_phase)", "legendFormat": "{{ "{{ phase }}" }}" }
+          ]
+        },
+        {
+          "id": 3,
+          "type": "stat",
+          "title": "Active Reconciliations",
+          "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
+          "targets": [{ "refId": "A", "expr": "pangea_active_reconciliations" }]
+        },
+        {
+          "id": 4,
+          "type": "table",
+          "title": "Per-Template Settling State",
+          "gridPos": { "x": 0, "y": 4, "w": 24, "h": 7 },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "pangea_settled",
+              "format": "table",
+              "instant": true
+            },
+            {
+              "refId": "B",
+              "expr": "pangea_consecutive_drift_cycles",
+              "format": "table",
+              "instant": true
+            },
+            {
+              "refId": "C",
+              "expr": "pangea_stuck_resources",
+              "format": "table",
+              "instant": true
+            }
+          ],
+          "transformations": [
+            { "id": "merge" },
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": { "Time": true, "__name__": true, "job": true, "instance": true, "endpoint": true, "service": true, "container": true, "pod": true },
+                "renameByName": { "Value #A": "Settled", "Value #B": "Cycles", "Value #C": "StuckResources" }
+              }
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "type": "timeseries",
+          "title": "Consecutive Drift Cycles (per template)",
+          "gridPos": { "x": 0, "y": 11, "w": 12, "h": 7 },
+          "targets": [
+            { "refId": "A", "expr": "pangea_consecutive_drift_cycles", "legendFormat": "{{ "{{ namespace }}/{{ template }}" }}" }
+          ]
+        },
+        {
+          "id": 6,
+          "type": "timeseries",
+          "title": "Policy Decisions Rate (per second)",
+          "gridPos": { "x": 12, "y": 11, "w": 12, "h": 7 },
+          "targets": [
+            { "refId": "A", "expr": "sum by (decision) (rate(pangea_policy_decisions_total[5m]))", "legendFormat": "{{ "{{ decision }}" }}" }
+          ]
+        },
+        {
+          "id": 7,
+          "type": "bargauge",
+          "title": "Pending Changes by Risk × Action",
+          "gridPos": { "x": 0, "y": 18, "w": 12, "h": 7 },
+          "targets": [
+            { "refId": "A", "expr": "sum by (action, risk) (pangea_template_drift_detail) > 0", "legendFormat": "{{ "{{ action }} ({{ risk }})" }}" }
+          ]
+        },
+        {
+          "id": 8,
+          "type": "timeseries",
+          "title": "Settling Escalations",
+          "gridPos": { "x": 12, "y": 18, "w": 12, "h": 7 },
+          "targets": [
+            { "refId": "A", "expr": "sum by (reason) (rate(pangea_settling_failures_total[5m]))", "legendFormat": "{{ "{{ reason }}" }}" }
+          ]
+        },
+        {
+          "id": 9,
+          "type": "timeseries",
+          "title": "Reconciliation Throughput + Errors",
+          "gridPos": { "x": 0, "y": 25, "w": 24, "h": 7 },
+          "targets": [
+            { "refId": "A", "expr": "rate(pangea_reconciliations_total[5m])", "legendFormat": "reconciliations/s" },
+            { "refId": "B", "expr": "rate(pangea_drift_detected_total[5m])", "legendFormat": "drift detections/s" },
+            { "refId": "C", "expr": "sum by (error_type) (rate(pangea_reconciliation_errors_total[5m]))", "legendFormat": "errors {{ "{{ error_type }}" }}/s" }
+          ]
+        }
+      ]
+    }
+{{- end }}

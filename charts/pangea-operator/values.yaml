@@ -284,6 +284,13 @@ monitoring:
   path: /metrics
   port: metrics
 
+# -- Grafana dashboard (loaded by kube-prometheus-stack grafana sidecar
+# via the `grafana_dashboard: "1"` ConfigMap label). Renders per-template
+# settling state, drift cycles, policy decisions, pending high-risk
+# changes, and reconciliation throughput.
+grafanaDashboard:
+  enabled: true
+
 # -- Network policy
 networkPolicy:
   enabled: false
@@ -419,6 +426,41 @@ prometheusRules:
       annotations:
         summary: "Pangea template stuck in Failed phase"
         description: "One or more templates have been in Failed phase for over 30 minutes."
+    # ── State-settling + policy engine alerts (chart 0.4.0) ──
+    # The whole point of the settling tracker is that "stuck" should
+    # never go silent. These rules surface every flavor of stuck.
+    - alert: PangeaTemplateNotSettled
+      expr: pangea_settled == 0
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Template {{ $labels.namespace }}/{{ $labels.template }} has not settled"
+        description: "Settled gauge has been 0 for >15min — drift is reappearing on every drift check."
+    - alert: PangeaSettlingEscalation
+      expr: increase(pangea_settling_failures_total[5m]) > 0
+      for: 0m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Settling escalated for {{ $labels.namespace }}/{{ $labels.template }} ({{ $labels.reason }})"
+        description: "State-settling tracker fired ({{ $labels.reason }}) — investigate stuckResources status field. Auto-apply will not converge."
+    - alert: PangeaPolicyRefuseFiring
+      expr: increase(pangea_policy_decisions_total{decision="refuse"}[15m]) > 0
+      for: 0m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Policy refuse rule blocked changes in {{ $labels.namespace }}/{{ $labels.template }}"
+        description: "A spec.policies rule with decision=refuse matched {{ $value }} change(s) — plan was not applied."
+    - alert: PangeaHighRiskPending
+      expr: pangea_template_drift_detail{action=~"delete|replace",risk="high"} > 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High-risk {{ $labels.action }} pending in {{ $labels.namespace }}/{{ $labels.template }}"
+        description: "{{ $value }} resource(s) with high-risk {{ $labels.action }} action sitting in pending state."
     # ── Image Pipeline alerts ──
     - alert: PackerBuildFailed
       expr: pangea_packer_builds_by_phase{phase="Failed"} > 0

@@ -1,1 +1,22 @@
-{{- include "pleme-lib.prometheusrule" . }}
+{{/*
+Override pleme-lib.prometheusrule because that helper reads
+.Values.prometheusRules.groups, but every consumer (and these
+values.yaml entries) define a flat .Values.prometheusRules.rules
+list. Wrap them in a single group named after the chart so the
+PrometheusOperator schema is satisfied.
+*/}}
+{{- if .Values.prometheusRules.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+    prometheus: main
+spec:
+  groups:
+    - name: {{ include "pleme-lib.fullname" . }}.rules
+      rules:
+        {{- toYaml .Values.prometheusRules.rules | nindent 8 }}
+{{- end }}
