@@ -8,8 +8,8 @@ description: >-
   (count + drift fingerprint, configurable escalation when the system can't
   reach steady state). Defaults to aggressive auto-apply on every change.
 type: application
-version: 0.3.0
-appVersion: "0.3.0"
+version: 0.3.1
+appVersion: "0.3.1"
 
 dependencies:
   - name: pleme-lib
