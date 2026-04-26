@@ -1,0 +1,43 @@
+{{- /*
+Deployment — uses pleme-lib.deployment for the structural skeleton.
+
+We pre-merge our chart-specific env + envFrom + volume hooks into .Values
+before passing to pleme-lib so the standard template picks them up.
+*/ -}}
+{{- include "pleme-discord-bot.validate" . }}
+
+{{- $tokenSecret := include "pleme-discord-bot.tokenSecretName" . -}}
+
+{{- /* Splice token Secret into envFrom — the bot reads $DISCORD_BOT_TOKEN. */ -}}
+{{- $tokenEnvFrom := list (dict "secretRef" (dict "name" $tokenSecret)) -}}
+{{- $envFrom := concat ($tokenEnvFrom) (.Values.envFrom | default list) -}}
+{{- $_ := set .Values "envFrom" $envFrom -}}
+
+{{- /* Inject RUST_LOG and BOT_NAME-style env. */ -}}
+{{- $extraEnv := list
+    (dict "name" "RUST_LOG" "value" .Values.logLevel)
+    (dict "name" "BOT_NAME" "value" .Values.botName)
+-}}
+{{- $env := concat ($extraEnv) (.Values.env | default list) -}}
+{{- $_ := set .Values "env" $env -}}
+
+{{- /* Optional: mount the pangea-discord-rendered command manifest. */ -}}
+{{- if .Values.commandsManifest.enabled -}}
+{{- $manifestVolume := list (dict
+    "name" "commands-manifest"
+    "configMap" (dict "name" .Values.commandsManifest.configMapName)
+) -}}
+{{- $vols := concat ($manifestVolume) (.Values.volumes | default list) -}}
+{{- $_ := set .Values "volumes" $vols -}}
+
+{{- $manifestMount := list (dict
+    "name" "commands-manifest"
+    "mountPath" .Values.commandsManifest.mountPath
+    "subPath" .Values.commandsManifest.subPath
+    "readOnly" true
+) -}}
+{{- $mounts := concat ($manifestMount) (.Values.volumeMounts | default list) -}}
+{{- $_ := set .Values "volumeMounts" $mounts -}}
+{{- end }}
+
+{{- include "pleme-lib.deployment" . }}

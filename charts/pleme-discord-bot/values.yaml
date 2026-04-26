@@ -1,0 +1,119 @@
+# pleme-discord-bot default values
+
+# -- Bot identifier. MUST match the `Bot::NAME` constant of the bot crate
+# being deployed. Drives the Secret name convention (`discord-<botName>-token`),
+# tracing scope, and pod labels.
+botName: ""
+
+# =============================================================================
+# Image
+# =============================================================================
+
+image:
+  # -- Bot binary image. Built from blackmatter-discord/crates/bm-discord-<name>
+  # via Nix → Docker (see substrate's rust-to-docker recipe).
+  repository: ""
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets: []
+
+# =============================================================================
+# Token secret
+# =============================================================================
+
+# -- Kubernetes Secret containing the Discord bot token.
+# The Secret MUST contain a key matching `tokenKey` whose value is the raw
+# bot token (no "Bot " prefix). Typically managed by ExternalSecrets +
+# Akeyless Secrets Provider — see pleme-io conventions.
+tokenSecret:
+  # -- Secret name. Defaults to `discord-<botName>-token`.
+  name: ""
+  # -- Key inside the Secret holding the token.
+  key: "DISCORD_BOT_TOKEN"
+
+# =============================================================================
+# Application command manifest (optional)
+# =============================================================================
+
+# Rendered by `terraform apply` against pangea-discord's
+# `discord_application_command` resources, then mirrored into a ConfigMap.
+# When enabled, the chart mounts the manifest at /etc/discord/commands.json
+# and the engine reads it for command-shape validation against
+# `Bot::commands()`.
+commandsManifest:
+  # -- Mount a commands.json manifest from a ConfigMap.
+  enabled: false
+  # -- Existing ConfigMap name (when enabled). The chart does NOT render the
+  # manifest itself — pangea-discord / terraform owns that.
+  configMapName: ""
+  # -- Key inside the ConfigMap holding the manifest JSON.
+  configMapKey: "commands.json"
+  # -- Mount path inside the bot container.
+  mountPath: "/etc/discord/commands.json"
+  # -- subPath used for the file mount (so other files in the CM don't bleed in).
+  subPath: "commands.json"
+
+# =============================================================================
+# Standard pleme-lib knobs
+# =============================================================================
+
+replicaCount: 1
+
+# -- Strategy. Bots are stateful WS connections — Recreate avoids dual-IDENTIFY.
+strategy:
+  type: Recreate
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+# Env / envFrom — token comes through `envFrom` automatically when
+# `tokenSecret.name` is set. Add extra env via these.
+env: []
+envFrom: []
+
+# Logging
+logLevel: "info"
+
+# Pod scheduling
+nodeSelector: {}
+tolerations: []
+affinity: {}
+podAnnotations: {}
+
+# Container security
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: [ "ALL" ]
+
+# Probes — bots don't have HTTP, so we use process-existence via cmd probe.
+# Override if the bot exposes an HTTP healthcheck.
+probes:
+  liveness:
+    enabled: false
+  readiness:
+    enabled: false
+
+# Volume mounts (extra) — chart adds /tmp emptyDir for read-only-fs compat.
+volumeMounts: []
+volumes: []
+
+# Tolerations / node selectors / affinity left empty by default.

@@ -1,0 +1,25 @@
+apiVersion: v2
+name: pleme-discord-bot
+description: |
+  Run a blackmatter-discord bot binary as a Kubernetes Deployment.
+
+  One chart instance == one bot. Multiple bots = multiple Helm releases
+  (one per bot crate in the blackmatter-discord workspace).
+
+  The Discord bot token is supplied via a Kubernetes Secret (typically
+  rendered by ExternalSecrets / Akeyless Secrets Provider) and exposed
+  to the bot as DISCORD_BOT_TOKEN via envFrom.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+
+keywords:
+  - discord
+  - bot
+  - blackmatter
+  - twilight
+
+dependencies:
+  - name: pleme-lib
+    version: "~0.5.0"
+    repository: "file://../pleme-lib"
