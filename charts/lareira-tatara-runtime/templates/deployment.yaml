@@ -1,0 +1,62 @@
+{{- if .Values.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "lareira-tatara-runtime.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "lareira-tatara-runtime.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy: { type: RollingUpdate }
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Chart.Name }}
+  template:
+    metadata:
+      labels: {{- include "lareira-tatara-runtime.labels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "lareira-tatara-runtime.fullname" . }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: runtime
+          image: "{{ .Values.image.repository }}:{{ default .Chart.AppVersion .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - serve
+            - --openclaw-url={{ .Values.config.openclawUrl }}
+            - --plugin-dir={{ .Values.config.pluginDir }}
+            - --cache-dir={{ .Values.config.cacheDir }}
+            {{- if .Values.autoSubmit.enabled }}
+            - --auto-submit
+            - --compute-unit-namespace={{ .Values.autoSubmit.computeUnitNamespace }}
+            {{- end }}
+          env:
+            - { name: RUST_LOG, value: "info,tatara_lisp=debug,tatara_lisp_script=debug" }
+          ports:
+            - { name: metrics, containerPort: 9090 }
+          resources: {{ toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          volumeMounts:
+            - { name: plugins, mountPath: {{ .Values.config.pluginDir }} }
+            - { name: cache,   mountPath: {{ .Values.config.cacheDir }} }
+      volumes:
+        - name: plugins
+          {{- if .Values.persistence.plugins.enabled }}
+          persistentVolumeClaim: { claimName: {{ include "lareira-tatara-runtime.fullname" . }}-plugins }
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: cache
+          {{- if .Values.persistence.cache.enabled }}
+          persistentVolumeClaim: { claimName: {{ include "lareira-tatara-runtime.fullname" . }}-cache }
+          {{- else }}
+          emptyDir: { sizeLimit: 1Gi }
+          {{- end }}
+{{- end }}

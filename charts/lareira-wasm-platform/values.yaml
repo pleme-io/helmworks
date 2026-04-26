@@ -1,0 +1,92 @@
+# lareira-wasm-platform — wasm-operator + engine + store on K8s.
+#
+# The image references resolve against ghcr.io/pleme-io/<crate>:<tag>
+# built by the upstream wasm-platform flake. Until those images land,
+# `enabled: false` keeps the chart inert.
+
+enabled: false
+
+operator:
+  image:
+    repository: ghcr.io/pleme-io/wasm-operator
+    tag: ""                      # falls back to appVersion
+    pullPolicy: IfNotPresent
+  replicaCount: 1                # leader-elected; 2+ for HA
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits:   { cpu: 1000m, memory: 512Mi }
+  config:
+    leaderElection:
+      enabled: true
+      leaseDuration: 30s
+    storeBackend:
+      type: local                # local | s3
+      path: /var/lib/wasm-store
+    moduleCache:
+      enabled: true
+      size: 10Gi
+
+engine:
+  # The engine pods are spawned per ComputeUnit by the operator.
+  # Defaults below are the Pod template; per-unit overrides come
+  # from spec.resources on the ComputeUnit CR.
+  image:
+    repository: ghcr.io/pleme-io/wasm-engine
+    tag: ""
+    pullPolicy: IfNotPresent
+  defaultResources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits:   { cpu: 500m, memory: 256Mi }
+  # Wasmtime runtime config. Override per-cluster as needed.
+  runtime:
+    consumeFuel: true            # bound runaway compute
+    maxFuel: 1000000000          # 1B fuel units per invocation
+    epochInterruption: true      # async preemption every epoch tick
+    epochIntervalMs: 100
+
+store:
+  # Storage backend for content-addressed WASM modules. Local PVC by
+  # default; opt into S3 for multi-cluster sharing.
+  backend: local
+  persistence:
+    enabled: true
+    storageClass: local-path
+    size: 10Gi
+    accessMode: ReadWriteOnce
+    annotations:
+      pleme.pleme.io/breathable: "true"   # picked up by pleme-storage-elastic
+  s3:
+    endpoint: ""
+    bucket: ""
+    region: ""
+
+crds:
+  install: true
+  upgrade: true
+
+observability:
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+  prometheusRule:
+    enabled: true
+    rules:
+      - alert: WasmOperatorDown
+        expr: |
+          absent(kube_deployment_status_replicas_available{deployment="wasm-operator"})
+          or kube_deployment_status_replicas_available{deployment="wasm-operator"} == 0
+        for: 2m
+        labels: { severity: critical, component: lareira-wasm-platform }
+        annotations:
+          summary: "wasm-operator down — every ComputeUnit unmanaged"
+          description: "Existing wasm-engine pods keep running, but new ComputeUnits won't reconcile and finished ones won't clean up. Check the operator's logs."
+          runbook_url: "https://runbooks.pleme.io/lareira-wasm-platform/operator-down"
+      - alert: WasmEngineFuelExhausted
+        expr: |
+          increase(wasm_engine_fuel_exhausted_total[10m]) > 5
+        for: 5m
+        labels: { severity: warning, component: lareira-wasm-platform }
+        annotations:
+          summary: "WASM modules running out of fuel — possible runaway compute"
+          description: ">5 fuel-exhaust events in 10m. Check the offending ComputeUnit + raise its maxFuel if intentional."
+          runbook_url: "https://runbooks.pleme.io/lareira-wasm-platform/fuel-exhausted"

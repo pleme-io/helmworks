@@ -1,0 +1,15 @@
+dependencies:
+- name: pleme-lib
+  repository: file://../pleme-lib
+  version: 0.5.0
+- name: lareira-wasm-platform
+  repository: file://../lareira-wasm-platform
+  version: 0.1.0
+- name: lareira-openclaw
+  repository: file://../lareira-openclaw
+  version: 0.1.0
+- name: lareira-tatara-runtime
+  repository: file://../lareira-tatara-runtime
+  version: 0.1.0
+digest: sha256:b85201ea6226e6b79a4b11308e31b722eec8413e03a748cc867a29063197d0ce
+generated: "2026-04-25T21:38:03.112488-04:00"

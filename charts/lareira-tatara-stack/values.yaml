@@ -1,0 +1,29 @@
+# lareira-tatara-stack — composer for the WASM/WASI runtime stack.
+#
+# The stack is anchored by lareira-wasm-platform (the runtime).
+# tataraRuntime + openclaw are OPTIONAL convenience layers on top.
+# A cluster that only wants WASM/WASI as a runtime sets:
+#   wasmPlatform.enabled: true
+#   tataraRuntime.enabled: false
+#   openclaw.enabled: false
+# … and authors push WASM modules to any OCI registry. The wasm-operator
+# pulls them by content hash. tatara-lisp authoring + attested artifacts
+# are sugar, not requirements.
+
+enabled: false
+
+# REQUIRED tier — the runtime itself.
+wasmPlatform:
+  enabled: true
+
+# OPTIONAL — tatara-lisp evaluator that compiles Lisp scripts to WASM
+# and submits ComputeUnit CRs. Enable only if your authors are
+# publishing tatara-lisp scripts.
+tataraRuntime:
+  enabled: false
+
+# OPTIONAL — openclaw artifact registry with cryptographic attestation.
+# Use when you want signed/audited program shipping instead of plain
+# OCI registry pulls. Most clusters can rely on ghcr.io directly.
+openclaw:
+  enabled: false

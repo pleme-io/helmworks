@@ -1,0 +1,20 @@
+apiVersion: v2
+name: lareira-wasm-platform
+description: |
+  Kubernetes WASM/WASI compute platform for pleme-io clusters. Wraps
+  the wasm-operator (K8s controller) + wasm-engine (Wasmtime runtime)
+  + wasm-store (content-addressed module store) from
+  https://github.com/pleme-io/wasm-platform.
+
+  Provides ComputeUnit + WasmModule CRDs. Default-OFF.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+
+keywords: [wasm, wasi, wasmtime, kubernetes, lareira, breathable]
+maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]
+
+dependencies:
+  - name: pleme-lib
+    version: "~0.5.0"
+    repository: "file://../pleme-lib"

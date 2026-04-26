@@ -1,0 +1,63 @@
+{{- if .Values.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "lareira-wasm-platform.fullname" . }}-operator
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "lareira-wasm-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: operator
+spec:
+  replicas: {{ .Values.operator.replicaCount }}
+  strategy: { type: RollingUpdate }
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Chart.Name }}
+      app.kubernetes.io/component: operator
+  template:
+    metadata:
+      labels:
+        {{- include "lareira-wasm-platform.labels" . | nindent 8 }}
+        app.kubernetes.io/component: operator
+    spec:
+      serviceAccountName: {{ include "lareira-wasm-platform.fullname" . }}-operator
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: operator
+          image: "{{ .Values.operator.image.repository }}:{{ default .Chart.AppVersion .Values.operator.image.tag }}"
+          imagePullPolicy: {{ .Values.operator.image.pullPolicy }}
+          args:
+            - --leader-election={{ .Values.operator.config.leaderElection.enabled }}
+            - --lease-duration={{ .Values.operator.config.leaderElection.leaseDuration }}
+            - --store-backend={{ .Values.operator.config.storeBackend.type }}
+            - --store-path={{ .Values.operator.config.storeBackend.path }}
+          ports:
+            - { name: metrics, containerPort: 9090 }
+            - { name: health,  containerPort: 8080 }
+          resources: {{ toYaml .Values.operator.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          livenessProbe:
+            httpGet: { path: /healthz, port: health }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: { path: /readyz, port: health }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - { name: store, mountPath: {{ .Values.operator.config.storeBackend.path }} }
+      volumes:
+        - name: store
+          {{- if .Values.store.persistence.enabled }}
+          persistentVolumeClaim: { claimName: {{ include "lareira-wasm-platform.fullname" . }}-store }
+          {{- else }}
+          emptyDir: { sizeLimit: 1Gi }
+          {{- end }}
+{{- end }}

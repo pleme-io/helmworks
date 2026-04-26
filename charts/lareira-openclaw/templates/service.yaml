@@ -1,0 +1,36 @@
+{{- if .Values.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "lareira-openclaw.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "lareira-openclaw.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+  ports:
+    - { name: rest,    port: {{ .Values.service.ports.rest }},    targetPort: rest }
+    - { name: graphql, port: {{ .Values.service.ports.graphql }}, targetPort: graphql }
+    - { name: grpc,    port: {{ .Values.service.ports.grpc }},    targetPort: grpc }
+    - { name: metrics, port: {{ .Values.service.ports.metrics }}, targetPort: metrics }
+{{- if and .Values.database (eq .Values.database.backend "sqlite") .Values.database.sqlite.persistence.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "lareira-openclaw.fullname" . }}-data
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "lareira-openclaw.labels" . | nindent 4 }}
+  {{- with .Values.database.sqlite.persistence.annotations }}
+  annotations: {{ toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  storageClassName: {{ .Values.database.sqlite.persistence.storageClass }}
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: {{ .Values.database.sqlite.persistence.size }}
+{{- end }}
+{{- end }}

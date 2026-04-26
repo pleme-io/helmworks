@@ -1,0 +1,21 @@
+{{- if .Values.enabled }}
+{{- if and (eq .Values.store.backend "local") .Values.store.persistence.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "lareira-wasm-platform.fullname" . }}-store
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "lareira-wasm-platform.labels" . | nindent 4 }}
+  {{- with .Values.store.persistence.annotations }}
+  annotations: {{ toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  storageClassName: {{ .Values.store.persistence.storageClass }}
+  accessModes: [{{ .Values.store.persistence.accessMode }}]
+  resources:
+    requests:
+      storage: {{ .Values.store.persistence.size }}
+{{- end }}
+{{- end }}

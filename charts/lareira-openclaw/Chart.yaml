@@ -1,0 +1,19 @@
+apiVersion: v2
+name: lareira-openclaw
+description: |
+  openclaw artifact registry — universal artifact registry with
+  cryptographic attestation (tameshi-backed) and compliance gating.
+  Wraps https://github.com/pleme-io/openclaw-artifact-registry as a
+  K8s service. GraphQL + gRPC + REST endpoints, BLAKE3 addressing.
+  Default-OFF.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+
+keywords: [registry, artifacts, attestation, blake3, lareira]
+maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]
+
+dependencies:
+  - name: pleme-lib
+    version: "~0.5.0"
+    repository: "file://../pleme-lib"

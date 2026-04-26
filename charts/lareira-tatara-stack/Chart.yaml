@@ -1,0 +1,42 @@
+apiVersion: v2
+name: lareira-tatara-stack
+description: |
+  Composer chart for the WASM/WASI runtime stack on pleme-io clusters.
+
+  Required tier:
+    lareira-wasm-platform   — wasm-operator + engine + store. Hosts
+                              programs / jobs / services / controllers
+                              authored as WASM modules. ComputeUnit
+                              + WasmModule CRDs.
+
+  Optional sugar (off by default):
+    lareira-tatara-runtime  — tatara-lisp evaluator (compiles Lisp
+                              scripts to WASM + auto-submits CRs)
+    lareira-openclaw        — attestation-gated artifact registry
+
+  See theory/WASM-STACK.md for the full design.
+
+  Default-OFF.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+
+keywords: [tatara-lisp, wasm, kubernetes, breathable, lareira]
+maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]
+
+dependencies:
+  - name: pleme-lib
+    version: "~0.5.0"
+    repository: "file://../pleme-lib"
+  - name: lareira-wasm-platform
+    version: "0.1.x"
+    repository: "file://../lareira-wasm-platform"
+    condition: wasmPlatform.enabled
+  - name: lareira-openclaw
+    version: "0.1.x"
+    repository: "file://../lareira-openclaw"
+    condition: openclaw.enabled
+  - name: lareira-tatara-runtime
+    version: "0.1.x"
+    repository: "file://../lareira-tatara-runtime"
+    condition: tataraRuntime.enabled

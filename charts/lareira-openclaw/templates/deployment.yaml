@@ -1,0 +1,82 @@
+{{- if .Values.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "lareira-openclaw.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "lareira-openclaw.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy: { type: Recreate }     # SQLite forbids concurrent writers
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Chart.Name }}
+  template:
+    metadata:
+      labels:
+        {{- include "lareira-openclaw.labels" . | nindent 8 }}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: openclaw
+          image: "{{ .Values.image.repository }}:{{ default .Chart.AppVersion .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - --rest-port=8080
+            - --graphql-port=8081
+            - --grpc-port=8082
+            - --metrics-port=9090
+            - --database-backend={{ .Values.database.backend }}
+            {{- if eq .Values.database.backend "sqlite" }}
+            - --sqlite-path=/var/lib/openclaw/db.sqlite
+            {{- else if eq .Values.database.backend "postgres" }}
+            - --postgres-host={{ .Values.database.postgres.host }}
+            - --postgres-port={{ .Values.database.postgres.port }}
+            - --postgres-db={{ .Values.database.postgres.database }}
+            {{- end }}
+          env:
+            - { name: RUST_LOG, value: "info,openclaw=debug" }
+            {{- if eq .Values.database.backend "postgres" }}
+            - name: OPENCLAW_POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.postgres.secretRef.name }}
+                  key:  {{ .Values.database.postgres.secretRef.passwordKey }}
+            {{- end }}
+          ports:
+            - { name: rest,    containerPort: 8080 }
+            - { name: graphql, containerPort: 8081 }
+            - { name: grpc,    containerPort: 8082 }
+            - { name: metrics, containerPort: 9090 }
+          resources: {{ toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          livenessProbe:
+            httpGet: { path: /healthz, port: rest }
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet: { path: /readyz, port: rest }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          {{- if eq .Values.database.backend "sqlite" }}
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/openclaw }
+          {{- end }}
+      {{- if eq .Values.database.backend "sqlite" }}
+      volumes:
+        - name: data
+          {{- if .Values.database.sqlite.persistence.enabled }}
+          persistentVolumeClaim: { claimName: {{ include "lareira-openclaw.fullname" . }}-data }
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+      {{- end }}
+{{- end }}

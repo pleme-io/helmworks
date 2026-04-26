@@ -1,0 +1,91 @@
+# lareira-openclaw — openclaw artifact registry on K8s.
+
+enabled: false
+
+image:
+  repository: ghcr.io/pleme-io/openclaw-artifact-registry
+  tag: ""                  # falls back to appVersion
+  pullPolicy: IfNotPresent
+
+replicaCount: 1            # scale-to-1 via KEDA HTTP add-on (opt-in)
+
+resources:
+  requests: { cpu: 100m, memory: 256Mi }
+  limits:   { cpu: 1000m, memory: 1Gi }
+
+# Database backend.
+#   - sqlite:    embedded; PVC-backed; suitable for home-edge clusters.
+#   - postgres:  external Postgres (e.g. CloudNativePG); for HA.
+database:
+  backend: sqlite
+  sqlite:
+    persistence:
+      enabled: true
+      storageClass: local-path
+      size: 5Gi
+      annotations:
+        pleme.pleme.io/breathable: "true"
+  postgres:
+    host: ""
+    port: 5432
+    database: openclaw
+    sslMode: require
+    secretRef:
+      name: openclaw-postgres
+      passwordKey: password
+
+# Service exposes 3 ports for the registry's API surfaces.
+service:
+  type: ClusterIP
+  ports:
+    rest:    8080
+    graphql: 8081
+    grpc:    8082
+    metrics: 9090
+
+# Cloudflare Tunnel ingress — opt-in. Public registry is NOT recommended
+# without strong tameshi compliance gating; default off.
+cloudflared:
+  expose: false
+  hostname: registry.example.com
+
+# Breathability — scale 0→1 on first HTTP request via KEDA HTTP add-on.
+# When enabled, the embedded interceptor wakes the pod on demand.
+breathability:
+  enabled: false
+  scaling:
+    minReplicas: 0
+    maxReplicas: 2
+    cooldownPeriod: 600
+    targetPendingRequests: 1
+  hosts: []                # filled per-cluster
+
+observability:
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+  prometheusRule:
+    enabled: true
+    rules:
+      - alert: OpenclawDown
+        expr: |
+          absent(kube_deployment_status_replicas_available{deployment="lareira-openclaw"})
+          or (
+            kube_deployment_status_replicas_available{deployment="lareira-openclaw"} == 0
+            and on() rate(openclaw_http_requests_total[5m]) > 0
+          )
+        for: 5m
+        labels: { severity: critical, component: lareira-openclaw }
+        annotations:
+          summary: "openclaw is unreachable while requests are pending"
+          description: "Artifact uploads + downloads will fail. Check the embedded SQLite/Postgres status + KEDA HTTPScaledObject if breathability is on."
+          runbook_url: "https://runbooks.pleme.io/lareira-openclaw/down"
+      - alert: OpenclawAttestationFailures
+        expr: |
+          increase(openclaw_attestation_failed_total[15m]) > 3
+        for: 5m
+        labels: { severity: warning, component: lareira-openclaw }
+        annotations:
+          summary: "openclaw rejecting artifacts on attestation failure"
+          description: ">3 attestation failures in 15m. Either an upstream signing key is wrong or a malicious push is being attempted."
+          runbook_url: "https://runbooks.pleme.io/lareira-openclaw/attestation-failures"
