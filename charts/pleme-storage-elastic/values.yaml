@@ -1,0 +1,97 @@
+# pleme-storage-elastic — keep watched PVCs at ~80% utilization.
+
+enabled: false
+
+# How often the watcher runs. 5min is a sane default — storage growth
+# is rarely faster than that on a homelab.
+schedule: "*/5 * * * *"
+
+# Watcher pod resources. Tiny — just kubectl + a few math ops.
+resources:
+  requests: { cpu: 50m, memory: 128Mi }
+  limits:   { cpu: 200m, memory: 256Mi }
+
+# Targets — which PVCs to watch.
+targets:
+  # Either a label selector OR an explicit list. Empty selector matches
+  # every PVC in `namespaces:`.
+  selector: {}             # e.g. { matchLabels: { breathable: "true" } }
+
+  # Namespaces to scan. Empty = all namespaces (cluster-wide RBAC).
+  namespaces: []
+
+  # Or an explicit list of {namespace, name} pairs.
+  pvcs: []
+
+# Expansion policy.
+policy:
+  # Trigger expansion when used / capacity exceeds this fraction.
+  triggerAt: 0.80
+  # Multiply current capacity by this factor on expansion. 1.25 → post-
+  # expansion target = 64% utilization (gives headroom without ballooning).
+  expandFactor: 1.25
+  # Hard ceiling — never expand beyond this size, even if breached.
+  # Acts as a circuit breaker against runaway growth.
+  maxSize: "1Ti"
+  # Cool-down between consecutive expansions of the same PVC. Prevents
+  # storms during a sudden write burst.
+  cooldownSeconds: 600
+
+# Whether to actually patch PVCs (false = report-only, useful for first
+# rollout where you want to see what *would* happen).
+dryRun: false
+
+# Watcher image — the chart ships a Nix-built image with kubectl + jq +
+# the bash watcher script. To use a different image, override here.
+image:
+  repository: ghcr.io/pleme-io/pleme-storage-elastic
+  tag: ""                  # falls back to appVersion
+  pullPolicy: IfNotPresent
+
+# RBAC — needs cluster-wide PVC list/get/patch + node metrics read.
+rbac:
+  create: true
+
+# ── observability ───────────────────────────────────────────────────────
+observability:
+  serviceMonitor:
+    enabled: false           # CronJob, not a long-lived service
+  prometheusRule:
+    enabled: true
+    rules:
+      # The watcher emits a PVCExpanded counter via the metrics endpoint
+      # baked into the watcher image. If we see expansions outpacing the
+      # target rate, alert.
+      - alert: StorageExpansionRunaway
+        expr: |
+          increase(pleme_storage_elastic_expansions_total[1h]) > 5
+        for: 0m
+        labels:
+          severity: warning
+          component: pleme-storage-elastic
+        annotations:
+          summary: "Storage expansion runaway — >5 expansions/hr"
+          description: |
+            The pleme-storage-elastic watcher has expanded a PVC more
+            than 5 times in the last hour. Possible cause: workload
+            with unbounded write rate, missing data lifecycle policy,
+            or maxSize circuit breaker mis-configured.
+          runbook_url: "https://runbooks.pleme.io/pleme-storage-elastic/runaway"
+
+      # PVC reached maxSize hard ceiling without breaking the trigger
+      # condition — operator must intervene.
+      - alert: StorageExpansionCeilingReached
+        expr: |
+          pleme_storage_elastic_at_ceiling_total > 0
+        for: 0m
+        labels:
+          severity: critical
+          component: pleme-storage-elastic
+        annotations:
+          summary: "PVC hit maxSize ceiling — manual intervention required"
+          description: |
+            One or more PVCs are still above triggerAt utilization but
+            cannot expand further (already at maxSize). Either raise
+            maxSize for the affected workload, archive old data, or
+            move to a larger storage tier.
+          runbook_url: "https://runbooks.pleme.io/pleme-storage-elastic/ceiling"

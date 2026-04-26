@@ -1,0 +1,39 @@
+apiVersion: v2
+name: pleme-storage-elastic
+description: |
+  Elastic PVC autosize watcher — keeps every watched PVC at ~80%
+  utilization (configurable target + step + max). Implements the
+  storage-tier breathability invariant from theory/BREATHABILITY.md §V:
+  "storage cannot scale to zero (data persists), so the breathability
+  pattern is elastic expansion at 80% utilization."
+
+  Implementation: a CronJob runs every poll_interval, lists PVCs
+  matching label selectors, queries kubelet stats for current
+  usage, and patches the PVC's spec.resources.requests.storage when
+  used / capacity > target. The CSI driver's online-resize support
+  expands the filesystem without pod restart.
+
+  Default-OFF (enabled: false). Default poll: 5 minutes.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+
+keywords:
+  - storage
+  - pvc
+  - autoscaling
+  - elastic
+  - breathable
+
+home: https://github.com/pleme-io/helmworks
+sources:
+  - https://github.com/pleme-io/helmworks
+
+maintainers:
+  - name: drzzln
+    email: drzzln@protonmail.com
+
+dependencies:
+  - name: pleme-lib
+    version: "~0.5.0"
+    repository: "file://../pleme-lib"

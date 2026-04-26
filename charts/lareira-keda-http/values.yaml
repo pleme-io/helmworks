@@ -1,0 +1,51 @@
+# lareira-keda-http — KEDA HTTP add-on with pleme-io defaults.
+
+enabled: false
+
+kedaHttp:
+  enabled: true
+  # Interceptor — buffers cold-start requests. Always-on, tiny.
+  interceptor:
+    replicas: 1
+    resources:
+      requests: { cpu: 100m, memory: 128Mi }
+      limits:   { cpu: 500m, memory: 256Mi }
+
+  # External scaler — feeds KEDA the request-rate metric.
+  externalScaler:
+    replicas: 1
+    resources:
+      requests: { cpu: 50m, memory: 128Mi }
+      limits:   { cpu: 200m, memory: 256Mi }
+
+  # Operator — reconciles HTTPScaledObject CRs.
+  operator:
+    resources:
+      requests: { cpu: 50m, memory: 128Mi }
+      limits:   { cpu: 200m, memory: 256Mi }
+
+# ── observability ───────────────────────────────────────────────────────
+observability:
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+  prometheusRule:
+    enabled: true
+    rules:
+      # When the interceptor itself is down, EVERY HTTP-scale-to-zero
+      # workload becomes unreachable. Critical alert.
+      - alert: KedaHttpInterceptorDown
+        expr: |
+          absent(kube_deployment_status_replicas_available{deployment="keda-add-ons-http-interceptor"})
+          or kube_deployment_status_replicas_available{deployment="keda-add-ons-http-interceptor"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: lareira-keda-http
+        annotations:
+          summary: "KEDA HTTP interceptor down — all scale-to-zero apps unreachable"
+          description: |
+            The KEDA HTTP add-on interceptor has 0 ready pods. Every
+            workload using HTTPScaledObject (Authentik, Grafana, etc.)
+            is now unreachable. Check kube-system namespace events.
+          runbook_url: "https://runbooks.pleme.io/lareira-keda-http/interceptor-down"

@@ -1,0 +1,58 @@
+{{- if .Values.enabled }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "pleme-storage-elastic.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pleme-storage-elastic.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.schedule | quote }}
+  concurrencyPolicy: Forbid                # never run two watchers concurrently
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      ttlSecondsAfterFinished: 600
+      template:
+        metadata:
+          labels:
+            {{- include "pleme-storage-elastic.labels" . | nindent 12 }}
+        spec:
+          serviceAccountName: {{ include "pleme-storage-elastic.serviceAccountName" . }}
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            seccompProfile: { type: RuntimeDefault }
+          containers:
+            - name: watcher
+              image: "{{ .Values.image.repository }}:{{ default .Chart.AppVersion .Values.image.tag }}"
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              resources:
+                {{- toYaml .Values.resources | nindent 16 }}
+              env:
+                - name: TRIGGER_AT
+                  value: {{ .Values.policy.triggerAt | quote }}
+                - name: EXPAND_FACTOR
+                  value: {{ .Values.policy.expandFactor | quote }}
+                - name: MAX_SIZE
+                  value: {{ .Values.policy.maxSize | quote }}
+                - name: COOLDOWN_SECONDS
+                  value: {{ .Values.policy.cooldownSeconds | quote }}
+                - name: DRY_RUN
+                  value: {{ .Values.dryRun | quote }}
+                - name: NAMESPACES
+                  value: {{ .Values.targets.namespaces | toJson | quote }}
+                - name: PVCS
+                  value: {{ .Values.targets.pvcs | toJson | quote }}
+                - name: SELECTOR
+                  value: {{ .Values.targets.selector | toJson | quote }}
+{{- end }}
