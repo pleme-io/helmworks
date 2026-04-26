@@ -1,0 +1,77 @@
+{{- if .Values.enabled }}
+{{- include "pleme-computeunit.validate-shape" . -}}
+---
+apiVersion: wasm.pleme.io/v1alpha1
+kind: ComputeUnit
+metadata:
+  name: {{ include "pleme-computeunit.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pleme-computeunit.labels" . | nindent 4 }}
+    pleme.pleme.io/shape: {{ include "pleme-computeunit.shape" . }}
+spec:
+  module:
+    {{- if .Values.module.source }}
+    source: {{ .Values.module.source | quote }}
+    {{- end }}
+    {{- if .Values.module.blake3 }}
+    blake3: {{ .Values.module.blake3 | quote }}
+    {{- end }}
+    {{- if .Values.module.oci }}
+    oci: {{ .Values.module.oci | quote }}
+    {{- end }}
+
+  trigger:
+    {{- if .Values.trigger.oneShot }}
+    oneShot:
+      {{- toYaml .Values.trigger.oneShot | nindent 6 }}
+    {{- end }}
+    {{- if .Values.trigger.cron }}
+    cron: {{ .Values.trigger.cron | quote }}
+    {{- end }}
+    {{- if .Values.trigger.service }}
+    service:
+      {{- toYaml .Values.trigger.service | nindent 6 }}
+    {{- end }}
+    {{- if .Values.trigger.event }}
+    event:
+      {{- toYaml .Values.trigger.event | nindent 6 }}
+    {{- end }}
+    {{- if .Values.trigger.watch }}
+    watch:
+      {{- toYaml .Values.trigger.watch | nindent 6 }}
+    {{- end }}
+
+  {{- with .Values.capabilities }}
+  capabilities:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+
+  {{- with .Values.resources }}
+  resources:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+
+  {{- with .Values.config }}
+  config:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+
+  {{- with .Values.elasticity }}
+  elasticity:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+
+  {{- with .Values.nodeSelector }}
+  nodeSelector:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.tolerations }}
+  tolerations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.affinity }}
+  affinity:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}

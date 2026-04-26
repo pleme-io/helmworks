@@ -1,0 +1,19 @@
+apiVersion: v2
+name: lareira-pvc-autoresizer
+description: |
+  PVC autosize watcher as a tatara-lisp ComputeUnit. Replaces the
+  Rust binary in helmworks/charts/pleme-storage-elastic/image/ —
+  same logic, ~70 lines of tatara-lisp + ~30 lines of values.
+
+  Source: github:pleme-io/programs/pvc-autoresizer/main.tlisp
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+
+keywords: [storage, breathable, autoscaling, lareira, computeunit]
+maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]
+
+dependencies:
+  - name: pleme-computeunit
+    version: "~0.1.0"
+    repository: "file://../pleme-computeunit"

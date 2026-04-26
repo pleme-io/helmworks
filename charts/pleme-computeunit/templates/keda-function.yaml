@@ -1,0 +1,72 @@
+{{/*
+KEDA ScaledObject for function-shape ComputeUnits. Wakes the engine
+pod when events appear at trigger.event.source.
+
+Supported sources (per source URL prefix):
+  nats:<subject>            → KEDA NATS JetStream scaler
+  kafka:<broker>:<topic>    → KEDA Kafka scaler
+  sqs:<region>:<queue>      → KEDA AWS SQS scaler
+  redis-stream:<host>:<key> → KEDA Redis Streams scaler
+  rabbitmq:<vhost>:<queue>  → KEDA RabbitMQ scaler
+*/}}
+{{- if .Values.enabled }}
+{{- if .Values.trigger.event }}
+{{- $ev := .Values.trigger.event -}}
+{{- $source := $ev.source | toString -}}
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "pleme-computeunit.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pleme-computeunit.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    kind: Deployment
+    apiVersion: apps/v1
+    name: {{ include "pleme-computeunit.fullname" . }}
+  minReplicaCount: {{ default 0 .Values.function.scaling.minReplicas }}
+  maxReplicaCount: {{ default 10 .Values.function.scaling.maxReplicas }}
+  pollingInterval: {{ default 15 .Values.function.scaling.pollingInterval }}
+  cooldownPeriod: {{ default 60 .Values.function.scaling.cooldownPeriod }}
+  triggers:
+    {{- if hasPrefix "nats:" $source }}
+    - type: stan
+      metadata:
+        natsServerMonitoringEndpoint: {{ default "nats://nats.nats.svc:8222" $ev.natsMonitoring }}
+        queueGroup: {{ default (include "pleme-computeunit.fullname" .) $ev.queueGroup }}
+        durableName: {{ default (include "pleme-computeunit.fullname" .) $ev.durableName }}
+        subject: {{ trimPrefix "nats:" $source | quote }}
+        lagThreshold: {{ default "10" $ev.lagThreshold | quote }}
+    {{- else if hasPrefix "kafka:" $source }}
+    - type: kafka
+      metadata:
+        bootstrapServers: {{ default "kafka:9092" $ev.kafkaBootstrap }}
+        topic: {{ trimPrefix "kafka:" $source | quote }}
+        consumerGroup: {{ default (include "pleme-computeunit.fullname" .) $ev.consumerGroup }}
+        lagThreshold: {{ default "10" $ev.lagThreshold | quote }}
+    {{- else if hasPrefix "sqs:" $source }}
+    - type: aws-sqs-queue
+      metadata:
+        queueURL: {{ trimPrefix "sqs:" $source | quote }}
+        queueLength: {{ default "5" $ev.lagThreshold | quote }}
+        awsRegion: {{ default "us-east-1" $ev.awsRegion }}
+    {{- else if hasPrefix "redis-stream:" $source }}
+    - type: redis-streams
+      metadata:
+        address: {{ default "redis:6379" $ev.redisAddress }}
+        stream: {{ trimPrefix "redis-stream:" $source | quote }}
+        consumerGroup: {{ default (include "pleme-computeunit.fullname" .) $ev.consumerGroup }}
+        pendingEntriesCount: {{ default "5" $ev.lagThreshold | quote }}
+    {{- else if hasPrefix "rabbitmq:" $source }}
+    - type: rabbitmq
+      metadata:
+        host: {{ default "amqp://rabbitmq:5672" $ev.rabbitmqHost }}
+        queueName: {{ trimPrefix "rabbitmq:" $source | quote }}
+        queueLength: {{ default "5" $ev.lagThreshold | quote }}
+    {{- else }}
+    {{- fail (printf "pleme-computeunit: unknown trigger.event.source prefix in %q" $source) }}
+    {{- end }}
+{{- end }}
+{{- end }}

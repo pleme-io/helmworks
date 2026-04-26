@@ -1,0 +1,58 @@
+# lareira-pvc-autoresizer — values for the PVC autosize watcher.
+# Defaults match the rio cluster (theory/BREATHABILITY.md §V).
+
+pleme-computeunit:
+  enabled: false
+
+  module:
+    source: "github:pleme-io/programs/pvc-autoresizer/main.tlisp?ref=v0.1.0"
+
+  trigger:
+    cron: "*/5 * * * *"
+
+  capabilities:
+    - kube-pvc-list
+    - kube-pvc-patch
+    - prom-query@vmsingle-vm.monitoring.svc:8429
+    - kube-event-emit
+
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits:   { cpu: 500m, memory: 256Mi }
+
+  # Runtime configuration — operators edit this; no module rebuild needed.
+  config:
+    triggerAt: 0.80
+    expandFactor: 1.25
+    maxSize: "100Gi"
+    cooldownSeconds: 600
+    prometheusUrl: "http://vmsingle-vm.monitoring.svc:8429"
+    selector:
+      matchLabels:
+        breathable: "true"
+    namespaces: []
+    dryRun: false
+
+  observability:
+    prometheusRule:
+      enabled: true
+      rules:
+        - alert: PvcAutoresizerExpansionRunaway
+          expr: |
+            increase(pvc_autoresizer_expansions_total[1h]) > 5
+          for: 0m
+          labels: { severity: warning, component: lareira-pvc-autoresizer }
+          annotations:
+            summary: "PVC autoresizer expanded >5 PVCs in the last hour"
+            description: "Possible cause: workload with unbounded write rate, missing data lifecycle policy, or maxSize circuit breaker mis-configured."
+            runbook_url: "https://runbooks.pleme.io/lareira-pvc-autoresizer/runaway"
+
+        - alert: PvcAutoresizerCeilingReached
+          expr: |
+            pvc_autoresizer_at_ceiling_total > 0
+          for: 0m
+          labels: { severity: critical, component: lareira-pvc-autoresizer }
+          annotations:
+            summary: "PVC hit maxSize ceiling — manual intervention required"
+            description: "One or more PVCs are still above triggerAt utilization but cannot expand further. Either raise maxSize, archive old data, or move to a larger storage tier."
+            runbook_url: "https://runbooks.pleme.io/lareira-pvc-autoresizer/ceiling"

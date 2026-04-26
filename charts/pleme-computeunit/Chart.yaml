@@ -1,0 +1,24 @@
+apiVersion: v2
+name: pleme-computeunit
+description: |
+  Library chart for deploying a tatara-lisp program (or any WASM/WASI
+  module) as a ComputeUnit on the lareira-wasm-platform runtime. The
+  helm-first analog of the loose `kubectl apply -f computeunit.yaml`
+  shape; consumers depend on this and supply per-program values.
+
+  Per theory/BREATHABILITY.md §VII.7: every in-cluster workload goes
+  through Helm; raw HelmRelease blocks (or kubectl apply) bypass the
+  pleme-lib invariants this chart encodes.
+
+  Emits a typed ComputeUnit CR plus, per shape:
+    program     → ttlSecondsAfterFinished, on-success cleanup
+    job         → standard CronJob fields, history limits
+    service     → Service + (optional) HTTPScaledObject
+    function    → KEDA Trigger CR for event source
+    controller  → optional policy CR alongside the ComputeUnit
+type: library
+version: 0.1.0
+appVersion: "0.1.0"
+
+keywords: [computeunit, wasm, tatara-lisp, lareira]
+maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]

@@ -1,0 +1,48 @@
+{{/*
+KEDA HTTPScaledObject for service-shape ComputeUnits. Renders only
+when trigger.service is set AND elasticity opts in via
+trigger.service.breathability.enabled.
+
+For function-shape (trigger.event), KEDA renders a different ScaledObject
+keyed on the event source — handled in keda-function.yaml.
+*/}}
+{{- if .Values.enabled }}
+{{- if .Values.trigger.service }}
+{{- $svc := .Values.trigger.service -}}
+{{- if and $svc.breathability $svc.breathability.enabled }}
+---
+apiVersion: http.keda.sh/v1alpha1
+kind: HTTPScaledObject
+metadata:
+  name: {{ include "pleme-computeunit.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pleme-computeunit.labels" . | nindent 4 }}
+spec:
+  hosts:
+    {{- range $svc.hosts }}
+    - {{ . | quote }}
+    {{- end }}
+  pathPrefixes:
+    {{- range $svc.paths }}
+    - {{ . | quote }}
+    {{- end }}
+  scaleTargetRef:
+    kind: Deployment
+    apiVersion: apps/v1
+    # The wasm-operator names per-CU Deployments by the CR name.
+    name: {{ include "pleme-computeunit.fullname" . }}
+    service: {{ include "pleme-computeunit.fullname" . }}
+    port: {{ default 8080 $svc.port }}
+  replicas:
+    min: {{ default 0 $svc.breathability.minReplicas }}
+    max: {{ default 5 $svc.breathability.maxReplicas }}
+  scaledownPeriod: {{ default 600 $svc.breathability.cooldownPeriod }}
+  scalingMetric:
+    requestRate:
+      granularity: 1s
+      targetValue: {{ default 1 $svc.breathability.targetPendingRequests }}
+      window: 30s
+{{- end }}
+{{- end }}
+{{- end }}

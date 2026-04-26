@@ -1,0 +1,18 @@
+{{- if .Values.enabled }}
+{{- if and .Values.policy .Values.policy.enabled }}
+---
+# Policy CR for controller-shape ComputeUnits. The CRD itself is
+# defined by the controller's WASM module via tatara-lisp's
+# defschema → Tatara-domain → CRD-generation pipeline; this template
+# just emits an instance with operator-edited values.
+apiVersion: {{ .Values.policy.apiVersion }}
+kind: {{ .Values.policy.kind }}
+metadata:
+  name: {{ default (include "pleme-computeunit.fullname" .) .Values.policy.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pleme-computeunit.labels" . | nindent 4 }}
+spec:
+  {{- toYaml .Values.policy.spec | nindent 2 }}
+{{- end }}
+{{- end }}

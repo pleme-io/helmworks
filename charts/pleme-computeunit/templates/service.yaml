@@ -1,0 +1,37 @@
+{{/*
+Service for service-shape ComputeUnits. The wasm-operator emits a
+matching Deployment + Pod; this Service routes inbound traffic to it.
+KEDA HTTPScaledObject (in keda-scaledobject.yaml) intercepts when
+breathability is enabled; otherwise traffic flows directly.
+*/}}
+{{- if .Values.enabled }}
+{{- if .Values.trigger.service }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pleme-computeunit.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pleme-computeunit.labels" . | nindent 4 }}
+  {{- with .Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    pleme.pleme.io/computeunit: {{ include "pleme-computeunit.fullname" . }}
+  ports:
+    - name: http
+      port: {{ default 8080 .Values.trigger.service.port }}
+      targetPort: {{ default 8080 .Values.trigger.service.port }}
+      protocol: TCP
+    {{- if .Values.observability.serviceMonitor.enabled }}
+    - name: metrics
+      port: 9090
+      targetPort: 9090
+      protocol: TCP
+    {{- end }}
+{{- end }}
+{{- end }}
