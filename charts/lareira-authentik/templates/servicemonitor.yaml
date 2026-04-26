@@ -1,0 +1,33 @@
+{{/*
+ServiceMonitor — vmagent (via vm-k8s-stack VMServiceScrape conversion)
+scrapes Authentik server's /metrics. Authentik exposes Prometheus
+metrics on port 9300 (the server has it built in via the metrics
+endpoint).
+*/}}
+{{- if .Values.enabled }}
+{{- if and .Values.observability .Values.observability.serviceMonitor .Values.observability.serviceMonitor.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "lareira-authentik.fullname" . }}
+  labels:
+    {{- include "lareira-authentik.labels" . | nindent 4 }}
+    # Allows the vm-k8s-stack vmagent to discover this monitor without
+    # an explicit selector when its serviceMonitorSelector matches the
+    # part-of label (rio convention).
+    release: victoria-metrics-k8s-stack
+spec:
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: authentik
+      app.kubernetes.io/component: server
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: {{ default "30s" .Values.observability.serviceMonitor.interval }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,49 @@
+apiVersion: v2
+name: lareira-authentik
+description: |
+  Breathable Authentik for the rio cluster (and any pleme-io home-edge
+  cluster offering SSO via Cloudflare Zero Trust → in-cluster OIDC).
+  Wraps the upstream authentik chart with pleme-io defaults:
+
+  - KEDA HTTP add-on scales the server 0→1 (cold ~15s) on first auth
+    request. Worker stays at 1 for background tasks.
+  - PostgreSQL + Redis are state tier (always on, elastic-storage tier).
+  - ServiceMonitor + PrometheusRule wired to vmalert via the standard
+    rio observability stack (vector → vmsingle → vmalert → ntfy).
+  - Default-OFF: enabled: false until the operator approves the
+    cluster.
+
+  Pillar 11 alignment: this is the listener tier (server + worker
+  scale to zero where idle; state tier always present + elastic).
+type: application
+version: 0.1.0
+appVersion: "2024.10.5"
+
+keywords:
+  - authentik
+  - sso
+  - oidc
+  - identity
+  - keda
+  - breathable
+  - lareira
+
+home: https://github.com/pleme-io/helmworks
+sources:
+  - https://github.com/pleme-io/helmworks
+  - https://github.com/goauthentik/authentik
+
+maintainers:
+  - name: drzzln
+    email: drzzln@protonmail.com
+
+dependencies:
+  - name: pleme-lib
+    version: "~0.5.0"
+    repository: "file://../pleme-lib"
+  # Upstream Authentik chart — we don't fork it; we add pleme-io
+  # sidecar resources on top via templates/.
+  - name: authentik
+    version: "2024.10.5"
+    repository: "https://charts.goauthentik.io"
+    condition: authentik.enabled

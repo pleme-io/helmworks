@@ -1,0 +1,188 @@
+# lareira-authentik — pleme-io breathable Authentik wrapper.
+#
+# Defaults match the rio cluster (a single-node Minisforum MS-A2 with
+# ZFS-backed PVCs and a vm-k8s-stack observability stack). Override
+# per-cluster as needed.
+
+# ── master gate ─────────────────────────────────────────────────────────
+# Helm renders nothing until the operator opts in.
+enabled: false
+
+# ── upstream Authentik values (passed through via dependency alias) ─────
+# This block flows directly to the goauthentik/authentik chart. Add any
+# upstream value here; pleme-io defaults are layered with mkDefault-ish
+# semantics (override-friendly).
+authentik:
+  enabled: true
+
+  # Replicas — server scales 0→1 via KEDA; worker stays warm at 1.
+  # When breathability.enabled: true (below), server replicaCount is
+  # ignored; KEDA owns it.
+  server:
+    replicaCount: 1
+    resources:
+      requests: { cpu: 100m, memory: 512Mi }
+      limits:   { cpu: 2000m, memory: 2Gi }
+    # The pleme-helm pattern: keep a startup probe with a generous
+    # threshold so cold starts (~15s for Authentik) don't get killed.
+    startupProbe:
+      enabled: true
+      httpGet:
+        path: /-/health/ready/
+        port: http
+      initialDelaySeconds: 5
+      periodSeconds: 5
+      failureThreshold: 30
+
+  worker:
+    replicaCount: 1
+    resources:
+      requests: { cpu: 100m, memory: 256Mi }
+      limits:   { cpu: 2000m, memory: 1Gi }
+
+  # ── state tier (PostgreSQL + Redis) — always on, elastic storage ───
+  postgresql:
+    enabled: true
+    auth:
+      username: authentik
+      database: authentik
+      # password sourced from authentik-secret (SOPS) — see the rio
+      # alertmanager-ntfy/ + external-secrets pattern.
+    primary:
+      persistence:
+        enabled: true
+        # Local-path on rio (single-node ZFS); override for multi-node.
+        storageClass: local-path
+        size: 5Gi
+      resources:
+        requests: { cpu: 100m, memory: 256Mi }
+        limits:   { cpu: 1000m, memory: 1Gi }
+
+  redis:
+    enabled: true
+    master:
+      persistence:
+        enabled: true
+        storageClass: local-path
+        size: 1Gi
+      resources:
+        requests: { cpu: 50m, memory: 128Mi }
+        limits:   { cpu: 500m, memory: 512Mi }
+
+# ── breathability — Authentik server scales 0→1→0 ──────────────────────
+# When enabled, the chart renders a KEDA ScaledObject targeting the
+# Authentik server Deployment. Worker stays at 1 (handles scheduled
+# jobs that can't run on a request).
+#
+# Cold-start budget: ~15s (Postgres connection + Django boot). Acceptable
+# for ad-hoc admin access; first-protected-request latency on a "cold"
+# cluster is one-shot — subsequent requests within cooldownPeriod hit a
+# warm pod. Apps consulted continuously (Vault, dashboards) keep the pod
+# warm naturally.
+breathability:
+  enabled: true
+
+  # KEDA HTTP add-on (httpscaler.kedify.io / KEDA's experimental HTTP
+  # interceptor). Required infra; must be installed in the cluster.
+  http:
+    enabled: true
+    # The HTTP add-on intercepts traffic to the Service. Rather than
+    # the regular kube-network Service, traffic flows through the
+    # interceptor proxy which buffers cold-start requests.
+    interceptor:
+      replicas: 1   # always-on listener — tiny, ~30 MiB
+
+  scaling:
+    minReplicas: 0
+    maxReplicas: 3
+    pollingInterval: 10
+    cooldownPeriod: 600          # seconds — keep warm 10 min after last request
+    targetPendingRequests: 1     # scale up at 1 in-flight request
+
+# ── outpost (forward-auth proxy) — always-on, lightweight ──────────────
+# The Authentik chart deploys an "embedded outpost" Deployment that's
+# what ingress-nginx talks to via auth_request. It's tiny; no need to
+# scale it.
+outpost:
+  # Override the default replica count to be explicit.
+  replicaCount: 1
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits:   { cpu: 200m, memory: 256Mi }
+
+# ── ingress + Cloudflare Tunnel ─────────────────────────────────────────
+# auth.quero.cloud is gated by Cloudflare Zero Trust at the edge AND by
+# Authentik in-cluster (defense in depth: even if a CF Access policy
+# misconfigures, Authentik refuses unauthorized OIDC requests).
+ingress:
+  enabled: true
+  # rio's ingress-nginx is for LAN-side access; Cloudflare Tunnel
+  # exposes auth.quero.cloud to the internet. Both work.
+  className: nginx
+  hosts:
+    - host: auth.quero.cloud
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts: [auth.quero.cloud]
+      secretName: auth-quero-cloud-tls
+
+cloudflared:
+  expose: true                # Cloudflare Tunnel ingress to auth.quero.cloud
+  hostname: auth.quero.cloud
+  service: http://authentik-server.authentik.svc.cluster.local:80
+  # NOT gated by Cloudflare Zero Trust Access — auth.quero.cloud IS the
+  # SSO endpoint. Gating it would create a chicken-and-egg loop.
+  zeroTrustAccess:
+    enabled: false
+
+# ── observability ───────────────────────────────────────────────────────
+observability:
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+  prometheusRule:
+    enabled: true
+    rules:
+      # Backend down — auth flow broken, every protected app fails.
+      - alert: AuthentikServerDown
+        expr: |
+          absent(kube_deployment_status_replicas_available{deployment="authentik-server"})
+          or kube_deployment_status_replicas_available{deployment="authentik-server"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          component: lareira-authentik
+        annotations:
+          summary: "Authentik server has 0 ready pods"
+          description: |
+            Authentik server is unreachable; every Cloudflare ZT-gated
+            app on rio with allowed_idps:[authentik] will fail to
+            authenticate. Check KEDA scaling state, postgres health,
+            and recent events on the authentik namespace.
+          runbook_url: "https://runbooks.pleme.io/lareira-authentik/server-down"
+      # Cold-start cliff — if we see >5 cold starts in 10m, the
+      # cooldownPeriod is too aggressive for this cluster's load.
+      - alert: AuthentikColdStartChurn
+        expr: |
+          increase(authentik_outpost_cold_start_total[10m]) > 5
+        for: 0m
+        labels:
+          severity: info
+          component: lareira-authentik
+        annotations:
+          summary: "Authentik cold-starting frequently — consider longer cooldown"
+          description: |
+            >5 server cold starts in the last 10m. If the cluster has
+            steady auth traffic, raise breathability.scaling.cooldownPeriod
+            (current: {{ $labels.cooldown }}).
+          runbook_url: "https://runbooks.pleme.io/lareira-authentik/cold-start-churn"
+
+# ── network policy ──────────────────────────────────────────────────────
+networkPolicy:
+  enabled: false   # opt-in; rio enables it once kyverno is up
+
+# ── pod security ────────────────────────────────────────────────────────
+podSecurity:
+  level: restricted
