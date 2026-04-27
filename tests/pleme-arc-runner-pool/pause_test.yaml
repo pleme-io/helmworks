@@ -1,0 +1,76 @@
+suite: pleme-arc-runner-pool pause contract — typed enforcement of paused ⟺ runners=0
+templates:
+  - templates/pause-state.yaml
+values:
+  - ../../examples/example-arc-runner-pool.yaml
+tests:
+  - it: paused=false (default) renders no pause-state ConfigMap
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: paused=true with min=0 max=0 renders pause-state ConfigMap
+    set:
+      paused: true
+      gha-runner-scale-set:
+        minRunners: 0
+        maxRunners: 0
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchRegex:
+          path: metadata.name
+          pattern: "-pause-state$"
+      - equal:
+          path: metadata.labels["pleme.io/paused"]
+          value: "true"
+      - equal:
+          path: metadata.annotations["pleme.io/paused"]
+          value: "true"
+      - equal:
+          path: metadata.annotations["pleme.io/paused-reason"]
+          value: "operator-set"
+
+  - it: paused=true with explicit pausedReason populates the annotation
+    set:
+      paused: true
+      pausedReason: "scheduled-maintenance-window"
+      gha-runner-scale-set:
+        minRunners: 0
+        maxRunners: 0
+    asserts:
+      - equal:
+          path: metadata.annotations["pleme.io/paused-reason"]
+          value: "scheduled-maintenance-window"
+
+  - it: paused=true with maxRunners>0 fails the render with a clear message
+    set:
+      paused: true
+      gha-runner-scale-set:
+        minRunners: 0
+        maxRunners: 3
+    asserts:
+      - failedTemplate:
+          errorMessage: "pleme-arc-runner-pool: paused=true requires gha-runner-scale-set.minRunners=0 AND gha-runner-scale-set.maxRunners=0 (got minRunners=0 maxRunners=3). The listener stays running so GitHub jobs queue but never spin up runners — both runner counts MUST be zero or the contract is violated. Set both to 0 in the same git commit as paused=true."
+
+  - it: paused=true with minRunners>0 also fails
+    set:
+      paused: true
+      gha-runner-scale-set:
+        minRunners: 1
+        maxRunners: 0
+    asserts:
+      - failedTemplate:
+          errorMessage: "pleme-arc-runner-pool: paused=true requires gha-runner-scale-set.minRunners=0 AND gha-runner-scale-set.maxRunners=0 (got minRunners=1 maxRunners=0). The listener stays running so GitHub jobs queue but never spin up runners — both runner counts MUST be zero or the contract is violated. Set both to 0 in the same git commit as paused=true."
+
+  - it: paused=false with maxRunners>0 is fine (no enforcement on un-paused side)
+    set:
+      paused: false
+      gha-runner-scale-set:
+        minRunners: 0
+        maxRunners: 5
+    asserts:
+      - hasDocuments:
+          count: 0

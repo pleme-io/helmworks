@@ -1,0 +1,43 @@
+suite: pleme-arc-runner-pool multi-role RBAC tests — verify the namespacedRBAC helper iterates a map of roles
+templates:
+  - templates/rbac.yaml
+values:
+  - ../../examples/example-arc-runner-pool.yaml
+set:
+  rbac:
+    roles:
+      runner:
+        rules:
+          - apiGroups: [""]
+            resources: ["pods"]
+            verbs: ["get", "list"]
+        subjects:
+          - kind: ServiceAccount
+            name: example-runner-sa
+      runner-secrets:
+        rules:
+          - apiGroups: [""]
+            resources: ["secrets"]
+            verbs: ["get"]
+        subjects:
+          - kind: ServiceAccount
+            name: example-runner-sa
+      runner-configmaps:
+        rules:
+          - apiGroups: [""]
+            resources: ["configmaps"]
+            verbs: ["get", "watch"]
+        subjects:
+          - kind: ServiceAccount
+            name: example-runner-sa
+tests:
+  - it: renders 3 Roles + 3 RoleBindings = 6 documents
+    asserts:
+      - hasDocuments:
+          count: 6
+
+  - it: each role name kebabcased into a Role + RoleBinding pair (3 names × 2 kinds = 6 docs)
+    asserts:
+      - matchRegex:
+          path: metadata.name
+          pattern: "^(runner|runner-secrets|runner-configmaps)$"

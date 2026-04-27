@@ -1,0 +1,79 @@
+# Example values for pleme-arc-runner-pool in the PAUSED state.
+#
+# Pause = "registered with GitHub but cannot spin up runners". The listener
+# stays up, workflows targeting `runs-on: <pool>` queue but never materialize
+# pods. Breathable infrastructure (Karpenter / bare-metal labeled-node)
+# responds appropriately: the request is acknowledged at the GitHub-side,
+# no node is provisioned.
+#
+# The chart enforces this contract at install time — `paused: true` MUST
+# be paired with `gha-runner-scale-set.{min,max}Runners: 0`. Mismatch fails
+# the render; helm-unittest, `helm template`, and FluxCD all surface the error.
+
+fullnameOverride: example-runner-pool
+
+# ---------- Pause toggle ----------
+paused: true
+pausedReason: "scheduled-maintenance-window"   # surfaced on the audit ConfigMap
+
+# ---------- Standard values (same as the active example) ----------
+serviceAccount:
+  create: true
+  name: example-runner-sa
+  annotations:
+    eks.amazonaws.com/role-arn: "arn:aws:iam::123456789012:role/example-runner-role"
+
+rbac:
+  roles:
+    runner:
+      rules:
+        - apiGroups: [""]
+          resources: ["pods", "namespaces"]
+          verbs: ["get", "list", "watch"]
+      subjects:
+        - kind: ServiceAccount
+          name: example-runner-sa
+
+karpenter:
+  nodePools:
+    example-runner-pool:
+      weight: 50
+      template:
+        spec:
+          taints:
+            - { key: arc-runner, value: "true", effect: NoSchedule }
+          nodeClassRef:
+            group: karpenter.k8s.aws
+            kind: EC2NodeClass
+            name: general
+          requirements:
+            - { key: kubernetes.io/arch, operator: In, values: ["amd64"] }
+
+# Upstream values — both runner counts MUST be 0 to match `paused: true`.
+gha-runner-scale-set:
+  githubConfigUrl: https://github.com/example-org/example-repo
+  githubConfigSecret: arc-github-app-secret
+  runnerScaleSetName: example-runner-pool
+  runnerGroup: default
+  minRunners: 0       # required by validatePause when paused: true
+  maxRunners: 0       # required by validatePause when paused: true
+
+  controllerServiceAccount:
+    namespace: actions-runner-controller
+    name: gha-arc-rs-controller
+
+  template:
+    spec:
+      serviceAccountName: example-runner-sa
+      nodeSelector:
+        runner-pool: example-runner-pool
+      tolerations:
+        - { key: arc-runner, operator: Equal, value: "true", effect: NoSchedule }
+      containers:
+        - name: runner
+          image: ghcr.io/actions/actions-runner:latest
+          command: ["/home/runner/run.sh"]
+          imagePullPolicy: IfNotPresent
+          resources:
+            requests: { cpu: "500m", memory: "1Gi" }
+            limits: { cpu: "2", memory: "4Gi" }

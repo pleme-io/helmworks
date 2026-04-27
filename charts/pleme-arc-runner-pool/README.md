@@ -137,6 +137,48 @@ Full example: [`examples/example-arc-runner-pool-bare-metal.yaml`](../../example
 
 A bare-metal Karpenter equivalent (Tinkerbell, Metal3, Cluster API Provider Metal3) could plug in later as a separate values-driven layer, but isn't required for ARC pool basic operation.
 
+## Pause toggle (registered, not provisioning)
+
+A runner pool can be **paused** — registered with GitHub but unable to spin up runner pods. This is the operational equivalent of "on, but not provisioning":
+
+- listener pod stays running (so GitHub sees the runner scale set)
+- workflows targeting `runs-on: <pool>` queue but never materialize runners
+- breathable infrastructure (Karpenter / bare-metal) "responds appropriately": the request is acknowledged at the GitHub-side, no node is provisioned
+
+### Why a typed contract instead of an auto-zero
+
+Helm subchart values can't be computed by parent templates at render time — value-merge happens before template processing. Pause is therefore a **typed contract** the chart enforces at install time. The operator sets two values together in one git commit; the chart fails the install (`helm.sh/fail`) if they're out of sync.
+
+### Pausing
+
+```yaml
+paused: true                         # ← top-level toggle
+gha-runner-scale-set:
+  minRunners: 0                      # ← required when paused: true
+  maxRunners: 0                      # ← required when paused: true
+```
+
+The `pleme-arc-runner-pool.validatePause` helper fails the render if `paused: true` is paired with non-zero runner counts. The check fires from `helm-unittest`, `helm template`, and FluxCD's reconciliation, so misconfiguration never reaches a live cluster.
+
+A `<release>-pause-state` ConfigMap is rendered when `paused: true` as an audit artifact:
+
+```bash
+kubectl get cm -A -l pleme.io/paused=true
+```
+
+Optional `pausedReason: "<text>"` populates the ConfigMap's `pleme.io/paused-reason` annotation.
+
+### Resuming
+
+```yaml
+paused: false                        # ← unset
+gha-runner-scale-set:
+  minRunners: 0
+  maxRunners: 1                      # ← restore desired capacity
+```
+
+A complete paused-state values reference is in [`examples/example-arc-runner-pool-paused.yaml`](../../examples/example-arc-runner-pool-paused.yaml).
+
 ## Cost
 
 **Idle cost: $0.** Runner pods only exist when GitHub assigns a job to the pool. Karpenter provisions a node only when a runner pod goes pending. After the workflow completes, the runner pod terminates and Karpenter consolidates the node. The only persistent overhead is the listener pod (~100m CPU / 100Mi memory), which schedules onto existing cluster capacity — no dedicated node for it.

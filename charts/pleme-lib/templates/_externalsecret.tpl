@@ -36,9 +36,10 @@ A no-op if externalSecret.secrets is empty / absent.
 {{- define "pleme-lib.externalSecret" -}}
 {{- $defaultStore := default "cluster-secret-store" (.Values.externalSecret).clusterSecretStoreName }}
 {{- $defaultInterval := default "30m" (.Values.externalSecret).refreshInterval }}
+{{- $apiVersion := default "external-secrets.io/v1" (.Values.externalSecret).apiVersion }}
 {{- range $name, $spec := (.Values.externalSecret).secrets }}
 ---
-apiVersion: external-secrets.io/v1beta1
+apiVersion: {{ $apiVersion }}
 kind: ExternalSecret
 metadata:
   name: {{ $name }}

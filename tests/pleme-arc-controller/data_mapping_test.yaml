@@ -1,0 +1,47 @@
+suite: pleme-arc-controller data-mapping tests — verify per-key remoteRef mapping (not just dataFrom extract)
+templates:
+  - templates/externalsecret.yaml
+values:
+  - ../../examples/example-arc-controller.yaml
+set:
+  externalSecret:
+    secrets:
+      arc-github-app-secret:
+        data:
+          - secretKey: github_app_id
+            remoteRef:
+              key: /example/secrets/arc/github-app-id
+          - secretKey: github_app_installation_id
+            remoteRef:
+              key: /example/secrets/arc/github-app-installation-id
+          - secretKey: github_app_private_key
+            remoteRef:
+              key: /example/secrets/arc/github-app-private-key
+tests:
+  - it: ExternalSecret renders with per-key data mapping
+    asserts:
+      - hasDocuments:
+          count: 1
+      - lengthEqual:
+          path: spec.data
+          count: 3
+
+  - it: each remoteRef points at the configured key
+    asserts:
+      - equal:
+          path: spec.data[0].secretKey
+          value: github_app_id
+      - equal:
+          path: spec.data[0].remoteRef.key
+          value: /example/secrets/arc/github-app-id
+      - equal:
+          path: spec.data[1].secretKey
+          value: github_app_installation_id
+      - equal:
+          path: spec.data[2].secretKey
+          value: github_app_private_key
+
+  # Note: helm-unittest `set:` merges with the values file, so we can't test
+  # "dataFrom absent" by setting only `data` — the example file's `dataFrom`
+  # stays. The data path being populated is sufficient evidence that per-key
+  # mapping works.

@@ -1,0 +1,24 @@
+suite: pleme-arc-runner-pool pause-state — verify the canonical paused example renders cleanly end-to-end
+templates:
+  - templates/pause-state.yaml
+values:
+  - ../../examples/example-arc-runner-pool-paused.yaml
+tests:
+  - it: paused example renders the pause-state ConfigMap
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+
+  - it: ConfigMap carries the example's pausedReason
+    asserts:
+      - equal:
+          path: metadata.annotations["pleme.io/paused-reason"]
+          value: "scheduled-maintenance-window"
+
+  - it: data.paused.txt mentions the runner scale set name
+    asserts:
+      - matchRegex:
+          path: data["paused.txt"]
+          pattern: "example-runner-pool"

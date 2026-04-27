@@ -1,0 +1,36 @@
+{{/*
+Pause-state audit artifact + render-time validation.
+
+The `validatePause` include is a side-effect call (no output) that fails the
+render if `paused: true` is not paired with `gha-runner-scale-set.{min,max}Runners=0`.
+It runs unconditionally so the contract is enforced for every install.
+
+The ConfigMap below renders ONLY when paused, providing a queryable artifact
+for operators (`kubectl get cm -A -l pleme.io/paused=true`) and dashboards.
+*/}}
+{{- include "pleme-arc-runner-pool.validatePause" . -}}
+{{- if .Values.paused -}}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}-pause-state
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+    {{- include "pleme-arc-runner-pool.pauseLabels" . | nindent 4 }}
+  annotations:
+    {{- include "pleme-arc-runner-pool.pauseAnnotations" . | nindent 4 }}
+    {{- with (include "pleme-lib.attestationAnnotations" .) }}
+    {{- . | nindent 4 }}
+    {{- end }}
+data:
+  paused.txt: |
+    This runner pool is paused.
+    The listener is registered with GitHub; jobs targeting `runs-on: {{ default (include "pleme-lib.fullname" .) (index .Values "gha-runner-scale-set" "runnerScaleSetName") }}`
+    will queue but never spin up runner pods because gha-runner-scale-set.maxRunners=0.
+    To resume:
+      1. Set `paused: false` in this HelmRelease's values
+      2. Set `gha-runner-scale-set.maxRunners` to a positive integer (and minRunners as desired)
+      3. Commit + push so FluxCD reconciles
+{{- end -}}

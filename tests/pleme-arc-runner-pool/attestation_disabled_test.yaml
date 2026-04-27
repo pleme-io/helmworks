@@ -1,0 +1,28 @@
+suite: pleme-arc-runner-pool attestation-disabled tests — verify NO sekiban annotations when attestation.enabled=false
+templates:
+  - templates/karpenter.yaml
+  - templates/rbac.yaml
+  - templates/serviceaccount.yaml
+values:
+  - ../../examples/example-arc-runner-pool.yaml
+set:
+  attestation:
+    enabled: false
+tests:
+  - it: NodePool has no sekiban annotations
+    template: templates/karpenter.yaml
+    documentSelector:
+      path: kind
+      value: NodePool
+    asserts:
+      - notExists:
+          path: metadata.annotations["sekiban.pleme.io/signature"]
+
+  - it: Role has no sekiban annotations
+    template: templates/rbac.yaml
+    documentSelector:
+      path: kind
+      value: Role
+    asserts:
+      - notExists:
+          path: metadata.annotations["sekiban.pleme.io/signature"]

@@ -13,6 +13,29 @@
 image:
   tag: ""
 
+# ---------- Pause toggle (typed contract) ----------
+# When `paused: true`, this runner pool is registered with GitHub but cannot
+# spin up runner pods. The listener stays running, GitHub sees the runner scale
+# set, jobs targeting `runs-on: <pool>` queue but never materialize runners —
+# "breathable infrastructure responds appropriately": acknowledged, not acted on.
+#
+# Helm's value-merge model can't compute child values from parent at render
+# time, so pause is a TYPED CONTRACT enforced at install time:
+#   - operator sets `paused: true` AND zeroes both `gha-runner-scale-set.minRunners`
+#     and `gha-runner-scale-set.maxRunners` in a single atomic git commit
+#   - chart's `validatePause` helper fails the install if the two are out of sync
+#     (caught by helm-unittest, `helm template`, and Flux reconciliation)
+#   - when paused, a `<release>-pause-state` ConfigMap is rendered as an audit
+#     artifact (kubectl get cm -l pleme.io/paused=true)
+#
+# To pause:    paused: true  + gha-runner-scale-set.{min,max}Runners: 0
+# To resume:   paused: false + gha-runner-scale-set.maxRunners: <N>
+paused: false
+
+# Optional human-readable reason; surfaced on the pause-state ConfigMap
+# annotations and label selector. Leave empty for the default "operator-set".
+pausedReason: ""
+
 # ---------- pleme-lib config (consumed by helpers) ----------
 
 # -- ServiceAccount used by the runner pods. IRSA wiring lives in
