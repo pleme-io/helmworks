@@ -1,10 +1,36 @@
-# pleme-tend-operator — Fleet update controller (Phase 1: flake.lock).
-# Owns:
-#   FlakeUpdatePolicy   (per-repo desirability + gates + window)
-#   FlakeUpdateProposal (one proposed advance, lifecycle phase)
-#   FlakeUpdateRollout  (DAG snapshot + frontier index)
-# See pleme-io/tend/docs/OPERATOR-DESIGN.md.
+# pleme-tend-operator — Fleet update controller.
+#
+# Owns four CRDs in fleet.pleme.io/v1alpha1:
+#   FlakeUpdatePolicy   — per-repo desirability (Auto/Gated/Locked/Forbidden)
+#                         + verification gates + optional rollout window
+#   FlakeUpdateProposal — one proposed advance, with phase lifecycle
+#                         (Pending → Verifying → Verified → Applying → Applied|Failed)
+#   FlakeUpdateRollout  — DAG snapshot for ordered multi-input rollouts
+#   FlakeUpdatePlan     — typed audit trail emitted *before* any HTTP
+#                         traffic (Phase C of the under-the-radar redesign)
+#
+# Architecture overview (top-down):
+#   ┌──────────────────────────────────────────────────────────────┐
+#   │ FlakeUpdatePolicy CR (declarative intent — operator-managed) │
+#   └──────────────────────────────┬───────────────────────────────┘
+#                                  ▼
+#   ┌──────────────────────────────────────────────────────────────┐
+#   │ Reconciler (this chart's deployment)                         │
+#   │                                                              │
+#   │  ┌─ Phase B  PersistentHeadCache (file on workspace PVC)    │
+#   │  ├─ Phase C  Plan generator (rnix flake.nix + DAG + budget) │
+#   │  │           emits FlakeUpdatePlan CR (audit trail)          │
+#   │  ├─ Phase A  ETag-aware HEAD client (304 = free request)    │
+#   │  ├─ Phase E  GraphQL batched HEAD (50:1 quota multiplier)   │
+#   │  ├─ Phase D  RequestBudget + jittered requeue               │
+#   │  └─ Apply   git fetch+reset, write_pin, commit+push w/retry  │
+#   └──────────────────────────────────────────────────────────────┘
+#
+# Future state (not yet wired but values surface is pre-staged below):
+# this single deployment splits into three KEDA-scaled workers
+# (discovery / planner / apply) coordinated by NATS JetStream.
 
+# ─── Image ──────────────────────────────────────────────────────────
 image:
   repository: ghcr.io/pleme-io/tend
   # Built with `--features operator`. Default tag pinned to amd64
@@ -27,7 +53,7 @@ serviceAccount:
   annotations: {}
   name: ""
 
-# ── Operator config ─────────────────────────────────────────────────
+# ─── Operator runtime ───────────────────────────────────────────────
 operator:
   logLevel: "info,tend=debug,kube=info"
 
@@ -36,16 +62,83 @@ operator:
   # tend daemon would.
   workspaceConfigPath: /etc/tend/config.yaml
 
-  # Polling cadence for upstream HEAD lookups. Default mirrors tend
-  # daemon's existing 300s cycle.
-  pollIntervalSeconds: 300
+  # Default policy reconcile cadence (jittered ±30%). 30 min matches
+  # the under-the-radar redesign's quota math: with ETag conditional
+  # requests + GraphQL batching, this cadence rarely costs quota; it
+  # just bounds the latency between an upstream advance and us
+  # noticing it.
+  pollIntervalSeconds: 1800
 
   # Max parallel verification gates running at any moment across all
   # in-flight rollouts. Sized for rio's single-node K3s; bump for
   # larger clusters.
   maxParallelGates: 4
 
-# ── Workspace config (mounted into pod) ─────────────────────────────
+# ─── Phase A/D — Under-the-radar HTTP client ────────────────────────
+# These knobs gate how aggressively the operator polls upstream
+# registries (today: GitHub). Defaults are conservative — well below
+# behavioral abuse-detection thresholds.
+underTheRadar:
+  # Hard cap on outgoing HEAD requests per pod per hour. Default is
+  # 2% of GitHub's 5000/hr authenticated quota. Discovery awaits a
+  # slot in this sliding-window budget before sending any request.
+  budgetMaxPerHour: 100
+
+  # Random factor multiplied into requeue intervals (0.30 = 0..30%
+  # uniform). Eliminates cron-shaped wallclock-aligned polling that
+  # GitHub's behavioral detector flags. Set to 0 to disable jitter.
+  requeueJitterPct: 0.30
+
+  # Adaptive backoff thresholds. When GitHub's
+  # `X-RateLimit-Remaining` drops below `pressureWarnPct` of `Limit`,
+  # the budget halves; below `pressureCriticalPct`, quartersand below
+  # 10% it eighths. Recovers automatically when remaining headroom
+  # increases. These match the operator code's defaults; surfaced
+  # here for cluster-specific tuning.
+  pressureWarnPct: 50
+  pressureCriticalPct: 25
+
+# ─── Phase B — Persistent HEAD cache ────────────────────────────────
+# ETag cache survives pod restarts via a JSON file on the workspace
+# PVC. This is what makes Phase A's "304 = free" actually work across
+# the lifetime of the cluster, not just within one pod.
+cache:
+  # File path inside the pod. Lives on the workspace PVC alongside
+  # cloned repos. Path is relative to the workspace mountPath; the
+  # `.tend-cache/` prefix keeps it cleanly separated.
+  path: /var/lib/tend-workspace/.tend-cache/head.json
+
+  # Max age before a cached entry triggers a fresh refresh attempt
+  # (etag-conditional). Cache hits within the TTL window are tagged
+  # `UseCached` in the FlakeUpdatePlan and skip the network call
+  # entirely. Default 20 min ≈ 12× cheaper than poll-every-cycle.
+  useCachedTtlSeconds: 1200
+
+# ─── Phase C — FlakeUpdatePlan emission ─────────────────────────────
+# The plan CR is the typed audit trail for what discovery is about to
+# do. Operators can `kubectl describe fpl` to see refresh/cached/
+# defer/skip decisions per cycle, with full rationale.
+plans:
+  # Emit a FlakeUpdatePlan resource at the start of every reconcile
+  # cycle. Disable to silence — but you lose audit + reproducibility.
+  emit: true
+
+  # Plan name granularity in seconds. Cycles within the same bucket
+  # overwrite the same plan resource (browseable history without
+  # unbounded growth). Default 60 = one plan per minute per policy.
+  bucketSeconds: 60
+
+# ─── Phase E — GraphQL batching ─────────────────────────────────────
+# 50:1 quota multiplier when there are multiple inputs to refresh in
+# one cycle. Falls through to per-id REST when GraphQL fails or for
+# non-GitHub sources.
+graphql:
+  enabled: true
+  # Aliases per query. GitHub allows up to 500 nodes per query; 50
+  # stays well within the per-call cost ceiling.
+  batchSize: 50
+
+# ─── Workspace config (mounted into pod) ────────────────────────────
 # Either inline the workspace config here, OR set existingConfigMap
 # to reference a ConfigMap created out-of-band (e.g. seeded from the
 # operator's host filesystem via a tatara-script systemd unit).
@@ -57,15 +150,16 @@ workspaceConfig:
     # k8s/clusters/rio/infrastructure/tend-operator/configmap.yaml.
     workspaces: []
 
-# ── GitHub auth ─────────────────────────────────────────────────────
-# Token for GitHub HEAD-resolver. Operator falls back to
-# /etc/github/token (mounted from the secret below) when GITHUB_TOKEN
-# env is unset.
+# ─── GitHub auth ────────────────────────────────────────────────────
+# Token for GitHub HEAD-resolver and apply-side `git push`. Operator
+# uses GITHUB_TOKEN env (sourced from the secret below) for HTTP API
+# calls; falls back to URL-embedded credentials in the workspace
+# clone for git operations.
 github:
   existingSecret: ""           # e.g. "github-token" — must contain key `token`
   secretKey: "token"
 
-# ── RBAC ────────────────────────────────────────────────────────────
+# ─── RBAC ───────────────────────────────────────────────────────────
 rbac:
   create: true
   rules:
@@ -90,18 +184,18 @@ rbac:
       resources: ["leases"]
       verbs: ["get", "create", "update"]
 
-# ── Resources ───────────────────────────────────────────────────────
-# Single-node sizing. The operator itself is light; verification
-# gates (nix build, cargo test, forge ci) shell out to subprocesses
-# which can be heavy — those gates ideally run on JIT builders, not
-# in this pod.
+# ─── Resources ──────────────────────────────────────────────────────
+# 4Gi limit so inline `nix flake check` evaluation has headroom — the
+# pleme-io nix repo's full eval graph is 2-4 GiB peak. Phase 2 (NATS
+# worker pool) will move heavy gates to remote builders and drop this
+# back to ~512Mi.
 resources:
   requests:
     cpu: 50m
-    memory: 96Mi
+    memory: 256Mi
   limits:
-    cpu: 500m
-    memory: 512Mi
+    cpu: 2000m
+    memory: 4Gi
 
 terminationGracePeriodSeconds: 30
 
@@ -119,33 +213,84 @@ securityContext:
   runAsNonRoot: true
   runAsUser: 1000
 
-# ── Service (metrics) ───────────────────────────────────────────────
+# ─── Service (metrics) ──────────────────────────────────────────────
 service:
   type: ClusterIP
   ports:
     metrics: 9090
 
-# ── ServiceMonitor (vmagent picks this up via VMOperator converter) ─
+# ─── ServiceMonitor (vmagent picks this up via VMOperator converter) ─
 # Operator emits Prometheus metrics on :9090/metrics covering proposal
 # lifecycle, gate outcomes, apply outcomes, and reconcile errors.
 serviceMonitor:
   enabled: true
   interval: 30s
 
-# ── Workload sources volume ─────────────────────────────────────────
+# ─── Workspace volume ───────────────────────────────────────────────
 # Operator needs git working trees on disk to run gates / write pins.
-# Two ways to provide them:
-#   - persistent volume claim (operator clones via tend on demand)
-#   - host path (only viable for single-node, e.g. rio)
+# The persistent cache (Phase B) also lives here — losing this volume
+# means losing the ETag cache, which costs one full-quota cycle on
+# next pod restart.
 workspace:
   volume:
-    type: emptyDir            # "emptyDir" | "persistentVolumeClaim" | "hostPath"
+    type: persistentVolumeClaim   # "emptyDir" | "persistentVolumeClaim" | "hostPath"
     pvc:
       storageClass: local-path
       size: 50Gi
-    hostPath: ""              # e.g. "/var/lib/tend-workspace" on rio
+    hostPath: ""                  # e.g. "/var/lib/tend-workspace" on rio
+  # Mount path inside the pod. Should match the prefix in `cache.path`.
+  mountPath: /var/lib/tend-workspace
 
-# ── CRD installation ────────────────────────────────────────────────
+# ─── Breathability (KEDA-driven scale-to-zero) ──────────────────────
+# Pre-staged for KEDA installation. When `breathability.enabled` is
+# true and KEDA is installed, the chart emits a ScaledObject that:
+#   - sleeps the operator overnight via cron trigger
+#   - wakes on weekday business hours
+#   - scales 1→0 when no FlakeUpdateProposal is in active phase for
+#     more than `cooldownSeconds`
+#
+# Default disabled so the chart works on clusters without KEDA. Once
+# KEDA is on rio, flip to true and the operator will respect the
+# cron window automatically.
+breathability:
+  enabled: false
+  cron:
+    # Wake during these hours; sleep at all other times.
+    timezone: "America/New_York"
+    start: "0 9 * * 1-5"   # 09:00 weekdays
+    end:   "0 18 * * 1-5"  # 18:00 weekdays
+  scaleToZero:
+    cooldownSeconds: 600   # 10 min idle before scale-down
+    # Optional NATS lag trigger (composes with cron via KEDA's
+    # higher-verdict semantics). Leave empty when no queue exists.
+    nats:
+      streamName: ""       # e.g. "TEND_DISCOVERY"
+      consumerName: ""     # e.g. "discovery-worker"
+
+# ─── NATS coordination (Phase 2 worker pool — pre-staged) ───────────
+# When `nats.enabled` is true, the operator publishes per-cycle
+# events to NATS subjects. Today these are *informational* (Vector
+# sinks them into VictoriaLogs for audit). The forthcoming
+# `tend-discovery` / `tend-planner` / `tend-apply` workers will
+# consume the same subjects to coordinate work across pods.
+#
+# Subject convention follows the fleet pattern (rio.events.*):
+#   rio.events.tend.candidate          — one CandidateAdvance
+#   rio.events.tend.plan.wave.<N>      — wave-tagged plan items
+#   rio.events.tend.applied            — successful apply
+#   rio.events.tend.apply.failed       — failed apply (telemetry)
+nats:
+  enabled: false
+  serverUrl: "nats://nats.nats.svc:4222"
+  # Stream/subject prefix. Override per-cluster — `rio.events.tend`
+  # is the convention used by other workloads on rio.
+  subjectPrefix: "rio.events.tend"
+  # Future: `nats.kv` configures a JetStream KV bucket for the HEAD
+  # cache when migrating from file-on-PVC (Phase B) to a fleet-wide
+  # cache. Empty string = use the file-backed cache instead.
+  kvBucket: ""
+
+# ─── CRD installation ───────────────────────────────────────────────
 # Toggle to false if installing CRDs out-of-band (e.g. via Flux's
 # CRD chart). Default true means the chart owns CRD lifecycle.
 installCRDs: true

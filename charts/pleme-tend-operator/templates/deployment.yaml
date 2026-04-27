@@ -89,6 +89,37 @@ spec:
               value: "/home/tend/.cache"
             - name: NIX_CONFIG
               value: "experimental-features = nix-command flakes"
+            # ── Phase A/D: under-the-radar HTTP knobs ─────────────
+            # Operator reads these on startup; defaults in code match
+            # the values block above so unsetting them = current behavior.
+            - name: TEND_BUDGET_MAX_PER_HOUR
+              value: {{ .Values.underTheRadar.budgetMaxPerHour | quote }}
+            - name: TEND_REQUEUE_JITTER_PCT
+              value: {{ .Values.underTheRadar.requeueJitterPct | quote }}
+            # ── Phase B: persistent HEAD cache ────────────────────
+            - name: TEND_HEAD_CACHE_PATH
+              value: {{ .Values.cache.path | quote }}
+            - name: TEND_USE_CACHED_TTL_SECONDS
+              value: {{ .Values.cache.useCachedTtlSeconds | quote }}
+            # ── Phase C: plan emission ────────────────────────────
+            - name: TEND_PLANS_EMIT
+              value: {{ .Values.plans.emit | quote }}
+            - name: TEND_PLAN_BUCKET_SECONDS
+              value: {{ .Values.plans.bucketSeconds | quote }}
+            # ── Phase E: GraphQL batching ─────────────────────────
+            - name: TEND_GRAPHQL_ENABLED
+              value: {{ .Values.graphql.enabled | quote }}
+            - name: TEND_GRAPHQL_BATCH_SIZE
+              value: {{ .Values.graphql.batchSize | quote }}
+            # ── NATS coordination (Phase 2 worker pool) ───────────
+            - name: TEND_NATS_ENABLED
+              value: {{ .Values.nats.enabled | quote }}
+            {{- if .Values.nats.enabled }}
+            - name: TEND_NATS_URL
+              value: {{ .Values.nats.serverUrl | quote }}
+            - name: TEND_NATS_SUBJECT_PREFIX
+              value: {{ .Values.nats.subjectPrefix | quote }}
+            {{- end }}
             {{- if .Values.github.existingSecret }}
             - name: GITHUB_TOKEN
               valueFrom:
