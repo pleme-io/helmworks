@@ -1,5 +1,8 @@
 # Helmworks
 
+> **★★★ CSE / Knowable Construction.** This repo operates under **Constructive Substrate Engineering** — canonical specification at [`pleme-io/theory/CONSTRUCTIVE-SUBSTRATE-ENGINEERING.md`](https://github.com/pleme-io/theory/blob/main/CONSTRUCTIVE-SUBSTRATE-ENGINEERING.md). The Compounding Directive (operational rules: solve once, load-bearing fixes only, idiom-first, models stay current, direction beats velocity) is in the org-level pleme-io/CLAUDE.md ★★★ section. Read both before non-trivial changes.
+
+
 Reusable Helm chart library for pleme-io internal services.
 
 ## Structure
@@ -81,6 +84,86 @@ All charts enforce:
 - `readOnlyRootFilesystem: true`
 - `allowPrivilegeEscalation: false`
 - `capabilities.drop: [ALL]`
+
+## Compliance Primitives (FedRAMP Low / Moderate / High)
+
+`pleme-lib` ≥ 0.6.0 ships compliance primitives that encode the K8s-side
+mapping of NIST 800-53 controls. A consumer chart selects a baseline:
+
+```yaml
+compliance:
+  baseline: fedramp-high   # or fedramp-moderate / fedramp-low / ""
+  enforce: true
+```
+
+Selecting a baseline mechanically:
+
+- forces `seccompProfile=RuntimeDefault` and `automountServiceAccountToken=false` at moderate+
+- requires `image.tag != "latest"` at moderate+; requires digest-pinned image at high
+- emits a default-deny + allow-DNS + allow-TLS-egress NetworkPolicy trio at moderate+
+- emits a mandatory `PodDisruptionBudget` and topology spread at high
+- emits a mandatory `ServiceMonitor` (AU-2, AU-12, SI-4)
+- requires `attestation.enabled=true` at high (sekiban admission)
+- requires a dedicated ServiceAccount at moderate+ (no `default`)
+- forbids literal env values for secret-shaped variable names (IA-5)
+- requires PVCs to use an encrypted-class storage class at high (SC-28)
+- emits a `compliance-manifest` ConfigMap describing controls covered
+- adds `compliance.pleme.io/*` labels and annotations to every resource
+- runs `fail()` validators that block non-compliant input at template render
+
+Templates:
+- `_compliance.tpl` — entry points (`baseline`, `labels`, `annotations`, `validate`)
+- `_compliance_security.tpl` — pod / container securityContext, host* forbidden
+- `_compliance_image.tpl` — digest enforcement, pullPolicy
+- `_compliance_network.tpl` — default-deny + DNS + TLS egress
+- `_compliance_audit.tpl` — ServiceMonitor + audit annotations
+- `_compliance_availability.tpl` — PDB + topology spread + resources
+- `_compliance_attestation.tpl` — sekiban requirement at high
+- `_compliance_rbac.tpl` — dedicated ServiceAccount required
+- `_compliance_secrets.tpl` — secret-shaped env vars must use secretKeyRef
+- `_compliance_storage.tpl` — encrypted storage class allowlist (high)
+- `_compliance_ingress.tpl` — ingress.tls required when ingress.enabled
+- `_compliance_namespace.tpl` — PSS labels, namespace deny-all, ResourceQuota, LimitRange
+- `_compliance_manifest.tpl` — ConfigMap describing claimed compliance posture
+
+**Proof:** `docs/COMPLIANCE-PROOF.md` is the proof that consumer charts using
+only these primitives cannot produce a non-compliant K8s architecture at the
+chart layer. The proof is mechanical:
+
+- The negative test corpus (`tests/pleme-microservice/compliance_proof_negative_test.yaml`)
+  enumerates every K8s-side FedRAMP-High invariant and demonstrates a
+  violating value shape causes `helm template` to fail.
+- The positive test corpus (`tests/pleme-microservice/compliance_proof_positive_test.yaml`)
+  asserts every invariant holds in the rendered output of the canonical
+  example values.
+- The bare-fixture suite (`tests/_fixtures/pleme-lib-bare/compliance_lib_validators_test.yaml`)
+  exercises validators that need empty-default inputs.
+
+Pre-merge CI must run all three suites. A weakened validator surfaces as a
+failed test, breaking the proof visibly.
+
+**Trust boundary:** the proof covers the chart-render step. Cluster-side
+guarantees (PSS admission, sekiban deployed, CNI NetworkPolicy enforcement,
+encrypted storage class is actually encrypted, etc.) are documented in
+`docs/COMPLIANCE-PROOF.md` § 2 and enforced by the cluster repos.
+
+**Companion reference:**
+- Cloud layer: `pangea-architectures/lib/pangea/architectures/generated/compliance/fedramp_high.rb`
+- Compliance reporting: `kensa/src/mapping/fedramp.rs`
+- Attestation chain: `tameshi/src/compliance/dimensions.rs`
+- Admission gate: `sekiban/`
+
+### `pleme-compliance` chart
+
+Namespace-scope scaffolding chart. Apply once per namespace; every workload
+deployed there inherits Pod Security Standard enforcement, default-deny
+networking, and resource quotas matched to the baseline.
+
+```bash
+helm install regulated-ns oci://ghcr.io/pleme-io/charts/pleme-compliance \
+  --namespace regulated --create-namespace \
+  --set compliance.baseline=fedramp-high
+```
 
 ## Integration with k8s repo
 
