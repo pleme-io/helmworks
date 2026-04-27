@@ -1,0 +1,81 @@
+suite: pleme-image-sync — air-gap registry-mirror CronJob
+templates:
+  - templates/cronjob.yaml
+  - templates/serviceaccount.yaml
+  - templates/networkpolicy.yaml
+  - templates/compliance-manifest.yaml
+release:
+  name: img-sync
+  namespace: registry
+defaults: &defaults
+  image.repository: quay.io/skopeo/stable
+  image.tag: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  attestation.enabled: true
+  attestation.signature: "blake3:0000000000000000000000000000000000000000000000000000000000000000"
+tests:
+  - it: "[CM-2/SI-7] skopeo image digest-pinned"
+    set:
+      <<: *defaults
+    template: templates/cronjob.yaml
+    asserts:
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.containers[0].image
+          pattern: "@sha256:[0-9a-f]{64}$"
+
+  - it: "[CM-7/AC-6] container security hardened"
+    set:
+      <<: *defaults
+    template: templates/cronjob.yaml
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].securityContext.seccompProfile.type
+          value: RuntimeDefault
+
+  - it: "[SC-5] concurrencyPolicy is not Allow"
+    set:
+      <<: *defaults
+    template: templates/cronjob.yaml
+    asserts:
+      - notEqual:
+          path: spec.concurrencyPolicy
+          value: Allow
+
+  - it: "[SC-5] concurrencyPolicy=Allow is rejected"
+    values:
+      - ../../tests/pleme-image-sync/_concurrency_allow.yaml
+    template: templates/cronjob.yaml
+    asserts:
+      - failedTemplate:
+          errorPattern: "requires concurrencyPolicy != Allow"
+
+  - it: "[SC-7(11)] registry-mirror egress NetworkPolicy is rendered"
+    set:
+      <<: *defaults
+    template: templates/networkpolicy.yaml
+    documentSelector:
+      path: metadata.name
+      value: img-sync-pleme-image-sync-airgap-mirror-egress
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+
+  - it: "[CM-2] compliance manifest claims mirror"
+    set:
+      <<: *defaults
+    template: templates/compliance-manifest.yaml
+    asserts:
+      - equal:
+          path: data.mirror-enabled
+          value: "true"
+      - equal:
+          path: data.airgap-role
+          value: registry-mirror
+      - equal:
+          path: data.mirror-cosign-verify
+          value: "true"

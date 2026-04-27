@@ -1,0 +1,89 @@
+{{- /*
+  Zot config.json — rendered from values. The compliance-relevant settings
+  (TLS minVersion, audit log path, signature verification, sync policy)
+  are all driven by the compliance baseline.
+*/ -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}-config
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+  annotations:
+    {{- include "pleme-lib.compliance.annotations" . | nindent 4 }}
+data:
+  config.json: |
+    {
+      "distSpecVersion": "1.1.0",
+      "storage": {
+        "rootDirectory": {{ .Values.persistence.mountPath | quote }},
+        "dedupe": true,
+        "gc": true,
+        "gcDelay": "1h",
+        "gcInterval": "24h"
+      },
+      "http": {
+        "address": "0.0.0.0",
+        "port": "5000"{{ if eq .Values.auth.backend "htpasswd" }},
+        "auth": {
+          "htpasswd": {
+            "path": "/etc/zot/htpasswd"
+          }
+        }{{ else if eq .Values.auth.backend "oidc" }},
+        "auth": {
+          "openid": {
+            "providers": {
+              "oidc": {
+                "name": "authentik",
+                "issuer": {{ .Values.auth.oidc.issuer | quote }},
+                "clientid": {{ .Values.auth.oidc.clientID | quote }},
+                "scopes": ["openid", "profile", "email"]
+              }
+            }
+          }
+        }{{ end }}
+      },
+      "log": {
+        "level": {{ ((.Values.compliance).audit).logLevel | default "info" | quote }},
+        "output": "/var/log/zot/access.log",
+        "audit": "/var/log/zot/audit.log"
+      },
+      "extensions": {
+        "metrics": {
+          "enable": true,
+          "prometheus": {
+            "path": "/metrics"
+          }
+        },
+        "search": {
+          "enable": true,
+          "cve": {
+            "updateInterval": "2h"
+          }
+        }{{ if .Values.cosign.enabled }},
+        "scrub": {
+          "enable": true,
+          "interval": "24h"
+        },
+        "sign": {
+          "enable": true
+        }{{ end }}{{ if eq .Values.mode "pull" }},
+        "sync": {
+          "enable": true,
+          "credentialsFile": "/etc/zot/sync-creds.json",
+          "registries": [
+            {{- range $i, $r := .Values.upstream.registries }}
+            {{- if $i }},{{ end }}
+            {
+              "urls": {{ $r.urls | toJson }},
+              "pollInterval": {{ $r.pollInterval | default "1h" | quote }},
+              "onDemand": {{ $r.onDemand | default true }},
+              "tlsVerify": true,
+              "content": {{ $r.content | toJson }}
+            }
+            {{- end }}
+          ]
+        }{{ end }}
+      }
+    }

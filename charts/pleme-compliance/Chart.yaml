@@ -1,0 +1,11 @@
+apiVersion: v2
+name: pleme-compliance
+description: Namespace-scope compliance scaffolding (PSS labels, default-deny NetworkPolicy, ResourceQuota, LimitRange) driven by a single baseline value
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+
+dependencies:
+  - name: pleme-lib
+    version: "~0.10.0"
+    repository: "file://../pleme-lib"

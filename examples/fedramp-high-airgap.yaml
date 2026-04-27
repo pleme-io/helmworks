@@ -1,0 +1,124 @@
+# Example: pleme-microservice deployed at FedRAMP-High in air-gap CONSUMER role.
+#
+# This is the 95% case: a regular workload that pulls images only from the
+# cluster-local Zot. Combined with the cluster-side Zot deployment
+# (charts/pleme-zot) and the image-sync mirror (charts/pleme-image-sync),
+# the workload has zero direct path to public registries.
+#
+# What setting compliance.airgap.role=consumer mechanically does:
+#   1. Validates image.repository starts with one of compliance.airgap.allowedRegistries
+#      (default: zot.<airgap.registryService.namespace>.svc.cluster.local)
+#   2. Auto-emits an egress NetworkPolicy allowing ONLY the Zot Service
+#   3. Auto-injects compliance.airgap.imagePullSecret into spec.imagePullSecrets
+#   4. At fedramp-high, requires compliance.airgap.requireSignedImages=true
+#      (cluster-side: Zot's extensions.scrub + extensions.sign verify
+#      cosign signatures at the registry boundary)
+#   5. Emits compliance.pleme.io/airgap-{role,allowed-registries} annotations
+#      that audit pipelines can use to distinguish air-gap from non-air-gap
+#      workloads
+#
+# Combined with everything inherited from compliance.baseline=fedramp-high
+# (seccomp=RuntimeDefault, automount=false, digest-pinned image, default-deny
+# NetworkPolicy + DNS + TLS-egress, mandatory PDB + topology-spread + monitoring,
+# attestation, RBAC least-privilege, encrypted storage, …), this is the
+# canonical regulated workload shape.
+
+compliance:
+  baseline: fedramp-high
+  enforce: true
+  audit:
+    logLevel: info
+    retentionDays: 365
+  # ── Air-gap consumer role ──────────────────────────────────────
+  airgap:
+    enabled: true
+    role: consumer
+    requireSignedImages: true
+    registryService:
+      name: zot
+      namespace: registry
+      port: 5000
+    imagePullSecret: zot-pull-creds
+  # ── Authn: OIDC for Ingress, mTLS for service-to-service ───────
+  authn:
+    oidc:
+      provider: authentik
+      group: regulated-workload-users
+    istio:
+      mtls:
+        required: null   # null = auto (true at fedramp-high)
+    token:
+      audience: my-service.regulated.svc.cluster.local
+      expirationSeconds: 3600
+  # ── Authz: minimal RBAC. The chart needs to read its own ConfigMap
+  #    only — that's all the workload's K8s API surface. No wildcards.
+  authz:
+    role:
+      rules:
+        - apiGroups: [""]
+          resources: ["configmaps"]
+          resourceNames: ["my-service-config"]
+          verbs: ["get", "watch"]
+
+# Image: digest-pinned, Zot-fronted. CI injects the digest at release.
+# The path is rewritten to point at the local Zot:
+#   ghcr.io/pleme-io/example-service@sha256:abc...
+#     → zot.registry.svc.cluster.local/pleme-io/example-service@sha256:abc...
+image:
+  repository: zot.registry.svc.cluster.local/pleme-io/example-service
+  tag: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  pullPolicy: Always
+
+# 3 replicas across zones — spreads the SC-5 burden.
+replicaCount: 3
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+ports:
+  - name: http
+    containerPort: 8080
+    protocol: TCP
+
+service:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+
+# Ingress: must terminate TLS, must have OIDC. Both forced by validators.
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    - host: my-service.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts:
+        - my-service.example.com
+      secretName: my-service-tls
+
+monitoring:
+  enabled: true
+  port: http
+  path: /metrics
+  interval: 30s
+
+# Attestation injected by forge at release time. Sekiban verifies these
+# annotations at admission; the air-gap consumer role + sekiban together
+# form the SC-7(11) + SI-7 + AC-3 enforcement chain.
+attestation:
+  enabled: true
+  signature: ""
+  certificationHash: ""
+  complianceHash: ""
+  changesetHash: ""

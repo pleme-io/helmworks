@@ -1,0 +1,16 @@
+{{- /*
+  Namespace-scope deny-all NetworkPolicy.
+
+  Resolution order for whether to emit:
+    1. .Values.denyAllPolicy.enabled (explicit override) — accepts bool or "true"/"false" string
+    2. fall through to compliance.network.required (true at baseline >= moderate)
+*/ -}}
+{{- $emit := (include "pleme-lib.compliance.network.required" .) -}}
+{{- if hasKey (.Values.denyAllPolicy | default dict) "enabled" -}}
+  {{- $val := .Values.denyAllPolicy.enabled -}}
+  {{- if eq (toString $val) "true" -}}{{ $emit = "true" }}{{- end -}}
+  {{- if eq (toString $val) "false" -}}{{ $emit = "false" }}{{- end -}}
+{{- end -}}
+{{- if eq $emit "true" -}}
+{{- include "pleme-lib.compliance.namespace.denyAllPolicy" . -}}
+{{- end }}

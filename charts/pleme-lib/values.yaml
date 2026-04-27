@@ -262,6 +262,155 @@ downwardApi:
 # -- Resource-level annotations (applied to Deployment, Service, etc. metadata)
 annotations: {}
 
+# -- Compliance baseline. The single value that drives every K8s-side
+#    FedRAMP-mappable invariant on. Choose one:
+#
+#      ""                  — no baseline (legacy; explicit values only)
+#      "fedramp-low"       — NIST 800-53 Low subset
+#      "fedramp-moderate"  — NIST 800-53 Moderate subset (recommended for prod)
+#      "fedramp-high"      — NIST 800-53 High subset (regulated workloads)
+#
+#    Selecting a baseline:
+#      - forces seccompProfile=RuntimeDefault at moderate+
+#      - forces automountServiceAccountToken=false at moderate+
+#      - forces image.tag != "latest" at moderate+, image digest at high
+#      - emits default-deny + allow-dns + allow-tls-egress NetworkPolicies at moderate+
+#      - emits a mandatory PodDisruptionBudget at high
+#      - emits topology-spread constraints at high
+#      - emits a compliance-manifest ConfigMap describing controls covered
+#      - adds compliance.pleme.io/* labels and annotations to every resource
+#      - runs validators that fail() at template time on non-compliant values
+#
+#    See the canonical mapping:
+#      pangea-architectures/lib/pangea/architectures/generated/compliance/fedramp_high.rb
+#      kensa/src/mapping/fedramp.rs
+#      tameshi/src/compliance/dimensions.rs
+compliance:
+  # -- Active baseline. Empty string disables the compliance layer entirely.
+  baseline: ""
+  # -- When false, compliance metadata is still rendered but template-time
+  #    validators do not fail() on violations. Use only for migration runs.
+  enforce: true
+  # -- Audit-pipeline metadata. Surfaced as audit.pleme.io/* annotations.
+  audit:
+    logLevel: "info"
+    retentionDays: 365
+  # -- Compliance NetworkPolicy controls.
+  network:
+    # When false, the cluster-edge TLS-only egress allow rule is omitted
+    # (use only when the workload has no public-internet egress need).
+    allowTlsEgress: true
+  # -- Namespace-scope compliance primitives (used by pleme-compliance chart
+  #    and any application chart that owns its own namespace).
+  namespace:
+    resourceQuota:
+      enabled: false
+    limitRange:
+      enabled: false
+  # -- Layer 1: generic egress allowlist primitive. Foundation for any
+  #    "this workload talks only to X" pattern.
+  egress:
+    # toService: workload egresses ONLY to a specific Service in the cluster.
+    # Useful for: workload→database, workload→auth, workload→registry.
+    toService:
+      # name: ""                  # Service name (required)
+      # namespace: ""             # defaults to this chart's namespace
+      # ports:                    # default [{ port: 443, protocol: TCP }]
+      #   - port: 443
+      #     protocol: TCP
+    # toUpstream: workload egresses ONLY to specific external hosts.
+    # Useful for: registry-mirror, package-mirror, helm-mirror, sbom-mirror.
+    toUpstream:
+      # allowedCidrs:             # CIDR allowlist (CNI-agnostic)
+      #   - "140.82.112.0/20"     # GitHub
+      #   - "104.16.0.0/13"       # Cloudflare (ghcr.io/quay.io front)
+      # allowedHosts:             # FQDN allowlist (Cilium only; opt in)
+      #   - "ghcr.io"
+      #   - "*.amazonaws.com"
+      # useCilium: false          # set true to emit CiliumNetworkPolicy
+      # ports:
+      #   - port: 443
+      #     protocol: TCP
+  # -- Layer 1: RBAC primitives. Use compliance.authz.role.rules to declare
+  #    namespace-scoped permissions; the validator forbids wildcards.
+  authz:
+    role:
+      # rules:
+      #   - apiGroups: [""]
+      #     resources: ["configmaps"]
+      #     verbs: ["get", "list", "watch"]
+    roleBinding:
+      # subjects:                  # default: this chart's SA
+      #   - kind: ServiceAccount
+      #     name: my-sa
+      #     namespace: my-ns
+    clusterRole:
+      # rules: []                  # discouraged; ClusterRoles need justification
+    clusterRoleBinding:
+      # subjects: []
+    allowList:
+      # clusterWildcardVerbs: false       # opt-in for ClusterRole verbs:["*"]
+      # clusterWildcardApiGroups: false   # opt-in for ClusterRole apiGroups:["*"]
+      # bindingGroups: []                 # opt-in Group subjects (e.g. allow ["system:authenticated"])
+  # -- Layer 1: authentication primitives.
+  authn:
+    # OIDC forward-auth via Authentik (the pleme-io standard).
+    oidc:
+      # provider: "authentik"
+      # outpostHost: "authentik.identity.svc.cluster.local"
+      # outpostPort: 9000
+      # group: ""                  # required Authentik group, optional
+    # Istio mTLS PeerAuthentication=STRICT for service-to-service.
+    istio:
+      mtls:
+        # required: null           # null = auto (true at fedramp-high); true / false to override
+        # mode: "STRICT"
+    # Projected SA token with explicit audience for downstream auth.
+    token:
+      # audience: ""               # e.g. "zot.cluster.local"
+      # expirationSeconds: 3600    # ≤ 3600 at fedramp-high
+    allowList:
+      # unauthenticatedIngress: false  # opt-in for public ingress (marketing pages)
+  # -- Layer 2: air-gap pattern. Workload-image traffic constrained to a
+  #    cluster-local registry (consumer role) or a curated upstream allowlist
+  #    (registry-mirror role).
+  airgap:
+    enabled: false
+    # role: "consumer"             # or "registry-mirror"
+    # allowedRegistries:           # auto-derived from registryService if not set
+    #   - "zot.registry.svc.cluster.local"
+    #   - "zot.registry.svc"
+    registryService:
+      # name: zot
+      # namespace: registry
+      # port: 5000
+      # protocol: TCP
+    imagePullSecret: ""           # name of the pull-creds Secret to inject
+    # requireSignedImages: true   # required at fedramp-high; cosign at the registry boundary
+    upstream:                     # for registry-mirror role only
+      # allowedCidrs:              # CIDRs of upstream registries
+      #   - "140.82.112.0/20"
+      # allowedHosts:              # FQDN allowlist (Cilium only)
+      #   - "ghcr.io"
+      # useCilium: false
+      # credentialSecret: ""       # required at fedramp-high
+  # -- Layer 2: scheduled-sync primitive (image-sync, helm-mirror, etc.).
+  mirror:
+    # schedule: "*/15 8-18 * * 1-5"
+    # upstreams:
+    #   - host: "ghcr.io"
+    #     credentialSecret: "ghcr-pull"
+    #     repos:
+    #       - "pleme-io/example-service"
+    # cosignVerify: true           # required at fedramp-high
+    # cosignKeyRef:
+    #   name: cosign-pub
+    #   key: cosign.pub
+    audit:
+      # required: true             # default true at moderate+
+    allowList:
+      # anonymousUpstream: false   # opt-in for unauthenticated upstreams
+
 # -- Attestation framework integration (sekiban integrity verification)
 # When enabled, produces sekiban.pleme.io/* annotations on all resources.
 # These are verified by sekiban's ValidatingAdmissionWebhook before resources

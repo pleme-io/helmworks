@@ -3,6 +3,7 @@ Custom deployment for headscale — uses pleme-lib helpers but adds PVC
 volume mount (SQLite data), ConfigMap volume (config.yaml), and emptyDir
 for /tmp (read-only rootfs).
 */}}
+{{- include "pleme-lib.compliance.validate" . -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:

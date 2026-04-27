@@ -1,0 +1,7 @@
+image:
+  repository: quay.io/skopeo/stable
+  tag: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+attestation:
+  enabled: true
+  signature: "blake3:0000000000000000000000000000000000000000000000000000000000000000"
+concurrencyPolicy: Allow   # ← VIOLATION at fedramp-high

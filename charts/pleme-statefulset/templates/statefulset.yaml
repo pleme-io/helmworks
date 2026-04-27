@@ -1,3 +1,4 @@
+{{- include "pleme-lib.compliance.validate" . -}}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -7,6 +8,10 @@ metadata:
     {{- include "pleme-lib.labels" . | nindent 4 }}
   annotations:
     {{- include "pleme-lib.fluxcdPruneDisabled" . | nindent 4 }}
+    {{- $cAnnot := include "pleme-lib.compliance.annotations" . | trim }}
+    {{- if $cAnnot }}
+    {{- $cAnnot | nindent 4 }}
+    {{- end }}
 spec:
   serviceName: {{ include "pleme-lib.fullname" . }}-headless
   replicas: {{ .Values.replicaCount | default 1 }}
@@ -32,9 +37,16 @@ spec:
         {{- end }}
     spec:
       serviceAccountName: {{ include "pleme-lib.serviceAccountName" . }}
-      {{- with .Values.imagePullSecrets }}
+      automountServiceAccountToken: {{ include "pleme-lib.compliance.automountServiceAccountToken" . }}
+      {{- $airgapSecrets := include "pleme-lib.compliance.airgap.imagePullSecrets" . | trim }}
+      {{- if or .Values.imagePullSecrets $airgapSecrets }}
       imagePullSecrets:
+        {{- with .Values.imagePullSecrets }}
         {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- if $airgapSecrets }}
+        {{- $airgapSecrets | nindent 8 }}
+        {{- end }}
       {{- end }}
       securityContext:
         {{- include "pleme-lib.podSecurityContext" . | nindent 8 }}
@@ -44,8 +56,8 @@ spec:
       {{- end }}
       containers:
         - name: {{ include "pleme-lib.name" . }}
-          image: {{ include "pleme-lib.image" . }}
-          imagePullPolicy: {{ .Values.image.pullPolicy | default "Always" }}
+          image: {{ include "pleme-lib.compliance.image" . }}
+          imagePullPolicy: {{ include "pleme-lib.compliance.image.pullPolicy" . }}
           {{- with .Values.command }}
           command:
             {{- toYaml . | nindent 12 }}
@@ -115,9 +127,14 @@ spec:
       {{- with .Values.priorityClassName }}
       priorityClassName: {{ . }}
       {{- end }}
-      {{- with .Values.topologySpreadConstraints }}
+      {{- $availReq := include "pleme-lib.compliance.availability.required" . }}
+      {{- if or .Values.topologySpreadConstraints (eq $availReq "true") }}
       topologySpreadConstraints:
-        {{- toYaml . | nindent 8 }}
+      {{- if eq $availReq "true" }}
+      {{- include "pleme-lib.compliance.availability.topologySpread" . | nindent 8 }}
+      {{- else }}
+        {{- toYaml .Values.topologySpreadConstraints | nindent 8 }}
+      {{- end }}
       {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:

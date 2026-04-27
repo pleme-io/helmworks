@@ -1,0 +1,41 @@
+suite: pleme-lib bare-fixture — validators that need empty-default inputs
+templates:
+  - templates/deployment.yaml
+release:
+  name: t
+  namespace: testns
+defaults: &defaults
+  compliance.baseline: fedramp-high
+  compliance.enforce: true
+  image.repository: ghcr.io/x/y
+  image.tag: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  monitoring.enabled: true
+  replicaCount: 2
+  serviceAccount.create: true
+  attestation.enabled: true
+tests:
+  - it: "[SC-5] rejects missing resources at fedramp-high"
+    set:
+      <<: *defaults
+    asserts:
+      - failedTemplate:
+          errorPattern: "requires resources.requests.cpu and resources.requests.memory"
+
+  - it: "[SC-5] rejects requests-only (no limits.memory)"
+    set:
+      <<: *defaults
+      resources.requests.cpu: 50m
+      resources.requests.memory: 64Mi
+    asserts:
+      - failedTemplate:
+          errorPattern: "requires resources.limits.memory"
+
+  - it: "[SC-5] all baselines: enforce=false bypasses everything"
+    set:
+      compliance.baseline: fedramp-high
+      compliance.enforce: false
+      image.repository: ghcr.io/x/y
+      image.tag: latest
+    asserts:
+      - isKind:
+          of: Deployment

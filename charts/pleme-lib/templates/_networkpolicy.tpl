@@ -6,10 +6,58 @@ Follows the pattern from k8s repo governance network policies.
 */}}
 
 {{/*
-Default deny-all NetworkPolicy
+Default deny-all NetworkPolicy.
+
+When `.Values.compliance.baseline` is at moderate+, NetworkPolicy is rendered
+unconditionally (the deny-all + allow-dns + allow-tls-egress trio comes from
+_compliance_network.tpl, plus any consumer-provided additionalIngress / Egress
+rules below).
 */}}
 {{- define "pleme-lib.networkpolicy" -}}
-{{- if (.Values.networkPolicy).enabled }}
+{{- $complianceRequired := include "pleme-lib.compliance.network.required" . -}}
+{{- if eq $complianceRequired "true" -}}
+{{ include "pleme-lib.compliance.network.policies" . }}
+{{- /* Layer 1: generic egress shapes (toService / toUpstream) */ -}}
+{{ include "pleme-lib.compliance.egress.policies" . }}
+{{- /* Layer 2: air-gap shapes (consumer / registry-mirror) */ -}}
+{{ include "pleme-lib.compliance.airgap.policies" . }}
+{{- range (.Values.networkPolicy).additionalIngress }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "pleme-lib.fullname" $ }}-{{ .name }}
+  namespace: {{ include "pleme-lib.namespace" $ }}
+  labels:
+    {{- include "pleme-lib.labels" $ | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "pleme-lib.selectorLabels" $ | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    {{- toYaml .rules | nindent 4 }}
+{{- end }}
+{{- range (.Values.networkPolicy).additionalEgress }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "pleme-lib.fullname" $ }}-{{ .name }}
+  namespace: {{ include "pleme-lib.namespace" $ }}
+  labels:
+    {{- include "pleme-lib.labels" $ | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "pleme-lib.selectorLabels" $ | nindent 6 }}
+  policyTypes:
+    - Egress
+  egress:
+    {{- toYaml .rules | nindent 4 }}
+{{- end }}
+{{- else if (.Values.networkPolicy).enabled }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

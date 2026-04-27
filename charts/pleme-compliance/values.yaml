@@ -1,0 +1,83 @@
+# pleme-compliance default values
+#
+# Namespace-scope compliance scaffolding. Apply once per namespace; every
+# workload in the namespace inherits Pod Security Standard enforcement,
+# default-deny networking, and resource quotas matched to the baseline.
+#
+# Usage:
+#   helm install <name> oci://ghcr.io/pleme-io/charts/pleme-compliance \
+#     --namespace <ns> --create-namespace \
+#     --set compliance.baseline=fedramp-high
+
+# -- Whether to create the namespace itself. Set false if the namespace is
+#    managed by something else (FluxCD, Pangea) and you only want the
+#    PSS labels patched in.
+namespace:
+  # -- Create the Namespace resource
+  create: true
+  # -- Namespace name; defaults to .Release.Namespace
+  name: ""
+  # -- Extra labels to add (compliance labels are added automatically)
+  labels: {}
+  # -- Extra annotations
+  annotations: {}
+
+# -- Compliance baseline. See pleme-lib values.yaml for full semantics.
+#    fedramp-high → PSS=restricted, default-deny network, quotas, limits
+#    fedramp-moderate → PSS=baseline, default-deny network, quotas, limits
+compliance:
+  baseline: ""
+  enforce: true
+  audit:
+    logLevel: "info"
+    retentionDays: 365
+  network:
+    allowTlsEgress: true
+  namespace:
+    resourceQuota:
+      enabled: true
+      requestsCpu: "16"
+      requestsMemory: "24Gi"
+      limitsCpu: "32"
+      limitsMemory: "48Gi"
+      pods: "200"
+      pvcs: "50"
+      loadBalancers: "5"
+      nodePorts: "0"
+    limitRange:
+      enabled: true
+      containerDefault:
+        cpu: "500m"
+        memory: "512Mi"
+      containerDefaultRequest:
+        cpu: "50m"
+        memory: "64Mi"
+      containerMax:
+        cpu: "4"
+        memory: "4Gi"
+      containerMin:
+        cpu: "10m"
+        memory: "16Mi"
+      pvcMax:
+        storage: "500Gi"
+      pvcMin:
+        storage: "1Gi"
+
+# -- Image is unused by this chart (it has no Deployment) but pleme-lib's
+#    label helper reads .Values.image.tag for app.kubernetes.io/version.
+image:
+  repository: ""
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+# -- Required by pleme-lib helpers but not used by this chart.
+serviceAccount:
+  create: false
+monitoring:
+  enabled: false
+
+# -- Forbid the deny-all NetworkPolicy at the namespace level. Off by default
+#    when baseline is set so the cluster gets a deny-all floor.
+denyAllPolicy:
+  # When unset, derived from compliance.baseline (>= moderate => true)
+  enabled: null

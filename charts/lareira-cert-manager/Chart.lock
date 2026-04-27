@@ -1,9 +1,9 @@
 dependencies:
 - name: pleme-lib
   repository: file://../pleme-lib
-  version: 0.5.0
+  version: 0.6.0
 - name: cert-manager
   repository: https://charts.jetstack.io
   version: v1.17.1
-digest: sha256:75a4355aa109e0b9c8bc7f219eeef4504893a0a895050cdb7fe5a1c86376c587
-generated: "2026-04-25T21:12:08.962949-04:00"
+digest: sha256:32b10dfe3475edacd6743bef81c2387f3f7acd0e0154662db9f80eeb38c7fea5
+generated: "2026-04-27T17:54:38.251776-04:00"

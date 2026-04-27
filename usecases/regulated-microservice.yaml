@@ -1,0 +1,63 @@
+# Use-case primitive: regulated civilian-agency microservice (lightest)
+#
+# Apply via:
+#   helm install <name> oci://ghcr.io/pleme-io/charts/pleme-microservice \
+#     -f usecases/regulated-microservice.yaml -f <my-overrides>.yaml
+#
+# Inherits: fedramp-moderate overlay only. Use this for non-CUI civilian
+# regulated workloads where FedRAMP Moderate is the bar (no DoD-specific
+# overlays, no FIPS, no air-gap). Adds OIDC + mTLS + monitoring + minimal
+# RBAC.
+
+compliance:
+  overlays:
+    - fedramp-moderate
+  enforce: true
+  audit:
+    logLevel: info
+    retentionDays: 365
+  authn:
+    oidc:
+      provider: authentik
+  authz:
+    role:
+      rules:
+        - apiGroups: [""]
+          resources: ["configmaps"]
+          verbs: ["get", "watch"]
+
+replicaCount: 2
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
+image:
+  pullPolicy: Always
+
+ports:
+  - name: http
+    containerPort: 8080
+    protocol: TCP
+
+service:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+
+monitoring:
+  enabled: true
+
+ingress:
+  enabled: true
+  className: nginx
+
+attestation:
+  enabled: true

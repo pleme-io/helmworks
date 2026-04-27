@@ -1,3 +1,4 @@
+{{- include "pleme-lib.compliance.validate" . -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:

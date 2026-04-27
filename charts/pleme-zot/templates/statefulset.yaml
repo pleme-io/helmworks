@@ -1,0 +1,121 @@
+{{- include "pleme-lib.compliance.validate" . -}}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+  annotations:
+    {{- include "pleme-lib.fluxcdPruneDisabled" . | nindent 4 }}
+    {{- $cAnnot := include "pleme-lib.compliance.annotations" . | trim }}
+    {{- if $cAnnot }}
+    {{- $cAnnot | nindent 4 }}
+    {{- end }}
+spec:
+  serviceName: {{ include "pleme-lib.fullname" . }}-headless
+  replicas: {{ .Values.replicaCount | default 2 }}
+  selector:
+    matchLabels:
+      {{- include "pleme-lib.selectorLabels" . | nindent 6 }}
+  podManagementPolicy: Parallel
+  template:
+    metadata:
+      labels:
+        {{- include "pleme-lib.selectorLabels" . | nindent 8 }}
+        {{- $cl := include "pleme-lib.compliance.labels" . | trim }}
+        {{- if $cl }}
+        {{- $cl | nindent 8 }}
+        {{- end }}
+      annotations:
+        {{- include "pleme-lib.prometheusAnnotations" . | nindent 8 }}
+        {{- include "pleme-lib.compliance.annotations" . | nindent 8 }}
+        {{- include "pleme-lib.compliance.audit.annotations" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "pleme-lib.serviceAccountName" . }}
+      automountServiceAccountToken: {{ include "pleme-lib.compliance.automountServiceAccountToken" . }}
+      securityContext:
+        {{- include "pleme-lib.podSecurityContext" . | nindent 8 }}
+      containers:
+        - name: zot
+          image: {{ include "pleme-lib.compliance.image" . }}
+          imagePullPolicy: {{ include "pleme-lib.compliance.image.pullPolicy" . }}
+          args:
+            - "serve"
+            - "/etc/zot/config.json"
+          ports:
+            {{- toYaml .Values.ports | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            {{- include "pleme-lib.containerSecurityContext" . | nindent 12 }}
+          livenessProbe:
+            {{- include "pleme-lib.livenessProbe" . | nindent 12 }}
+          readinessProbe:
+            {{- include "pleme-lib.readinessProbe" . | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: {{ .Values.persistence.mountPath }}
+            - name: config
+              mountPath: /etc/zot
+              readOnly: true
+            - name: logs
+              mountPath: /var/log/zot
+            {{- if eq .Values.auth.backend "htpasswd" }}
+            - name: htpasswd
+              mountPath: /etc/zot/htpasswd
+              subPath: htpasswd
+              readOnly: true
+            {{- end }}
+            {{- if eq .Values.mode "pull" }}
+            - name: sync-creds
+              mountPath: /etc/zot/sync-creds.json
+              subPath: sync-creds.json
+              readOnly: true
+            {{- end }}
+            {{- if .Values.cosign.enabled }}
+            {{- if .Values.cosign.publicKeySecret }}
+            - name: cosign-pub
+              mountPath: /etc/zot/cosign
+              readOnly: true
+            {{- end }}
+            {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "pleme-lib.fullname" . }}-config
+        - name: logs
+          emptyDir: {}
+        {{- if eq .Values.auth.backend "htpasswd" }}
+        - name: htpasswd
+          secret:
+            secretName: {{ .Values.auth.htpasswdSecret }}
+        {{- end }}
+        {{- if eq .Values.mode "pull" }}
+        - name: sync-creds
+          secret:
+            secretName: {{ .Values.upstream.credentialsSecret | default "zot-sync-creds" }}
+        {{- end }}
+        {{- if .Values.cosign.enabled }}
+        {{- if .Values.cosign.publicKeySecret }}
+        - name: cosign-pub
+          secret:
+            secretName: {{ .Values.cosign.publicKeySecret }}
+        {{- end }}
+        {{- end }}
+      {{- $availReq := include "pleme-lib.compliance.availability.required" . }}
+      {{- if eq $availReq "true" }}
+      topologySpreadConstraints:
+      {{- include "pleme-lib.compliance.availability.topologySpread" . | nindent 8 }}
+      {{- end }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        annotations:
+          {{- include "pleme-lib.fluxcdPruneDisabled" . | nindent 10 }}
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: {{ .Values.persistence.storageClass | quote }}
+        resources:
+          requests:
+            storage: {{ .Values.persistence.size }}

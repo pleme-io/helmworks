@@ -1,0 +1,41 @@
+# Example: pleme-compliance namespace scaffolding at FedRAMP High.
+#
+# Apply once per namespace; every workload deployed into the namespace
+# inherits PSS=restricted, default-deny networking, and quotas.
+
+compliance:
+  baseline: fedramp-high
+  enforce: true
+  network:
+    allowTlsEgress: true
+  namespace:
+    resourceQuota:
+      enabled: true
+      requestsCpu: "32"
+      requestsMemory: "64Gi"
+      limitsCpu: "64"
+      limitsMemory: "128Gi"
+      pods: "200"
+      pvcs: "50"
+      loadBalancers: "5"
+      nodePorts: "0"
+    limitRange:
+      enabled: true
+      containerDefault:
+        cpu: "500m"
+        memory: "512Mi"
+      containerDefaultRequest:
+        cpu: "50m"
+        memory: "64Mi"
+      containerMax:
+        cpu: "4"
+        memory: "8Gi"
+      containerMin:
+        cpu: "10m"
+        memory: "16Mi"
+
+namespace:
+  create: true
+  name: regulated
+  labels:
+    app.kubernetes.io/part-of: nexus-platform

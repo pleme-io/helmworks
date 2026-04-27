@@ -1,0 +1,129 @@
+suite: pleme-microservice — direct overlay declaration
+#
+# Proves the new compliance.overlays surface (pleme-lib 0.9.0+).
+# Every existing chart can ALSO declare overlays directly:
+#
+#   compliance.overlays:
+#     - fedramp-high
+#     - airgap-consumer
+#     - supplychain
+#     - fips
+#     - dod-il5
+#
+# This is the canonical pattern going forward. Legacy
+# (compliance.baseline / .airgap.enabled / .supplychain.enabled / .fips
+# / .dod.impactLevel) values continue to work via the back-compat
+# synthesizer in _overlay_dispatch.tpl.
+templates:
+  - templates/deployment.yaml
+  - templates/compliance-manifest.yaml
+release:
+  name: ovr
+  namespace: testns
+tests:
+  - it: "[overlay] explicit fedramp-high produces same posture as legacy baseline"
+    set:
+      compliance.overlays: ["fedramp-high"]
+      compliance.enforce: true
+      image.repository: ghcr.io/pleme-io/example
+      image.tag: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      monitoring.enabled: true
+      replicaCount: 2
+      resources.requests.cpu: 50m
+      resources.requests.memory: 64Mi
+      resources.limits.memory: 256Mi
+      serviceAccount.create: true
+      attestation.enabled: true
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - matchRegex:
+          path: spec.template.spec.containers[0].image
+          pattern: "@sha256:[0-9a-f]{64}$"
+
+  - it: "[overlay] explicit fedramp-high requires fedramp-moderate via cascade"
+    set:
+      compliance.overlays: ["fedramp-high"]
+      compliance.enforce: true
+      image.repository: ghcr.io/pleme-io/example
+      image.tag: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      monitoring.enabled: true
+      replicaCount: 2
+      resources.requests.cpu: 50m
+      resources.requests.memory: 64Mi
+      resources.limits.memory: 256Mi
+      serviceAccount.create: true
+      attestation.enabled: true
+    template: templates/compliance-manifest.yaml
+    asserts:
+      - matchRegex:
+          path: data.overlays
+          pattern: "fedramp-moderate"
+      - matchRegex:
+          path: data.overlays
+          pattern: "fedramp-high"
+
+  - it: "[overlay] unknown overlay name fails with clear error"
+    set:
+      compliance.overlays: ["fedramp-high", "this-does-not-exist"]
+      compliance.enforce: true
+      image.repository: ghcr.io/pleme-io/example
+      image.tag: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      monitoring.enabled: true
+      replicaCount: 2
+      resources.requests.cpu: 50m
+      resources.requests.memory: 64Mi
+      resources.limits.memory: 256Mi
+      serviceAccount.create: true
+      attestation.enabled: true
+    template: templates/deployment.yaml
+    asserts:
+      - failedTemplate:
+          errorPattern: "unknown overlay"
+
+  - it: "[overlay] direct dod-il5 declaration cascades requires (fedramp-high, airgap-consumer, supplychain, fips)"
+    values:
+      - ../../tests/pleme-microservice/_overlay_dod_il5.yaml
+    template: templates/compliance-manifest.yaml
+    asserts:
+      - matchRegex:
+          path: data.overlays
+          pattern: "fedramp-high"
+      - matchRegex:
+          path: data.overlays
+          pattern: "airgap-consumer"
+      - matchRegex:
+          path: data.overlays
+          pattern: "supplychain"
+      - matchRegex:
+          path: data.overlays
+          pattern: "fips"
+      - matchRegex:
+          path: data.overlays
+          pattern: "dod-il5"
+
+  - it: "[overlay] controls list is the union of all applied overlays' controls"
+    values:
+      - ../../tests/pleme-microservice/_overlay_dod_il5.yaml
+    template: templates/compliance-manifest.yaml
+    asserts:
+      - matchRegex:
+          path: data.controls
+          pattern: "DoD-CC-SRG-IL5"
+      - matchRegex:
+          path: data.controls
+          pattern: "SC-7\\(11\\)"
+      - matchRegex:
+          path: data.controls
+          pattern: "IA-7"
+      - matchRegex:
+          path: data.controls
+          pattern: "SI-7"
+      - matchRegex:
+          path: data.controls
+          pattern: "SC-28"

@@ -85,46 +85,130 @@ All charts enforce:
 - `allowPrivilegeEscalation: false`
 - `capabilities.drop: [ALL]`
 
-## Compliance Primitives (FedRAMP Low / Moderate / High)
+## Compliance overlays — canonical surface (pleme-lib ≥ 0.10.0)
 
-`pleme-lib` ≥ 0.6.0 ships compliance primitives that encode the K8s-side
-mapping of NIST 800-53 controls. A consumer chart selects a baseline:
+`pleme-lib` 0.10.0+ ships a typed overlay registry. A consumer chart's
+entire compliance posture is one declaration:
 
 ```yaml
 compliance:
-  baseline: fedramp-high   # or fedramp-moderate / fedramp-low / ""
-  enforce: true
+  overlays: [dod-il5]
+  # cascades fedramp-high, airgap-consumer, supplychain, fips
 ```
 
-Selecting a baseline mechanically:
+The overlay registry is the **canonical surface**. Legacy values
+(`compliance.baseline`, `compliance.airgap.enabled`, …) still work via
+a back-compat shim that synthesizes the overlay list automatically —
+existing charts don't need touching.
+
+**Registered overlays** (in `_overlay_dispatch.tpl::pleme-lib.overlay.registry`):
+fedramp-low, fedramp-moderate, fedramp-high, airgap-consumer,
+airgap-registry-mirror, mirror, supplychain, fips, dod-il2, dod-il4,
+dod-il5, dod-il6, hipaa, cmmc-l3.
+
+**Each overlay defines 11 surfaces** as named templates following
+`pleme-lib.overlay.<name>.<surface>`:
+- `controls` (CSV of NIST/HIPAA/CMMC/DoD IDs)
+- `requires` (CSV of cascaded overlay names)
+- `validate` (template-time `fail()` invariants)
+- `annotations`, `labels` (resource metadata)
+- `policies` (workload-scope NetworkPolicies, etc.)
+- `manifestData` (compliance-manifest ConfigMap fragment)
+- `podEnv`, `imagePullSecrets` (pod spec contributions)
+- `kyvernoPolicy`, `gatekeeperConstraint` (admission-time enforcement)
+
+**The dispatch chain** (`_overlay_dispatch.tpl`):
+- `pleme-lib.overlay.list` resolves declared overlays + transitive `requires` closure
+- `pleme-lib.overlay.dispatchAll` aggregates a surface across all overlays
+- `pleme-lib.overlay.dispatchDocuments` separates multi-document YAML output with `---`
+- `pleme-lib.overlay.dispatchJoin` joins string surfaces with a separator (used by `controls`)
+- `pleme-lib.overlay.synthesize` is the back-compat shim mapping legacy values → overlay list
+
+**The proof** is in [`docs/COMPLIANCE-PROOF.md`](docs/COMPLIANCE-PROOF.md).
+Mechanically: applying overlay set `{O₁..Oₙ}` either fails template
+render with a clear control citation, or produces manifests satisfying
+the union of `{O₁.controls .. Oₙ.controls}`. Adding a regime is one
+new `_overlay_<name>.tpl` file plus one row in the registry plus tests
+— see [`docs/OVERLAY-AUTHORING.md`](docs/OVERLAY-AUTHORING.md).
+
+**Use-case primitives** (`/usecases/`) compose typed overlay sets +
+workload defaults for recurring patterns. Operators compose via
+`helm install -f usecases/<primitive>.yaml -f <overrides>.yaml`.
+See [`docs/USECASES-PRIMITIVES.md`](docs/USECASES-PRIMITIVES.md) and
+[`usecases/README.md`](usecases/README.md).
+
+**Cluster-side admission policies** (`pleme-admission-policies` chart)
+emit Kyverno ClusterPolicies + Gatekeeper Constraints from the same
+overlay declaration as chart-time validators. Symmetric proof — drift
+is structurally impossible. See
+[`docs/ADMISSION-POLICIES.md`](docs/ADMISSION-POLICIES.md).
+
+### Quick reference — compliance via overlays
+
+```yaml
+compliance:
+  overlays: [fedramp-high]   # or [dod-il5], [hipaa, supplychain], [cmmc-l3], …
+  enforce: true              # default true; set false for migration runs only
+```
+
+Selecting an overlay set mechanically:
 
 - forces `seccompProfile=RuntimeDefault` and `automountServiceAccountToken=false` at moderate+
-- requires `image.tag != "latest"` at moderate+; requires digest-pinned image at high
-- emits a default-deny + allow-DNS + allow-TLS-egress NetworkPolicy trio at moderate+
-- emits a mandatory `PodDisruptionBudget` and topology spread at high
-- emits a mandatory `ServiceMonitor` (AU-2, AU-12, SI-4)
+- requires `image.tag != "latest"` at moderate+; digest-pinned image at high
+- emits default-deny + allow-DNS + allow-TLS-egress NetworkPolicies at moderate+
+- emits mandatory `PodDisruptionBudget` and topology spread at high
+- emits mandatory `ServiceMonitor` (AU-2, AU-12, SI-4)
 - requires `attestation.enabled=true` at high (sekiban admission)
 - requires a dedicated ServiceAccount at moderate+ (no `default`)
 - forbids literal env values for secret-shaped variable names (IA-5)
 - requires PVCs to use an encrypted-class storage class at high (SC-28)
-- emits a `compliance-manifest` ConfigMap describing controls covered
-- adds `compliance.pleme.io/*` labels and annotations to every resource
+- emits `compliance-manifest` ConfigMap describing covered overlays + controls
+- adds `compliance.pleme.io/*` labels + annotations on every resource
 - runs `fail()` validators that block non-compliant input at template render
+- when `pleme-admission-policies` is installed, emits matching cluster-side
+  Kyverno ClusterPolicies / Gatekeeper Constraints — symmetric proof
 
-Templates:
-- `_compliance.tpl` — entry points (`baseline`, `labels`, `annotations`, `validate`)
-- `_compliance_security.tpl` — pod / container securityContext, host* forbidden
-- `_compliance_image.tpl` — digest enforcement, pullPolicy
-- `_compliance_network.tpl` — default-deny + DNS + TLS egress
-- `_compliance_audit.tpl` — ServiceMonitor + audit annotations
-- `_compliance_availability.tpl` — PDB + topology spread + resources
-- `_compliance_attestation.tpl` — sekiban requirement at high
-- `_compliance_rbac.tpl` — dedicated ServiceAccount required
-- `_compliance_secrets.tpl` — secret-shaped env vars must use secretKeyRef
-- `_compliance_storage.tpl` — encrypted storage class allowlist (high)
-- `_compliance_ingress.tpl` — ingress.tls required when ingress.enabled
-- `_compliance_namespace.tpl` — PSS labels, namespace deny-all, ResourceQuota, LimitRange
-- `_compliance_manifest.tpl` — ConfigMap describing claimed compliance posture
+### Files (where to look for what)
+
+```
+charts/pleme-lib/templates/
+  _overlay_dispatch.tpl          # registry, list resolver, closure expansion, dispatchers
+  _overlay_fedramp.tpl           # fedramp-{low,moderate,high} overlays
+  _overlay_airgap.tpl            # airgap-{consumer,registry-mirror} overlays
+  _overlay_mirror.tpl            # mirror overlay (scheduled-sync)
+  _overlay_supplychain.tpl       # supplychain overlay (SBOM/SLSA/cosign/scan)
+  _overlay_fips.tpl              # fips overlay
+  _overlay_dod.tpl               # dod-il2/4/5/6 overlays
+  _overlay_hipaa.tpl             # hipaa overlay
+  _overlay_cmmc.tpl              # cmmc-l3 overlay
+
+  _compliance.tpl                # baseline / enabled / atLeast / controls / validate (entry points)
+  _compliance_admission.tpl      # admissionPolicies aggregator
+  _compliance_security.tpl       # pod / container securityContext (legacy helpers; overlays delegate)
+  _compliance_image.tpl          # digest enforcement, pullPolicy
+  _compliance_network.tpl        # default-deny + DNS + TLS egress
+  _compliance_audit.tpl          # ServiceMonitor + audit annotations
+  _compliance_availability.tpl   # PDB + topology spread + resources
+  _compliance_attestation.tpl    # sekiban requirement at high
+  _compliance_rbac.tpl           # dedicated ServiceAccount required
+  _compliance_secrets.tpl        # secret-shaped env vars must use secretKeyRef
+  _compliance_storage.tpl        # encrypted storage class allowlist
+  _compliance_ingress.tpl        # ingress.tls required
+  _compliance_egress.tpl         # generic egress.toService / egress.toUpstream primitives
+  _compliance_authz.tpl          # RBAC Role/RoleBinding + no-wildcards validators
+  _compliance_authn.tpl          # OIDC + mTLS + projected SA token primitives
+  _compliance_airgap.tpl         # air-gap consumer + registry-mirror primitives
+  _compliance_mirror.tpl         # generic scheduled-sync primitives
+  _compliance_supplychain.tpl    # SBOM/SLSA/cosign/scan primitives
+  _compliance_fips.tpl           # FIPS 140-3 primitives
+  _compliance_il.tpl             # DoD CC SRG impact-level primitives
+  _compliance_namespace.tpl      # PSS labels, namespace deny-all, ResourceQuota, LimitRange
+  _compliance_manifest.tpl       # compliance-manifest ConfigMap
+```
+
+**The overlay layer is canonical**; the `_compliance_*.tpl` helpers are
+implementation details that overlays delegate to. New compliance work
+goes in overlay files, not new `_compliance_*.tpl` files.
 
 **Proof:** `docs/COMPLIANCE-PROOF.md` is the proof that consumer charts using
 only these primitives cannot produce a non-compliant K8s architecture at the

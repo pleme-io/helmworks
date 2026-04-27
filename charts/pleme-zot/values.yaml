@@ -1,0 +1,178 @@
+# pleme-zot — cluster-local Zot OCI registry
+#
+# Deployment shapes:
+#   - cache mode (default): Zot has zero external egress; image-sync pushes
+#                           into Zot. Most secure; matches pure air-gap.
+#   - pull mode:            Zot pulls upstream itself via extensions.sync,
+#                           with an upstream allowlist NetworkPolicy.
+
+# -- Fully-qualified Zot service hostname; used for the ServiceMonitor +
+#    cosign config + Ingress. Auto-derived from name+namespace+domain.
+hostname: ""
+
+# -- The Zot image. At fedramp-high the validator requires a digest pin;
+#    CI/forge injects the digest at release.
+image:
+  repository: ghcr.io/project-zot/zot-linux-amd64
+  tag: "v2.1.5"
+  pullPolicy: Always
+
+# -- Replicas. At fedramp-high the validator requires >= 2.
+replicaCount: 2
+
+# -- Resource shape. Zot is mostly CPU-light, IO-heavy; tune for your
+#    fleet's image volume.
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: "2"
+    memory: 4Gi
+
+# -- ServiceAccount: dedicated, no automount.
+serviceAccount:
+  create: true
+  automountServiceAccountToken: false
+
+# -- Container ports.
+ports:
+  - name: http
+    containerPort: 5000
+    protocol: TCP
+  - name: metrics
+    containerPort: 5050
+    protocol: TCP
+
+# -- Service config.
+service:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 5000
+      targetPort: http
+      protocol: TCP
+    - name: metrics
+      port: 5050
+      targetPort: metrics
+      protocol: TCP
+
+# -- Health probe paths (Zot 2.x exposes /v2/ and /metrics).
+health:
+  path: /v2/
+  readyPath: /v2/
+  port: http
+  livenessInitialDelay: 10
+  readinessInitialDelay: 5
+
+# -- Persistent storage. At fedramp-high, the storage class must be
+#    in compliance.storage.encryptedClasses (encrypted CSI driver).
+persistence:
+  enabled: true
+  storageClass: encrypted
+  size: 200Gi
+  mountPath: /var/lib/registry
+
+# -- Mode: "cache" (default; image-sync pushes) or "pull" (Zot itself
+#    pulls from upstream via extensions.sync).
+mode: cache
+
+# -- Auth backend: htpasswd (default) or oidc (Authentik). When oidc, the
+#    Ingress is the auth boundary; in-cluster pulls use a Bearer token
+#    issued by Authentik.
+auth:
+  backend: htpasswd
+  htpasswdSecret: zot-htpasswd
+  oidc:
+    issuer: ""               # e.g. https://authentik.identity.example.com/application/o/zot/
+    clientID: ""
+    clientSecretSecret: ""
+
+# -- Cosign signature verification at the registry boundary (SI-7).
+#    When enabled, Zot's extensions.scrub + extensions.sign verify
+#    cosign signatures before serving an image. Required at fedramp-high.
+cosign:
+  enabled: true
+  # publicKeySecret: cosign-pub
+  # publicKeyKey: cosign.pub
+
+# -- Audit logging. Zot writes structured JSON to stdout; Vector scrapes.
+audit:
+  enabled: true
+
+# -- Pull-mode upstream registries (used when mode=pull). Each entry is
+#    an URL the Zot extensions.sync mirror will pull from.
+upstream:
+  registries:
+    # - urls: ["https://ghcr.io"]
+    #   pollInterval: "1h"
+    #   onDemand: true
+    #   credentialsSecret: ghcr-creds
+    #   content:
+    #     - prefix: "pleme-io/**"
+    #       tags:
+    #         regex: "^v?\\d+\\.\\d+\\.\\d+$"
+
+# -- Compliance. Pre-set for the registry-mirror air-gap role.
+compliance:
+  baseline: fedramp-high
+  enforce: true
+  audit:
+    logLevel: info
+    retentionDays: 365
+  airgap:
+    enabled: true
+    role: registry-mirror
+    requireSignedImages: true
+    # upstream.allowedCidrs is REQUIRED at high (or upstream.allowedHosts +
+    # useCilium=true). image-sync uses the same role; pleme-zot in cache
+    # mode strictly speaking has no upstream egress, but we allow declaring
+    # an empty list to satisfy the validator. In cache mode, set
+    # upstream.allowedCidrs = ["127.0.0.1/32"] (no real egress) and
+    # upstream.credentialSecret = "" with allowList.anonymousUpstream.
+    upstream:
+      # In cache mode (default), Zot doesn't fetch — image-sync does.
+      # We declare a sentinel CIDR + Secret to satisfy the validator;
+      # NetworkPolicy is functionally a deny-all for this Zot.
+      allowedCidrs:
+        - "127.0.0.1/32"
+      credentialSecret: zot-cache-mode-sentinel
+  attestation:
+    enabled: true
+    # signature / certificationHash / complianceHash / changesetHash
+    # injected by forge at release time
+  authn:
+    # mTLS in front of Zot for service-to-service pulls. In pull mode the
+    # Ingress is auth-gated by Authentik; consumers in-cluster present a
+    # short-lived projected SA token.
+    istio:
+      mtls:
+        required: null
+    token:
+      audience: zot.cluster.local
+      expirationSeconds: 3600
+
+# -- Monitoring. ServiceMonitor scrapes /metrics.
+monitoring:
+  enabled: true
+  port: metrics
+  path: /metrics
+  interval: 30s
+
+# -- NetworkPolicy. The Layer 2 airgap helper handles egress; we still
+#    need ingress allow rules so workloads can pull.
+networkPolicy:
+  enabled: true
+  additionalIngress:
+    - name: allow-cluster-pulls
+      rules:
+        - from:
+            - namespaceSelector: {}
+          ports:
+            - port: 5000
+              protocol: TCP
+
+# -- PDB at fedramp-high (auto-emitted via compliance.availability.pdb).
+pdb:
+  enabled: true
+  minAvailable: 1

@@ -1,0 +1,301 @@
+suite: pleme-microservice — every-overlay smoke
+#
+# One smoke test per registered overlay. Each test sets
+# `compliance.overlays: [<one>]` plus the minimum valid inputs the
+# overlay's validators demand, and asserts the chart renders with the
+# overlay's annotation present in the compliance-manifest ConfigMap.
+#
+# This proves every registered overlay is render-clean and self-contained
+# for the surface it's responsible for. Adding a new overlay must come
+# with one new test case here — it's the audit gate that catches
+# overlays the user CAN declare but haven't been validated end-to-end.
+templates:
+  - templates/compliance-manifest.yaml
+release:
+  name: smk
+  namespace: testns
+defaults: &defaults
+  image.repository: ghcr.io/pleme-io/example
+  image.tag: "v1.2.3"
+  serviceAccount.create: true
+  attestation.enabled: true
+  monitoring.enabled: true
+tests:
+  - it: "[smoke] fedramp-low — minimal label+annotation only"
+    set:
+      <<: *defaults
+      compliance.overlays: ["fedramp-low"]
+    asserts:
+      - matchRegex:
+          path: data.overlays
+          pattern: "fedramp-low"
+
+  - it: "[smoke] fedramp-moderate — basic regulated workload"
+    set:
+      <<: *defaults
+      compliance.overlays: ["fedramp-moderate"]
+      ingress.tls:
+        - hosts: ["example.com"]
+          secretName: example-tls
+      ingress.hosts:
+        - host: example.com
+      compliance.authn.oidc.provider: authentik
+    asserts:
+      - matchRegex:
+          path: data.overlays
+          pattern: "fedramp-moderate"
+
+  - it: "[smoke] fedramp-high — adds digest + encrypted PVC + replicas"
+    set:
+      <<: *defaults
+      compliance.overlays: ["fedramp-high"]
+      image.tag: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      replicaCount: 2
+      compliance.authn.oidc.provider: authentik
+    asserts:
+      - matchRegex:
+          path: data.overlays
+          pattern: "fedramp-high"
+      - matchRegex:
+          path: data.overlays
+          pattern: "fedramp-moderate"
+
+  - it: "[smoke] airgap-consumer — image must come from allowlisted registry"
+    set:
+      <<: *defaults
+      compliance.overlays: ["airgap-consumer"]
+      image.repository: zot.registry.svc.cluster.local/pleme-io/example
+      compliance.airgap.role: consumer
+      compliance.airgap.requireSignedImages: true
+      compliance.airgap.imagePullSecret: zot-pull
+      compliance.airgap.upstream.allowedCidrs: ["127.0.0.1/32"]
+      compliance.airgap.upstream.credentialSecret: zot-sentinel
+    asserts:
+      - matchRegex:
+          path: data.overlays
+          pattern: "airgap-consumer"
+      - equal:
+          path: data.airgap-role
+          value: consumer
+
+  - it: "[smoke] airgap-registry-mirror — workload that pulls upstream"
+    set:
+      <<: *defaults
+      compliance.overlays: ["airgap-registry-mirror"]
+      compliance.airgap.role: registry-mirror
+      compliance.airgap.requireSignedImages: true
+      compliance.airgap.upstream.allowedCidrs: ["140.82.112.0/20"]
+      compliance.airgap.upstream.credentialSecret: ghcr-pull
+    asserts:
+      - matchRegex:
+          path: data.overlays
+          pattern: "airgap-registry-mirror"
+      - equal:
+          path: data.airgap-role
+          value: registry-mirror
+
+  - it: "[smoke] mirror — generic scheduled-sync workload"
+    set:
+      <<: *defaults
+      compliance.overlays: ["mirror"]
+      compliance.mirror.cosignVerify: true
+      compliance.mirror.cosignKeyRef.name: cosign-pub
+      compliance.mirror.cosignKeyRef.key: cosign.pub
+      compliance.mirror.upstreams:
+        - host: ghcr.io
+          credentialSecret: ghcr-pull
+          repos: [pleme-io/example]
+    asserts:
+      - matchRegex:
+          path: data.overlays
+          pattern: "mirror"
+      - equal:
+          path: data.mirror-enabled
+          value: "true"
+
+  - it: "[smoke] supplychain — opt-in, requires SBOM+cosign+scan"
+    set:
+      <<: *defaults
+      compliance.overlays: ["supplychain"]
+      compliance.supplychain.enabled: true
+      compliance.supplychain.sbom.digest: "sha256:abc"
+      compliance.supplychain.sbom.format: cyclonedx-1.5
+      compliance.supplychain.cosign.signatureRef: "oci://x"
+      compliance.supplychain.scan.resultDigest: "sha256:def"
+    asserts:
+      - matchRegex:
+          path: data.overlays
+          pattern: "supplychain"
+      - equal:
+          path: data.supplychain-sbom-digest
+          value: "sha256:abc"
+
+  - it: "[smoke] fips — FIPS 140-3 mode workload"
+    set:
+      <<: *defaults
+      compliance.overlays: ["fips"]
+      compliance.fips.enabled: true
+      compliance.fips.runtime: go-boringcrypto
+      compliance.fips.cmvpCertId: "4282"
+      image.repository: registry1.dso.mil/pleme-io/example
+    asserts:
+      - matchRegex:
+          path: data.overlays
+          pattern: "fips"
+      - equal:
+          path: data.fips-runtime
+          value: go-boringcrypto
+
+  - it: "[smoke] dod-il2 — public/non-CUI"
+    set:
+      <<: *defaults
+      compliance.overlays: ["dod-il2"]
+      compliance.dod.impactLevel: il2
+      ingress.tls:
+        - hosts: ["example.com"]
+          secretName: example-tls
+      ingress.hosts:
+        - host: example.com
+      compliance.authn.oidc.provider: authentik
+    asserts:
+      - matchRegex:
+          path: data.overlays
+          pattern: "dod-il2"
+      - equal:
+          path: data.overlay-dod-il2
+          value: "true"
+      - equal:
+          path: data.dod-impact-level
+          value: il2
+
+  - it: "[smoke] dod-il4 — CUI mission-support"
+    set:
+      <<: *defaults
+      compliance.overlays: ["dod-il4"]
+      compliance.dod.impactLevel: il4
+      compliance.airgap.role: consumer
+      compliance.airgap.requireSignedImages: true
+      compliance.airgap.imagePullSecret: zot-pull
+      compliance.airgap.upstream.allowedCidrs: ["127.0.0.1/32"]
+      compliance.airgap.upstream.credentialSecret: zot-sentinel
+      image.repository: zot.registry.svc.cluster.local/pleme-io/example
+      ingress.tls:
+        - hosts: ["example.com"]
+          secretName: example-tls
+      ingress.hosts:
+        - host: example.com
+      compliance.authn.oidc.provider: authentik
+    asserts:
+      - matchRegex:
+          path: data.overlays
+          pattern: "dod-il4"
+
+  - it: "[smoke] dod-il5 — CUI national-security"
+    values:
+      - ../../tests/pleme-microservice/_overlay_dod_il5.yaml
+    asserts:
+      - matchRegex:
+          path: data.overlays
+          pattern: "dod-il5"
+      - equal:
+          path: data.fips-enabled
+          value: "true"
+
+  - it: "[smoke] dod-il6 — classified up to SECRET"
+    set:
+      <<: *defaults
+      compliance.overlays: ["dod-il6"]
+      compliance.dod.impactLevel: il6
+      compliance.airgap.role: consumer
+      compliance.airgap.requireSignedImages: true
+      compliance.airgap.imagePullSecret: zot-pull
+      compliance.airgap.upstream.allowedCidrs: ["127.0.0.1/32"]
+      compliance.airgap.upstream.credentialSecret: zot-sentinel
+      compliance.fips.enabled: true
+      compliance.fips.runtime: go-boringcrypto
+      compliance.fips.cmvpCertId: "4282"
+      compliance.supplychain.enabled: true
+      compliance.supplychain.sbom.digest: "sha256:abc"
+      compliance.supplychain.sbom.format: cyclonedx-1.5
+      compliance.supplychain.cosign.signatureRef: "oci://x"
+      compliance.supplychain.cosign.fulcioCertFingerprint: "0123abcdef"
+      compliance.supplychain.slsa.level: 3
+      compliance.supplychain.slsa.provenanceRef: "oci://x"
+      compliance.supplychain.slsa.builderId: "https://github.com/pleme-io/forge/.github/workflows/release.yml@refs/tags/v1.0.0"
+      compliance.supplychain.scan.resultDigest: "sha256:def"
+      compliance.attestation.hardwareRoot: tpm2
+      compliance.network.egress: cds-only
+      image.repository: registry1.dso.mil/pleme-io/example
+      image.tag: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      replicaCount: 2
+      ingress.tls:
+        - hosts: ["example.com"]
+          secretName: example-tls
+      ingress.hosts:
+        - host: example.com
+      compliance.authn.oidc.provider: authentik
+    asserts:
+      - matchRegex:
+          path: data.overlays
+          pattern: "dod-il6"
+      - equal:
+          path: data.overlay-dod-il6
+          value: "true"
+      - equal:
+          path: data.dod-impact-level
+          value: il6
+
+  - it: "[smoke] hipaa — ePHI handling, 6-yr retention"
+    set:
+      <<: *defaults
+      compliance.overlays: ["hipaa"]
+      compliance.audit.retentionDays: 2190
+      ingress.tls:
+        - hosts: ["example.com"]
+          secretName: example-tls
+      ingress.hosts:
+        - host: example.com
+      compliance.authn.oidc.provider: authentik
+      persistence.enabled: true
+      persistence.storageClass: encrypted
+      persistence.size: 10Gi
+    asserts:
+      - matchRegex:
+          path: data.overlays
+          pattern: "hipaa"
+      - equal:
+          path: data.hipaa-ephi-handling
+          value: "true"
+
+  - it: "[smoke] cmmc-l3 — DoD contractor CUI"
+    set:
+      <<: *defaults
+      compliance.overlays: ["cmmc-l3"]
+      compliance.airgap.role: consumer
+      compliance.airgap.requireSignedImages: true
+      compliance.airgap.imagePullSecret: zot-pull
+      compliance.airgap.upstream.allowedCidrs: ["127.0.0.1/32"]
+      compliance.airgap.upstream.credentialSecret: zot-sentinel
+      compliance.supplychain.enabled: true
+      compliance.supplychain.sbom.digest: "sha256:abc"
+      compliance.supplychain.sbom.format: cyclonedx-1.5
+      compliance.supplychain.cosign.signatureRef: "oci://x"
+      compliance.supplychain.scan.resultDigest: "sha256:def"
+      compliance.supplychain.slsa.level: 2
+      compliance.supplychain.slsa.provenanceRef: "oci://x"
+      image.repository: zot.registry.svc.cluster.local/pleme-io/example
+      image.tag: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      replicaCount: 2
+      ingress.tls:
+        - hosts: ["example.com"]
+          secretName: example-tls
+      ingress.hosts:
+        - host: example.com
+      compliance.authn.oidc.provider: authentik
+    asserts:
+      - matchRegex:
+          path: data.overlays
+          pattern: "cmmc-l3"
+      - equal:
+          path: data.cmmc-level
+          value: "3"

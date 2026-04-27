@@ -1,7 +1,14 @@
 {{/*
 Custom deployment for arachne — uses pleme-lib helpers but adds Chrome sidecar
 with relaxed security context (SYS_ADMIN cap, writable fs, /dev/shm).
+
+NOTE: arachne is intentionally NON-COMPLIANT under fedramp-moderate/high
+because the Chrome sidecar requires SYS_ADMIN. Arachne consumers must NOT
+set compliance.baseline >= fedramp-moderate; the validator below would fail.
+This is deliberate — scraping the public web with a hardened browser is not
+a fedramp-eligible workload.
 */}}
+{{- include "pleme-lib.compliance.validate" . -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:

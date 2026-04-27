@@ -1,9 +1,9 @@
 dependencies:
 - name: pleme-lib
   repository: file://../pleme-lib
-  version: 0.5.0
+  version: 0.6.0
 - name: policy-controller
   repository: https://sigstore.github.io/helm-charts
   version: 0.10.0
-digest: sha256:e913e6003b524991f966a3bc51aa8ff3172ffa88eb4900a30fa8ff77dd577b37
-generated: "2026-04-25T21:17:07.107241-04:00"
+digest: sha256:1e5838dfe42ed9d3d65e493dea5199114e85c1bda23d79b9e52c003956c20637
+generated: "2026-04-27T17:56:10.496144-04:00"

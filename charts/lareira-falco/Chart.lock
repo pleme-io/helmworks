@@ -1,9 +1,9 @@
 dependencies:
 - name: pleme-lib
   repository: file://../pleme-lib
-  version: 0.5.0
+  version: 0.6.0
 - name: falco
   repository: https://falcosecurity.github.io/charts
   version: 4.20.0
-digest: sha256:b7faf9c63718176eb58775a557b7aa03787612bd5e02ebad426f5e008af1ca75
-generated: "2026-04-25T21:17:16.140168-04:00"
+digest: sha256:a353da5f97b6897b0839446546f2e3576736c5e124b574398ed77bb111be1eba
+generated: "2026-04-27T17:54:54.722169-04:00"

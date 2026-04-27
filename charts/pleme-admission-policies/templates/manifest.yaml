@@ -1,0 +1,3 @@
+{{- /* Compliance manifest ConfigMap for the admission-policies bundle —
+       describes which overlays are enforced cluster-wide. */ -}}
+{{ include "pleme-lib.compliance.manifest" . }}

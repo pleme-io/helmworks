@@ -1,9 +1,9 @@
 dependencies:
 - name: pleme-lib
   repository: file://../pleme-lib
-  version: 0.5.0
+  version: 0.6.0
 - name: external-secrets
   repository: https://charts.external-secrets.io
   version: 0.10.7
-digest: sha256:21fc4760229406dcdb18c119beba48de73296dae6cbb4b2c48d65c950e3cb5d4
-generated: "2026-04-25T21:16:56.354673-04:00"
+digest: sha256:5ca667eeba8295564aff8f92a849d22b44002f057b328c8d849d441dd2ab0f14
+generated: "2026-04-27T17:54:48.756558-04:00"

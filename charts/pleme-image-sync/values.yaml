@@ -1,0 +1,124 @@
+# pleme-image-sync — air-gap image mirror CronJob
+#
+# Pulls images from a curated upstream allowlist and pushes them into the
+# cluster-local Zot. This is THE workload responsible for the cluster's
+# image-supply edge; consumers never reach external registries.
+#
+# Tool: skopeo (single-binary OCI copy + cosign-aware). Future renderers
+# may swap in oras / zli without changing the values surface.
+
+# -- skopeo image. At fedramp-high the validator requires a digest pin.
+image:
+  repository: quay.io/skopeo/stable
+  tag: "v1.18.0"
+  pullPolicy: Always
+
+# -- Schedule. Default is "every 15 minutes during business hours" so we
+#    catch upstream changes within an hour without hammering rate limits.
+#    See compliance.mirror.schedule for the canonical default.
+schedule: "*/15 8-18 * * 1-5"
+
+# -- Concurrency. Forbid stops a slow run from piling up.
+concurrencyPolicy: Forbid
+successfulJobsHistoryLimit: 7
+failedJobsHistoryLimit: 14
+backoffLimit: 3
+restartPolicy: OnFailure
+activeDeadlineSeconds: 1800   # 30m max per run
+
+# -- The local Zot the sync pushes into.
+target:
+  registry: zot.registry.svc.cluster.local
+  port: 5000
+  authSecret: zot-push-creds   # Secret with skopeo-style auth.json
+
+# -- Resources.
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
+
+# -- ServiceAccount.
+serviceAccount:
+  create: true
+  automountServiceAccountToken: false
+
+# -- Compliance: registry-mirror role, must auth upstreams, must verify
+#    cosign signatures.
+compliance:
+  baseline: fedramp-high
+  enforce: true
+  audit:
+    logLevel: info
+    retentionDays: 365
+    # CronJobs are audited via kube-state-metrics CronJob success/failure
+    # signals + the structured JSON logs the sync container emits to stdout.
+    # No Service → no ServiceMonitor; the audit signal here.
+    viaJobEvents: true
+  airgap:
+    enabled: true
+    role: registry-mirror
+    requireSignedImages: true
+    upstream:
+      # CIDR allowlist for upstream registries. Operators tune these to
+      # the actual registries they pull from.
+      allowedCidrs:
+        - "140.82.112.0/20"     # GitHub (ghcr.io)
+        - "104.16.0.0/13"       # Cloudflare (covers ghcr/quay/docker fronts)
+      # Use Cilium FQDN matching when available — preferred for human-
+      # readable allowlists. Falls back to allowedCidrs when not.
+      # allowedHosts:
+      #   - "ghcr.io"
+      #   - "quay.io"
+      #   - "registry.k8s.io"
+      # useCilium: true
+      credentialSecret: image-sync-upstream-creds
+  mirror:
+    schedule: "*/15 8-18 * * 1-5"
+    cosignVerify: true
+    cosignKeyRef:
+      name: cosign-pub
+      key: cosign.pub
+    audit:
+      required: true
+    upstreams:
+      - host: ghcr.io
+        credentialSecret: image-sync-ghcr-creds
+        repos:
+          - "pleme-io/example-service"
+          - "project-zot/zot-linux-amd64"
+      - host: quay.io
+        credentialSecret: image-sync-quay-creds
+        repos:
+          - "skopeo/stable"
+  attestation:
+    enabled: true
+
+# -- Monitoring. CronJob success/failure metrics surface via the
+#    kube-state-metrics + kube-prometheus stack.
+monitoring:
+  enabled: false   # CronJobs don't have a Service; PodMonitor would apply
+
+# -- NetworkPolicy. The Layer 2 airgap helper handles the egress posture.
+networkPolicy:
+  enabled: true
+  additionalEgress:
+    - name: allow-zot-push
+      rules:
+        - to:
+            - namespaceSelector:
+                matchLabels:
+                  kubernetes.io/metadata.name: registry
+              podSelector:
+                matchLabels:
+                  app.kubernetes.io/name: zot
+          ports:
+            - port: 5000
+              protocol: TCP
+
+# -- Resources for the sync run. Set explicitly so the SC-5 validator
+#    has values to find.
+ports: []

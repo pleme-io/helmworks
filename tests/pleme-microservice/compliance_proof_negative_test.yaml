@@ -1,0 +1,566 @@
+suite: pleme-microservice — exhaustive negative proof
+#
+# This is the proof corpus for "non-compliant input cannot produce a chart".
+# For every K8s-side FedRAMP-High invariant, at least one test below sets a
+# violating value shape and asserts that `helm template` fails.
+#
+# If a future change weakens any validator, the corresponding test fails and
+# the proof breaks. Conversely, adding a new control surface requires adding
+# a new entry here AND a validator — the symmetry is the proof.
+#
+# Numbering matches docs/COMPLIANCE-PROOF.md control surface.
+templates:
+  - templates/deployment.yaml
+release:
+  name: testapp
+  namespace: testns
+defaults: &defaults
+  compliance.baseline: fedramp-high
+  compliance.enforce: true
+  image.repository: ghcr.io/pleme-io/example
+  image.tag: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  monitoring.enabled: true
+  replicaCount: 2
+  resources.requests.cpu: 50m
+  resources.requests.memory: 64Mi
+  resources.limits.memory: 256Mi
+  serviceAccount.create: true
+  attestation.enabled: true
+  attestation.signature: "blake3:0000000000000000000000000000000000000000000000000000000000000000"
+tests:
+  # ── CM-2 / SI-7 — image baseline ─────────────────────────────
+  - it: "[CM-2] rejects image.tag=latest (moderate+)"
+    set:
+      <<: *defaults
+      compliance.baseline: fedramp-moderate
+      image.tag: latest
+    asserts:
+      - failedTemplate:
+          errorPattern: "forbids image.tag=latest"
+
+  - it: "[SI-7] rejects non-digest tag at high"
+    set:
+      <<: *defaults
+      image.tag: "v1.2.3"
+    asserts:
+      - failedTemplate:
+          errorPattern: "requires image to be digest-pinned"
+
+  - it: "[CM-7] rejects pullPolicy=Never"
+    set:
+      <<: *defaults
+      image.pullPolicy: Never
+    asserts:
+      - failedTemplate:
+          errorPattern: "forbids image.pullPolicy=Never"
+
+  # ── CM-7 / AC-6 — container security ──────────────────────────
+  - it: "[CM-7] rejects securityContext.privileged=true"
+    set:
+      <<: *defaults
+      securityContext.privileged: true
+    asserts:
+      - failedTemplate:
+          errorPattern: "forbids securityContext.privileged=true"
+
+  - it: "[CM-7] rejects allowPrivilegeEscalation=true"
+    set:
+      <<: *defaults
+      securityContext.allowPrivilegeEscalation: true
+    asserts:
+      - failedTemplate:
+          errorPattern: "forbids securityContext.allowPrivilegeEscalation=true"
+
+  - it: "[SI-7] rejects readOnlyRootFilesystem=false"
+    set:
+      <<: *defaults
+      securityContext.readOnlyRootFilesystem: false
+    asserts:
+      - failedTemplate:
+          errorPattern: "requires securityContext.readOnlyRootFilesystem=true"
+
+  - it: "[CM-7] rejects capabilities.add=SYS_ADMIN"
+    set:
+      <<: *defaults
+      securityContext.capabilities.add:
+        - SYS_ADMIN
+    asserts:
+      - failedTemplate:
+          errorPattern: "forbids capabilities.add=SYS_ADMIN"
+
+  - it: "[CM-7] rejects capabilities.add=NET_ADMIN"
+    set:
+      <<: *defaults
+      securityContext.capabilities.add:
+        - NET_ADMIN
+    asserts:
+      - failedTemplate:
+          errorPattern: "forbids capabilities.add=NET_ADMIN"
+
+  - it: "[CM-6/SI-16] rejects seccompProfile.type=Unconfined"
+    set:
+      <<: *defaults
+      securityContext.seccompProfile.type: Unconfined
+    asserts:
+      - failedTemplate:
+          errorPattern: "forbids seccompProfile.type=Unconfined"
+
+  - it: "[CM-6/SI-16] rejects podSecurityContext.seccompProfile.type=Unconfined"
+    set:
+      <<: *defaults
+      podSecurityContext.seccompProfile.type: Unconfined
+    asserts:
+      - failedTemplate:
+          errorPattern: "forbids podSecurityContext.seccompProfile.type=Unconfined"
+
+  # ── AC-6 / CM-7 — host namespaces ──────────────────────────────
+  - it: "[AC-6/SC-7] rejects hostNetwork=true"
+    set:
+      <<: *defaults
+      hostNetwork: true
+    asserts:
+      - failedTemplate:
+          errorPattern: "forbids hostNetwork=true"
+
+  - it: "[AC-6/CM-7] rejects hostPID=true"
+    set:
+      <<: *defaults
+      hostPID: true
+    asserts:
+      - failedTemplate:
+          errorPattern: "forbids hostPID=true"
+
+  - it: "[AC-6/CM-7] rejects hostIPC=true"
+    set:
+      <<: *defaults
+      hostIPC: true
+    asserts:
+      - failedTemplate:
+          errorPattern: "forbids hostIPC=true"
+
+  - it: "[AC-6/CM-7] rejects hostPath volumes (high)"
+    set:
+      <<: *defaults
+      volumes:
+        - name: hostfs
+          hostPath:
+            path: /etc
+    asserts:
+      - failedTemplate:
+          errorPattern: "forbids hostPath volumes"
+
+  - it: "[AC-6] rejects runAsUser=0 (high)"
+    set:
+      <<: *defaults
+      podSecurityContext.runAsUser: 0
+    asserts:
+      - failedTemplate:
+          errorPattern: "forbids runAsUser=0"
+
+  - it: "[AC-6] rejects runAsNonRoot=false (high)"
+    set:
+      <<: *defaults
+      podSecurityContext.runAsNonRoot: false
+    asserts:
+      - failedTemplate:
+          errorPattern: "requires podSecurityContext.runAsNonRoot=true"
+
+  - it: "[AC-6/IA-2] rejects automountServiceAccountToken=true (without opt-out)"
+    set:
+      <<: *defaults
+      automountServiceAccountToken: true
+    asserts:
+      - failedTemplate:
+          errorPattern: "forbids automountServiceAccountToken=true"
+
+  # ── AU-2/12, SI-4 — audit ──────────────────────────────────────
+  - it: "[AU-2/12, SI-4] rejects monitoring.enabled=false (moderate+)"
+    set:
+      <<: *defaults
+      compliance.baseline: fedramp-moderate
+      image.tag: "v1.0.0"
+      monitoring.enabled: false
+    asserts:
+      - failedTemplate:
+          errorPattern: "requires an audit signal"
+
+  # ── AC-4 / SC-7 — network ──────────────────────────────────────
+  - it: "[AC-4/SC-7] rejects networkPolicy.enabled=false (moderate+)"
+    set:
+      <<: *defaults
+      compliance.baseline: fedramp-moderate
+      image.tag: "v1.0.0"
+      networkPolicy.enabled: false
+    asserts:
+      - failedTemplate:
+          errorPattern: "networkPolicy.enabled=false is forbidden"
+
+  # ── SC-5 / CP-2 — availability ─────────────────────────────────
+  - it: "[SC-5/CP-2] rejects replicaCount=1 (high)"
+    set:
+      <<: *defaults
+      replicaCount: 1
+    asserts:
+      - failedTemplate:
+          errorPattern: "requires replicaCount >= 2"
+
+  - it: "[SC-5/CP-2] rejects autoscaling.minReplicas=1 (high)"
+    set:
+      <<: *defaults
+      autoscaling.enabled: true
+      autoscaling.minReplicas: 1
+    asserts:
+      - failedTemplate:
+          errorPattern: "requires autoscaling.minReplicas >= 2"
+
+  # The "missing resources" validator is exercised in the dedicated
+  # pleme-lib bare-fixture suite (compliance_lib_validators_test.yaml)
+  # because pleme-microservice's own values.yaml provides resource defaults
+  # — Helm deep-merge means a test override cannot unset them through values
+  # alone. The positive-proof test below asserts the invariant holds in the
+  # rendered output, which is the contract from the consumer's perspective.
+
+  # ── CM-2 / SI-7 / AC-3 — attestation (high) ────────────────────
+  - it: "[CM-2/SI-7/AC-3] rejects attestation.enabled=false (high)"
+    set:
+      <<: *defaults
+      attestation.enabled: false
+    asserts:
+      - failedTemplate:
+          errorPattern: "requires attestation.enabled=true"
+
+  # ── AC-3 / AC-6 / IA-2 — RBAC ──────────────────────────────────
+  - it: "[AC-3/AC-6/IA-2] rejects default ServiceAccount (moderate+)"
+    set:
+      <<: *defaults
+      compliance.baseline: fedramp-moderate
+      image.tag: "v1.0.0"
+      serviceAccount.create: false
+      serviceAccount.name: ""
+    asserts:
+      - failedTemplate:
+          errorPattern: "requires a dedicated ServiceAccount"
+
+  - it: "[AC-3/AC-6/IA-2] rejects serviceAccount.name=default"
+    set:
+      <<: *defaults
+      compliance.baseline: fedramp-moderate
+      image.tag: "v1.0.0"
+      serviceAccount.create: false
+      serviceAccount.name: default
+    asserts:
+      - failedTemplate:
+          errorPattern: "requires a dedicated ServiceAccount"
+
+  # ── IA-5 / SC-12 — secrets handling ─────────────────────────────
+  - it: "[IA-5/SC-12] rejects literal env value for *_SECRET"
+    set:
+      <<: *defaults
+      env:
+        - name: API_SECRET
+          value: "literal-credential"
+    asserts:
+      - failedTemplate:
+          errorPattern: "forbids literal value for secret-shaped env var"
+
+  - it: "[IA-5/SC-12] rejects literal env value for *_PASSWORD"
+    set:
+      <<: *defaults
+      env:
+        - name: DB_PASSWORD
+          value: "p@ssw0rd"
+    asserts:
+      - failedTemplate:
+          errorPattern: "forbids literal value for secret-shaped env var"
+
+  - it: "[IA-5/SC-12] rejects literal env value for *_TOKEN"
+    set:
+      <<: *defaults
+      env:
+        - name: GITHUB_TOKEN
+          value: "ghp_xxx"
+    asserts:
+      - failedTemplate:
+          errorPattern: "forbids literal value for secret-shaped env var"
+
+  # ── SC-28 — encryption at rest ──────────────────────────────────
+  - it: "[SC-28] rejects unencrypted persistence storageClass (high)"
+    set:
+      <<: *defaults
+      persistence.enabled: true
+      persistence.storageClass: standard
+    asserts:
+      - failedTemplate:
+          errorPattern: "encrypted-class allowlist"
+
+  - it: "[SC-28] rejects missing storageClass with persistence enabled (high)"
+    set:
+      <<: *defaults
+      persistence.enabled: true
+    asserts:
+      - failedTemplate:
+          errorPattern: "requires persistence.storageClass to be set to an encrypted class"
+
+  # ── SC-8 / SC-13 / AC-17 — Ingress TLS ──────────────────────────
+  - it: "[SC-8/SC-13/AC-17] rejects ingress.enabled without ingress.tls (moderate+)"
+    set:
+      <<: *defaults
+      compliance.baseline: fedramp-moderate
+      image.tag: "v1.0.0"
+      ingress.enabled: true
+      # Provide OIDC so the new authn validator passes; the test then
+      # exercises the ingress.tls requirement specifically.
+      compliance.authn.oidc.provider: authentik
+      ingress.hosts:
+        - host: example.com
+          paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - failedTemplate:
+          errorPattern: "requires ingress.tls to be non-empty"
+
+  # ── IA-2 / AC-17 — OIDC required for Ingress ────────────────────
+  - it: "[IA-2/AC-17] rejects ingress.enabled without compliance.authn.oidc"
+    set:
+      <<: *defaults
+      compliance.baseline: fedramp-moderate
+      image.tag: "v1.0.0"
+      ingress.enabled: true
+      ingress.hosts:
+        - host: example.com
+    asserts:
+      - failedTemplate:
+          errorPattern: "requires compliance.authn.oidc.provider"
+
+  # ── AC-6 — RBAC wildcard verbs ──────────────────────────────────
+  - it: "[AC-6] rejects Role rule with verbs: [\"*\"]"
+    set:
+      <<: *defaults
+      compliance.authz.role.rules:
+        - apiGroups: [""]
+          resources: ["secrets"]
+          verbs: ["*"]
+    asserts:
+      - failedTemplate:
+          errorPattern: "forbids Role verbs:.*\\*"
+
+  - it: "[AC-6] rejects Role rule with resources: [\"*\"]"
+    set:
+      <<: *defaults
+      compliance.authz.role.rules:
+        - apiGroups: [""]
+          resources: ["*"]
+          verbs: ["get"]
+    asserts:
+      - failedTemplate:
+          errorPattern: "forbids Role resources:.*\\*"
+
+  # ── AC-6(1) — ClusterRole apiGroups wildcard at high ────────────
+  - it: "[AC-6(1)] rejects ClusterRole apiGroups: [\"*\"] at fedramp-high"
+    set:
+      <<: *defaults
+      compliance.authz.clusterRole.rules:
+        - apiGroups: ["*"]
+          resources: ["pods"]
+          verbs: ["get"]
+    asserts:
+      - failedTemplate:
+          errorPattern: "forbids ClusterRole apiGroups:.*\\*"
+
+  # ── AC-6(7) — RoleBinding to system:authenticated forbidden ────
+  - it: "[AC-6(7)] rejects RoleBinding subject Group:system:authenticated"
+    set:
+      <<: *defaults
+      compliance.authz.role.rules:
+        - apiGroups: [""]
+          resources: ["configmaps"]
+          verbs: ["get"]
+      compliance.authz.roleBinding.subjects:
+        - kind: Group
+          apiGroup: rbac.authorization.k8s.io
+          name: system:authenticated
+    asserts:
+      - failedTemplate:
+          errorPattern: "forbids RoleBinding subject Group:system:authenticated"
+
+  # ── SC-7(11) — air-gap consumer must use allowed registry ──────
+  - it: "[SC-7(11)] airgap=consumer rejects external image"
+    set:
+      <<: *defaults
+      compliance.airgap.enabled: true
+      compliance.airgap.role: consumer
+      compliance.airgap.registryService.name: zot
+      compliance.airgap.registryService.namespace: registry
+      compliance.airgap.requireSignedImages: true
+      image.repository: "ghcr.io/pleme-io/example"
+    asserts:
+      - failedTemplate:
+          errorPattern: "airgap=consumer requires image.repository to start with"
+
+  # ── SI-7 — air-gap registry-mirror must verify cosign at high ───
+  - it: "[SI-7] airgap+high requires requireSignedImages=true"
+    set:
+      <<: *defaults
+      compliance.airgap.enabled: true
+      compliance.airgap.role: consumer
+      compliance.airgap.registryService.name: zot
+      compliance.airgap.registryService.namespace: registry
+      compliance.airgap.requireSignedImages: false
+      image.repository: "zot.registry.svc.cluster.local/pleme-io/example"
+    asserts:
+      - failedTemplate:
+          errorPattern: "requires airgap.requireSignedImages=true"
+
+  # ── SC-7(11) — registry-mirror must declare upstream allowlist ─
+  - it: "[SC-7(11)] airgap=registry-mirror requires allowedCidrs or allowedHosts+useCilium"
+    set:
+      <<: *defaults
+      compliance.airgap.enabled: true
+      compliance.airgap.role: registry-mirror
+      compliance.airgap.requireSignedImages: true
+      compliance.airgap.upstream.credentialSecret: ghcr-creds
+    asserts:
+      - failedTemplate:
+          errorPattern: "registry-mirror requires either compliance.airgap.upstream.allowedCidrs"
+
+  # ── IA-5 — registry-mirror must auth upstreams at high ─────────
+  - it: "[IA-5] airgap=registry-mirror at high requires upstream.credentialSecret"
+    set:
+      <<: *defaults
+      compliance.airgap.enabled: true
+      compliance.airgap.role: registry-mirror
+      compliance.airgap.requireSignedImages: true
+      compliance.airgap.upstream.allowedCidrs:
+        - "140.82.112.0/20"
+    asserts:
+      - failedTemplate:
+          errorPattern: "registry-mirror requires compliance.airgap.upstream.credentialSecret"
+
+  # ── AU-3/IA-5 — mirror upstreams need credential secrets ────────
+  - it: "[AU-3/IA-5] mirror.upstreams entry without credentialSecret rejected"
+    set:
+      <<: *defaults
+      compliance.mirror.upstreams:
+        - host: ghcr.io
+          repos: [pleme-io/example]
+      compliance.mirror.cosignVerify: true
+      compliance.mirror.cosignKeyRef:
+        name: cosign-pub
+        key: cosign.pub
+    asserts:
+      - failedTemplate:
+          errorPattern: "credentialSecret"
+
+  # ── SI-7 — mirror at high requires cosign verification ─────────
+  - it: "[SI-7] mirror.upstreams set + high requires cosignVerify=true"
+    set:
+      <<: *defaults
+      compliance.mirror.upstreams:
+        - host: ghcr.io
+          credentialSecret: ghcr-pull
+          repos: [pleme-io/example]
+    asserts:
+      - failedTemplate:
+          errorPattern: "requires compliance.mirror.cosignVerify=true"
+
+  # ── BYPASS-RESISTANCE — string vs bool, case folding ───────────
+  # These cases prove the validators are not bypassable via type/format tricks.
+
+  - it: "[BYPASS] image.tag=Latest (mixed case) is rejected (CM-2/SI-7)"
+    set:
+      <<: *defaults
+      compliance.baseline: fedramp-moderate
+      image.tag: Latest
+    asserts:
+      - failedTemplate:
+          errorPattern: "forbids image.tag=latest"
+
+  - it: "[BYPASS] image.tag=LATEST (upper) is rejected"
+    set:
+      <<: *defaults
+      compliance.baseline: fedramp-moderate
+      image.tag: LATEST
+    asserts:
+      - failedTemplate:
+          errorPattern: "forbids image.tag=latest"
+
+  - it: "[BYPASS] image.tag with whitespace ' latest ' is rejected"
+    set:
+      <<: *defaults
+      compliance.baseline: fedramp-moderate
+      image.tag: " latest "
+    asserts:
+      - failedTemplate:
+          errorPattern: "forbids image.tag=latest"
+
+  - it: "[BYPASS] attestation.enabled=\"false\" string does NOT bypass attestation.validate"
+    set:
+      <<: *defaults
+      attestation.enabled: "false"
+    asserts:
+      - failedTemplate:
+          errorPattern: "requires attestation.enabled=true"
+
+  - it: "[BYPASS] ambiguous repo@sha256:... + tag is rejected"
+    set:
+      <<: *defaults
+      image.repository: "ghcr.io/pleme-io/example@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      image.tag: "v1.2.3"
+    asserts:
+      - failedTemplate:
+          errorPattern: "rejects ambiguous image"
+
+  - it: "[BYPASS] capabilities.add=SYS_PTRACE is rejected"
+    set:
+      <<: *defaults
+      securityContext.capabilities.add:
+        - SYS_PTRACE
+    asserts:
+      - failedTemplate:
+          errorPattern: "forbids capabilities.add=SYS_PTRACE"
+
+  - it: "[BYPASS] capabilities.add=SYS_MODULE is rejected"
+    set:
+      <<: *defaults
+      securityContext.capabilities.add:
+        - SYS_MODULE
+    asserts:
+      - failedTemplate:
+          errorPattern: "forbids capabilities.add=SYS_MODULE"
+
+  - it: "[BYPASS] capabilities.add=BPF is rejected"
+    set:
+      <<: *defaults
+      securityContext.capabilities.add:
+        - BPF
+    asserts:
+      - failedTemplate:
+          errorPattern: "forbids capabilities.add=BPF"
+
+  - it: "[BYPASS] container-level securityContext.runAsUser=0 is rejected"
+    set:
+      <<: *defaults
+      securityContext.runAsUser: 0
+    asserts:
+      - failedTemplate:
+          errorPattern: "forbids container runAsUser=0"
+
+  - it: "[BYPASS] container-level securityContext.runAsNonRoot=false is rejected"
+    set:
+      <<: *defaults
+      securityContext.runAsNonRoot: false
+    asserts:
+      - failedTemplate:
+          errorPattern: "requires container securityContext.runAsNonRoot=true"
+
+  # ── ENFORCE OFF — escape valve ──────────────────────────────────
+  - it: "[ESCAPE] enforce=false bypasses validators (must remain a deliberate opt-out)"
+    set:
+      <<: *defaults
+      compliance.enforce: false
+      image.tag: latest
+      securityContext.privileged: true
+    asserts:
+      - isKind:
+          of: Deployment

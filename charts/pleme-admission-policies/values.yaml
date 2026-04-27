@@ -1,0 +1,60 @@
+# pleme-admission-policies — cluster-side admission policy bundle
+#
+# Operators install one Release per cluster (or per namespace if
+# Kyverno/Gatekeeper is namespace-scoped) declaring the overlay set the
+# cluster should enforce. The chart walks the overlay registry and emits
+# the union of all overlays' kyvernoPolicy + gatekeeperConstraint
+# surfaces as a deployable manifest.
+#
+# Example:
+#   helm install pleme-policies oci://ghcr.io/pleme-io/charts/pleme-admission-policies \
+#     --namespace kyverno-system \
+#     --set 'compliance.overlays={fedramp-high,airgap-consumer,supplychain,fips,dod-il5,hipaa}'
+#
+# Every workload admitted to the cluster is then validated by the
+# emitted ClusterPolicies. A non-helmworks chart that would have failed
+# our chart-time validators ALSO fails admission — the proof is symmetric.
+
+compliance:
+  # The overlay set the cluster should enforce. Same shape as a
+  # consumer chart's compliance.overlays — including transitive
+  # requires resolution. The default below is the canonical regulated
+  # cluster posture for most pleme-io deployments.
+  overlays:
+    - fedramp-high
+    - airgap-consumer
+    - supplychain
+    - fips
+  # Closure cascades: if the operator declares dod-il5, fedramp-high +
+  # airgap-consumer + supplychain + fips are auto-included.
+
+  # Whether to enforce — the chart's own validators check for declared
+  # overlays. enforce=true is the only sensible value for cluster admin.
+  enforce: true
+
+  # Per-overlay configuration that informs the emitted policies.
+  supplychain:
+    cosign:
+      # The cosign public key used by Kyverno verifyImages. Inject via
+      # ExternalSecret / SealedSecret / SOPS in production.
+      publicKey: ""
+  airgap:
+    # The chart itself is a policy bundle, not a workload. Setting these
+    # satisfies the airgap-consumer overlay's validators that fire from
+    # _compliance.tpl::validate during the policies template render.
+    # (The policies emitted will themselves enforce these on workloads.)
+    requireSignedImages: true
+    upstream:
+      allowedCidrs:
+        - "127.0.0.1/32"
+      credentialSecret: admission-policies-sentinel
+
+# Required by pleme-lib helpers but not used (this chart is policy-only,
+# not a workload).
+image:
+  repository: ""
+  tag: "0.1.0"
+serviceAccount:
+  create: false
+monitoring:
+  enabled: false

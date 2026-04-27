@@ -1,0 +1,82 @@
+# Use-case primitive: CMMC v2.0 Level 3 microservice
+#
+# Apply via:
+#   helm install <name> oci://ghcr.io/pleme-io/charts/pleme-microservice \
+#     -f usecases/cmmc-l3-microservice.yaml -f <my-overrides>.yaml
+#
+# Inherits: cmmc-l3 overlay (cascades fedramp-high, dod-il4, supplychain,
+# airgap-consumer transitively). NIST 800-171 Rev 2 (110 controls) +
+# 800-172 (24 L3 practices). Required for DoD contractors handling CUI.
+
+compliance:
+  overlays:
+    - cmmc-l3
+  enforce: true
+  audit:
+    logLevel: info
+    retentionDays: 2190
+  airgap:
+    role: consumer
+    requireSignedImages: true
+    registryService:
+      name: zot
+      namespace: registry
+      port: 5000
+    imagePullSecret: zot-pull-creds
+  supplychain:
+    enabled: true
+    sbom:
+      format: cyclonedx-1.5
+    slsa:
+      level: 2
+    thresholds:
+      critical: 0
+      high: 0
+  authn:
+    oidc:
+      provider: authentik
+    istio:
+      mtls:
+        required: true
+  authz:
+    role:
+      rules:
+        - apiGroups: [""]
+          resources: ["configmaps"]
+          verbs: ["get", "watch"]
+
+replicaCount: 3
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+image:
+  pullPolicy: Always
+
+ports:
+  - name: http
+    containerPort: 8080
+    protocol: TCP
+
+service:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+
+monitoring:
+  enabled: true
+
+ingress:
+  enabled: true
+  className: nginx
+
+attestation:
+  enabled: true

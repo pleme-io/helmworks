@@ -1,0 +1,141 @@
+suite: pleme-zot — fedramp-high registry-mirror invariants
+templates:
+  - templates/statefulset.yaml
+  - templates/configmap.yaml
+  - templates/service.yaml
+  - templates/serviceaccount.yaml
+  - templates/servicemonitor.yaml
+  - templates/pdb.yaml
+  - templates/networkpolicy.yaml
+  - templates/compliance-manifest.yaml
+release:
+  name: zot
+  namespace: registry
+defaults: &defaults
+  image.repository: ghcr.io/project-zot/zot-linux-amd64
+  image.tag: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  attestation.enabled: true
+  attestation.signature: "blake3:0000000000000000000000000000000000000000000000000000000000000000"
+tests:
+  # ── Positive: the rendered StatefulSet satisfies every invariant ──
+  - it: "[CM-2/SI-7] Zot image is digest-pinned"
+    set:
+      <<: *defaults
+    template: templates/statefulset.yaml
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].image
+          pattern: "@sha256:[0-9a-f]{64}$"
+
+  - it: "[CM-7/AC-6] hardened container security context"
+    set:
+      <<: *defaults
+    template: templates/statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+
+  - it: "[AC-6/IA-2] no automount of SA token"
+    set:
+      <<: *defaults
+    template: templates/statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+
+  - it: "[SC-28] persistent storage uses an encrypted storage class"
+    set:
+      <<: *defaults
+    template: templates/statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.storageClassName
+          value: encrypted
+
+  - it: "[SC-7(11)] registry-mirror egress NetworkPolicy is rendered"
+    set:
+      <<: *defaults
+    template: templates/networkpolicy.yaml
+    documentSelector:
+      path: metadata.name
+      value: zot-pleme-zot-airgap-mirror-egress
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+
+  - it: "[CM-2] compliance manifest claims registry-mirror role + control list includes SC-7(11)"
+    set:
+      <<: *defaults
+    template: templates/compliance-manifest.yaml
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: data.airgap-enabled
+          value: "true"
+      - equal:
+          path: data.airgap-role
+          value: registry-mirror
+      - matchRegex:
+          path: data.controls
+          pattern: "SC-7\\(11\\)"
+
+  - it: "[SC-5/CP-2] PDB rendered (replicaCount=2)"
+    set:
+      <<: *defaults
+    template: templates/pdb.yaml
+    asserts:
+      - isKind:
+          of: PodDisruptionBudget
+
+  - it: "[SC-5] topology spread (zone + hostname) at high"
+    set:
+      <<: *defaults
+    template: templates/statefulset.yaml
+    asserts:
+      - isNotNullOrEmpty:
+          path: spec.template.spec.topologySpreadConstraints
+      - equal:
+          path: spec.template.spec.topologySpreadConstraints[0].topologyKey
+          value: topology.kubernetes.io/zone
+
+  # ── Negative: registry-mirror role validators ─────────────────
+  # These use dedicated values fixtures because helm-unittest's `set:`
+  # cannot reliably unset values that the chart's values.yaml provides.
+  - it: "[SC-7(11)] missing upstream allowedCidrs is rejected"
+    values:
+      - ../../tests/pleme-zot/_no_allowed_cidrs.yaml
+    template: templates/statefulset.yaml
+    asserts:
+      - failedTemplate:
+          errorPattern: "registry-mirror requires either compliance.airgap.upstream.allowedCidrs"
+
+  - it: "[IA-5] missing upstream credentialSecret at high is rejected"
+    values:
+      - ../../tests/pleme-zot/_no_credential_secret.yaml
+    template: templates/statefulset.yaml
+    asserts:
+      - failedTemplate:
+          errorPattern: "registry-mirror requires compliance.airgap.upstream.credentialSecret"
+
+  - it: "[SI-7] requireSignedImages=false at high is rejected"
+    values:
+      - ../../tests/pleme-zot/_no_signed_images.yaml
+    template: templates/statefulset.yaml
+    asserts:
+      - failedTemplate:
+          errorPattern: "requires airgap.requireSignedImages=true"

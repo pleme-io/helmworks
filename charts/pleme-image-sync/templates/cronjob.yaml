@@ -1,0 +1,107 @@
+{{- include "pleme-lib.compliance.validate" . -}}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+  annotations:
+    {{- include "pleme-lib.compliance.annotations" . | nindent 4 }}
+    {{- include "pleme-lib.compliance.audit.annotations" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.schedule | default (include "pleme-lib.compliance.mirror.schedule" .) | quote }}
+  concurrencyPolicy: {{ .Values.concurrencyPolicy | default "Forbid" }}
+  successfulJobsHistoryLimit: {{ .Values.successfulJobsHistoryLimit | default 7 }}
+  failedJobsHistoryLimit: {{ .Values.failedJobsHistoryLimit | default 14 }}
+  jobTemplate:
+    metadata:
+      labels:
+        {{- include "pleme-lib.selectorLabels" . | nindent 8 }}
+    spec:
+      activeDeadlineSeconds: {{ .Values.activeDeadlineSeconds | default 1800 }}
+      backoffLimit: {{ .Values.backoffLimit | default 3 }}
+      template:
+        metadata:
+          labels:
+            {{- include "pleme-lib.selectorLabels" . | nindent 12 }}
+            {{- $cl := include "pleme-lib.compliance.labels" . | trim }}
+            {{- if $cl }}
+            {{- $cl | nindent 12 }}
+            {{- end }}
+          annotations:
+            {{- include "pleme-lib.compliance.annotations" . | nindent 12 }}
+            {{- include "pleme-lib.compliance.audit.annotations" . | nindent 12 }}
+        spec:
+          serviceAccountName: {{ include "pleme-lib.serviceAccountName" . }}
+          automountServiceAccountToken: {{ include "pleme-lib.compliance.automountServiceAccountToken" . }}
+          restartPolicy: {{ .Values.restartPolicy | default "OnFailure" }}
+          securityContext:
+            {{- include "pleme-lib.podSecurityContext" . | nindent 12 }}
+          containers:
+            - name: skopeo
+              image: {{ include "pleme-lib.compliance.image" . }}
+              imagePullPolicy: {{ include "pleme-lib.compliance.image.pullPolicy" . }}
+              command: ["/bin/sh", "-eu", "-c"]
+              args:
+                - |
+                  set -eu
+                  echo "{\"event\":\"image-sync-start\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+                  TARGET={{ .Values.target.registry }}:{{ .Values.target.port }}
+                  {{- range $up := (.Values.compliance.mirror.upstreams) }}
+                  HOST={{ $up.host }}
+                  {{- range $repo := $up.repos }}
+                  REPO={{ $repo }}
+                  echo "{\"event\":\"sync-repo\",\"upstream_host\":\"$HOST\",\"repo\":\"$REPO\"}"
+                  TAGS=$(skopeo --command-timeout 60s list-tags \
+                    --authfile /etc/skopeo/upstream/auth.json \
+                    "docker://$HOST/$REPO" 2>/dev/null \
+                    | sed -nE 's/.*"([^"]+)".*/\1/p' \
+                    | grep -E "^v?[0-9]+\.[0-9]+\.[0-9]+$" || true)
+                  for TAG in $TAGS; do
+                    echo "{\"event\":\"copy\",\"src\":\"$HOST/$REPO:$TAG\",\"dst\":\"$TARGET/$REPO:$TAG\"}"
+                    skopeo --command-timeout 300s copy \
+                      --multi-arch all \
+                      --src-authfile /etc/skopeo/upstream/auth.json \
+                      --dest-authfile /etc/skopeo/target/auth.json \
+                      --dest-tls-verify=true \
+                      "docker://$HOST/$REPO:$TAG" \
+                      "docker://$TARGET/$REPO:$TAG"
+                    echo "{\"event\":\"copy-ok\",\"src\":\"$HOST/$REPO:$TAG\"}"
+                  done
+                  {{- end }}
+                  {{- end }}
+                  echo "{\"event\":\"image-sync-complete\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+              env:
+                - name: COSIGN_PUBLIC_KEY_PATH
+                  value: /etc/cosign/cosign.pub
+                - name: COSIGN_VERIFY
+                  value: {{ ((.Values.compliance).mirror).cosignVerify | default true | quote }}
+              resources:
+                {{- toYaml .Values.resources | nindent 16 }}
+              securityContext:
+                {{- include "pleme-lib.containerSecurityContext" . | nindent 16 }}
+              volumeMounts:
+                - name: upstream-auth
+                  mountPath: /etc/skopeo/upstream
+                  readOnly: true
+                - name: target-auth
+                  mountPath: /etc/skopeo/target
+                  readOnly: true
+                - name: cosign-pub
+                  mountPath: /etc/cosign
+                  readOnly: true
+                - name: workdir
+                  mountPath: /tmp
+          volumes:
+            - name: upstream-auth
+              secret:
+                secretName: {{ ((.Values.compliance).airgap).upstream.credentialSecret }}
+            - name: target-auth
+              secret:
+                secretName: {{ .Values.target.authSecret }}
+            - name: cosign-pub
+              secret:
+                secretName: {{ ((.Values.compliance).mirror).cosignKeyRef.name }}
+            - name: workdir
+              emptyDir: {}

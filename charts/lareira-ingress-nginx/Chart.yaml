@@ -15,7 +15,7 @@ maintainers:
 
 dependencies:
   - name: pleme-lib
-    version: "~0.5.0"
+    version: "~0.10.0"
     repository: "file://../pleme-lib"
   - name: ingress-nginx
     version: "4.13.0"

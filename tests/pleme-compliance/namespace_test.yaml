@@ -1,0 +1,95 @@
+suite: pleme-compliance — namespace scaffolding
+templates:
+  - templates/namespace.yaml
+  - templates/networkpolicy-deny-all.yaml
+  - templates/resourcequota.yaml
+  - templates/limitrange.yaml
+  - templates/manifest.yaml
+release:
+  name: comp
+  namespace: regulated
+tests:
+  - it: at fedramp-high, namespace gets PSS=restricted enforcement
+    set:
+      compliance.baseline: fedramp-high
+    template: templates/namespace.yaml
+    asserts:
+      - isKind:
+          of: Namespace
+      - equal:
+          path: metadata.labels["pod-security.kubernetes.io/enforce"]
+          value: restricted
+      - equal:
+          path: metadata.labels["pod-security.kubernetes.io/audit"]
+          value: restricted
+      - equal:
+          path: metadata.labels["compliance.pleme.io/baseline"]
+          value: fedramp-high
+
+  - it: at fedramp-moderate, namespace gets PSS=baseline enforcement
+    set:
+      compliance.baseline: fedramp-moderate
+    template: templates/namespace.yaml
+    asserts:
+      - equal:
+          path: metadata.labels["pod-security.kubernetes.io/enforce"]
+          value: baseline
+      - equal:
+          path: metadata.labels["pod-security.kubernetes.io/audit"]
+          value: restricted
+
+  - it: namespace-scope deny-all NetworkPolicy is rendered
+    set:
+      compliance.baseline: fedramp-high
+    template: templates/networkpolicy-deny-all.yaml
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - equal:
+          path: metadata.name
+          value: compliance-namespace-deny-all
+      - equal:
+          path: spec.podSelector
+          value: {}
+
+  - it: ResourceQuota is rendered with high-baseline defaults
+    set:
+      compliance.baseline: fedramp-high
+    template: templates/resourcequota.yaml
+    asserts:
+      - isKind:
+          of: ResourceQuota
+      - equal:
+          path: spec.hard["services.nodeports"]
+          value: "0"
+
+  - it: LimitRange is rendered with container floors
+    set:
+      compliance.baseline: fedramp-high
+    template: templates/limitrange.yaml
+    asserts:
+      - isKind:
+          of: LimitRange
+      - equal:
+          path: spec.limits[0].type
+          value: Container
+      - equal:
+          path: spec.limits[0].defaultRequest.cpu
+          value: "50m"
+      - equal:
+          path: spec.limits[0].min.memory
+          value: "16Mi"
+
+  - it: namespace-scope compliance manifest ConfigMap is emitted
+    set:
+      compliance.baseline: fedramp-high
+    template: templates/manifest.yaml
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: data.scope
+          value: namespace
+      - equal:
+          path: data.baseline
+          value: fedramp-high

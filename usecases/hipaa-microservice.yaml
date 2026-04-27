@@ -1,0 +1,88 @@
+# Use-case primitive: HIPAA-covered ePHI-handling microservice
+#
+# Apply via:
+#   helm install <name> oci://ghcr.io/pleme-io/charts/pleme-microservice \
+#     -f usecases/hipaa-microservice.yaml -f <my-overrides>.yaml
+#
+# Inherits: hipaa overlay (cascades fedramp-moderate) + supplychain.
+# HIPAA + supplychain together produce the canonical ePHI posture:
+# encryption at rest, 6-year audit retention, cosign verification,
+# OIDC + mTLS service auth.
+
+compliance:
+  overlays:
+    - hipaa
+    - supplychain
+  enforce: true
+  audit:
+    logLevel: info
+    retentionDays: 2190    # 6 years (HIPAA §164.316(b)(2)(i))
+  supplychain:
+    enabled: true
+    sbom:
+      format: cyclonedx-1.5
+    slsa:
+      level: 2
+    thresholds:
+      critical: 0
+      high: 0
+  authn:
+    oidc:
+      provider: authentik
+      group: hipaa-covered-personnel
+    istio:
+      mtls:
+        required: true
+  authz:
+    role:
+      rules:
+        - apiGroups: [""]
+          resources: ["configmaps"]
+          verbs: ["get", "watch"]
+
+replicaCount: 3
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+image:
+  pullPolicy: Always
+
+ports:
+  - name: http
+    containerPort: 8080
+    protocol: TCP
+
+service:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+
+# Persistence required for ePHI-touching services that buffer locally.
+# Storage class must be encrypted (HIPAA §164.312(a)(2)(iv)).
+persistence:
+  enabled: true
+  storageClass: encrypted
+  size: 50Gi
+  mountPath: /data
+
+monitoring:
+  enabled: true
+  port: http
+  path: /metrics
+  interval: 30s
+
+ingress:
+  enabled: true
+  className: nginx
+
+attestation:
+  enabled: true

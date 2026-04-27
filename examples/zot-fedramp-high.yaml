@@ -1,0 +1,77 @@
+# Example: pleme-zot deployed at FedRAMP-High in cache mode.
+#
+# Cache mode: Zot has zero external egress (allowedCidrs is a sentinel
+# 127.0.0.1/32 — functionally a deny-all upstream egress). image-sync is
+# the only workload allowed to push into Zot, and it's the only workload
+# allowed external egress to upstream registries. This is the most secure
+# air-gap shape and the recommended deployment for regulated environments.
+#
+# To switch to pull mode (Zot fetches from upstream itself via
+# extensions.sync), set:
+#   mode: pull
+#   compliance.airgap.upstream.allowedCidrs: [actual upstream CIDRs]
+#   compliance.airgap.upstream.credentialSecret: zot-sync-creds
+#   upstream.registries: [...]
+
+image:
+  repository: ghcr.io/project-zot/zot-linux-amd64
+  tag: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  pullPolicy: Always
+
+replicaCount: 2
+mode: cache
+
+# Encrypted storage — SC-28. The storage class must be in the encrypted
+# allowlist (compliance.storage.encryptedClasses).
+persistence:
+  enabled: true
+  storageClass: encrypted
+  size: 500Gi
+  mountPath: /var/lib/registry
+
+# OIDC backend: Authentik handles humans. In-cluster pulls use a Bearer
+# token issued by Authentik (ServiceAccount-backed projection).
+auth:
+  backend: oidc
+  oidc:
+    issuer: https://authentik.identity.example.com/application/o/zot/
+    clientID: zot
+    clientSecretSecret: zot-oidc-client-secret
+
+# Cosign signature verification at the registry boundary — SI-7. Required
+# at fedramp-high (the airgap.requireSignedImages=true validator forces it).
+cosign:
+  enabled: true
+  publicKeySecret: cosign-pub
+  publicKeyKey: cosign.pub
+
+audit:
+  enabled: true
+
+# Compliance overrides (the chart's values.yaml has sensible defaults).
+compliance:
+  airgap:
+    enabled: true
+    role: registry-mirror
+    requireSignedImages: true
+    upstream:
+      # Cache-mode sentinel: Zot has no real upstream egress. image-sync
+      # is the workload that talks to upstreams.
+      allowedCidrs:
+        - "127.0.0.1/32"
+      credentialSecret: zot-cache-mode-sentinel
+  attestation:
+    enabled: true
+    # forge injects signature/certificationHash/complianceHash/changesetHash
+
+# In-cluster pull traffic on 5000/TCP from any namespace.
+networkPolicy:
+  enabled: true
+  additionalIngress:
+    - name: allow-cluster-pulls
+      rules:
+        - from:
+            - namespaceSelector: {}
+          ports:
+            - port: 5000
+              protocol: TCP

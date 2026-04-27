@@ -2,9 +2,15 @@
 pleme-lib: deployment named template
 
 Produces a standard Deployment for pleme-io services.
+
+When `.Values.compliance.baseline` is set, the deployment is rendered with
+baseline-driven hardening (seccomp, automount, image-digest, topology spread,
+audit annotations) and validated at template time — non-compliant values
+fail with an explicit error.
 */}}
 
 {{- define "pleme-lib.deployment" -}}
+{{- include "pleme-lib.compliance.validate" . -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -33,17 +39,30 @@ spec:
       labels:
         {{- include "pleme-lib.selectorLabels" . | nindent 8 }}
         app: {{ include "pleme-lib.fullname" . }}
+        {{- $cl := include "pleme-lib.compliance.labels" . | trim }}
+        {{- if $cl }}
+        {{- $cl | nindent 8 }}
+        {{- end }}
       annotations:
         {{- include "pleme-lib.prometheusAnnotations" . | nindent 8 }}
         {{- include "pleme-lib.istioAnnotations" . | nindent 8 }}
+        {{- include "pleme-lib.compliance.annotations" . | nindent 8 }}
+        {{- include "pleme-lib.compliance.audit.annotations" . | nindent 8 }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
       serviceAccountName: {{ include "pleme-lib.serviceAccountName" . }}
-      {{- with .Values.imagePullSecrets }}
+      automountServiceAccountToken: {{ include "pleme-lib.compliance.automountServiceAccountToken" . }}
+      {{- $airgapSecrets := include "pleme-lib.compliance.airgap.imagePullSecrets" . | trim }}
+      {{- if or .Values.imagePullSecrets $airgapSecrets }}
       imagePullSecrets:
+        {{- with .Values.imagePullSecrets }}
         {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- if $airgapSecrets }}
+        {{- $airgapSecrets | nindent 8 }}
+        {{- end }}
       {{- end }}
       securityContext:
         {{- include "pleme-lib.podSecurityContext" . | nindent 8 }}
@@ -56,8 +75,8 @@ spec:
       {{- end }}
       containers:
         - name: {{ include "pleme-lib.name" . }}
-          image: {{ include "pleme-lib.image" . }}
-          imagePullPolicy: {{ .Values.image.pullPolicy | default "Always" }}
+          image: {{ include "pleme-lib.compliance.image" . }}
+          imagePullPolicy: {{ include "pleme-lib.compliance.image.pullPolicy" . }}
           {{- with .Values.command }}
           command:
             {{- toYaml . | nindent 12 }}
@@ -70,7 +89,11 @@ spec:
           ports:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- if or (.Values.downwardApi).enabled (gt (len (.Values.env | default list)) 0) }}
+          {{- /* pleme-lib 0.9.0+: pod env contributions come from each
+                applied overlay's `podEnv` surface (e.g. fips overlay
+                injects FIPS-mode env vars). Aggregated via dispatch. */ -}}
+          {{- $overlayEnv := include "pleme-lib.overlay.dispatchAll" (list "podEnv" .) | trim }}
+          {{- if or (or (.Values.downwardApi).enabled (gt (len (.Values.env | default list)) 0)) $overlayEnv }}
           env:
             {{- if (.Values.downwardApi).enabled }}
             - name: POD_NAME
@@ -85,6 +108,9 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            {{- end }}
+            {{- if $overlayEnv }}
+            {{- $overlayEnv | nindent 12 }}
             {{- end }}
             {{- with .Values.env }}
             {{- toYaml . | nindent 12 }}
@@ -127,9 +153,14 @@ spec:
       {{- with .Values.priorityClassName }}
       priorityClassName: {{ . }}
       {{- end }}
-      {{- with .Values.topologySpreadConstraints }}
+      {{- $availReq := include "pleme-lib.compliance.availability.required" . }}
+      {{- if or .Values.topologySpreadConstraints (eq $availReq "true") }}
       topologySpreadConstraints:
-        {{- toYaml . | nindent 8 }}
+      {{- if eq $availReq "true" }}
+      {{- include "pleme-lib.compliance.availability.topologySpread" . | nindent 8 }}
+      {{- else }}
+        {{- toYaml .Values.topologySpreadConstraints | nindent 8 }}
+      {{- end }}
       {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:

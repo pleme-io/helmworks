@@ -1,0 +1,143 @@
+suite: pleme-microservice — compliance validators reject non-compliant values
+templates:
+  - templates/deployment.yaml
+release:
+  name: testapp
+  namespace: testns
+tests:
+  - it: rejects image.tag=latest at fedramp-moderate
+    set:
+      compliance.baseline: fedramp-moderate
+      image.repository: ghcr.io/pleme-io/example
+      image.tag: latest
+      monitoring.enabled: true
+    asserts:
+      - failedTemplate:
+          errorPattern: "forbids image.tag=latest"
+
+  - it: rejects non-digest image at fedramp-high
+    set:
+      compliance.baseline: fedramp-high
+      image.repository: ghcr.io/pleme-io/example
+      image.tag: "1.2.3"
+      monitoring.enabled: true
+      replicaCount: 2
+      resources.requests.cpu: 50m
+      resources.requests.memory: 64Mi
+      resources.limits.memory: 256Mi
+    asserts:
+      - failedTemplate:
+          errorPattern: "requires image to be digest-pinned"
+
+  - it: rejects privileged=true at fedramp-moderate
+    set:
+      compliance.baseline: fedramp-moderate
+      image.repository: ghcr.io/pleme-io/example
+      image.tag: "1.0.0"
+      securityContext.privileged: true
+      monitoring.enabled: true
+    asserts:
+      - failedTemplate:
+          errorPattern: "forbids securityContext.privileged=true"
+
+  - it: rejects allowPrivilegeEscalation=true at fedramp-moderate
+    set:
+      compliance.baseline: fedramp-moderate
+      image.repository: ghcr.io/pleme-io/example
+      image.tag: "1.0.0"
+      securityContext.allowPrivilegeEscalation: true
+      monitoring.enabled: true
+    asserts:
+      - failedTemplate:
+          errorPattern: "forbids securityContext.allowPrivilegeEscalation=true"
+
+  - it: rejects readOnlyRootFilesystem=false at fedramp-moderate
+    set:
+      compliance.baseline: fedramp-moderate
+      image.repository: ghcr.io/pleme-io/example
+      image.tag: "1.0.0"
+      securityContext.readOnlyRootFilesystem: false
+      monitoring.enabled: true
+    asserts:
+      - failedTemplate:
+          errorPattern: "requires securityContext.readOnlyRootFilesystem=true"
+
+  - it: rejects monitoring.enabled=false at fedramp-moderate
+    set:
+      compliance.baseline: fedramp-moderate
+      image.repository: ghcr.io/pleme-io/example
+      image.tag: "1.0.0"
+      monitoring.enabled: false
+    asserts:
+      - failedTemplate:
+          errorPattern: "requires an audit signal"
+
+  - it: rejects networkPolicy.enabled=false at fedramp-moderate
+    set:
+      compliance.baseline: fedramp-moderate
+      image.repository: ghcr.io/pleme-io/example
+      image.tag: "1.0.0"
+      monitoring.enabled: true
+      networkPolicy.enabled: false
+    asserts:
+      - failedTemplate:
+          errorPattern: "networkPolicy.enabled=false is forbidden"
+
+  - it: rejects replicaCount=1 at fedramp-high
+    set:
+      compliance.baseline: fedramp-high
+      image.repository: ghcr.io/pleme-io/example
+      image.tag: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      monitoring.enabled: true
+      replicaCount: 1
+      resources.requests.cpu: 50m
+      resources.requests.memory: 64Mi
+      resources.limits.memory: 256Mi
+    asserts:
+      - failedTemplate:
+          errorPattern: "requires replicaCount >= 2"
+
+  - it: rejects hostNetwork=true at fedramp-moderate
+    set:
+      compliance.baseline: fedramp-moderate
+      image.repository: ghcr.io/pleme-io/example
+      image.tag: "1.0.0"
+      monitoring.enabled: true
+      hostNetwork: true
+    asserts:
+      - failedTemplate:
+          errorPattern: "forbids hostNetwork=true"
+
+  - it: rejects hostPath volume at fedramp-high
+    set:
+      compliance.baseline: fedramp-high
+      image.repository: ghcr.io/pleme-io/example
+      image.tag: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      monitoring.enabled: true
+      replicaCount: 2
+      resources.requests.cpu: 50m
+      resources.requests.memory: 64Mi
+      resources.limits.memory: 256Mi
+      volumes:
+        - name: hostfs
+          hostPath:
+            path: /etc
+    asserts:
+      - failedTemplate:
+          errorPattern: "forbids hostPath volumes"
+
+  # Note: pleme-microservice's own values.yaml provides resource defaults, so a
+  # `set: resources: {}` cannot unset them — Helm deep-merges. The resources
+  # validator is exercised against the bare fixture in
+  # tests/_fixtures/pleme-lib-bare/compliance_lib_validators_test.yaml.
+
+  - it: enforce=false bypasses validators
+    set:
+      compliance.baseline: fedramp-high
+      compliance.enforce: false
+      image.repository: ghcr.io/pleme-io/example
+      image.tag: latest
+      monitoring.enabled: false
+    asserts:
+      - isKind:
+          of: Deployment

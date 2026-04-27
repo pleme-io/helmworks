@@ -1,9 +1,16 @@
 {{/*
 pleme-lib: poddisruptionbudget named template
+
+When `.Values.compliance.baseline` >= fedramp-high, a compliance PDB is
+emitted automatically (SC-5, CP-2). Consumers may still set `.Values.pdb` to
+override minAvailable/maxUnavailable.
 */}}
 
 {{- define "pleme-lib.pdb" -}}
-{{- if (.Values.pdb).enabled }}
+{{- $availabilityRequired := include "pleme-lib.compliance.availability.required" . -}}
+{{- if eq $availabilityRequired "true" -}}
+{{ include "pleme-lib.compliance.availability.pdb" . }}
+{{- else if (.Values.pdb).enabled }}
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:

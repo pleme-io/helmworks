@@ -1,0 +1,17 @@
+{{- /*
+  Walk the resolved overlay list and emit the union of every overlay's
+  kyvernoPolicy + gatekeeperConstraint surfaces. The closure expansion
+  in pleme-lib.overlay.list handles transitive requires automatically.
+
+  Render path:
+    1. compliance.overlays declared (or synthesized from legacy values)
+    2. closure-resolves through requires (e.g. dod-il5 → fedramp-high → fedramp-moderate)
+    3. each resolved overlay's kyvernoPolicy template renders
+    4. each resolved overlay's gatekeeperConstraint template renders
+    5. result: a manifest set of cluster-scoped policies
+
+  The pleme-lib.compliance.admissionPolicies template handles the union
+  + separators; this template is the install entrypoint.
+*/ -}}
+{{- include "pleme-lib.compliance.validate" . -}}
+{{ include "pleme-lib.compliance.admissionPolicies" . }}

@@ -1,0 +1,64 @@
+suite: pleme-admission-policies — emit Kyverno policies from overlay set
+templates:
+  - templates/policies.yaml
+  - templates/manifest.yaml
+release:
+  name: policies
+  namespace: kyverno-system
+tests:
+  - it: "[admission] default overlays emit fedramp-moderate ClusterPolicy"
+    template: templates/policies.yaml
+    documentSelector:
+      path: metadata.name
+      value: pleme-overlay-fedramp-moderate
+    asserts:
+      - isKind:
+          of: ClusterPolicy
+      - equal:
+          path: spec.validationFailureAction
+          value: Enforce
+
+  - it: "[admission] default overlays emit fedramp-high ClusterPolicy"
+    template: templates/policies.yaml
+    documentSelector:
+      path: metadata.name
+      value: pleme-overlay-fedramp-high
+    asserts:
+      - isKind:
+          of: ClusterPolicy
+      - equal:
+          path: spec.validationFailureAction
+          value: Enforce
+
+  - it: "[admission] supplychain overlay emits verifyImages ClusterPolicy"
+    template: templates/policies.yaml
+    documentSelector:
+      path: metadata.name
+      value: pleme-overlay-supplychain-verify-images
+    asserts:
+      - isKind:
+          of: ClusterPolicy
+
+  - it: "[admission] fips overlay emits image-base ClusterPolicy"
+    template: templates/policies.yaml
+    documentSelector:
+      path: metadata.name
+      value: pleme-overlay-fips-image-base
+    asserts:
+      - isKind:
+          of: ClusterPolicy
+
+  - it: "[admission] manifest ConfigMap declares the enforced overlay set"
+    template: templates/manifest.yaml
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - matchRegex:
+          path: data.overlays
+          pattern: "fedramp-high"
+      - matchRegex:
+          path: data.overlays
+          pattern: "supplychain"
+      - matchRegex:
+          path: data.overlays
+          pattern: "fips"

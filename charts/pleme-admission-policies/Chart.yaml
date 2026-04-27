@@ -1,0 +1,11 @@
+apiVersion: v2
+name: pleme-admission-policies
+description: Cluster-side admission policies (Kyverno ClusterPolicy + Gatekeeper Constraints) auto-generated from the declared compliance overlay set. Closes the symmetric proof loop — chart-time validators and cluster-time admission both flow from the same overlay declaration.
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+
+dependencies:
+  - name: pleme-lib
+    version: "~0.10.0"
+    repository: "file://../pleme-lib"

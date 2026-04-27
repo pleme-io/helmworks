@@ -1,0 +1,91 @@
+# Example: pleme-microservice deployed at FedRAMP High baseline.
+#
+# Selecting compliance.baseline=fedramp-high mechanically forces:
+#   - seccompProfile=RuntimeDefault, runAsNonRoot=true, drop=[ALL] caps
+#   - automountServiceAccountToken=false
+#   - image must be digest-pinned, pullPolicy=Always
+#   - default-deny + allow-dns + allow-tls-egress NetworkPolicies
+#   - mandatory PodDisruptionBudget + topology spread (zone + hostname)
+#   - mandatory ServiceMonitor (AU-2, AU-12, SI-4)
+#   - resources.requests.* and resources.limits.memory required
+#   - replicaCount >= 2 (CP-2)
+#   - hostNetwork / hostPID / hostIPC / hostPath / privileged forbidden
+#   - compliance.pleme.io/* labels and annotations on every resource
+#   - compliance-manifest ConfigMap describing the controls covered
+#
+# Non-compliant values fail() at template render — the chart cannot be
+# accidentally shipped in a non-compliant state.
+
+compliance:
+  baseline: fedramp-high
+  enforce: true
+  audit:
+    logLevel: info
+    retentionDays: 365
+
+# IMPORTANT: at fedramp-high the image MUST be digest-pinned. CI injects the
+# digest at build time. Replace this 0..0 placeholder with the real digest.
+image:
+  repository: ghcr.io/pleme-io/example-service
+  tag: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  # pullPolicy is forced to Always at moderate+; setting it explicitly is
+  # optional but documents the intent.
+  pullPolicy: Always
+
+replicaCount: 3
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+ports:
+  - name: http
+    containerPort: 8080
+    protocol: TCP
+
+service:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+
+# Monitoring is mandatory at moderate+. The validator forces this on; we set
+# it explicitly here to document scrape config.
+monitoring:
+  enabled: true
+  port: http
+  path: /metrics
+  interval: 30s
+  scrapeTimeout: 10s
+
+# Attestation hashes injected by forge at release time — DO NOT set manually.
+# When sekiban admission is on, missing/invalid signatures cause admission
+# rejection (AC-3, SI-7).
+attestation:
+  enabled: true
+  signature: ""
+  certificationHash: ""
+  complianceHash: ""
+  changesetHash: ""
+
+# Network: extra ingress/egress rules layered on top of the compliance
+# default-deny + allow-dns + allow-tls-egress trio.
+networkPolicy:
+  enabled: true
+  additionalIngress: []
+  additionalEgress:
+    - name: allow-postgres
+      rules:
+        - to:
+            - podSelector:
+                matchLabels:
+                  app.kubernetes.io/name: postgres
+          ports:
+            - port: 5432
+              protocol: TCP

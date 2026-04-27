@@ -1,0 +1,91 @@
+# Example: pleme-image-sync deployed at FedRAMP-High registry-mirror role.
+#
+# This is the *only* workload (along with Zot in pull-mode) allowed
+# external image-supply egress in the air-gap pattern. It runs as a
+# CronJob with skopeo, pulling from a curated upstream allowlist into the
+# cluster-local Zot.
+
+image:
+  repository: quay.io/skopeo/stable
+  tag: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  pullPolicy: Always
+
+# Every 15 minutes during business hours. The validator enforces a cron
+# expression, not a freeform string.
+schedule: "*/15 8-18 * * 1-5"
+concurrencyPolicy: Forbid       # Allow is rejected by the validator
+backoffLimit: 3
+restartPolicy: OnFailure
+activeDeadlineSeconds: 1800
+
+target:
+  registry: zot.registry.svc.cluster.local
+  port: 5000
+  authSecret: zot-push-creds
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
+
+compliance:
+  baseline: fedramp-high
+  enforce: true
+  audit:
+    logLevel: info
+    retentionDays: 365
+    viaJobEvents: true
+  airgap:
+    enabled: true
+    role: registry-mirror
+    requireSignedImages: true
+    upstream:
+      # Real upstream allowlist for this environment.
+      allowedCidrs:
+        - "140.82.112.0/20"        # GitHub (ghcr.io)
+        - "104.16.0.0/13"          # Cloudflare (covers ghcr/quay/docker fronts)
+        - "142.251.0.0/16"         # Google (gcr.io fronts)
+      credentialSecret: image-sync-upstream-creds
+  mirror:
+    schedule: "*/15 8-18 * * 1-5"
+    cosignVerify: true
+    cosignKeyRef:
+      name: cosign-pub
+      key: cosign.pub
+    audit:
+      required: true
+    upstreams:
+      - host: ghcr.io
+        credentialSecret: image-sync-ghcr-creds
+        repos:
+          - "pleme-io/example-service"
+          - "project-zot/zot-linux-amd64"
+      - host: quay.io
+        credentialSecret: image-sync-quay-creds
+        repos:
+          - "skopeo/stable"
+  attestation:
+    enabled: true
+    # forge injects the hashes
+
+monitoring:
+  enabled: false   # CronJobs use viaJobEvents path
+
+networkPolicy:
+  enabled: true
+  additionalEgress:
+    - name: allow-zot-push
+      rules:
+        - to:
+            - namespaceSelector:
+                matchLabels:
+                  kubernetes.io/metadata.name: registry
+              podSelector:
+                matchLabels:
+                  app.kubernetes.io/name: zot
+          ports:
+            - port: 5000
+              protocol: TCP

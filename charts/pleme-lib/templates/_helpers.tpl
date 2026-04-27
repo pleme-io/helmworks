@@ -44,6 +44,10 @@ app: {{ include "pleme-lib.fullname" . }}
 app.kubernetes.io/version: {{ .Values.image.tag | default .Chart.AppVersion | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 app.kubernetes.io/part-of: nexus-platform
+{{- $cl := include "pleme-lib.compliance.labels" . | trim }}
+{{- if $cl }}
+{{ $cl }}
+{{- end }}
 {{- with .Values.additionalLabels }}
 {{ toYaml . }}
 {{- end }}
@@ -149,11 +153,52 @@ sekiban.pleme.io/changeset-hash: {{ . | quote }}
 
 {{/*
 All resource-level annotations (metadata.annotations on Deployment, Service, etc.).
-Combines attestation annotations with any user-provided resource annotations.
+
+pleme-lib 0.9.0+: annotations dispatch through the overlay registry.
+Each registered overlay's `annotations` surface fires in order; the
+output is concatenated. Adding a new regime is one new overlay file —
+this helper does not need editing.
+
+Surfaces, in dispatch order:
+  1. attestationAnnotations  — sekiban hashes (legacy, pre-overlay)
+  2. compliance.annotations  — baseline / framework / enforce metadata
+  3. compliance.audit.annotations — audit pipeline metadata
+  4. overlay.dispatchAll annotations — every applied overlay
+  5. .Values.annotations     — consumer overrides
 */}}
 {{- define "pleme-lib.resourceAnnotations" -}}
 {{- include "pleme-lib.attestationAnnotations" . }}
+{{- include "pleme-lib.compliance.annotations" . }}
+{{- include "pleme-lib.compliance.audit.annotations" . }}
+{{- /* Overlay annotations are guaranteed-newline-separated via the
+       intentional blank line below. Without this, the audit helper
+       (which trims trailing whitespace) collides with the first overlay
+       annotation on the same line. */ -}}
+{{ include "pleme-lib.overlay.dispatchAll" (list "annotations" .) }}
 {{- with .Values.annotations }}
 {{ toYaml . }}
 {{- end }}
+{{- end }}
+
+{{/*
+Image string with compliance-aware rendering. Three input shapes accepted:
+  1. .Values.image.repository contains "@sha256:..."   -> use repo as-is
+  2. .Values.image.digest is set (sha256:...)           -> "repo@digest"
+  3. .Values.image.tag starts with "sha256:"            -> "repo@tag"
+  4. fallback                                           -> "repo:tag"
+Only forms 1-3 are accepted at compliance baseline >= fedramp-high.
+*/}}
+{{- define "pleme-lib.compliance.image" -}}
+{{- $repo := .Values.image.repository | toString -}}
+{{- $tag := .Values.image.tag | default "latest" | toString -}}
+{{- $digest := .Values.image.digest | default "" | toString -}}
+{{- if contains "@sha256:" $repo -}}
+{{- $repo -}}
+{{- else if hasPrefix "sha256:" $digest -}}
+{{- printf "%s@%s" $repo $digest -}}
+{{- else if hasPrefix "sha256:" $tag -}}
+{{- printf "%s@%s" $repo $tag -}}
+{{- else -}}
+{{- printf "%s:%s" $repo $tag -}}
+{{- end -}}
 {{- end }}

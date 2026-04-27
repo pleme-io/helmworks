@@ -1,0 +1,176 @@
+suite: usecases primitives — smoke
+#
+# For each canonical use-case, prove that:
+#   1. Applying the use-case to a workload chart renders successfully
+#   2. The expected overlay set appears in data.overlays of the
+#      compliance-manifest ConfigMap
+#   3. The expected control IDs appear in data.controls
+#
+# Adding a new use-case is one new YAML file in /usecases + one row
+# in this test suite. Both come for free from the overlay registry's
+# guarantees — the use-case file does not declare invariants of its
+# own; it composes proven overlays.
+templates:
+  - templates/compliance-manifest.yaml
+release:
+  name: uc
+  namespace: testns
+tests:
+  - it: "[usecase] fedramp-high-microservice — overlay + controls"
+    values:
+      - ../../usecases/fedramp-high-microservice.yaml
+    set:
+      image.repository: ghcr.io/pleme-io/example
+      image.tag: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      ingress.tls:
+        - hosts: ["example.com"]
+          secretName: example-tls
+      ingress.hosts:
+        - host: example.com
+          paths:
+            - path: /
+              pathType: Prefix
+      attestation.enabled: true
+      serviceAccount.create: true
+    asserts:
+      - matchRegex:
+          path: data.overlays
+          pattern: "fedramp-high"
+      - matchRegex:
+          path: data.controls
+          pattern: "SC-28"
+      - matchRegex:
+          path: data.controls
+          pattern: "AC-6\\(1\\)"
+
+  - it: "[usecase] regulated-microservice — fedramp-moderate"
+    values:
+      - ../../usecases/regulated-microservice.yaml
+    set:
+      image.repository: ghcr.io/pleme-io/example
+      image.tag: "v1.2.3"
+      ingress.tls:
+        - hosts: ["example.com"]
+          secretName: example-tls
+      ingress.hosts:
+        - host: example.com
+      serviceAccount.create: true
+    asserts:
+      - matchRegex:
+          path: data.overlays
+          pattern: "fedramp-moderate"
+      - matchRegex:
+          path: data.controls
+          pattern: "SC-7"
+
+  - it: "[usecase] dod-il5-microservice — full cascade"
+    values:
+      - ../../usecases/dod-il5-microservice.yaml
+    set:
+      image.repository: zot.registry.svc.cluster.local/pleme-io/example
+      image.tag: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      ingress.tls:
+        - hosts: ["example.com"]
+          secretName: example-tls
+      ingress.hosts:
+        - host: example.com
+      serviceAccount.create: true
+      attestation.enabled: true
+      compliance.supplychain.sbom.digest: "sha256:abc"
+      compliance.supplychain.cosign.signatureRef: "oci://x"
+      compliance.supplychain.cosign.fulcioCertFingerprint: "0123abcdef"
+      compliance.supplychain.slsa.provenanceRef: "oci://x"
+      compliance.supplychain.slsa.builderId: "https://github.com/pleme-io/forge/.github/workflows/release.yml@refs/tags/v1.0.0"
+      compliance.supplychain.scan.resultDigest: "sha256:def"
+    asserts:
+      - matchRegex:
+          path: data.overlays
+          pattern: "fedramp-moderate"
+      - matchRegex:
+          path: data.overlays
+          pattern: "fedramp-high"
+      - matchRegex:
+          path: data.overlays
+          pattern: "airgap-consumer"
+      - matchRegex:
+          path: data.overlays
+          pattern: "supplychain"
+      - matchRegex:
+          path: data.overlays
+          pattern: "fips"
+      - matchRegex:
+          path: data.overlays
+          pattern: "dod-il5"
+      - matchRegex:
+          path: data.controls
+          pattern: "DoD-CC-SRG-IL5"
+      - matchRegex:
+          path: data.controls
+          pattern: "IA-7"
+      - matchRegex:
+          path: data.controls
+          pattern: "SC-7\\(11\\)"
+
+  - it: "[usecase] hipaa-microservice — fedramp-moderate + hipaa + supplychain"
+    values:
+      - ../../usecases/hipaa-microservice.yaml
+    set:
+      image.repository: ghcr.io/pleme-io/example
+      image.tag: "v1.2.3"
+      ingress.tls:
+        - hosts: ["example.com"]
+          secretName: example-tls
+      ingress.hosts:
+        - host: example.com
+      serviceAccount.create: true
+      attestation.enabled: true
+      compliance.supplychain.sbom.digest: "sha256:abc"
+      compliance.supplychain.cosign.signatureRef: "oci://x"
+      compliance.supplychain.scan.resultDigest: "sha256:def"
+    asserts:
+      - matchRegex:
+          path: data.overlays
+          pattern: "hipaa"
+      - matchRegex:
+          path: data.overlays
+          pattern: "supplychain"
+      - matchRegex:
+          path: data.controls
+          pattern: "HIPAA"
+
+  - it: "[usecase] cmmc-l3-microservice — full cascade"
+    values:
+      - ../../usecases/cmmc-l3-microservice.yaml
+    set:
+      image.repository: zot.registry.svc.cluster.local/pleme-io/example
+      image.tag: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      ingress.tls:
+        - hosts: ["example.com"]
+          secretName: example-tls
+      ingress.hosts:
+        - host: example.com
+      serviceAccount.create: true
+      attestation.enabled: true
+      compliance.supplychain.sbom.digest: "sha256:abc"
+      compliance.supplychain.cosign.signatureRef: "oci://x"
+      compliance.supplychain.cosign.fulcioCertFingerprint: "0123abcdef"
+      compliance.supplychain.slsa.level: 3
+      compliance.supplychain.slsa.provenanceRef: "oci://x"
+      compliance.supplychain.slsa.builderId: "https://github.com/pleme-io/forge/.github/workflows/release.yml@refs/tags/v1.0.0"
+      compliance.supplychain.scan.resultDigest: "sha256:def"
+    asserts:
+      - matchRegex:
+          path: data.overlays
+          pattern: "cmmc-l3"
+      - matchRegex:
+          path: data.overlays
+          pattern: "fedramp-high"
+      - matchRegex:
+          path: data.overlays
+          pattern: "dod-il4"
+      - matchRegex:
+          path: data.controls
+          pattern: "CMMC-L3"
+      - matchRegex:
+          path: data.controls
+          pattern: "NIST-800-171"

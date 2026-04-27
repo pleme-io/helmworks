@@ -1,5 +1,10 @@
 {{/*
 pleme-lib: servicemonitor named template
+
+ServiceMonitor is mandatory at compliance baseline >= fedramp-moderate
+(AU-2, AU-12, SI-4). The compliance.audit.validate validator forces
+monitoring.enabled=true at moderate+, so the existing `.Values.monitoring.enabled`
+gate naturally becomes always-true.
 */}}
 
 {{- define "pleme-lib.servicemonitor" -}}
@@ -11,6 +16,11 @@ metadata:
   namespace: {{ include "pleme-lib.namespace" . }}
   labels:
     {{- include "pleme-lib.labels" . | nindent 4 }}
+  {{- $resAnnotations := include "pleme-lib.resourceAnnotations" . }}
+  {{- if $resAnnotations }}
+  annotations:
+    {{- $resAnnotations | nindent 4 }}
+  {{- end }}
 spec:
   selector:
     matchLabels:

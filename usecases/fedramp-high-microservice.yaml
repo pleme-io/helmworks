@@ -1,0 +1,75 @@
+# Use-case primitive: FedRAMP-High civilian-agency microservice
+#
+# Apply via:
+#   helm install <name> oci://ghcr.io/pleme-io/charts/pleme-microservice \
+#     -f usecases/fedramp-high-microservice.yaml -f <my-overrides>.yaml
+#
+# Inherits: fedramp-high overlay (cascades fedramp-moderate, brings in
+# digest-pinning, encrypted storage, attestation, RBAC, OIDC, mTLS).
+
+compliance:
+  overlays:
+    - fedramp-high
+  enforce: true
+  audit:
+    logLevel: info
+    retentionDays: 365
+  authn:
+    oidc:
+      provider: authentik
+    istio:
+      mtls:
+        required: null   # auto at fedramp-high
+  authz:
+    role:
+      rules:
+        - apiGroups: [""]
+          resources: ["configmaps"]
+          verbs: ["get", "watch"]
+
+# Workload-shape defaults — operator overrides image + service ports.
+replicaCount: 3
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+image:
+  pullPolicy: Always
+
+ports:
+  - name: http
+    containerPort: 8080
+    protocol: TCP
+
+service:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+
+monitoring:
+  enabled: true
+  port: http
+  path: /metrics
+  interval: 30s
+
+ingress:
+  enabled: true
+  className: nginx
+  # tls: required by fedramp-moderate ingress.validate. Operator
+  # supplies the secretName + host in their overrides.
+
+# Attestation hashes are injected by forge at release time.
+attestation:
+  enabled: true
+  signature: ""
+  certificationHash: ""
+  complianceHash: ""
+  changesetHash: ""

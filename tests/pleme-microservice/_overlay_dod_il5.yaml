@@ -1,0 +1,89 @@
+# Direct overlay declaration: DoD IL5 microservice.
+# This is the canonical "use-case primitive" shape — a workload declares
+# the dod-il5 overlay and the requires-cascade pulls in fedramp-high,
+# airgap-consumer, supplychain, fips automatically.
+compliance:
+  overlays:
+    - dod-il5
+  enforce: true
+  airgap:
+    role: consumer
+    requireSignedImages: true
+    registryService:
+      name: zot
+      namespace: registry
+      port: 5000
+    imagePullSecret: zot-pull-creds
+  supplychain:
+    enabled: true
+    sbom:
+      digest: "sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+      format: cyclonedx-1.5
+    cosign:
+      signatureRef: "oci://zot.registry.svc.cluster.local/pleme-io/example@sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789.sig"
+      fulcioCertFingerprint: "0123456789abcdef0123456789abcdef01234567"
+    slsa:
+      level: 3
+      provenanceRef: "oci://zot.registry.svc.cluster.local/pleme-io/example@sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789.intoto.jsonl"
+      builderId: "https://github.com/pleme-io/forge/.github/workflows/release.yml@refs/tags/v1.0.0"
+    scan:
+      resultDigest: "sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+      scanner: trivy
+      scannedAt: "2026-04-27T00:00:00Z"
+    thresholds:
+      critical: 0
+      high: 0
+  fips:
+    enabled: true
+    runtime: go-boringcrypto
+    cmvpCertId: "4282"
+    module: openssl-3-fips
+    imageBaseAllowlist:
+      - "registry1.dso.mil/"
+      - "cgr.dev/chainguard/"
+  dod:
+    impactLevel: il5
+  authn:
+    oidc:
+      provider: authentik
+    istio:
+      mtls:
+        required: null
+  authz:
+    role:
+      rules:
+        - apiGroups: [""]
+          resources: ["configmaps"]
+          resourceNames: ["my-service-config"]
+          verbs: ["get", "watch"]
+
+image:
+  # In an IL5 cluster, the workload pulls from the cluster-local Zot.
+  # image-sync (separate workload) is what fetches from registry1.dso.mil
+  # into Zot. The FIPS overlay's image-base allowlist check skips when
+  # airgap-consumer is active — the upstream that pushed into Zot is
+  # what was FIPS-validated, enforced via the supplychain attestation.
+  repository: zot.registry.svc.cluster.local/pleme-io/example-service
+  tag: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  pullPolicy: Always
+
+replicaCount: 3
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+serviceAccount:
+  create: true
+
+monitoring:
+  enabled: true
+
+# Attestation is at top level, NOT nested under compliance.
+attestation:
+  enabled: true
+  signature: "blake3:0000000000000000000000000000000000000000000000000000000000000000"

@@ -1,7 +1,9 @@
 {{/*
 CronJob template for arachne scraper jobs.
 Each entry in .Values.cronjobs becomes a CronJob with Chrome native sidecar.
+arachne is intentionally non-compliant — see deployment.yaml note.
 */}}
+{{- include "pleme-lib.compliance.validate" . -}}
 {{- range $name, $job := .Values.cronjobs }}
 {{- $defaults := $.Values.cronjobDefaults }}
 ---

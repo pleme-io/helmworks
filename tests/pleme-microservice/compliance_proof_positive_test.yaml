@@ -1,0 +1,251 @@
+suite: pleme-microservice — exhaustive positive proof
+#
+# Renders the chart with the canonical FedRAMP-High example values and asserts
+# every required invariant is present in the rendered output.
+#
+# Combined with compliance_proof_negative_test.yaml, this is the
+# render-time half of the proof:
+#   negative: "if values are non-compliant, render fails"
+#   positive: "if render succeeds with baseline=fedramp-high, output is compliant"
+templates:
+  - templates/deployment.yaml
+  - templates/networkpolicy.yaml
+  - templates/serviceaccount.yaml
+  - templates/servicemonitor.yaml
+  - templates/pdb.yaml
+  - templates/compliance-manifest.yaml
+release:
+  name: rt
+  namespace: regulated
+values:
+  - ../../examples/fedramp-high.yaml
+tests:
+  # ── CM-2 / SI-7 — image baseline & integrity ───────────────────
+  - it: "[CM-2/SI-7] container image is digest-pinned"
+    template: templates/deployment.yaml
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].image
+          pattern: "@sha256:[0-9a-f]{64}$"
+
+  - it: "[CM-7] imagePullPolicy=Always"
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].imagePullPolicy
+          value: Always
+
+  # ── CM-7 / AC-6 / SI-7 / SI-16 — container security ───────────
+  - it: "[CM-7] container drops ALL capabilities"
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+
+  - it: "[CM-7] no privilege escalation"
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+
+  - it: "[CM-7] not privileged"
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.privileged
+          value: false
+
+  - it: "[SI-7] readOnlyRootFilesystem=true"
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+
+  - it: "[AC-6] runAsNonRoot=true (pod and container)"
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+
+  - it: "[CM-6/SI-16] seccompProfile=RuntimeDefault (pod and container)"
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.seccompProfile.type
+          value: RuntimeDefault
+
+  - it: "[AC-6/IA-2] automountServiceAccountToken=false on pod"
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+
+  - it: "[AC-6/IA-2] automountServiceAccountToken=false on ServiceAccount"
+    template: templates/serviceaccount.yaml
+    asserts:
+      - equal:
+          path: automountServiceAccountToken
+          value: false
+
+  # ── SC-5 / CP-2 — availability ────────────────────────────────
+  - it: "[SC-5] resources.requests.cpu, resources.requests.memory, resources.limits.memory all set"
+    template: templates/deployment.yaml
+    asserts:
+      - isNotNullOrEmpty:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+      - isNotNullOrEmpty:
+          path: spec.template.spec.containers[0].resources.requests.memory
+      - isNotNullOrEmpty:
+          path: spec.template.spec.containers[0].resources.limits.memory
+
+  - it: "[SC-5/CP-2] PodDisruptionBudget present"
+    template: templates/pdb.yaml
+    asserts:
+      - isKind:
+          of: PodDisruptionBudget
+
+  - it: "[SC-5] topology spread (zone + hostname) present"
+    template: templates/deployment.yaml
+    asserts:
+      - isNotNullOrEmpty:
+          path: spec.template.spec.topologySpreadConstraints
+      - equal:
+          path: spec.template.spec.topologySpreadConstraints[0].topologyKey
+          value: topology.kubernetes.io/zone
+      - equal:
+          path: spec.template.spec.topologySpreadConstraints[1].topologyKey
+          value: kubernetes.io/hostname
+
+  # ── AU-2 / AU-12 / SI-4 — audit ───────────────────────────────
+  - it: "[AU-2/AU-12/SI-4] ServiceMonitor present"
+    template: templates/servicemonitor.yaml
+    asserts:
+      - isKind:
+          of: ServiceMonitor
+
+  - it: "[AU-3] structured-logging audit annotations on Deployment"
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: metadata.annotations["audit.pleme.io/log-format"]
+          value: json
+      - isNotNullOrEmpty:
+          path: metadata.annotations["audit.pleme.io/retention-days"]
+
+  # ── AC-4 / SC-7 / SC-8 / SC-22 — network ─────────────────────
+  - it: "[AC-4/SC-7] default-deny NetworkPolicy present"
+    template: templates/networkpolicy.yaml
+    documentSelector:
+      path: metadata.name
+      value: rt-pleme-microservice-compliance-deny-all
+    asserts:
+      - equal:
+          path: spec.policyTypes
+          value:
+            - Ingress
+            - Egress
+
+  - it: "[SC-22] allow-dns NetworkPolicy present (egress 53/UDP and 53/TCP)"
+    template: templates/networkpolicy.yaml
+    documentSelector:
+      path: metadata.name
+      value: rt-pleme-microservice-compliance-allow-dns
+    asserts:
+      - contains:
+          path: spec.egress[0].ports
+          content: { port: 53, protocol: UDP }
+      - contains:
+          path: spec.egress[0].ports
+          content: { port: 53, protocol: TCP }
+
+  - it: "[SC-8/SC-13] allow-tls-egress NetworkPolicy present (443/TCP only)"
+    template: templates/networkpolicy.yaml
+    documentSelector:
+      path: metadata.name
+      value: rt-pleme-microservice-compliance-allow-tls-egress
+    asserts:
+      - contains:
+          path: spec.egress[0].ports
+          content: { port: 443, protocol: TCP }
+
+  # ── CM-2 / SI-7 / AC-3 — attestation ──────────────────────────
+  - it: "[CM-2/SI-7/AC-3] sekiban-required annotation present"
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: metadata.annotations["compliance.pleme.io/sekiban-required"]
+          value: "true"
+
+  - it: "[CM-2/SI-7] availability-required and encryption-at-rest-required annotations present (high)"
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: metadata.annotations["compliance.pleme.io/availability-required"]
+          value: "true"
+      - equal:
+          path: metadata.annotations["compliance.pleme.io/encryption-at-rest-required"]
+          value: "true"
+
+  # ── AC-3 / AC-6 / IA-2 — RBAC ─────────────────────────────────
+  - it: "[AC-3/AC-6/IA-2] dedicated ServiceAccount created (not default)"
+    template: templates/serviceaccount.yaml
+    asserts:
+      - isKind:
+          of: ServiceAccount
+      - notEqual:
+          path: metadata.name
+          value: default
+
+  - it: "[AC-3] Deployment uses the dedicated ServiceAccount"
+    template: templates/deployment.yaml
+    asserts:
+      - notEqual:
+          path: spec.template.spec.serviceAccountName
+          value: default
+      - notEqual:
+          path: spec.template.spec.serviceAccountName
+          value: ""
+
+  # ── CM-8 — inventory ──────────────────────────────────────────
+  - it: "[CM-8] inventory labels and compliance baseline label present"
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: metadata.labels["app.kubernetes.io/name"]
+          value: pleme-microservice
+      - equal:
+          path: metadata.labels["app.kubernetes.io/managed-by"]
+          value: Helm
+      - equal:
+          path: metadata.labels["compliance.pleme.io/baseline"]
+          value: fedramp-high
+
+  # ── CM-2 — control coverage ───────────────────────────────────
+  - it: "[CM-2] compliance-manifest ConfigMap emitted with control list"
+    template: templates/compliance-manifest.yaml
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: data.baseline
+          value: fedramp-high
+      - equal:
+          path: data.framework
+          value: nist-800-53-rev5
+      - matchRegex:
+          path: data.controls
+          pattern: "SC-28"
+      - matchRegex:
+          path: data.controls
+          pattern: "SI-7"

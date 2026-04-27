@@ -47,6 +47,10 @@
 
           chartDefs = [
             { name = "pleme-lib"; chartDir = ./charts/pleme-lib; }
+            { name = "pleme-compliance"; chartDir = ./charts/pleme-compliance; }
+            { name = "pleme-admission-policies"; chartDir = ./charts/pleme-admission-policies; }
+            { name = "pleme-zot"; chartDir = ./charts/pleme-zot; }
+            { name = "pleme-image-sync"; chartDir = ./charts/pleme-image-sync; }
             { name = "pleme-lareira"; chartDir = ./charts/pleme-lareira; }
             { name = "pleme-lareira-canary"; chartDir = ./charts/pleme-lareira-canary; }
             { name = "pleme-microservice"; chartDir = ./charts/pleme-microservice; }

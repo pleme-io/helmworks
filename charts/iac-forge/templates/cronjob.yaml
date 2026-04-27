@@ -1,4 +1,5 @@
 {{- if .Values.cronjob.enabled }}
+{{- include "pleme-lib.compliance.validate" . -}}
 apiVersion: batch/v1
 kind: CronJob
 metadata:

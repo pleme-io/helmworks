@@ -1,0 +1,30 @@
+{{- /*
+  Compliance manifest ConfigMap describing the namespace's claimed posture.
+  Read by kensa, sekiban, and audit pipelines. Determinism: same values
+  produce the same manifest, so tameshi can fingerprint it.
+*/ -}}
+{{- $enabled := include "pleme-lib.compliance.enabled" . -}}
+{{- if eq $enabled "true" }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: compliance-namespace-manifest
+  namespace: {{ .Values.namespace.name | default .Release.Namespace }}
+  labels:
+    {{- include "pleme-lib.compliance.labels" . | nindent 4 }}
+    compliance.pleme.io/manifest: "true"
+    compliance.pleme.io/scope: "namespace"
+  annotations:
+    {{- include "pleme-lib.compliance.annotations" . | nindent 4 }}
+data:
+  baseline: {{ include "pleme-lib.compliance.baseline" . | quote }}
+  framework: "nist-800-53-rev5"
+  enforce: {{ include "pleme-lib.compliance.enforce" . | quote }}
+  controls: {{ include "pleme-lib.compliance.controls" . | quote }}
+  scope: "namespace"
+  release: {{ .Release.Name | quote }}
+  chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | quote }}
+  namespace: {{ .Values.namespace.name | default .Release.Namespace | quote }}
+  managed-by: {{ .Release.Service | quote }}
+  schema-version: "1"
+{{- end }}
