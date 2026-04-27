@@ -78,6 +78,17 @@ spec:
               value: {{ .Values.operator.logLevel | quote }}
             - name: TEND_WORKSPACE_CONFIG
               value: {{ .Values.operator.workspaceConfigPath | quote }}
+            # Nix needs a writable HOME for its eval cache; the pod runs
+            # as UID 1000 with no /etc/passwd entry so getpwuid_r fails
+            # and `nix` aborts with "cannot determine user's home
+            # directory" if HOME isn't set explicitly. Same volume serves
+            # XDG_CACHE_HOME so eval results survive between gate runs.
+            - name: HOME
+              value: "/home/tend"
+            - name: XDG_CACHE_HOME
+              value: "/home/tend/.cache"
+            - name: NIX_CONFIG
+              value: "experimental-features = nix-command flakes"
             {{- if .Values.github.existingSecret }}
             - name: GITHUB_TOKEN
               valueFrom:
@@ -102,6 +113,8 @@ spec:
               readOnly: true
             - name: workspace
               mountPath: /var/lib/tend-workspace
+            - name: home
+              mountPath: /home/tend
       volumes:
         - name: workspace-config
           configMap:
@@ -121,6 +134,11 @@ spec:
           {{- else }}
           emptyDir: {}
           {{- end }}
+        # Pod-local writable home for nix eval cache + git config; not
+        # persisted across restarts on purpose — the cache is rebuildable.
+        - name: home
+          emptyDir:
+            sizeLimit: 2Gi
 {{- if eq .Values.workspace.volume.type "persistentVolumeClaim" }}
 ---
 apiVersion: v1
