@@ -36,6 +36,38 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      # Init container — `tend sync` clones every repo declared in the
+      # workspace config so the reconciler can read flake.lock files
+      # immediately. Idempotent: re-runs on pod restart, picking up any
+      # repos added/removed in the ConfigMap.
+      initContainers:
+        - name: workspace-sync
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["sync", "--config", "{{ .Values.operator.workspaceConfigPath }}", "--quiet"]
+          env:
+            - name: RUST_LOG
+              value: "info"
+            {{- if .Values.github.existingSecret }}
+            - name: GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.github.existingSecret }}
+                  key: {{ .Values.github.secretKey }}
+            {{- end }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: workspace-config
+              mountPath: {{ .Values.operator.workspaceConfigPath }}
+              subPath: config.yaml
+              readOnly: true
+            - name: workspace
+              mountPath: /var/lib/tend-workspace
       containers:
         - name: operator
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
