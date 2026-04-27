@@ -78,6 +78,8 @@ rbac:
         - "flakeupdateproposals/status"
         - "flakeupdaterollouts"
         - "flakeupdaterollouts/status"
+        - "flakeupdateplans"
+        - "flakeupdateplans/status"
       verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
     # Events for status reporting
     - apiGroups: [""]
