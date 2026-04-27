@@ -1,0 +1,93 @@
+# pleme-arc-controller — wraps the upstream gha-runner-scale-set-controller
+# chart and adds an ExternalSecret pulling GitHub App credentials from a
+# cluster-configured ClusterSecretStore (External Secrets Operator).
+#
+# Deploy ONE per cluster. Multiple `pleme-arc-runner-pool` releases register
+# their AutoscalingRunnerSets with this controller.
+#
+# Consumer responsibility: ensure the namespace exists. FluxCD HelmRelease's
+# `install.createNamespace=true` is the canonical pattern.
+
+# Placeholder for pleme-lib.labels — the chart's appVersion is used as the
+# version label since no single image is canonical.
+image:
+  tag: ""
+
+# ---------- ExternalSecret seeding the GitHub App credentials ----------
+# A Kubernetes Secret named `arc-github-app-secret` is created from the secret
+# at `secrets.arc-github-app-secret.dataFrom[0].extract.key` in the configured
+# ClusterSecretStore. The secret must contain three keys:
+#   github_app_id
+#   github_app_installation_id
+#   github_app_private_key
+externalSecret:
+  clusterSecretStoreName: cluster-secret-store
+  refreshInterval: 30m
+  secrets:
+    arc-github-app-secret:
+      dataFrom:
+        - extract:
+            key: ""                 # Caller fills: path to the GitHub App credentials in your secret backend
+
+# ---------- Attestation framework (sekiban) ----------
+attestation:
+  enabled: false
+  signature: ""
+  certificationHash: ""
+  complianceHash: ""
+  changesetHash: ""
+
+# ---------- Resource-level annotations ----------
+annotations: {}
+additionalLabels: {}
+
+# ---------- Upstream gha-runner-scale-set-controller chart values ----------
+# All values under this key flow into the upstream chart unchanged.
+# See https://github.com/actions/actions-runner-controller/blob/main/charts/gha-runner-scale-set-controller/values.yaml
+gha-runner-scale-set-controller:
+  # -- Replicas. Leader election kicks in when >1 (only one replica reconciles
+  # at a time; others stand by).
+  replicaCount: 3
+
+  image:
+    repository: "ghcr.io/actions/gha-runner-scale-set-controller"
+    pullPolicy: IfNotPresent
+    tag: ""                         # defaults to chart appVersion
+
+  serviceAccount:
+    create: true
+    name: gha-arc-rs-controller
+    annotations: {}                 # IRSA / Workload Identity wiring goes here if controller needs cloud API access
+
+  flags:
+    logLevel: info
+    logFormat: text
+    updateStrategy: immediate
+
+  metrics:
+    controllerManagerAddr: ":8080"
+    listenerAddr: ":8080"
+    listenerEndpoint: "/metrics"
+
+  # -- GitHub App credentials env vars wired to the ExternalSecret-managed Secret.
+  # Override only if using a different secret name or non-App auth model.
+  env:
+    - name: GITHUB_APP_ID
+      valueFrom:
+        secretKeyRef:
+          key: github_app_id
+          name: arc-github-app-secret
+    - name: GITHUB_APP_INSTALLATION_ID
+      valueFrom:
+        secretKeyRef:
+          key: github_app_installation_id
+          name: arc-github-app-secret
+    - name: GITHUB_APP_PRIVATE_KEY
+      valueFrom:
+        secretKeyRef:
+          key: github_app_private_key
+          name: arc-github-app-secret
+
+  # -- Exclude argocd / FluxCD instance labels from propagation to internal
+  # resources (avoids the controller's reconciliation racing with GitOps tools).
+  flagsExcludeLabelPropagationPrefixes: []

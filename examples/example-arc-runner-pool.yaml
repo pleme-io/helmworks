@@ -1,0 +1,100 @@
+# Example values for pleme-arc-runner-pool — generic shape consumers adapt.
+# Replace the placeholder identifiers (account ID, role name, etc.) with the
+# real values for your tenant / cluster / workflow.
+
+fullnameOverride: example-runner-pool
+
+# IRSA-annotated ServiceAccount used by runner pods. Role ARN comes from your
+# IAM provisioning (Terraform / Pulumi / etc.).
+serviceAccount:
+  create: true
+  name: example-runner-sa
+  annotations:
+    eks.amazonaws.com/role-arn: "arn:aws:iam::123456789012:role/example-runner-role"
+
+# Phase-appropriate RBAC. Start narrow; expand as the workflow's verb needs grow.
+rbac:
+  roles:
+    runner:
+      rules:
+        - apiGroups: [""]
+          resources: ["pods", "namespaces"]
+          verbs: ["get", "list", "watch"]
+      subjects:
+        - kind: ServiceAccount
+          name: example-runner-sa
+
+# Dedicated NodePool — runner pods schedule onto pool-specific nodes via taint
+# + toleration matching, blast radius bounded to the pool. References an
+# existing EC2NodeClass; populate karpenter.ec2NodeClasses if you want the chart
+# to create one too.
+karpenter:
+  nodePools:
+    example-runner-pool:
+      weight: 50
+      limits:
+        cpu: "100"
+        memory: "400Gi"
+      disruption:
+        consolidationPolicy: WhenEmpty
+        consolidateAfter: 1m
+      template:
+        metadata:
+          labels:
+            runner-pool: example-runner-pool
+            workload-class: arc-runner
+        spec:
+          taints:
+            - key: arc-runner
+              value: "true"
+              effect: NoSchedule
+          nodeClassRef:
+            group: karpenter.k8s.aws
+            kind: EC2NodeClass
+            name: general
+          expireAfter: 8h
+          terminationGracePeriod: 10m
+          requirements:
+            - { key: kubernetes.io/arch, operator: In, values: ["amd64"] }
+            - { key: kubernetes.io/os, operator: In, values: ["linux"] }
+            - { key: karpenter.sh/capacity-type, operator: In, values: ["spot", "on-demand"] }
+            - { key: karpenter.k8s.aws/instance-category, operator: In, values: ["c", "m"] }
+            - { key: karpenter.k8s.aws/instance-generation, operator: Gt, values: ["5"] }
+            - { key: karpenter.k8s.aws/instance-size, operator: In, values: ["large", "xlarge", "2xlarge"] }
+
+# Upstream gha-runner-scale-set values flow through under this key.
+gha-runner-scale-set:
+  githubConfigUrl: https://github.com/example-org/example-repo
+  githubConfigSecret: arc-github-app-secret
+  runnerScaleSetName: example-runner-pool
+  runnerGroup: default
+  minRunners: 0
+  maxRunners: 2
+
+  controllerServiceAccount:
+    namespace: actions-runner-controller
+    name: gha-arc-rs-controller
+
+  template:
+    metadata:
+      annotations:
+        karpenter.sh/do-not-disrupt: "true"
+      labels:
+        runner-pool: example-runner-pool
+    spec:
+      serviceAccountName: example-runner-sa
+      nodeSelector:
+        runner-pool: example-runner-pool
+      tolerations:
+        - key: arc-runner
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      containers:
+        - name: runner
+          image: ghcr.io/actions/actions-runner:latest
+          command: ["/home/runner/run.sh"]
+          imagePullPolicy: IfNotPresent
+          resources:
+            requests: { cpu: "1", memory: "2Gi", ephemeral-storage: "5Gi" }
+            limits: { cpu: "3", memory: "5Gi", ephemeral-storage: "15Gi" }

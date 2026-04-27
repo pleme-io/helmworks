@@ -1,0 +1,139 @@
+# pleme-arc-runner-pool — composition chart for an ARC runner pool.
+# Bundles: ServiceAccount (with IRSA annotation), namespace-scoped Role + RoleBinding,
+# dedicated Karpenter NodePool (per-pool isolation), and the upstream
+# gha-runner-scale-set chart that registers the runner pool with GitHub.
+#
+# Consumer responsibility: ensure the namespace exists (FluxCD HelmRelease's
+# `install.createNamespace=true` + `managedNamespaceMetadata.labels` is the
+# canonical pattern; TF helm_release callers create the namespace as a
+# kubernetes_namespace_v1 resource with their own label control).
+
+# Placeholder for pleme-lib.labels — composition charts don't deploy a canonical
+# image, so the chart's own appVersion is used as the version label. Leave empty.
+image:
+  tag: ""
+
+# ---------- pleme-lib config (consumed by helpers) ----------
+
+# -- ServiceAccount used by the runner pods. IRSA wiring lives in
+# `serviceAccount.annotations.eks.amazonaws.com/role-arn` (or the equivalent
+# annotation for GCP Workload Identity / Azure AD Workload Identity).
+serviceAccount:
+  create: true
+  name: ""           # defaults to chart fullname; set explicitly to match IAM trust policy SA condition
+  annotations: {}
+  # Example IRSA wiring:
+  # annotations:
+  #   eks.amazonaws.com/role-arn: "arn:aws:iam::<account>:role/<role-name>"
+
+# -- Namespace-scoped RBAC for the pool's ServiceAccount. Default is empty
+# (no permissions). Consumers declare verbs/resources matching what the runner
+# pods actually need to do during workflow execution.
+rbac:
+  roles: {}
+  # Example:
+  # roles:
+  #   drill:
+  #     rules:
+  #       - apiGroups: [""]
+  #         resources: ["pods", "namespaces"]
+  #         verbs: ["get", "list", "watch"]
+  #     subjects:
+  #       - kind: ServiceAccount
+  #         name: drill-sa
+
+# -- Dedicated Karpenter NodePool for this runner pool (Option A — max
+# isolation: runner pods schedule onto pool-specific nodes via taint +
+# toleration matching, blast radius is bounded to the pool's nodes).
+karpenter:
+  nodePools: {}
+  # Example:
+  # nodePools:
+  #   pitr-drill-staging:
+  #     weight: 50
+  #     limits: { cpu: "100", memory: "400Gi" }
+  #     disruption:
+  #       consolidationPolicy: WhenEmpty
+  #       consolidateAfter: 1m
+  #     template:
+  #       metadata:
+  #         labels:
+  #           pitr-drill-pool: pitr-drill-staging
+  #       spec:
+  #         taints:
+  #           - { key: pitr-drill-runner, value: "true", effect: NoSchedule }
+  #         nodeClassRef:
+  #           group: karpenter.k8s.aws
+  #           kind: EC2NodeClass
+  #           name: general
+  #         expireAfter: 8h
+  #         terminationGracePeriod: 10m
+  #         requirements:
+  #           - { key: kubernetes.io/arch, operator: In, values: ["amd64"] }
+  #           - { key: kubernetes.io/os, operator: In, values: ["linux"] }
+  #           - { key: karpenter.sh/capacity-type, operator: In, values: ["spot", "on-demand"] }
+  #           - { key: karpenter.k8s.aws/instance-category, operator: In, values: ["c", "m"] }
+  #           - { key: karpenter.k8s.aws/instance-generation, operator: Gt, values: ["5"] }
+  #           - { key: karpenter.k8s.aws/instance-size, operator: In, values: ["large", "xlarge", "2xlarge"] }
+
+  # Optional EC2NodeClass — only declare entries here when the pool needs its
+  # own AMI / subnet / SG selection distinct from cluster defaults. Most
+  # consumers reference an existing class (e.g. `general`) via the NodePool's
+  # nodeClassRef and leave this empty.
+  ec2NodeClasses: {}
+
+# ---------- Attestation framework (sekiban) ----------
+attestation:
+  enabled: false
+  signature: ""
+  certificationHash: ""
+  complianceHash: ""
+  changesetHash: ""
+
+# ---------- Resource-level annotations ----------
+annotations: {}
+additionalLabels: {}
+
+# ---------- Upstream gha-runner-scale-set chart values ----------
+# All values under this key flow into the upstream chart unchanged.
+# See https://github.com/actions/actions-runner-controller/blob/main/charts/gha-runner-scale-set/values.yaml
+gha-runner-scale-set:
+  # -- GitHub URL the pool registers with (org or repo)
+  githubConfigUrl: ""
+
+  # -- Name of the K8s Secret holding GitHub App credentials. Provisioned out
+  # of band (typically via External Secrets Operator + a chart like
+  # pleme-arc-controller).
+  githubConfigSecret: arc-github-app-secret
+
+  # -- Runner scale set name (workflows target via `runs-on: <name>`).
+  # Defaults to release name when empty.
+  runnerScaleSetName: ""
+  runnerGroup: default
+
+  # -- Scale-to-zero by default; cap at small N until validated.
+  minRunners: 0
+  maxRunners: 3
+
+  # -- ARC controller this scale set registers with. Override when the
+  # controller lives in a non-default namespace / SA.
+  controllerServiceAccount:
+    namespace: actions-runner-controller
+    name: gha-arc-rs-controller
+
+  # -- Listener pod template — kept on the do-not-disrupt path so a brief
+  # consolidation event doesn't kill the listener mid-job-assignment.
+  listenerTemplate:
+    metadata:
+      annotations:
+        karpenter.sh/do-not-disrupt: "true"
+
+  # -- Runner pod template. Consumers override:
+  # - serviceAccountName → pool's IRSA-annotated SA (created by this chart)
+  # - nodeSelector + tolerations → matching the dedicated Karpenter NodePool
+  # - containers[0].image → custom runner image with required tooling
+  template:
+    metadata:
+      annotations:
+        karpenter.sh/do-not-disrupt: "true"
+    spec: {}

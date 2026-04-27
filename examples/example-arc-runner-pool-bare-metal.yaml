@@ -1,0 +1,70 @@
+# Example values for pleme-arc-runner-pool on a bare-metal cluster (no Karpenter).
+#
+# The chart's Karpenter NodePool rendering is values-driven: an empty
+# `karpenter.nodePools` map renders nothing, so the chart degrades cleanly
+# to "bare-metal mode". Runner pods schedule onto pre-labeled, pre-tainted
+# nodes via nodeSelector + tolerations.
+#
+# OPERATOR PREREQUISITE (one-time per cluster):
+#   1. Pick or designate node(s) for runner workloads
+#   2. Label: `kubectl label node <node> runner-pool=example-runner-pool`
+#   3. Taint:  `kubectl taint node <node> arc-runner=true:NoSchedule`
+#
+# That's the bare-metal "Karpenter equivalent" — no JIT compute, but
+# scale-to-zero at the POD layer still applies (AutoscalingRunnerSet's
+# minRunners=0 means no pods exist when no jobs are assigned).
+
+fullnameOverride: example-runner-pool
+
+serviceAccount:
+  create: true
+  name: example-runner-sa
+  annotations: {}     # No IRSA on bare-metal; configure auth via mounted secrets / env vars instead
+
+rbac:
+  roles:
+    runner:
+      rules:
+        - apiGroups: [""]
+          resources: ["pods", "namespaces"]
+          verbs: ["get", "list", "watch"]
+      subjects:
+        - kind: ServiceAccount
+          name: example-runner-sa
+
+# No Karpenter — nodes are pre-provisioned. Empty maps render nothing.
+karpenter:
+  nodePools: {}
+  ec2NodeClasses: {}
+
+gha-runner-scale-set:
+  githubConfigUrl: https://github.com/example-org/example-repo
+  githubConfigSecret: arc-github-app-secret
+  runnerScaleSetName: example-runner-pool
+  runnerGroup: default
+  minRunners: 0       # Pod-layer scale-to-zero still applies on bare-metal
+  maxRunners: 2
+
+  controllerServiceAccount:
+    namespace: actions-runner-controller
+    name: gha-arc-rs-controller
+
+  template:
+    spec:
+      serviceAccountName: example-runner-sa
+      # Schedule onto the pre-labeled, pre-tainted runner node(s)
+      nodeSelector:
+        runner-pool: example-runner-pool
+      tolerations:
+        - key: arc-runner
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      containers:
+        - name: runner
+          image: ghcr.io/actions/actions-runner:latest
+          command: ["/home/runner/run.sh"]
+          imagePullPolicy: IfNotPresent
+          resources:
+            requests: { cpu: "500m", memory: "1Gi" }
+            limits: { cpu: "2", memory: "4Gi" }

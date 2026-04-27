@@ -1,0 +1,82 @@
+suite: pleme-arc-runner-pool multi-pool + EC2NodeClass tests — verify maps iterate to multiple resources
+templates:
+  - templates/karpenter.yaml
+values:
+  - ../../examples/example-arc-runner-pool.yaml
+set:
+  karpenter:
+    nodePools:
+      example-runner-pool:
+        weight: 50
+        template:
+          spec:
+            taints:
+              - { key: arc-runner, value: "true", effect: NoSchedule }
+            nodeClassRef:
+              group: karpenter.k8s.aws
+              kind: EC2NodeClass
+              name: runner-isolated
+            requirements:
+              - { key: kubernetes.io/arch, operator: In, values: ["amd64"] }
+      example-runner-burst:
+        weight: 25
+        template:
+          spec:
+            taints:
+              - { key: arc-runner, value: "true", effect: NoSchedule }
+            nodeClassRef:
+              group: karpenter.k8s.aws
+              kind: EC2NodeClass
+              name: runner-isolated
+            requirements:
+              - { key: kubernetes.io/arch, operator: In, values: ["amd64"] }
+              - { key: karpenter.k8s.aws/instance-size, operator: In, values: ["4xlarge", "8xlarge"] }
+    ec2NodeClasses:
+      runner-isolated:
+        role: KarpenterNodeRole-test
+        amiFamily: Bottlerocket
+        amiSelectorTerms:
+          - { alias: "bottlerocket@v1.56.0" }
+        subnetSelectorTerms:
+          - tags: { karpenter.sh/discovery: "test-cluster" }
+        securityGroupSelectorTerms:
+          - tags: { karpenter.sh/discovery: "test-cluster" }
+tests:
+  - it: renders 2 NodePools + 1 EC2NodeClass = 3 documents total
+    asserts:
+      - hasDocuments:
+          count: 3
+
+  - it: first pool kebabcased
+    documentSelector:
+      path: metadata.name
+      value: example-runner-pool
+    asserts:
+      - isKind:
+          of: NodePool
+      - equal:
+          path: spec.weight
+          value: 50
+
+  - it: second pool kebabcased
+    documentSelector:
+      path: metadata.name
+      value: example-runner-burst
+    asserts:
+      - isKind:
+          of: NodePool
+      - equal:
+          path: spec.weight
+          value: 25
+
+  - it: EC2NodeClass rendered with Bottlerocket AMI family
+    documentSelector:
+      path: kind
+      value: EC2NodeClass
+    asserts:
+      - equal:
+          path: metadata.name
+          value: runner-isolated
+      - equal:
+          path: spec.amiFamily
+          value: Bottlerocket

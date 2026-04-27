@@ -40,11 +40,14 @@ All chart lifecycle operations are `nix run` commands:
 **pleme-lib** is a library chart providing named templates:
 - `pleme-lib.deployment` — standard Deployment
 - `pleme-lib.service` — ClusterIP Service
-- `pleme-lib.serviceaccount` — ServiceAccount
+- `pleme-lib.serviceaccount` — ServiceAccount (IRSA-ready via `serviceAccount.annotations`)
 - `pleme-lib.servicemonitor` — Prometheus ServiceMonitor
 - `pleme-lib.networkpolicy` — deny-all + allow-dns + allow-prometheus
 - `pleme-lib.pdb` — PodDisruptionBudget
 - `pleme-lib.hpa` — HorizontalPodAutoscaler
+- `pleme-lib.karpenterNodePool` / `pleme-lib.karpenterEC2NodeClass` — Karpenter primitives, iterate values maps for multi-pool charts (added v0.6.0)
+- `pleme-lib.namespacedRBAC` — namespace-scoped Role + RoleBinding pairs from a values map (added v0.6.0)
+- `pleme-lib.externalSecret` — External Secrets Operator ExternalSecret resources from a values map; defaults to `cluster-secret-store` (override per entry) (added v0.6.0)
 
 Application charts invoke these via `{{- include "pleme-lib.deployment" . }}`.
 

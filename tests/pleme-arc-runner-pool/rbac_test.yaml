@@ -1,0 +1,43 @@
+suite: pleme-arc-runner-pool RBAC tests
+templates:
+  - templates/rbac.yaml
+values:
+  - ../../examples/example-arc-runner-pool.yaml
+tests:
+  - it: should render Role + RoleBinding
+    asserts:
+      - hasDocuments:
+          count: 2
+
+  - it: first doc is the Role
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: Role
+      - equal:
+          path: metadata.name
+          value: runner
+      - contains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: ["pods", "namespaces"]
+            verbs: ["get", "list", "watch"]
+
+  - it: second doc is the RoleBinding to the runner SA
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: RoleBinding
+      - equal:
+          path: metadata.name
+          value: runner
+      - equal:
+          path: roleRef.name
+          value: runner
+      - equal:
+          path: subjects[0].kind
+          value: ServiceAccount
+      - equal:
+          path: subjects[0].name
+          value: example-runner-sa

@@ -1,0 +1,19 @@
+suite: pleme-arc-controller attestation tests — sekiban annotations on ExternalSecret
+templates:
+  - templates/externalsecret.yaml
+values:
+  - ../../examples/example-arc-controller.yaml
+set:
+  attestation:
+    enabled: true
+    signature: "blake3:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    certificationHash: "blake3:certctrl"
+tests:
+  - it: ExternalSecret carries master signature
+    asserts:
+      - equal:
+          path: metadata.annotations["sekiban.pleme.io/signature"]
+          value: "blake3:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      - equal:
+          path: metadata.annotations["sekiban.pleme.io/certification-hash"]
+          value: "blake3:certctrl"

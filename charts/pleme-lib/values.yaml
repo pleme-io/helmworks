@@ -358,6 +358,32 @@ resourceQuota:
     configmaps: "20"
     secrets: "20"
 
+# -- Karpenter primitives (NodePool + EC2NodeClass)
+# Rendered by pleme-lib.karpenterNodePool / pleme-lib.karpenterEC2NodeClass.
+# A no-op when nodePools / ec2NodeClasses are empty / absent.
+karpenter:
+  # -- Map of NodePool name → NodePool spec (see _karpenter.tpl docstring)
+  nodePools: {}
+  # -- Map of EC2NodeClass name → EC2NodeClass spec (Bottlerocket / AMI / subnets / SGs)
+  ec2NodeClasses: {}
+
+# -- Namespace-scoped RBAC (Role + RoleBinding)
+# Rendered by pleme-lib.namespacedRBAC. A no-op when roles is empty.
+rbac:
+  # -- Map of Role name → { rules: [...], subjects: [...] }
+  roles: {}
+
+# -- External Secrets Operator integration
+# Rendered by pleme-lib.externalSecret. A no-op when secrets is empty.
+externalSecret:
+  # -- Default ClusterSecretStore for all entries (override per-entry via spec.clusterSecretStoreName).
+  # Common names: cluster-secret-store, vault-cluster-secret-store, aws-secrets-manager-store.
+  clusterSecretStoreName: cluster-secret-store
+  # -- Default refresh interval (override per-entry)
+  refreshInterval: 30m
+  # -- Map of K8s Secret name → ExternalSecret spec (dataFrom OR data; see _externalsecret.tpl)
+  secrets: {}
+
 # -- PriorityClass configuration (governance)
 priorityClasses:
   # -- Prefix for priority class names

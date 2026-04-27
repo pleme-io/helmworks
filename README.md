@@ -23,6 +23,8 @@ Helmworks contains all Helm charts used by the pleme-io platform. Charts are bui
 | `pleme-cache` | Cache (Redis) instances |
 | `pleme-bootstrap` | Cluster bootstrap |
 | `pleme-gpu-workload` | GPU workloads |
+| `pleme-arc-controller` | GitHub Actions Runner Controller — cluster install + GitHub App ExternalSecret |
+| `pleme-arc-runner-pool` | GitHub Actions runner pool — IRSA SA + namespace RBAC + dedicated Karpenter NodePool + AutoscalingRunnerSet |
 | `hanabi` | BFF server |
 | `shinka` | Migration operator |
 | `kenshi` | Testing operator |

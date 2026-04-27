@@ -1,0 +1,43 @@
+suite: pleme-arc-runner-pool attestation tests — sekiban annotations propagate to all rendered resources
+templates:
+  - templates/serviceaccount.yaml
+  - templates/rbac.yaml
+  - templates/karpenter.yaml
+values:
+  - ../../examples/example-arc-runner-pool.yaml
+set:
+  attestation:
+    enabled: true
+    signature: "blake3:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    certificationHash: "blake3:certabc"
+    complianceHash: "blake3:compabc"
+    changesetHash: "blake3:cset123"
+tests:
+  - it: NodePool carries the master signature
+    template: templates/karpenter.yaml
+    documentSelector:
+      path: kind
+      value: NodePool
+    asserts:
+      - equal:
+          path: metadata.annotations["sekiban.pleme.io/signature"]
+          value: "blake3:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      - equal:
+          path: metadata.annotations["sekiban.pleme.io/certification-hash"]
+          value: "blake3:certabc"
+      - equal:
+          path: metadata.annotations["sekiban.pleme.io/compliance-hash"]
+          value: "blake3:compabc"
+      - equal:
+          path: metadata.annotations["sekiban.pleme.io/changeset-hash"]
+          value: "blake3:cset123"
+
+  - it: Role carries the master signature
+    template: templates/rbac.yaml
+    documentSelector:
+      path: kind
+      value: Role
+    asserts:
+      - equal:
+          path: metadata.annotations["sekiban.pleme.io/signature"]
+          value: "blake3:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"

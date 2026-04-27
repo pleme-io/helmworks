@@ -60,6 +60,9 @@
             { name = "pleme-database"; chartDir = ./charts/pleme-database; }
             { name = "pleme-cache"; chartDir = ./charts/pleme-cache; }
             { name = "pleme-bootstrap"; chartDir = ./charts/pleme-bootstrap; }
+            # ── ARC (GitHub Actions Runner Controller) ──
+            { name = "pleme-arc-controller"; chartDir = ./charts/pleme-arc-controller; }
+            { name = "pleme-arc-runner-pool"; chartDir = ./charts/pleme-arc-runner-pool; }
             # ── pleme-lareira home-services consumers (rio cluster) ──
             # Family Tier 1 — broadest household value
             { name = "lareira-vaultwarden"; chartDir = ./charts/lareira-vaultwarden; }

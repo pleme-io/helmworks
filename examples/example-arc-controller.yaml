@@ -1,0 +1,17 @@
+# Example values for pleme-arc-controller — generic shape consumers adapt.
+
+externalSecret:
+  # ClusterSecretStore name configured in the target cluster. Replace with the
+  # backend wired to your org's External Secrets Operator install.
+  clusterSecretStoreName: cluster-secret-store
+  refreshInterval: 30m
+  secrets:
+    arc-github-app-secret:
+      dataFrom:
+        - extract:
+            # Path in the secret backend where the GitHub App credentials live.
+            # Must contain keys: github_app_id, github_app_installation_id, github_app_private_key.
+            key: /example/secrets/arc-github-app-secret
+
+gha-runner-scale-set-controller:
+  replicaCount: 3
