@@ -58,14 +58,7 @@ spec:
                     workspace: { type: string }
                     repo: { type: string }
                 input: { type: string }
-                from: { $ref: "#/properties/spec/definitions/flakeRev" }
-                to: { $ref: "#/properties/spec/definitions/flakeRev" }
-                discoveredAt: { type: string, format: date-time }
-                policyNamespace: { type: string }
-                policyName: { type: string }
-                approved: { type: boolean, default: false }
-              definitions:
-                flakeRev:
+                from:
                   type: object
                   required: ["url", "rev"]
                   properties:
@@ -73,6 +66,18 @@ spec:
                     rev: { type: string }
                     narHash: { type: string }
                     lastModified: { type: integer, format: int64 }
+                to:
+                  type: object
+                  required: ["url", "rev"]
+                  properties:
+                    url: { type: string }
+                    rev: { type: string }
+                    narHash: { type: string }
+                    lastModified: { type: integer, format: int64 }
+                discoveredAt: { type: string, format: date-time }
+                policyNamespace: { type: string }
+                policyName: { type: string }
+                approved: { type: boolean, default: false }
             status:
               type: object
               properties:
