@@ -14,7 +14,7 @@
       inputs.fenix.follows = "fenix";
     };
     forge = {
-      url = "github:pleme-io/forge/b099c24623b6b8c8a864c8692e6e0888c91ad812";
+      url = "github:pleme-io/forge/65225fd";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.fenix.follows = "fenix";
       inputs.substrate.follows = "substrate";

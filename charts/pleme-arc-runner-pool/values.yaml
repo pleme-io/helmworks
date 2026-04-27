@@ -121,8 +121,14 @@ additionalLabels: {}
 # All values under this key flow into the upstream chart unchanged.
 # See https://github.com/actions/actions-runner-controller/blob/main/charts/gha-runner-scale-set/values.yaml
 gha-runner-scale-set:
-  # -- GitHub URL the pool registers with (org or repo)
-  githubConfigUrl: ""
+  # -- GitHub URL the pool registers with (org or repo).
+  # PLACEHOLDER — consumer MUST override. The non-empty default satisfies
+  # the upstream chart's `required` validation at `helm template` time so
+  # the release pipeline can render with defaults; runtime auth would fail
+  # against this placeholder, which is the desired forcing-function for
+  # missed overrides (manifest auth errors are easier to debug than
+  # render failures).
+  githubConfigUrl: "https://github.com/PLACEHOLDER-OVERRIDE-githubConfigUrl"
 
   # -- Name of the K8s Secret holding GitHub App credentials. Provisioned out
   # of band (typically via External Secrets Operator + a chart like
