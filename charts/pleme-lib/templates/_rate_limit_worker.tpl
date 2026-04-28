@@ -44,7 +44,7 @@ In your chart's `values.yaml`:
       budgetPctMax: 10             # the headline 10% knob
 
     rateLimit:
-      requestsPerMinute: 8         # ★ load-bearing knob
+      quotaPct: 0.10               # ★ load-bearing knob — fraction of upstream's budget
       pressureWarnPct: 50
       pressureCriticalPct: 25
       jitterPct: 0.30
@@ -96,10 +96,25 @@ data:
     upstream:
       kind: {{ .Values.queueWorker.upstream.kind | quote }}
       budget_per_hour: {{ .Values.queueWorker.upstream.budgetPerHour }}
+      # Absolute cap on the consumer's share — validated by samba.
+      # quotaPct (below) must be <= budgetPctMax/100. Set this to the
+      # maximum the upstream's owner is comfortable with and let
+      # quotaPct vary within it for per-deployment tuning.
       budget_pct_max: {{ .Values.queueWorker.upstream.budgetPctMax }}
 
     rate_limit:
-      requests_per_minute: {{ .Values.queueWorker.rateLimit.requestsPerMinute }}
+      # ★ The single load-bearing knob. Decimal in (0, 1] — fraction
+      # of upstream.budget_per_hour the consumer is allowed to use.
+      # samba derives target_rpm = quota_pct × budget_per_hour / 60.
+      # Examples (for budget_per_hour=5000):
+      #   0.01 = 1%  → 50/hr → period ≈ 72s
+      #   0.10 = 10% → 500/hr → period ≈ 7.2s
+      quota_pct: {{ .Values.queueWorker.rateLimit.quotaPct }}
+      {{- with (.Values.queueWorker.rateLimit).requestsPerMinuteOverride }}
+      # Optional explicit override — bypasses quota_pct math. Use only
+      # for testing or when budget_per_hour is unknown.
+      requests_per_minute_override: {{ . }}
+      {{- end }}
       pressure_warn_pct: {{ .Values.queueWorker.rateLimit.pressureWarnPct }}
       pressure_critical_pct: {{ .Values.queueWorker.rateLimit.pressureCriticalPct }}
       jitter_pct: {{ .Values.queueWorker.rateLimit.jitterPct }}

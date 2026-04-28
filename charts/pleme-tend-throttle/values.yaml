@@ -78,7 +78,17 @@ queueWorker:
     budgetPctMax: 10           # the headline 10% knob
 
   rateLimit:
-    requestsPerMinute: 8       # ★ load-bearing — 8/min × 60 = 480/hr ≈ 9.6%
+    # ★ THE LOAD-BEARING KNOB. Single value to set the consumer's
+    # fraction of GitHub's authenticated 5000/hr quota. samba derives
+    # target_rpm = quotaPct × 5000 / 60 automatically.
+    #
+    # Examples (with default budgetPerHour: 5000):
+    #   quotaPct: 0.01   →  50 req/hr  ≈ 0.83/min  (period ≈ 72s)
+    #   quotaPct: 0.05   → 250 req/hr  ≈ 4.17/min  (period ≈ 14.4s)
+    #   quotaPct: 0.10   → 500 req/hr  ≈ 8.33/min  (period ≈ 7.2s)  ← old default
+    #
+    # Must be ≤ upstream.budgetPctMax / 100 (chart-validated by samba).
+    quotaPct: 0.10
     pressureWarnPct: 50
     pressureCriticalPct: 25
     jitterPct: 0.30
