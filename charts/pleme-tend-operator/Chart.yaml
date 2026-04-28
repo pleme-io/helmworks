@@ -2,8 +2,8 @@ apiVersion: v2
 name: pleme-tend-operator
 description: Fleet update controller — owns FlakeUpdatePolicy / FlakeUpdateProposal / FlakeUpdateRollout CRDs and reconciles fleet-wide pinned-version DAGs derived from flake.lock
 type: application
-version: 0.4.1
-appVersion: "0.4.1"
+version: 0.4.2
+appVersion: "0.4.2"
 
 dependencies:
   - name: pleme-lib

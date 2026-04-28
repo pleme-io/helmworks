@@ -96,6 +96,10 @@ spec:
               value: {{ .Values.underTheRadar.budgetMaxPerHour | quote }}
             - name: TEND_REQUEUE_JITTER_PCT
               value: {{ .Values.underTheRadar.requeueJitterPct | quote }}
+            # Mode A: drives reconcile.rs::requeue_ok(). Bounded
+            # [30, 3600] in code; default 1800 if unset / invalid.
+            - name: TEND_POLL_INTERVAL_SECONDS
+              value: {{ .Values.operator.pollIntervalSeconds | quote }}
             # ── Phase B: persistent HEAD cache ────────────────────
             - name: TEND_HEAD_CACHE_PATH
               value: {{ .Values.cache.path | quote }}
