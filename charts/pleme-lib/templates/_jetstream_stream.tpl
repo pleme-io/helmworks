@@ -219,6 +219,12 @@ spec:
         - name: jetstream-init
           image: "{{ $jobImage }}:{{ $jobTag }}"
           imagePullPolicy: IfNotPresent
+          # nats-box's `nats` CLI calls `stat .` on its CWD during
+          # subcommand init; with readOnlyRootFilesystem=true the
+          # default CWD (/) returns EACCES. Pin CWD to a writable
+          # tmpfs so it works regardless of the consumer chart's
+          # podSecurityContext.
+          workingDir: /tmp
           {{- with ($ctx.Values).securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
@@ -235,6 +241,8 @@ spec:
               value: {{ $serverUrl | quote }}
             - name: SERVER_WAIT_SECONDS
               value: {{ $waitSeconds | quote }}
+            - name: HOME
+              value: /tmp
           # Idempotent upsert loop. add → update fallback handles both
           # first-install and re-runs after values changes.
           command:
@@ -274,8 +282,13 @@ spec:
             - name: configs
               mountPath: /configs
               readOnly: true
+            - name: tmp
+              mountPath: /tmp
       volumes:
         - name: configs
           configMap:
             name: {{ $cmName }}
+        - name: tmp
+          emptyDir:
+            sizeLimit: 32Mi
 {{- end }}
