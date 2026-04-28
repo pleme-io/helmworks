@@ -36,7 +36,7 @@
 
       systems = [ "x86_64-linux" "aarch64-linux" "aarch64-darwin" "x86_64-darwin" ];
 
-      perSystem = { pkgs, system, lib, ... }:
+      perSystem = { pkgs, system, ... }:
         let
           helm = pkgs.kubernetes-helm;
 
@@ -133,18 +133,10 @@
           };
 
           # Build chart tarballs as Nix packages (for CI caching)
-          chartPackages = lib.foldl' (acc: chart: acc // {
-            ${chart.name} = pkgs.runCommand "helm-chart-${chart.name}" {
-              nativeBuildInputs = [ helm ];
-            } ''
-              mkdir -p $out build
-              cp -r ${chart.chartDir} build/${chart.name}
-              cp -r ${./charts/pleme-lib} build/pleme-lib
-              chmod -R u+w build
-              helm dependency update build/${chart.name}
-              helm package build/${chart.name} --destination $out
-            '';
-          }) {} chartDefs;
+          chartPackages = substrateLib.mkHelmChartPackages {
+            charts = chartDefs;
+            libChartDir = ./charts/pleme-lib;
+          };
 
         in {
           packages = chartPackages;
