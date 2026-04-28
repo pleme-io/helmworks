@@ -149,6 +149,19 @@ spec:
             - name: TEND_THROTTLE_DEDUP_KEY_TEMPLATE
               value: {{ .Values.throttle.dedupKeyTemplate | quote }}
             {{- end }}
+            # ── Fleet-wide org watcher ────────────────────────────
+            - name: TEND_FLEET_WATCH_ENABLED
+              value: {{ .Values.fleetWatch.enabled | quote }}
+            {{- if .Values.fleetWatch.enabled }}
+            - name: TEND_FLEET_WATCH_ORG
+              value: {{ .Values.fleetWatch.org | quote }}
+            - name: TEND_FLEET_WATCH_TICK_INTERVAL_MS
+              value: {{ .Values.fleetWatch.tickIntervalMs | quote }}
+            - name: TEND_FLEET_WATCH_DISCOVERY_INTERVAL_SECS
+              value: {{ .Values.fleetWatch.discoveryIntervalSecs | quote }}
+            - name: TEND_FLEET_WATCH_DISCOVERY_PACE_MS
+              value: {{ .Values.fleetWatch.discoveryPaceMs | quote }}
+            {{- end }}
             {{- if .Values.github.existingSecret }}
             - name: GITHUB_TOKEN
               valueFrom:

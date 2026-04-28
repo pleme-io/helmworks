@@ -341,6 +341,39 @@ throttle:
   # of the same job into one.
   dedupKeyTemplate: "{repo}:{ref}"
 
+# ─── Fleet-wide org watcher (Mode A — continuous trickle) ──────────
+# When `fleetWatch.enabled` is true, the operator continuously
+# enumerates the configured GitHub org, filters to repos with a
+# `flake.nix` at HEAD, and round-robin publishes refresh-jobs to the
+# NATS throttle at the throttle's drain rate. Each tick = one repo
+# HEAD-checked. Coexists with the FlakeUpdatePolicy reconciler:
+# both publishers feed the same throttle queue, the throttle worker
+# enforces the rate-limit invariant.
+#
+# This shifts the discovery model from flake.lock follows-edges
+# (per-input HEAD on the policy's repo) to org enumeration (per-repo
+# HEAD across the entire org) — broader coverage at the same fleet-
+# wide ≤10% GitHub API budget.
+#
+# See pleme-io/theory/RATE-LIMITED-CONSUMERS.md §V.
+fleetWatch:
+  enabled: false
+  # GitHub org to enumerate. Tend's existing token must have
+  # metadata: read scope on this org.
+  org: "pleme-io"
+  # Tick rate for the round-robin publisher. Match the throttle's
+  # drain rate (60 / requestsPerMinute) so the queue stays at depth
+  # zero in steady state. Default 7500ms = 8 publishes/min, matching
+  # the throttle's 8 req/min default. Bound: 1000–600000 ms in code.
+  tickIntervalMs: 7500
+  # How often to re-enumerate the org. Discovery itself is paced
+  # (discoveryPaceMs between flake.nix probes). Bound: 60–86400 s.
+  discoveryIntervalSecs: 3600
+  # Pace between flake.nix HEAD probes during discovery. With ~120
+  # repos in pleme-io and 500 ms pace, full discovery scan takes ~60s.
+  # Bound: 100–60000 ms in code.
+  discoveryPaceMs: 500
+
 # ─── CRD installation ───────────────────────────────────────────────
 # Toggle to false if installing CRDs out-of-band (e.g. via Flux's
 # CRD chart). Default true means the chart owns CRD lifecycle.

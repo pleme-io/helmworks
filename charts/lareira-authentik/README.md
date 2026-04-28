@@ -1,5 +1,23 @@
 # lareira-authentik chart
 
+> **★★ Saguão Phase 1 implementation of `passaporte`.** This chart is
+> the deployable for the **passaporte** primitive of saguão (see
+> [`pleme-io/theory/SAGUAO.md`](../../../theory/SAGUAO.md) §III.1). It
+> will be **renamed `lareira-passaporte`** when the typed Rust
+> wrapper crate (`pleme-io/passaporte`) ships and authors values
+> for it. The `goauthentik/authentik` upstream dependency does not
+> change; only the chart name and the typed authoring surface
+> change.
+>
+> **Architectural note.** The original architecture diagram below
+> shows Cloudflare Zero Trust Access in front of Authentik. **That
+> tier is removed from saguão.** Cloudflare's role is reduced to
+> transparent transport (DNS + Tunnel + edge TLS). Authentik
+> forward-auth via the `pleme-lib.compliance.authn.oidc` template
+> helper is the SSO boundary; Cloudflare Access is dropped in
+> saguão migration Phase 3. The diagram below is preserved for
+> historical context — the live shape is in `SAGUAO.md`.
+
 Breathable Authentik for the rio cluster (and any pleme-io home-edge
 cluster offering SSO).
 
