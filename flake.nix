@@ -115,6 +115,8 @@
             { name = "pleme-attic"; chartDir = ./charts/pleme-attic; }
             { name = "pleme-tatara-operator"; chartDir = ./charts/pleme-tatara-operator; }
             { name = "pleme-tend-operator"; chartDir = ./charts/pleme-tend-operator; }
+            { name = "pleme-tend-throttle"; chartDir = ./charts/pleme-tend-throttle; }
+            { name = "pleme-nats"; chartDir = ./charts/pleme-nats; }
             { name = "pleme-nix-builder"; chartDir = ./charts/pleme-nix-builder; }
             { name = "pleme-sui"; chartDir = ./charts/pleme-sui; }
             { name = "convergence-controller"; chartDir = ./charts/convergence-controller; }

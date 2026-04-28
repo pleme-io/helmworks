@@ -7,7 +7,11 @@ appVersion: "0.4.0"
 
 dependencies:
   - name: pleme-lib
-    version: "~0.10.0"
+    # Bumped to 0.11.x for the rate-limit-pattern templates (jetstream
+    # + rate-limit-worker.* — even though this chart doesn't consume
+    # them yet, the version pin must match across the fleet so chart
+    # publish doesn't fail dep resolution against the broker chart).
+    version: "~0.11.0"
     repository: "file://../pleme-lib"
 
 keywords:
