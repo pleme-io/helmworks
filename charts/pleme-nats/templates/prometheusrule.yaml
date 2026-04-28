@@ -1,0 +1,18 @@
+{{- if .Values.prometheusRules.enabled }}
+{{/*
+PrometheusRule = VMRule on rio (the VictoriaMetrics operator converts).
+The alert layer is mandatory under Pillar 11 — every workload that
+emits work emits a typed alert config.
+*/}}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "pleme-nats.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pleme-nats.labels" . | nindent 4 }}
+    prometheus: main
+spec:
+  groups:
+    {{- toYaml .Values.prometheusRules.groups | nindent 4 }}
+{{- end }}

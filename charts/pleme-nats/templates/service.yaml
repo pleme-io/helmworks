@@ -1,0 +1,33 @@
+{{/*
+Headless Service required for StatefulSet stable identity. Gives each
+pod a DNS name like {fullname}-0.{fullname}.{namespace}.svc, plus the
+load-balanced fullname.{namespace}.svc for clients that don't care
+which pod they hit.
+*/}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pleme-nats.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pleme-nats.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  {{- if .Values.service.clusterIP }}
+  clusterIP: {{ .Values.service.clusterIP }}
+  {{- end }}
+  selector:
+    {{- include "pleme-nats.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: client
+      port: {{ .Values.service.ports.client }}
+      targetPort: client
+      protocol: TCP
+    - name: monitoring
+      port: {{ .Values.service.ports.monitoring }}
+      targetPort: monitoring
+      protocol: TCP
+    - name: metrics
+      port: {{ .Values.service.ports.metrics }}
+      targetPort: metrics
+      protocol: TCP

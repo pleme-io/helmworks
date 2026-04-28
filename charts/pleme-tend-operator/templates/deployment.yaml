@@ -111,7 +111,7 @@ spec:
               value: {{ .Values.graphql.enabled | quote }}
             - name: TEND_GRAPHQL_BATCH_SIZE
               value: {{ .Values.graphql.batchSize | quote }}
-            # ── NATS coordination (Phase 2 worker pool) ───────────
+            # ── NATS coordination ─────────────────────────────────
             - name: TEND_NATS_ENABLED
               value: {{ .Values.nats.enabled | quote }}
             {{- if .Values.nats.enabled }}
@@ -119,6 +119,31 @@ spec:
               value: {{ .Values.nats.serverUrl | quote }}
             - name: TEND_NATS_SUBJECT_PREFIX
               value: {{ .Values.nats.subjectPrefix | quote }}
+            {{- if .Values.nats.kvBucket }}
+            - name: TEND_NATS_KV_BUCKET
+              value: {{ .Values.nats.kvBucket | quote }}
+            {{- end }}
+            {{- end }}
+            # ── Throttle wiring (load-bearing rate-limit invariant) ─
+            # When enabled, the operator routes every GitHub HEAD/HEAD-
+            # like API call through the TEND_GITHUB_JOBS stream rather
+            # than dispatching it inline. The pleme-tend-throttle
+            # worker drains the stream at fixed pace.
+            - name: TEND_THROTTLE_ENABLED
+              value: {{ .Values.throttle.enabled | quote }}
+            {{- if .Values.throttle.enabled }}
+            - name: TEND_THROTTLE_STREAM
+              value: {{ .Values.throttle.stream | quote }}
+            - name: TEND_THROTTLE_REFRESH_SUBJECT
+              value: {{ .Values.throttle.refreshSubject | quote }}
+            - name: TEND_THROTTLE_RESULT_SUBJECT
+              value: {{ .Values.throttle.resultSubject | quote }}
+            - name: TEND_THROTTLE_FAILED_SUBJECT
+              value: {{ .Values.throttle.failedSubject | quote }}
+            - name: TEND_THROTTLE_RESULT_TIMEOUT
+              value: {{ .Values.throttle.resultTimeout | quote }}
+            - name: TEND_THROTTLE_DEDUP_KEY_TEMPLATE
+              value: {{ .Values.throttle.dedupKeyTemplate | quote }}
             {{- end }}
             {{- if .Values.github.existingSecret }}
             - name: GITHUB_TOKEN

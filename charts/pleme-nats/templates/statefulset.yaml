@@ -1,0 +1,148 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "pleme-nats.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pleme-nats.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "pleme-nats.fullname" . }}
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "pleme-nats.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "pleme-nats.selectorLabels" . | nindent 8 }}
+      annotations:
+        # Roll the pod when nats.conf changes — config is mounted from
+        # the ConfigMap, but NATS only reads it at startup. Without
+        # this annotation, a values.yaml change to extraConfig wouldn't
+        # take effect until something else triggered a restart.
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "pleme-nats.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      containers:
+        # ── nats-server ───────────────────────────────────────────
+        - name: nats
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["-c", "/etc/nats/nats.conf"]
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          ports:
+            - name: client
+              containerPort: {{ .Values.server.port }}
+              protocol: TCP
+            - name: monitoring
+              containerPort: {{ .Values.server.monitoringPort }}
+              protocol: TCP
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          # NATS exposes /healthz on the monitoring HTTP port. js=true
+          # ensures we only report ready when JetStream is actually
+          # serving (not just the gnatsd protocol).
+          livenessProbe:
+            httpGet:
+              path: /healthz?js-enabled-only=true
+              port: monitoring
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz?js-server-only=true
+              port: monitoring
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 2
+          volumeMounts:
+            - name: config
+              mountPath: /etc/nats
+              readOnly: true
+            {{- if .Values.persistence.enabled }}
+            - name: jetstream
+              mountPath: {{ .Values.persistence.mountPath }}
+            {{- end }}
+
+        # ── prometheus exporter sidecar ───────────────────────────
+        - name: exporter
+          image: "{{ .Values.exporter.image.repository }}:{{ .Values.exporter.image.tag }}"
+          imagePullPolicy: {{ .Values.exporter.image.pullPolicy }}
+          args:
+            - -varz
+            - -jsz=all
+            - -connz
+            - -channelz
+            - -subz
+            - -port={{ .Values.service.ports.metrics }}
+            - "http://localhost:{{ .Values.server.monitoringPort }}"
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.service.ports.metrics }}
+              protocol: TCP
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.exporter.resources | nindent 12 }}
+
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "pleme-nats.fullname" . }}-config
+        {{- if not .Values.persistence.enabled }}
+        - name: jetstream
+          emptyDir:
+            sizeLimit: 1Gi
+        {{- end }}
+
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+  {{- if .Values.persistence.enabled }}
+  # PVC managed by the StatefulSet — survives pod restart.
+  volumeClaimTemplates:
+    - metadata:
+        name: jetstream
+        labels:
+          {{- include "pleme-nats.labels" . | nindent 10 }}
+      spec:
+        accessModes: [ {{ .Values.persistence.accessMode | quote }} ]
+        {{- if .Values.persistence.storageClass }}
+        storageClassName: {{ .Values.persistence.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.persistence.size }}
+  {{- end }}

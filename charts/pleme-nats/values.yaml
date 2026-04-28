@@ -1,0 +1,315 @@
+# pleme-nats — cluster-local NATS JetStream BROKER.
+#
+# This chart deploys ONLY the broker (StatefulSet + service +
+# monitoring). Streams + consumers are declared by the consumer
+# charts that own them, via the pleme-lib.jetstream library template.
+# Cilium-style identity: the broker is shared infrastructure; each
+# consumer owns its own queue config lifecycle.
+#
+# See: pleme-io/theory/RATE-LIMITED-CONSUMERS.md §IV-L2.
+#
+# Topology:
+#
+#   producers ──► JetStream stream ──► [pull consumer w/ rate limit] ──► sinks
+#                  ↑                    ↑
+#                  │                    │
+#                  └─ owned by consumer chart ─┘
+#                     (pleme-lib.jetstream template)
+#
+# Example consumers:
+#   • pleme-tend-throttle declares TEND_GITHUB_JOBS + tend-github-throttle
+#   • pleme-vector       declares VECTOR_DELIVERY     + vector-delivery
+#   • pleme-tend-operator declares FLEET_EVENTS       + fleet-events-vector
+#
+# Single-replica StatefulSet (rio is single-node K3s). Multi-replica
+# requires gnatsd cluster mode + raft for JetStream — deferred to
+# multi-node clusters. File-store JetStream sized to fit ~24h of
+# typical fleet backlog.
+
+# ─── Image ──────────────────────────────────────────────────────────
+image:
+  repository: nats
+  tag: 2.10.20-alpine
+  pullPolicy: IfNotPresent
+
+# Sidecar that exposes JetStream + connz + varz as Prometheus metrics.
+# Lives in the same pod so it can hit the localhost monitoring port
+# (NATS doesn't natively emit Prometheus format).
+exporter:
+  image:
+    repository: natsio/prometheus-nats-exporter
+    tag: "0.15.0"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 50m
+      memory: 64Mi
+
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+# Single replica. JetStream cluster mode (R≥3) only matters once we
+# have multi-node clusters — defer the lift.
+replicaCount: 1
+
+# Pod runs only one StatefulSet across the cluster — KEDA can scale to
+# zero, but anything > 1 needs cluster mode (server.cluster.routes).
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# ─── NATS server config ─────────────────────────────────────────────
+# Rendered into the ConfigMap. JetStream tuned for queue workloads
+# (small messages, high TTL, modest throughput). Adjust max_file_store
+# upward for clusters that absorb shinryu's full delivery firehose.
+server:
+  # Client port (NATS protocol)
+  port: 4222
+  # HTTP monitoring port — used by the exporter sidecar AND by KEDA's
+  # nats-jetstream trigger to read consumer lag.
+  monitoringPort: 8222
+  # Cluster mode is intentionally OFF — single-replica only.
+  clusterEnabled: false
+
+  # Operational tuning. ping_interval kept short so K8s readiness
+  # probe wakes us within 30s of a wedge.
+  pingInterval: "30s"
+  writeDeadline: "10s"
+  maxConnections: 1000
+  maxPayload: "8MB"
+  maxPending: "256MB"
+
+  # Auth — left disabled by default. Production fleet should run
+  # NATS Decentralized Auth (operator/account/user JWTs); add via
+  # extraConfig below when that lands. For now the namespace
+  # NetworkPolicy is the only access control.
+  auth:
+    enabled: false
+
+  # JetStream — the durable queue layer.
+  jetstream:
+    enabled: true
+    # On-disk store. PVC below provisions the volume; this path must
+    # match `persistence.mountPath`.
+    storeDir: /data/jetstream
+    # In-memory store (ephemeral, for low-latency fast-path streams).
+    # Keep small unless you have a clear use case.
+    maxMemoryStore: "256MB"
+    # Disk store ceiling. 4 GiB fits months of tend traffic; bump for
+    # shinryu delivery streams (which see real volume).
+    maxFileStore: "4GB"
+
+  # Free-form extra config appended to nats.conf. Use for auth blocks,
+  # leafnode connections, additional TLS, etc.
+  extraConfig: ""
+
+# ─── Streams + consumers — DECLARED BY CONSUMER CHARTS, NOT HERE ────
+#
+# This chart no longer declares streams/consumers. Each consumer chart
+# (pleme-tend-throttle, pleme-vector, etc.) declares its own via the
+# pleme-lib.jetstream template:
+#
+#   # in consumer chart's values.yaml
+#   jetstream:
+#     enabled: true
+#     serverUrl: "nats://pleme-nats.nats.svc:4222"
+#     streams:
+#       MY_STREAM: { subjects: [...], retention: workqueue, ... }
+#     consumers:
+#       MY_STREAM:
+#         my-consumer: { type: pull, ackPolicy: explicit, ... }
+#
+#   # in consumer chart's templates/jetstream.yaml
+#   {{- include "pleme-lib.jetstream" . }}
+#
+# This decouples broker upgrades from per-consumer schema changes and
+# makes broker chart values minimal (just operational tuning).
+
+# ─── Persistence ────────────────────────────────────────────────────
+# JetStream needs a real PVC. emptyDir works for tests but loses the
+# queue on pod restart — unacceptable for a job broker.
+persistence:
+  enabled: true
+  storageClass: local-path     # rio default
+  size: 5Gi
+  accessMode: ReadWriteOnce
+  mountPath: /data/jetstream
+
+# ─── Resources ──────────────────────────────────────────────────────
+# Sized for rio's modest queue load. NATS itself is featherweight;
+# JetStream's RAM is dominated by the in-memory work-queue index.
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+terminationGracePeriodSeconds: 30
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+
+# ─── Service ────────────────────────────────────────────────────────
+# Headless (clusterIP: None) — clients connect via DNS round-robin to
+# pod IPs. Required for StatefulSet stable identity.
+service:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+    client: 4222
+    monitoring: 8222
+    metrics: 7777
+
+# ─── ServiceMonitor ─────────────────────────────────────────────────
+serviceMonitor:
+  enabled: true
+  interval: 30s
+  scrapeTimeout: 10s
+  port: metrics
+
+# ─── NetworkPolicy ──────────────────────────────────────────────────
+# Default: only consumers in tend-system + monitoring + observability
+# can connect. Producers anywhere in the cluster can publish; lock
+# down with explicit `allowedClientNamespaces` if needed.
+networkPolicy:
+  enabled: true
+  allowDns: true
+  allowPrometheus: true
+  prometheusNamespaces:
+    - monitoring
+  # Namespaces allowed to connect to the client port (4222). Empty
+  # array = allow all (development); list namespaces in production.
+  allowedClientNamespaces:
+    - tend-system
+    - monitoring
+    - observability
+    - flux-system
+
+# ─── PodDisruptionBudget ────────────────────────────────────────────
+# Single-replica means PDB with maxUnavailable=0 would prevent any
+# voluntary disruption (e.g. node drain). Default to PDB minAvailable=0
+# so drains succeed; the queue tolerates a few-second blip.
+pdb:
+  enabled: false
+  minAvailable: 0
+
+# ─── Alerting (Pillar 11 mandatory) ─────────────────────────────────
+# Every workload that emits work emits a typed alert config. The
+# rio cluster's alertmanager-ntfy routes severity=critical to the
+# rio-critical ntfy topic.
+prometheusRules:
+  enabled: true
+  groups:
+    - name: pleme-nats-availability
+      interval: 30s
+      rules:
+        - alert: PlemeNatsDown
+          expr: |
+            up{job=~".*pleme-nats.*"} == 0
+          for: 5m
+          labels:
+            severity: critical
+            component: pleme-nats
+          annotations:
+            summary: pleme-nats scrape target down
+            description: |
+              vmagent has been unable to scrape pleme-nats for 5m.
+              The fleet queue plane is down — tend-throttle, shinryu
+              delivery, and any other consumer is blocked.
+                kubectl get pod -n nats -l app.kubernetes.io/name=pleme-nats
+            runbook_url: https://runbooks.pleme.io/rio/pleme-nats-down
+
+        - alert: PlemeNatsJetstreamStorageHigh
+          # Triggers when on-disk JetStream usage exceeds 80% of the
+          # configured max_file_store. Indicates a stuck consumer
+          # (messages accumulating without being acked).
+          expr: |
+            (jetstream_stream_total_bytes
+              / on() (jetstream_config_max_file_store * 1)) > 0.8
+          for: 30m
+          labels:
+            severity: warning
+            component: pleme-nats
+          annotations:
+            summary: JetStream file storage > 80%
+            description: |
+              JetStream's on-disk store is filling up. Likely cause:
+              a consumer is wedged and messages are accumulating. Check
+              consumer lag via:
+                nats consumer info <stream> <consumer> --server <svc>
+            runbook_url: https://runbooks.pleme.io/rio/pleme-nats-storage
+
+    - name: pleme-nats-consumer-health
+      interval: 30s
+      rules:
+        - alert: PlemeNatsConsumerLagHigh
+          # Consumer lag growing without bound means the worker can't
+          # keep up. For tend-throttle this could be legitimate (we
+          # capped pace at 8 req/min on purpose) — alert is a warning,
+          # not critical.
+          expr: |
+            jetstream_consumer_num_pending{stream_name="TEND_GITHUB_JOBS"} > 5000
+          for: 1h
+          labels:
+            severity: warning
+            component: pleme-nats
+          annotations:
+            summary: tend-throttle consumer lag > 5000 messages
+            description: |
+              The tend-throttle consumer has > 5000 pending messages
+              for over an hour. Either the operator is publishing
+              faster than the throttle can drain, or the throttle
+              worker is wedged.
+            runbook_url: https://runbooks.pleme.io/rio/tend-throttle-lag
+
+        - alert: PlemeNatsRedeliveryRateHigh
+          # Redelivers indicate the consumer is failing to ack —
+          # transient if low rate, persistent if high.
+          expr: |
+            sum(rate(jetstream_consumer_num_redelivered[15m])) > 0.5
+          for: 30m
+          labels:
+            severity: warning
+            component: pleme-nats
+          annotations:
+            summary: NATS consumer redelivery rate > 0.5/s
+            description: |
+              JetStream is redelivering messages at > 0.5/s. The
+              consuming worker is probably erroring out before ack.
+              Inspect the worker's logs for the failure pattern.
+            runbook_url: https://runbooks.pleme.io/rio/pleme-nats-redelivery
+
+# ─── Compliance baseline ────────────────────────────────────────────
+# Default `none` so the chart works on dev clusters; production rio
+# inherits whatever the cluster overlay sets (typically `baseline`).
+compliance:
+  baseline: none
+
+monitoring:
+  enabled: true
+  port: metrics
+  path: /metrics
+  interval: 30s
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

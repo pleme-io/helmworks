@@ -1,0 +1,110 @@
+{{- if .Values.networkPolicy.enabled }}
+{{/*
+Three NetworkPolicies for pleme-nats:
+
+  1. Default deny-all (ingress + egress) — locked down
+  2. Allow DNS egress (every pod needs CoreDNS)
+  3. Allow Prometheus scrape ingress (vmagent → :7777)
+  4. Allow client ingress from explicitly-listed namespaces (4222)
+  5. Allow KEDA scrape ingress (monitoring port :8222)
+
+This matches the pattern in pleme-lib._networkpolicy.tpl but specialized
+for NATS' three-port shape.
+*/}}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "pleme-nats.fullname" . }}-deny-all
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pleme-nats.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "pleme-nats.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+{{- if .Values.networkPolicy.allowDns }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "pleme-nats.fullname" . }}-allow-dns
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pleme-nats.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "pleme-nats.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+{{- end }}
+{{- if .Values.networkPolicy.allowPrometheus }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "pleme-nats.fullname" . }}-allow-scrape
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pleme-nats.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "pleme-nats.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        {{- range .Values.networkPolicy.prometheusNamespaces }}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ . }}
+        {{- end }}
+      ports:
+        - port: metrics
+          protocol: TCP
+        - port: monitoring
+          protocol: TCP
+{{- end }}
+{{- if .Values.networkPolicy.allowedClientNamespaces }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "pleme-nats.fullname" . }}-allow-clients
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pleme-nats.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "pleme-nats.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        {{- range .Values.networkPolicy.allowedClientNamespaces }}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ . }}
+        {{- end }}
+      ports:
+        - port: client
+          protocol: TCP
+{{- end }}
+{{- end }}

@@ -267,28 +267,79 @@ breathability:
       streamName: ""       # e.g. "TEND_DISCOVERY"
       consumerName: ""     # e.g. "discovery-worker"
 
-# ─── NATS coordination (Phase 2 worker pool — pre-staged) ───────────
-# When `nats.enabled` is true, the operator publishes per-cycle
-# events to NATS subjects. Today these are *informational* (Vector
-# sinks them into VictoriaLogs for audit). The forthcoming
-# `tend-discovery` / `tend-planner` / `tend-apply` workers will
-# consume the same subjects to coordinate work across pods.
+# ─── NATS coordination ──────────────────────────────────────────────
+# Two distinct NATS surfaces:
 #
-# Subject convention follows the fleet pattern (rio.events.*):
-#   rio.events.tend.candidate          — one CandidateAdvance
-#   rio.events.tend.plan.wave.<N>      — wave-tagged plan items
-#   rio.events.tend.applied            — successful apply
-#   rio.events.tend.apply.failed       — failed apply (telemetry)
+#   1. INFORMATIONAL events (`rio.events.tend.*`) — published into the
+#      FLEET_EVENTS stream for audit. Vector consumes and ships to
+#      VictoriaLogs. No throttle implications.
+#
+#   2. THROTTLE QUEUE (`tend.github.jobs.refresh.<repo>`) — when
+#      `throttle.enabled` is true, the operator does NOT make HEAD
+#      requests inline. Instead it publishes refresh-job requests to
+#      the TEND_GITHUB_JOBS stream and awaits the result on
+#      `tend.github.jobs.results.<repo>`. The pleme-tend-throttle
+#      worker pulls from the stream at a fixed pace (≤8 req/min),
+#      capping fleet-wide GitHub API usage at ≤10% of the 5000/hr
+#      authenticated quota.
+#
+# This is the LOAD-BEARING decoupling that makes the rate-limit
+# invariant true under all loads: the operator can't exceed the
+# budget even if a bug makes it publish 10000 jobs in a second,
+# because the throttle worker drains at fixed pace.
 nats:
   enabled: false
-  serverUrl: "nats://nats.nats.svc:4222"
-  # Stream/subject prefix. Override per-cluster — `rio.events.tend`
-  # is the convention used by other workloads on rio.
+  serverUrl: "nats://pleme-nats.nats.svc:4222"
+  # Subject prefix for informational events (FLEET_EVENTS stream).
   subjectPrefix: "rio.events.tend"
-  # Future: `nats.kv` configures a JetStream KV bucket for the HEAD
-  # cache when migrating from file-on-PVC (Phase B) to a fleet-wide
-  # cache. Empty string = use the file-backed cache instead.
+  # JetStream KV bucket for fleet-wide HEAD cache (Phase B+: migrating
+  # the per-pod file cache to a shared KV store survives pod
+  # restarts AND lets multiple operators / workstation daemons share
+  # ETag knowledge). Empty string = use the file-backed cache instead.
   kvBucket: ""
+
+# ─── Throttle (THE FLEET-WIDE RATE-LIMIT INVARIANT) ─────────────────
+# When enabled, the operator's GitHub HTTP path is replaced with NATS
+# publish/subscribe:
+#
+#   operator.refresh(repo) ──► publish "tend.github.jobs.refresh.<repo>"
+#                              await   "tend.github.jobs.results.<repo>"
+#
+# Combined with the pleme-tend-throttle chart's worker (single replica,
+# ≤8 req/min pacing, X-RateLimit-Remaining adaptive), this guarantees
+# fleet-wide GitHub usage stays at ≤10% of authenticated quota
+# regardless of how many operators publish how many jobs.
+#
+# Phased rollout:
+#   • throttle.enabled=false (default): operator hits GitHub directly
+#     using its own Phase A/D budget (100 req/hr/pod, ETag, jitter).
+#     Safe today, but each new tend pod adds another budget pool.
+#   • throttle.enabled=true: operator publishes-and-awaits via NATS.
+#     The throttle worker is the single chokepoint. Multiple operator
+#     pods, multiple workstation daemons, all share one budget.
+#
+# Requires: pleme-nats deployed in the cluster (or `nats.serverUrl`
+# pointed at a reachable JetStream broker) AND pleme-tend-throttle
+# deployed (or another worker subscribed to TEND_GITHUB_JOBS).
+throttle:
+  enabled: false
+  # Stream + subject naming. Must match the values in:
+  #   • pleme-nats `streams.TEND_GITHUB_JOBS`
+  #   • pleme-tend-throttle `nats.stream` / `nats.consumer`
+  stream: "TEND_GITHUB_JOBS"
+  refreshSubject: "tend.github.jobs.refresh"
+  resultSubject: "tend.github.jobs.results"
+  failedSubject: "tend.github.jobs.failed"
+  # Max time the operator waits for a result reply before falling back
+  # to local error handling. Sized for worst-case throttle queue
+  # latency: 8 req/min × 200 jobs = 25 min worst case, so 30 min
+  # gives headroom. Smaller values cause spurious "throttle stalled"
+  # status on first cycle when a workspace is freshly added.
+  resultTimeout: "30m"
+  # Operator dedup key for publish — message ID set on the NATS
+  # message so JetStream's duplicate-window collapses repeat publishes
+  # of the same job into one.
+  dedupKeyTemplate: "{repo}:{ref}"
 
 # ─── CRD installation ───────────────────────────────────────────────
 # Toggle to false if installing CRDs out-of-band (e.g. via Flux's

@@ -1,0 +1,40 @@
+{{/*
+nats.conf — rendered into a ConfigMap and mounted at /etc/nats.
+JetStream block enables the durable on-disk queue layer.
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pleme-nats.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pleme-nats.labels" . | nindent 4 }}
+data:
+  nats.conf: |
+    # Server identity
+    server_name: $POD_NAME
+
+    # Network
+    listen: 0.0.0.0:{{ .Values.server.port }}
+    http: 0.0.0.0:{{ .Values.server.monitoringPort }}
+
+    # Operational tuning
+    max_connections: {{ .Values.server.maxConnections }}
+    max_payload: {{ .Values.server.maxPayload }}
+    max_pending: {{ .Values.server.maxPending }}
+    ping_interval: {{ .Values.server.pingInterval }}
+    write_deadline: {{ .Values.server.writeDeadline }}
+
+    {{- if .Values.server.jetstream.enabled }}
+    # JetStream durable queue layer
+    jetstream {
+      store_dir: {{ .Values.server.jetstream.storeDir }}
+      max_memory_store: {{ .Values.server.jetstream.maxMemoryStore }}
+      max_file_store: {{ .Values.server.jetstream.maxFileStore }}
+    }
+    {{- end }}
+
+    {{- with .Values.server.extraConfig }}
+    # Extra config (auth, leafnodes, TLS, etc.)
+    {{ . | nindent 4 }}
+    {{- end }}

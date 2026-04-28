@@ -1,0 +1,192 @@
+# pleme-tend-throttle — the canonical reference instance of the
+# rate-limited-consumer pattern. Every concern is delegated to a
+# pleme-lib library template; this chart's job is just to set values.
+#
+# See: pleme-io/theory/RATE-LIMITED-CONSUMERS.md §IV-L4.
+#
+# Compounding payoff:
+#
+#   This chart   =      ~1 line per template + values.yaml
+#   Future twins = same shape, different `queueWorker.upstream.kind`
+#                  + different `queueWorker.nats.stream`
+#                  + different `auth.existingSecret`
+#
+# Topology:
+#
+#   tend-operator (publisher)
+#         │ publishes "tend.github.jobs.refresh.<repo>"
+#         ▼
+#   ┌──────────────────────────────────────────┐
+#   │ pleme-nats JetStream                     │
+#   │ stream: TEND_GITHUB_JOBS                 │ ← declared by THIS chart
+#   │ consumer: tend-github-throttle           │   via pleme-lib.jetstream
+#   │   (pull, MaxAckPending=1)                │
+#   └──────────────────────────────────────────┘
+#         │ pulls one job at a time
+#         ▼
+#   pleme-tend-throttle worker (this chart, samba-based)
+#         │  • pacing: rateLimit.requestsPerMinute (default 8)
+#         │  • adaptive: halve / quarter / eighth on pressure
+#         │  • ETag-aware: 304 = free
+#         ▼
+#   GitHub HTTP API
+#         │ result published to "tend.github.jobs.results.<repo>"
+#         ▼
+#   tend-operator (subscriber, applies result)
+
+# ─── Image ──────────────────────────────────────────────────────────
+# Reuses the tend binary; throttle worker runs via `tend throttle`.
+image:
+  repository: ghcr.io/pleme-io/tend
+  tag: amd64-latest
+  pullPolicy: IfNotPresent
+
+imagePullSecrets:
+  - name: ghcr-credentials
+
+nameOverride: ""
+fullnameOverride: ""
+
+# Strict singleton enforced inside pleme-lib.rate-limit-worker.deployment
+# template — values.yaml replicaCount has no effect there.
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# ─── Worker config (consumed by pleme-lib.rate-limit-worker.*) ──────
+# This is THE values block the rate-limit-worker library template
+# reads from. Identical shape across all rate-limited consumers.
+queueWorker:
+  enabled: true
+
+  image:
+    repository: ghcr.io/pleme-io/tend
+    tag: amd64-latest
+    pullPolicy: IfNotPresent
+
+  # Subcommand on the tend binary that runs the worker mode.
+  # Implementation lands in the tend repo as `tend throttle`.
+  subcommand: "throttle"
+  logLevel: "info,tend=debug,samba=debug"
+  healthPort: 8080
+
+  upstream:
+    kind: github
+    budgetPerHour: 5000        # GitHub authenticated API
+    budgetPctMax: 10           # the headline 10% knob
+
+  rateLimit:
+    requestsPerMinute: 8       # ★ load-bearing — 8/min × 60 = 480/hr ≈ 9.6%
+    pressureWarnPct: 50
+    pressureCriticalPct: 25
+    jitterPct: 0.30
+    burst: 1
+    honorEtag: true
+
+  nats:
+    serverUrl: "nats://pleme-nats.nats.svc:4222"
+    stream: "TEND_GITHUB_JOBS"
+    consumer: "tend-github-throttle"
+    resultSubject: "tend.github.jobs.results"
+    failedSubject: "tend.github.jobs.failed"
+    fetchTimeout: "5s"
+
+  auth:
+    existingSecret: "github-token"
+    secretKey: "token"
+    envName: "GITHUB_TOKEN"
+
+  service:
+    metricsPort: 9090
+
+  serviceMonitor:
+    interval: "30s"
+    scrapeTimeout: "10s"
+
+  networkPolicy:
+    natsNamespace: nats
+    allowUpstreamHttps: true
+    prometheusNamespaces:
+      - monitoring
+
+# ─── JetStream declaration (consumed by pleme-lib.jetstream) ────────
+# This chart owns its stream. Removing the chart removes the stream.
+# The broker (pleme-nats) is unaware of which streams exist.
+jetstream:
+  enabled: true
+  serverUrl: "nats://pleme-nats.nats.svc:4222"
+
+  streams:
+    TEND_GITHUB_JOBS:
+      subjects:
+        - "tend.github.jobs.>"
+      # WorkQueue: each message → exactly one consumer → removed.
+      retention: workqueue
+      storage: file
+      replicas: 1
+      maxMsgs: 10000
+      maxBytes: "100MB"
+      maxAge: "24h"
+      duplicateWindow: "10m"
+      discard: old
+
+  consumers:
+    TEND_GITHUB_JOBS:
+      tend-github-throttle:
+        # Pull-based — broker enforces MaxAckPending. Push would
+        # defeat the throttle.
+        type: pull
+        ackPolicy: explicit
+        ackWait: "60s"
+        # ★★ The single load-bearing knob at the broker layer. With
+        # pull + MaxAckPending=1, the broker only releases the next
+        # message after the previous one is acked.
+        maxAckPending: 1
+        maxDeliver: 5
+        filterSubject: "tend.github.jobs.refresh.>"
+        replayPolicy: instant
+
+# Init Job image — template default is fine for nearly all consumers.
+jetstreamInit:
+  image:
+    repository: natsio/nats-box
+    tag: "0.14.5"
+  serverWaitSeconds: 120
+
+# ─── Standard pleme-lib values (referenced by templates) ────────────
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
+terminationGracePeriodSeconds: 30
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+
+# Compliance baseline — production overlays inherit cluster-level.
+compliance:
+  baseline: none
+
+monitoring:
+  enabled: true
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
