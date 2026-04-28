@@ -81,6 +81,28 @@ that takes an explicit ConfigMap name as a dict arg.
 */}}
 
 {{/*
+Convert a Helm-friendly byte size string ("100MB", "5GB", "512KB",
+"-1", or a bare integer) into the int64 byte count JetStream expects.
+"MB"/"GB"/"KB" mean MiB/GiB/KiB (binary, 1024-based) — that's what
+NATS uses when reporting stream stats, so consumer-side declarations
+should match. -1 = unlimited.
+*/}}
+{{- define "pleme-lib.bytes" -}}
+{{- $s := . | toString -}}
+{{- if eq $s "-1" -}}
+{{- -1 -}}
+{{- else if hasSuffix "GB" $s -}}
+{{ mul (int64 (trimSuffix "GB" $s)) 1073741824 }}
+{{- else if hasSuffix "MB" $s -}}
+{{ mul (int64 (trimSuffix "MB" $s)) 1048576 }}
+{{- else if hasSuffix "KB" $s -}}
+{{ mul (int64 (trimSuffix "KB" $s)) 1024 }}
+{{- else -}}
+{{ int64 $s }}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Convert a Go-style duration string ("30s", "10m", "24h", "100ms")
 into the int64 nanoseconds value JetStream's REST API expects. NATS
 CLI accepts the string form on `nats stream add --config <file>`,
@@ -137,8 +159,11 @@ data:
       "retention": {{ $cfg.retention | quote }},
       "storage": {{ $cfg.storage | quote }},
       "num_replicas": {{ default 1 $cfg.replicas }},
+      "max_consumers": -1,
       "max_msgs": {{ default -1 $cfg.maxMsgs }},
-      "max_bytes": {{ default -1 (int64 (default -1 ($cfg.maxBytes | toString | replace "MB" "000000" | replace "GB" "000000000" | replace "KB" "000"))) }},
+      "max_msgs_per_subject": -1,
+      "max_bytes": {{ include "pleme-lib.bytes" (default "-1" $cfg.maxBytes) }},
+      "max_msg_size": -1,
       "max_age": {{ include "pleme-lib.duration-ns" (default "0s" $cfg.maxAge) }},
       "duplicate_window": {{ include "pleme-lib.duration-ns" (default "0s" $cfg.duplicateWindow) }},
       "discard": {{ default "old" $cfg.discard | quote }}
@@ -264,8 +289,12 @@ spec:
                 [ -f "$f" ] || continue
                 name=$(basename "$f" .json | sed 's/^stream-//')
                 echo "  → stream: $name"
+                # `--force` skips interactive confirmation when the
+                # stream already exists with a different configuration.
+                # Idempotent upsert: try add first, fall through to
+                # update if it already exists.
                 nats --server "${NATS_URL}" stream add --config "$f" "$name" 2>/dev/null \
-                  || nats --server "${NATS_URL}" stream update --config "$f" "$name"
+                  || nats --server "${NATS_URL}" stream update --force --config "$f" "$name"
               done
               echo "Declaring consumers..."
               for f in /configs/consumer-*.json; do
@@ -275,7 +304,7 @@ spec:
                 consumer=$(echo "$base" | cut -d- -f2-)
                 echo "  → consumer: $stream/$consumer"
                 nats --server "${NATS_URL}" consumer add --config "$f" "$stream" "$consumer" 2>/dev/null \
-                  || nats --server "${NATS_URL}" consumer update --config "$f" "$stream" "$consumer"
+                  || nats --server "${NATS_URL}" consumer update --force --config "$f" "$stream" "$consumer"
               done
               echo "Done."
           volumeMounts:
