@@ -14,20 +14,29 @@ image:
   tag: ""
 
 # ---------- ExternalSecret seeding the GitHub App credentials ----------
-# A Kubernetes Secret named `arc-github-app-secret` is created from the secret
-# at `secrets.arc-github-app-secret.dataFrom[0].extract.key` in the configured
-# ClusterSecretStore. The secret must contain three keys:
-#   github_app_id
-#   github_app_installation_id
-#   github_app_private_key
+# When ESO + a ClusterSecretStore is the source of truth for the GitHub App
+# credentials, populate `externalSecret.secrets` with one entry per Secret to
+# materialize. The chart's pleme-lib.externalSecret helper renders an
+# ExternalSecret per entry.
+#
+# When the K8s Secret is created out-of-band (SOPS-decrypted YAML in FluxCD,
+# kubernetes_secret_v1 in TF, kubectl create secret, sealed-secrets, etc.),
+# leave `secrets: {}` (the default) — no ExternalSecret will render and the
+# chart will consume whatever Secret already exists at the name the
+# gha-runner-scale-set-controller env vars reference (default `arc-github-app-secret`).
+#
+# Example (akeyless ESO mode):
+#   externalSecret:
+#     clusterSecretStoreName: akeyless-cluster-secret-store
+#     secrets:
+#       arc-github-app-secret:
+#         dataFrom:
+#           - extract:
+#               key: /path/in/akeyless/to/github-app-secret
 externalSecret:
   clusterSecretStoreName: cluster-secret-store
   refreshInterval: 30m
-  secrets:
-    arc-github-app-secret:
-      dataFrom:
-        - extract:
-            key: ""                 # Caller fills: path to the GitHub App credentials in your secret backend
+  secrets: {}
 
 # ---------- Attestation framework (sekiban) ----------
 attestation:

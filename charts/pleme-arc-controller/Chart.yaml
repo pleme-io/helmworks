@@ -2,12 +2,12 @@ apiVersion: v2
 name: pleme-arc-controller
 description: GitHub Actions Runner Controller (ARC) controller — wraps upstream chart with an ExternalSecret for GitHub App credentials seeded from the cluster's secret store
 type: application
-version: 0.1.1
+version: 0.1.2
 appVersion: "0.12.1"
 
 dependencies:
   - name: pleme-lib
-    version: "~0.6.1"
+    version: ">=0.6.1, <0.11.0"
     repository: "file://../pleme-lib"
   - name: gha-runner-scale-set-controller
     version: 0.12.1
