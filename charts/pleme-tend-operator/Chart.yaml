@@ -2,8 +2,8 @@ apiVersion: v2
 name: pleme-tend-operator
 description: Fleet update controller — owns FlakeUpdatePolicy / FlakeUpdateProposal / FlakeUpdateRollout CRDs and reconciles fleet-wide pinned-version DAGs derived from flake.lock
 type: application
-version: 0.4.0
-appVersion: "0.4.0"
+version: 0.4.1
+appVersion: "0.4.1"
 
 dependencies:
   - name: pleme-lib
@@ -11,7 +11,7 @@ dependencies:
     # + rate-limit-worker.* — even though this chart doesn't consume
     # them yet, the version pin must match across the fleet so chart
     # publish doesn't fail dep resolution against the broker chart).
-    version: "~0.11.0"
+    version: "~0.11.1"
     repository: "file://../pleme-lib"
 
 keywords:

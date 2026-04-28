@@ -80,6 +80,31 @@ Jobs), use the lower-level `pleme-lib.jetstream-init-job` template
 that takes an explicit ConfigMap name as a dict arg.
 */}}
 
+{{/*
+Convert a Go-style duration string ("30s", "10m", "24h", "100ms")
+into the int64 nanoseconds value JetStream's REST API expects. NATS
+CLI accepts the string form on `nats stream add --config <file>`,
+but the JSON it writes natively is nanoseconds, and recent CLI
+versions reject the string form on `update` paths. Emitting ns
+makes the config robust across CLI versions.
+*/}}
+{{- define "pleme-lib.duration-ns" -}}
+{{- $s := . | toString -}}
+{{- if hasSuffix "ms" $s -}}
+{{ mul (int64 (trimSuffix "ms" $s)) 1000000 }}
+{{- else if hasSuffix "s" $s -}}
+{{ mul (int64 (trimSuffix "s" $s)) 1000000000 }}
+{{- else if hasSuffix "m" $s -}}
+{{ mul (int64 (trimSuffix "m" $s)) 60000000000 }}
+{{- else if hasSuffix "h" $s -}}
+{{ mul (int64 (trimSuffix "h" $s)) 3600000000000 }}
+{{- else if hasSuffix "d" $s -}}
+{{ mul (int64 (trimSuffix "d" $s)) 86400000000000 }}
+{{- else -}}
+{{ mul (int64 $s) 1000000000 }}
+{{- end -}}
+{{- end -}}
+
 {{- define "pleme-lib.jetstream" -}}
 {{- if (.Values.jetstream).enabled -}}
 {{- $hasContent := false -}}
@@ -113,9 +138,9 @@ data:
       "storage": {{ $cfg.storage | quote }},
       "num_replicas": {{ default 1 $cfg.replicas }},
       "max_msgs": {{ default -1 $cfg.maxMsgs }},
-      "max_bytes": {{ default "-1" $cfg.maxBytes | quote }},
-      "max_age": {{ default "0s" $cfg.maxAge | quote }},
-      "duplicate_window": {{ default "0s" $cfg.duplicateWindow | quote }},
+      "max_bytes": {{ default -1 (int64 (default -1 ($cfg.maxBytes | toString | replace "MB" "000000" | replace "GB" "000000000" | replace "KB" "000"))) }},
+      "max_age": {{ include "pleme-lib.duration-ns" (default "0s" $cfg.maxAge) }},
+      "duplicate_window": {{ include "pleme-lib.duration-ns" (default "0s" $cfg.duplicateWindow) }},
       "discard": {{ default "old" $cfg.discard | quote }}
     }
   {{- end }}
@@ -127,7 +152,7 @@ data:
       "config": {
         "durable_name": {{ $cname | quote }},
         "ack_policy": {{ default "explicit" $cfg.ackPolicy | quote }},
-        "ack_wait": {{ default "30s" $cfg.ackWait | quote }},
+        "ack_wait": {{ include "pleme-lib.duration-ns" (default "30s" $cfg.ackWait) }},
         "max_ack_pending": {{ default 1 $cfg.maxAckPending }},
         "max_deliver": {{ default 5 $cfg.maxDeliver }},
         "filter_subject": {{ default "" $cfg.filterSubject | quote }},
