@@ -2,16 +2,18 @@ apiVersion: v2
 name: pangea-operator
 description: >-
   Pangea infrastructure operator — manages 9 CRDs for infrastructure lifecycle,
-  AMI pipeline, compliance testing, and dynamic synthesizer formats. v0.4.0
-  fully straps observability: dedicated metrics endpoint on 9090, six new
-  Prometheus metrics (policy decisions, settled gauge, drift cycles, stuck
-  resources, settling failures, drift detail by action+risk), four new
-  PrometheusRules covering not-settled / escalation / refuse-firing /
-  high-risk-pending, and a Grafana dashboard ConfigMap loaded automatically
-  by the kube-prometheus-stack sidecar. Builds on v0.3.x policy + settling.
+  AMI pipeline, compliance testing, and dynamic synthesizer formats. v0.5.0
+  enables canonical Pangea workspace patterns through gitRepository sources:
+  the compiler sidecar accepts a template_path field and load()s the file
+  from disk with CWD set to the workspace dir, so __dir__ + require_relative
+  + __dir__-relative File.read all resolve to the cloned workspace's
+  siblings. Operator passes the path instead of reading the file's contents
+  into a string. Compiler sidecar gains the workspaces emptyDir mount it
+  was missing in 0.4.0. Inline + configMapRef sources continue to use the
+  legacy eval(source) path unchanged. Builds on v0.4.0 observability strap.
 type: application
-version: 0.4.0
-appVersion: "0.4.0"
+version: 0.5.0
+appVersion: "0.5.0"
 
 dependencies:
   - name: pleme-lib
