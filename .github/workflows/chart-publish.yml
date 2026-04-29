@@ -84,8 +84,13 @@ jobs:
           version: v3.18.4
 
       - name: Log in to GHCR
+        # Prefer the org-level GHCR_TOKEN (classic PAT with write:packages
+        # on pleme-io). Falls back to the workflow's GITHUB_TOKEN — works
+        # only for packages this repo originally created.
+        env:
+          TOKEN: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io \
+          echo "$TOKEN" | helm registry login ghcr.io \
             --username "${{ github.actor }}" --password-stdin
 
       - name: Lint, package, push ${{ matrix.chart }}
