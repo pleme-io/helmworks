@@ -17,5 +17,7 @@ appVersion: "0.5.0"
 
 dependencies:
   - name: pleme-lib
-    version: "~0.10.0"
+    # Loose constraint — pleme-lib bumps minor versions frequently and
+    # the operator chart only depends on its template stability surface.
+    version: ">=0.10.0,<1.0.0"
     repository: "file://../pleme-lib"
