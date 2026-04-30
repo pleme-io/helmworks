@@ -121,14 +121,14 @@ spec:
             name: {{ include "pleme-lib.fullname" . }}-config
         - name: secrets
           projected:
-            # 0400 — garage refuses to start with rpc-secret looser than
-            # 0600 (it crashes with "File is world-readable! mode: 0100644,
-            # expected 0600"). K8s secret volumes default to 0644 which
-            # is too loose. Project + chmod via defaultMode at the
-            # volume layer so the file lands at /etc/garage/secrets/*
-            # already at 0400 (read-only owner only — even tighter than
-            # 0600 and equally accepted by garage).
-            defaultMode: 0400
+            # 0600 — garage refuses anything looser ("File is
+            # world-readable! mode 0100644, expected 0600"). 0400
+            # would be tighter but K8s applies the pod's fsGroup as a
+            # group-read addition, so the file actually lands at 0440
+            # which still trips garage's check. 0600 (read-write
+            # owner only, no group) sidesteps the fsGroup overlay
+            # since group bits are explicitly cleared.
+            defaultMode: 0600
             sources:
               - secret:
                   name: {{ required "garage.rpc.secretName is required" .Values.garage.rpc.secretName }}
