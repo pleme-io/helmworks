@@ -87,17 +87,23 @@ spec:
           {{- end }}
           securityContext:
             {{- include "pleme-lib.containerSecurityContext" . | nindent 12 }}
+          # TCP-socket probes on the S3 port — always 200 once garage
+          # is listening. The HTTP /health endpoint requires a
+          # configured cluster layout (one-time bootstrap via
+          # `garage layout assign + apply`); using it as a liveness
+          # probe causes a kill-loop on a fresh single-node deploy
+          # because the cluster layout is None until manually set.
+          # Once layout is bootstrapped, callers can flip the chart
+          # values back to httpGet on /health for richer signal.
           livenessProbe:
-            httpGet:
-              path: {{ .Values.health.path | default "/health" }}
-              port: {{ .Values.health.port | default "admin" }}
+            tcpSocket:
+              port: s3
             initialDelaySeconds: {{ .Values.health.livenessInitialDelay | default 30 }}
             periodSeconds: {{ .Values.health.livenessPeriod | default 30 }}
             failureThreshold: {{ .Values.health.livenessFailureThreshold | default 3 }}
           readinessProbe:
-            httpGet:
-              path: {{ .Values.health.path | default "/health" }}
-              port: {{ .Values.health.port | default "admin" }}
+            tcpSocket:
+              port: s3
             initialDelaySeconds: {{ .Values.health.readinessInitialDelay | default 10 }}
             periodSeconds: {{ .Values.health.readinessPeriod | default 10 }}
             failureThreshold: {{ .Values.health.readinessFailureThreshold | default 3 }}
