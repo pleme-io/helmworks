@@ -52,6 +52,17 @@ spec:
               value: "$(POD_IP):{{ .Values.garage.rpc.publicPort }}"
             - name: GARAGE_CONFIG_FILE
               value: /etc/garage/garage.toml
+            # Tell garage to accept secret files with K8s's fsGroup-
+            # enriched 0640 mode. The container would otherwise refuse
+            # to start ("File ... world-readable! mode 0100640,
+            # expected 0600") even though the file is only readable
+            # by uid in the fsGroup, not by `world` in the unix
+            # sense — garage's check is conservative. The Secret
+            # itself remains scoped to this Pod's ServiceAccount via
+            # K8s RBAC; loosening the file mode bits doesn't widen
+            # the actual access surface.
+            - name: GARAGE_ALLOW_WORLD_READABLE_SECRETS
+              value: "true"
             {{- with .Values.env }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -121,14 +132,14 @@ spec:
             name: {{ include "pleme-lib.fullname" . }}-config
         - name: secrets
           projected:
-            # 0600 — garage refuses anything looser ("File is
-            # world-readable! mode 0100644, expected 0600"). 0400
-            # would be tighter but K8s applies the pod's fsGroup as a
-            # group-read addition, so the file actually lands at 0440
-            # which still trips garage's check. 0600 (read-write
-            # owner only, no group) sidesteps the fsGroup overlay
-            # since group bits are explicitly cleared.
-            defaultMode: 0600
+            # K8s applies fsGroup as group-owner + g+r on projected
+            # volumes — defaultMode 0600 + fsGroup 1000 lands at 0640
+            # on disk. garage's strict 0600-only check still trips,
+            # so we set GARAGE_ALLOW_WORLD_READABLE_SECRETS=true on
+            # the container instead (see env above). The Secret's
+            # actual access scope is still fenced by K8s RBAC; loose
+            # mode bits don't widen anything.
+            defaultMode: 0640
             sources:
               - secret:
                   name: {{ required "garage.rpc.secretName is required" .Values.garage.rpc.secretName }}
