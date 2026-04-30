@@ -38,7 +38,11 @@ garage:
     publicPort: 3901
     # The shared cluster secret. Source: SOPS Secret with key `rpc-secret`
     # (32 hex chars). Generate: openssl rand -hex 32
-    secretName: ""
+    # Default secret name. Override per-deployment if a different
+    # SOPS-managed Secret carries the rpc-secret. Leaving as the
+    # default lets `helm template` validate without requiring a
+    # consumer-side override.
+    secretName: garage-credentials
     secretKey: rpc-secret
 
   # S3 API — what your Drive front-end (oCIS / Nextcloud / rclone) hits.
@@ -60,10 +64,10 @@ garage:
     bindAddr: "[::]:3903"
     # Source: SOPS Secret with key `admin-token` (random string).
     # Generate: openssl rand -base64 32
-    adminTokenSecretName: ""
+    adminTokenSecretName: garage-credentials
     adminTokenSecretKey: admin-token
     # Token used to authenticate metrics scrapes — same secret usually.
-    metricsTokenSecretName: ""
+    metricsTokenSecretName: garage-credentials
     metricsTokenSecretKey: metrics-token
 
   # Replication factor (Garage v2+ uses an integer). 1 = no replication
