@@ -123,6 +123,7 @@
             { name = "pangea-operator"; chartDir = ./charts/pangea-operator; }
             { name = "pleme-garage"; chartDir = ./charts/pleme-garage; }
             { name = "pleme-ocis"; chartDir = ./charts/pleme-ocis; }
+            { name = "lareira-authentik"; chartDir = ./charts/lareira-authentik; }
           ];
 
           # Use substrate's mkHelmAllApps for all chart lifecycle apps

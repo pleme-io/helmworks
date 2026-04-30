@@ -43,8 +43,11 @@ ocis:
   # Single-tenant — no LDAP/external IDP required. The admin user below
   # is created on first boot.
   admin:
-    # Source: SOPS Secret with key `admin-password`
-    passwordSecretName: ""
+    # Source: SOPS Secret with key `admin-password`. Default value is a
+    # placeholder so `helm template` (chart-publish CI) renders without
+    # overrides; consumers MUST supply a real Secret name in their
+    # HelmRelease values.
+    passwordSecretName: ocis-credentials
     passwordSecretKey: admin-password
     # Username (UPN). Email-shaped works too.
     userName: admin
@@ -53,7 +56,9 @@ ocis:
   # The token signing key + Konnect encryption secret. Both 32+ random
   # bytes. Generate: openssl rand -hex 32
   idp:
-    secretName: ""
+    # Default placeholder so `helm template` works without overrides;
+    # consumers override in their HelmRelease values.
+    secretName: ocis-credentials
     jwtSecretKey: jwt-secret
     konnectSigningKey: konnect-signing-key
     konnectEncryptionSecret: konnect-encryption-secret
@@ -77,8 +82,9 @@ ocis:
       region: "garage"
       bucket: "ocis-data"
       forcePathStyle: true       # Garage requires path-style addressing
-      # SOPS Secret holding the bucket access keys
-      credentialsSecretName: ""
+      # SOPS Secret holding the bucket access keys. Default placeholder
+      # so chart templates without overrides; consumer must override.
+      credentialsSecretName: ocis-credentials
       accessKeyKey: access-key
       secretKeyKey: secret-key
 
