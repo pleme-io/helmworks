@@ -2,7 +2,7 @@ apiVersion: v2
 name: pleme-garage
 description: Garage S3-compatible object store — geo-distributed, Rust, AGPL.
 type: application
-version: 0.1.1
+version: 0.1.2
 appVersion: "v2.1.0"
 
 dependencies:
