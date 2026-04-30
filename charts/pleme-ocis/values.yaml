@@ -6,7 +6,11 @@
 
 image:
   repository: owncloud/ocis
-  tag: "7.4.0"
+  # 7.4.0 was speculative — owncloud/ocis on Docker Hub jumped 7.3.x → 8.0.x
+  # without ever publishing 7.4.0. Pinning the latest published 7.x so
+  # consumers don't ImagePullBackOff. Bump to 8.x deliberately when you
+  # want to validate the major upgrade path.
+  tag: "7.3.2"
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
