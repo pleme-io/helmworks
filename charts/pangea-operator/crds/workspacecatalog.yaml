@@ -37,27 +37,34 @@ spec:
             properties:
               policy:
                 default: {}
-                description: Workspace-level policy — applied to every template in the workspace unless overridden at template or resource level (cascade with safety precedence).
+                description: "Workspace-level policy \u2014 applied to every template\
+                  \ in the workspace unless overridden at template or resource level\
+                  \ (cascade with safety precedence)."
                 properties:
                   approvalRouting:
                     description: Approval routing.
                     nullable: true
                     properties:
                       githubIssueTemplate:
-                        description: GitHub issue template name. Operator opens an issue in the workspace's source repo.
+                        description: GitHub issue template name. Operator opens an
+                          issue in the workspace's source repo.
                         nullable: true
                         type: string
                       ntfyTopic:
-                        description: ntfy topic name (homelab convention — see pleme-io alertmanager-ntfy module).
+                        description: "ntfy topic name (homelab convention \u2014 see\
+                          \ pleme-io alertmanager-ntfy module)."
                         nullable: true
                         type: string
                       slackChannel:
-                        description: Slack channel (SaaS convention — Datadog/Splunk-paired clusters).
+                        description: "Slack channel (SaaS convention \u2014 Datadog/Splunk-paired\
+                          \ clusters)."
                         nullable: true
                         type: string
                     type: object
                   driftReaction:
-                    description: Default drift reaction for every template under this workspace (overrides the gem default; can be overridden by a template-level policy).
+                    description: Default drift reaction for every template under this
+                      workspace (overrides the gem default; can be overridden by a
+                      template-level policy).
                     enum:
                     - autoApply
                     - requireApproval
@@ -66,22 +73,25 @@ spec:
                     nullable: true
                     type: string
                   reconcileInterval:
-                    description: How often the operator runs `tofu plan` to detect drift.
+                    description: How often the operator runs `tofu plan` to detect
+                      drift.
                     nullable: true
                     type: string
                   settlingPolicy:
-                    description: Settling policy — see `architecture_gem.rs`.
+                    description: "Settling policy \u2014 see `architecture_gem.rs`."
                     nullable: true
                     properties:
                       maxConsecutiveDriftCycles:
                         default: 4
-                        description: After this many consecutive drift cycles, take `onExhaustion` action.
+                        description: After this many consecutive drift cycles, take
+                          `onExhaustion` action.
                         format: uint32
                         minimum: 0.0
                         type: integer
                       onExhaustion:
                         default: fail
-                        description: What to do when `maxConsecutiveDriftCycles` is hit.
+                        description: What to do when `maxConsecutiveDriftCycles` is
+                          hit.
                         enum:
                         - fail
                         - alert
@@ -91,7 +101,10 @@ spec:
                 type: object
               requiredGems:
                 default: []
-                description: Architecture gems this workspace's templates need. Operator refuses to advance any template under this catalog past `Verified` until every listed gem has phase `Loaded` (every expected class loaded + every fixture passed).
+                description: Architecture gems this workspace's templates need. Operator
+                  refuses to advance any template under this catalog past `Verified`
+                  until every listed gem has phase `Loaded` (every expected class
+                  loaded + every fixture passed).
                 items:
                   type: string
                 type: array
@@ -99,7 +112,8 @@ spec:
                 description: Where the workspace lives.
                 properties:
                   gitRepository:
-                    description: Git repository (clone-and-watch). M3 supports gitRepository only.
+                    description: Git repository (clone-and-watch). M3 supports gitRepository
+                      only.
                     nullable: true
                     properties:
                       path:
@@ -117,7 +131,8 @@ spec:
                             description: Name of the Secret.
                             type: string
                           namespace:
-                            description: Namespace of the Secret (defaults to same namespace as the resource).
+                            description: Namespace of the Secret (defaults to same
+                              namespace as the resource).
                             nullable: true
                             type: string
                         required:
@@ -131,7 +146,8 @@ spec:
                     - url
                     type: object
                   path:
-                    description: 'Subdirectory within the repo containing the workspace. Example: `workspaces/cloudflare-pleme`.'
+                    description: 'Subdirectory within the repo containing the workspace.
+                      Example: `workspaces/cloudflare-pleme`.'
                     nullable: true
                     type: string
                 type: object
@@ -165,7 +181,8 @@ spec:
                       description: '`True`, `False`, `Unknown`.'
                       type: string
                     type:
-                      description: Condition type — `Loaded`, `SmokeTested`, `Ready`.
+                      description: "Condition type \u2014 `Loaded`, `SmokeTested`,\
+                        \ `Ready`."
                       type: string
                   required:
                   - lastTransitionTime
@@ -182,13 +199,15 @@ spec:
                 type: string
               templateCount:
                 default: 0
-                description: Number of templates the operator has reconciled under this catalog.
+                description: Number of templates the operator has reconciled under
+                  this catalog.
                 format: uint32
                 minimum: 0.0
                 type: integer
               verified:
                 default: false
-                description: Whether every required gem is `Loaded` AND the workspace itself is reachable.
+                description: Whether every required gem is `Loaded` AND the workspace
+                  itself is reachable.
                 type: boolean
             type: object
         required:
