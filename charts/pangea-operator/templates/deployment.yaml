@@ -7,6 +7,8 @@ embedded mode and drop the compiler sidecar from the pod spec.
 */}}
 {{- $useEmbedded := .Values.useEmbeddedRuby | default false -}}
 {{- $compilerBackend := ternary "embedded" "http" $useEmbedded -}}
+{{- $gemAuthSecretName := (((.Values.gemAuth).tokenSecret).name | default "") -}}
+{{- $gemAuthSecretKey := (((.Values.gemAuth).tokenSecret).key | default "token") -}}
 {{- $executorEnv := list
   (dict "name" "TOFU_BINARY" "value" (.Values.executor.tofu.binary | default "/usr/local/bin/tofu"))
   (dict "name" "PANGEA_TIMEOUT" "value" (printf "%v" (.Values.executor.tofu.timeout | default 600)))
@@ -19,6 +21,11 @@ embedded mode and drop the compiler sidecar from the pod spec.
 -}}
 {{- if .Values.executor.verbose }}
 {{- $executorEnv = append $executorEnv (dict "name" "PANGEA_VERBOSE" "value" "true") }}
+{{- end }}
+{{- if and $useEmbedded (ne $gemAuthSecretName "") }}
+{{- $executorEnv = append $executorEnv (dict
+    "name" "PANGEA_GEM_AUTH_TOKEN"
+    "valueFrom" (dict "secretKeyRef" (dict "name" $gemAuthSecretName "key" $gemAuthSecretKey))) }}
 {{- end }}
 {{- $mergedValues := deepCopy .Values }}
 {{- $_ := set $mergedValues "env" (concat $executorEnv (.Values.env | default list)) }}

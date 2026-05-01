@@ -209,6 +209,20 @@ sidecars:
 # semantics are confirmed.
 gemCacheDir: /var/pangea/gems
 
+# -- Optional Secret carrying a GitHub auth token (PAT or App
+# installation token) used by the embedded operator's gem cache to
+# clone private ArchitectureGem source repos. When set, the operator
+# rewrites `https://github.com/...` clone URLs to
+# `https://x-access-token:$TOKEN@github.com/...`. Required for any
+# CR whose source.gitRepository points at a private pleme-io repo.
+# Leave unset (default) for public-only deployments.
+#
+# Secret must contain a key named `token` (override via `tokenKey`).
+gemAuth:
+  tokenSecret:
+    name: ""
+    key: token
+
 # -- Resource requests and limits
 resources:
   requests:
