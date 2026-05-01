@@ -2,18 +2,20 @@ apiVersion: v2
 name: pangea-operator
 description: >-
   Pangea infrastructure operator — manages 9 CRDs for infrastructure lifecycle,
-  AMI pipeline, compliance testing, and dynamic synthesizer formats. v0.5.0
-  enables canonical Pangea workspace patterns through gitRepository sources:
-  the compiler sidecar accepts a template_path field and load()s the file
-  from disk with CWD set to the workspace dir, so __dir__ + require_relative
-  + __dir__-relative File.read all resolve to the cloned workspace's
-  siblings. Operator passes the path instead of reading the file's contents
-  into a string. Compiler sidecar gains the workspaces emptyDir mount it
-  was missing in 0.4.0. Inline + configMapRef sources continue to use the
-  legacy eval(source) path unchanged. Builds on v0.4.0 observability strap.
+  AMI pipeline, compliance testing, and dynamic synthesizer formats.
+  v0.7.3 ships the InfrastructureTemplate.status.lastCycle typed
+  receipt: per-resource ResourceOutcome entries (Matched / Updated /
+  Created / Destroyed / Imported / Drifted / Failed) plus aggregate
+  CycleSummary counts, populated from tofu plan/apply outcomes after
+  every reconcile cycle. New printer columns (Cycle / Matched /
+  Updated / Drifted) on `kubectl get infrastructuretemplate`. Pairs
+  with the operator-side ArchitectureGem hot-loop fix
+  (pangea-operator@4f7c22b). v0.5.0+ kept: gitRepository workspace
+  source pattern, compiler sidecar template_path + workspaces
+  emptyDir mount, operator-side path-passing.
 type: application
-version: 0.7.2
-appVersion: "0.7.2"
+version: 0.7.3
+appVersion: "0.7.3"
 
 dependencies:
   - name: pleme-lib
