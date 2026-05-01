@@ -80,6 +80,18 @@ spec:
 
                   To actually destroy protected infrastructure, first set this to false, then delete the CR.
                 type: boolean
+              importHints:
+                additionalProperties:
+                  type: string
+                description: |-
+                  Hints used by the operator to import out-of-band cloud resources into tofu state instead of creating duplicates.
+
+                  Keys are tofu resource addresses (e.g. `cloudflare_dns_record.foo`), values are import IDs (the provider-specific shape, e.g. `<zone_id>/<record_id>` for cloudflare DNS, role name for `aws_iam_role`, etc.). Values support `{{ .varName }}` substitution from `spec.variables` — e.g. `"{{ .cloudflare_zone_id }}/foo"` resolves `varName` against `spec.variables` (string-coerced) before passing to `tofu import`.
+
+                  Operator behavior: before each `tofu apply`, for every plan action with `action: create` whose resource address matches a key here, the operator runs `tofu import <addr> <substituted-id>`. After import the resource is in state, the apply becomes a no-op or update, and the cycle receipt records the resource as `Outcome::Imported` instead of `Outcome::Created`. This is the typed answer to "auto-import any state".
+
+                  Empty map (default) = no imports — every `create` action goes straight to the apply and creates a fresh resource as before. Hint values that fail substitution are skipped with a Warning event; hint imports that fail (e.g. ID doesn't match) leave the resource for the apply to handle.
+                type: object
               pangeaNamespace:
                 description: Pangea namespace for state isolation. This determines the PostgreSQL schema used for state storage.
                 type: string
@@ -758,3 +770,5 @@ spec:
     storage: true
     subresources:
       status: {}
+---
+apiVersion: apiextensions.k8s.io/v1

@@ -1,21 +1,19 @@
 apiVersion: v2
 name: pangea-operator
 description: >-
-  Pangea infrastructure operator — manages 9 CRDs for infrastructure lifecycle,
-  AMI pipeline, compliance testing, and dynamic synthesizer formats.
-  v0.7.3 ships the InfrastructureTemplate.status.lastCycle typed
-  receipt: per-resource ResourceOutcome entries (Matched / Updated /
-  Created / Destroyed / Imported / Drifted / Failed) plus aggregate
-  CycleSummary counts, populated from tofu plan/apply outcomes after
-  every reconcile cycle. New printer columns (Cycle / Matched /
-  Updated / Drifted) on `kubectl get infrastructuretemplate`. Pairs
-  with the operator-side ArchitectureGem hot-loop fix
-  (pangea-operator@4f7c22b). v0.5.0+ kept: gitRepository workspace
-  source pattern, compiler sidecar template_path + workspaces
-  emptyDir mount, operator-side path-passing.
+  Pangea infrastructure operator — manages 11 CRDs for infrastructure
+  lifecycle, AMI pipeline, compliance testing, and dynamic synthesizer
+  formats. v0.7.4 wires the WorkspaceCatalog reconciler (typed
+  workspace primitive: status.{templateCount, verified,
+  conditions:[Reachable, GemsLoaded, Verified]}) and the tofu import
+  pre-apply path (spec.importHints map → operator runs
+  `tofu import` before apply for create-actions with hints, marks
+  resources Outcome::Imported in the cycle receipt). Pairs with
+  operator @d1530e1. Inherits 0.7.3's status.lastCycle typed
+  receipt + ArchitectureGem hot-loop fix.
 type: application
-version: 0.7.3
-appVersion: "0.7.3"
+version: 0.7.4
+appVersion: "0.7.4"
 
 dependencies:
   - name: pleme-lib
