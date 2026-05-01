@@ -12,7 +12,14 @@ spec:
     shortNames:
       - pd
     singular: pangeadashboard
-  scope: Cluster
+  # Scope kept Namespaced to match the existing in-cluster CRD on rio
+  # (one tend-operator PangeaDashboard CR lives at tend-system/
+  # tend-operator). Changing scope is immutable for an installed CRD,
+  # so the chart's regenerated `Cluster` value would block every
+  # `crds: CreateReplace` upgrade. The Rust-side
+  # `crd/pangea_dashboard.rs` should land its `namespaced` annotation
+  # in a separate PR before this can be flipped.
+  scope: Namespaced
   versions:
     - additionalPrinterColumns:
         - jsonPath: .spec.folder
