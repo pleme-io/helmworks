@@ -144,10 +144,22 @@ env:
 envFrom: []
 
 # -- Compiler sidecar endpoint (operator connects here for DSL compilation)
+# Ignored when useEmbeddedRuby=true (operator dispatches in-process).
 compilerEndpoint: http://localhost:8082
+
+# -- Use the embedded magnus + CRuby evaluator instead of the
+# pangea-compiler HTTP sidecar. When true:
+#   - operator gets PANGEA_COMPILER_BACKEND=embedded;
+#   - compiler sidecar is NOT rendered into the pod spec;
+#   - operator pod becomes single-container.
+# Operator binary MUST be built with `--features embedded_ruby`
+# (CI publishes that variant under tag suffix `-embedded`).
+# See theory/PANGEA-WORKSPACE-RECONCILIATION.md M8.4 + M8.5.
+useEmbeddedRuby: false
 
 # -- Sidecar containers rendered by pleme-lib into the pod spec.
 # The compiler sidecar compiles Ruby DSL to Terraform/Packer JSON.
+# Replaced by the embedded evaluator when useEmbeddedRuby=true.
 # Set to [] to disable the compiler (only pre-compiled JSON templates will work).
 sidecars:
   - name: compiler
@@ -188,6 +200,14 @@ sidecars:
         mountPath: /var/pangea/workspaces
       - name: tmp
         mountPath: /tmp
+
+# -- Where the embedded evaluator stores per-ArchitectureGem clones.
+# Mounted as an emptyDir on the operator container when
+# useEmbeddedRuby=true. Survives container restarts within a single
+# Pod incarnation; re-clones on Pod recreation. Gemcache volumes
+# scaling beyond emptyDir lands as M8.5+ once disk reclamation
+# semantics are confirmed.
+gemCacheDir: /var/pangea/gems
 
 # -- Resource requests and limits
 resources:

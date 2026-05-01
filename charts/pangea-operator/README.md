@@ -38,6 +38,51 @@ helm install pangea ./charts/pangea-operator \
   --set enabled=true
 ```
 
+## Compiler backend selection
+
+Two ways the operator turns Pangea Ruby DSL into Terraform JSON:
+
+### `useEmbeddedRuby: false` (default — HTTP sidecar)
+
+The operator pod ships a `pangea-compiler` sidecar container that
+serves `/compile` + `/v1/architectures*` over HTTP on port 8082.
+The operator dispatches via reqwest. Architecture gems are
+image-baked into the compiler at build time. **Adding a new
+architecture gem requires rebuilding + republishing the compiler
+image.**
+
+### `useEmbeddedRuby: true` (M8.4+ — embedded magnus)
+
+The operator pod is single-container. The operator binary embeds
+CRuby via `magnus` and evaluates Pangea DSL in-process. Architecture
+gems are cloned per `ArchitectureGem` CR into an `emptyDir` at
+`gemCacheDir` (default `/var/pangea/gems`) keyed on `(gemName, gitRef)`.
+
+Operator MUST be built with `--features embedded_ruby` (CI publishes
+that variant under tag suffix `-embedded`).
+
+```sh
+helm install pangea ./charts/pangea-operator \
+  --namespace pangea-system \
+  --create-namespace \
+  --set enabled=true \
+  --set useEmbeddedRuby=true \
+  --set image.repository=ghcr.io/pleme-io/pangea-operator \
+  --set image.tag=<sha>-embedded
+```
+
+When this flag is on, `compilerEndpoint` and the `sidecars[]` list are
+ignored — the chart drops the compiler sidecar entirely. The trade is:
+
+- ✅ Adding a new architecture gem is a one-line `ArchitectureGem`
+  CR — git push, kubectl apply, done. No image rebuilds.
+- ✅ Operator pod becomes single-container; lower resource floor.
+- ⚠️  Operator binary links libruby (~10 MiB image bloat).
+- ⚠️  Single-replica only (CRuby GVL constraint; not a regression
+   over today's deployment which is also single-replica).
+
+See `theory/PANGEA-WORKSPACE-RECONCILIATION.md` § M8 for the design.
+
 KEDA must be installed in the cluster (the Pleme-IO standard infra).
 
 ## Breathability

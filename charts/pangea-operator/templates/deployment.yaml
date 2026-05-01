@@ -1,7 +1,12 @@
 {{/*
 Custom deployment that injects executor env vars into the pleme-lib deployment.
 We prepend the executor env vars to .Values.env before calling pleme-lib.
+
+M8.5: when .Values.useEmbeddedRuby is true, switch the operator to
+embedded mode and drop the compiler sidecar from the pod spec.
 */}}
+{{- $useEmbedded := .Values.useEmbeddedRuby | default false -}}
+{{- $compilerBackend := ternary "embedded" "http" $useEmbedded -}}
 {{- $executorEnv := list
   (dict "name" "TOFU_BINARY" "value" (.Values.executor.tofu.binary | default "/usr/local/bin/tofu"))
   (dict "name" "PANGEA_TIMEOUT" "value" (printf "%v" (.Values.executor.tofu.timeout | default 600)))
@@ -9,12 +14,33 @@ We prepend the executor env vars to .Values.env before calling pleme-lib.
   (dict "name" "PACKER_TIMEOUT" "value" (printf "%v" (.Values.executor.packer.timeout | default 2700)))
   (dict "name" "PANGEA_WORKSPACE_BASE" "value" (.Values.executor.workspaceBase | default "/var/pangea/workspaces"))
   (dict "name" "COMPILER_ENDPOINT" "value" (.Values.compilerEndpoint | default "http://localhost:8082"))
+  (dict "name" "PANGEA_COMPILER_BACKEND" "value" $compilerBackend)
+  (dict "name" "PANGEA_GEM_CACHE_DIR" "value" (.Values.gemCacheDir | default "/var/pangea/gems"))
 -}}
 {{- if .Values.executor.verbose }}
 {{- $executorEnv = append $executorEnv (dict "name" "PANGEA_VERBOSE" "value" "true") }}
 {{- end }}
 {{- $mergedValues := deepCopy .Values }}
 {{- $_ := set $mergedValues "env" (concat $executorEnv (.Values.env | default list)) }}
+
+{{/* When embedded, drop the compiler sidecar entirely. */}}
+{{- if $useEmbedded }}
+{{- $_ := set $mergedValues "sidecars" (list) }}
+{{- end }}
+
+{{/* When embedded, mount an emptyDir gem-cache on the operator
+     container so prepare_gem clones land somewhere writable.
+     pleme-lib reads .Values.volumes and .Values.volumeMounts. */}}
+{{- if $useEmbedded }}
+{{- $existingVolumes := index $mergedValues "volumes" | default (list) }}
+{{- $existingMounts := index $mergedValues "volumeMounts" | default (list) }}
+{{- $cacheDir := .Values.gemCacheDir | default "/var/pangea/gems" }}
+{{- $cacheVolume := dict "name" "pangea-gem-cache" "emptyDir" (dict) }}
+{{- $cacheMount := dict "name" "pangea-gem-cache" "mountPath" $cacheDir }}
+{{- $_ := set $mergedValues "volumes" (append $existingVolumes $cacheVolume) }}
+{{- $_ := set $mergedValues "volumeMounts" (append $existingMounts $cacheMount) }}
+{{- end }}
+
 {{- $ctx := deepCopy . }}
 {{- $_ := set $ctx "Values" $mergedValues }}
 {{- include "pleme-lib.deployment" $ctx }}
