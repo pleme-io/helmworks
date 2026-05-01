@@ -127,10 +127,18 @@ spec:
                   description: How often to re-verify the gem (e.g. catch sidecar restart where the gem was unloaded). Defaults to `5m`.
                   type: string
                 source:
-                  description: 'Where the gem source lives. M1 supports gitRepository only; future: published-gem (RubyGems.org) and OCI-artifact modes.'
+                  description: 'Where the gem source lives + which evaluator runs it. M1 supports gitRepository only; future: published-gem (RubyGems.org) and OCI-artifact modes. Source kind is per theory/TERRENO.md M2 — Ruby (Pangea, default), Lisp (terreno), or Wasm (typed WIT component).'
                   properties:
+                    kind:
+                      description: 'Which evaluator interprets the gem source. `Ruby` (default) is the existing Pangea path (magnus-embedded CRuby in operator embedded mode; sidecar bundle in HTTP mode). `Lisp` reserves the terreno path (Track B; theory/TERRENO.md M2). `Wasm` reserves the typed wasmtime path (M2+). Lisp + Wasm are typed today but their evaluators are NotImplemented until landed; the operator surfaces this as a `GemPrepareFailed` condition.'
+                      enum:
+                        - Ruby
+                        - Lisp
+                        - Wasm
+                      default: Ruby
+                      type: string
                     gitRepository:
-                      description: Git repository — clone the gem at the given ref. Compiler sidecar bundles + requires from this path.
+                      description: Git repository — clone the gem at the given ref. Compiler sidecar bundles + requires from this path (Ruby kind); embedded mode clones into the gem cache and registers with the matching evaluator per `kind`.
                       nullable: true
                       properties:
                         path:

@@ -12,8 +12,8 @@ description: >-
   was missing in 0.4.0. Inline + configMapRef sources continue to use the
   legacy eval(source) path unchanged. Builds on v0.4.0 observability strap.
 type: application
-version: 0.7.0
-appVersion: "0.7.0"
+version: 0.7.1
+appVersion: "0.7.1"
 
 dependencies:
   - name: pleme-lib
