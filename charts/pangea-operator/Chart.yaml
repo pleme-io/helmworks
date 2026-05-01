@@ -12,8 +12,8 @@ description: >-
   operator @d1530e1. Inherits 0.7.3's status.lastCycle typed
   receipt + ArchitectureGem hot-loop fix.
 type: application
-version: 0.7.6
-appVersion: "0.7.6"
+version: 0.7.7
+appVersion: "0.7.7"
 
 dependencies:
   - name: pleme-lib
