@@ -10,612 +10,614 @@ spec:
     kind: InfrastructureTemplate
     plural: infrastructuretemplates
     shortNames:
-    - infra
-    - it
+      - infra
+      - it
     singular: infrastructuretemplate
   scope: Namespaced
   versions:
-  - additionalPrinterColumns:
-    - jsonPath: .status.phase
-      name: Phase
-      type: string
-    - jsonPath: .spec.pangeaNamespace
-      name: Namespace
-      type: string
-    - jsonPath: .status.resources.total
-      name: Resources
-      type: integer
-    - jsonPath: .spec.destroyProtection
-      name: Protected
-      type: boolean
-    - jsonPath: .metadata.creationTimestamp
-      name: Age
-      type: date
-    name: v1alpha1
-    schema:
-      openAPIV3Schema:
-        description: Auto-generated derived type for InfrastructureTemplateSpec via `CustomResource`
-        properties:
-          spec:
-            description: InfrastructureTemplate represents a Pangea infrastructure template to be compiled, planned, and applied by the operator.
-            properties:
-              autoApprove:
-                default: false
-                description: Whether to automatically apply changes without manual approval.
-                type: boolean
-              complianceProfiles:
-                description: InSpec compliance profiles to run after apply.
-                items:
+    - additionalPrinterColumns:
+        - jsonPath: .status.phase
+          name: Phase
+          type: string
+        - jsonPath: .spec.pangeaNamespace
+          name: Namespace
+          type: string
+        - jsonPath: .status.resources.total
+          name: Resources
+          type: integer
+        - jsonPath: .spec.destroyProtection
+          name: Protected
+          type: boolean
+        - jsonPath: .metadata.creationTimestamp
+          name: Age
+          type: date
+      name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          description: Auto-generated derived type for InfrastructureTemplateSpec via `CustomResource`
+          properties:
+            spec:
+              description: InfrastructureTemplate represents a Pangea infrastructure template to be compiled, planned, and applied by the operator.
+              properties:
+                autoApprove:
+                  default: false
+                  description: Whether to automatically apply changes without manual approval.
+                  type: boolean
+                complianceProfiles:
+                  description: InSpec compliance profiles to run after apply.
+                  items:
+                    type: string
+                  type: array
+                defaultDecision:
+                  description: |-
+                    Decision applied to changes that match no rule in `policies`. If unset, defaults to `autoApply` — the operator aggressively settles drift on every change at every risk level. Set this to `refuse` to make the policy list strictly opt-in (only changes explicitly allowed by a rule may be applied), or to `requireApproval` to gate everything not explicitly auto-applied.
+
+                    `spec.autoApprove` is no longer consulted by this engine; it remains in the schema for legacy compatibility but does not override `defaultDecision`.
+                  enum:
+                    - autoApply
+                    - requireApproval
+                    - refuse
+                  nullable: true
                   type: string
-                type: array
-              defaultDecision:
-                description: |-
-                  Decision applied to changes that match no rule in `policies`. If unset, defaults to `autoApply` — the operator aggressively settles drift on every change at every risk level. Set this to `refuse` to make the policy list strictly opt-in (only changes explicitly allowed by a rule may be applied), or to `requireApproval` to gate everything not explicitly auto-applied.
+                destroyProtection:
+                  default: false
+                  description: |-
+                    Prevent destruction of the managed infrastructure.
 
-                  `spec.autoApprove` is no longer consulted by this engine; it remains in the schema for legacy compatibility but does not override `defaultDecision`.
-                enum:
-                - autoApply
-                - requireApproval
-                - refuse
-                nullable: true
-                type: string
-              destroyProtection:
-                default: false
-                description: |-
-                  Prevent destruction of the managed infrastructure.
+                    When enabled, the operator will refuse to run `tofu destroy` even if the CR is deleted. Plan and apply continue to work normally for drift correction. This is critical for self-managed bootstrap infrastructure — the cluster, database, and network that the operator itself runs on.
 
-                  When enabled, the operator will refuse to run `tofu destroy` even if the CR is deleted. Plan and apply continue to work normally for drift correction. This is critical for self-managed bootstrap infrastructure — the cluster, database, and network that the operator itself runs on.
+                    To actually destroy protected infrastructure, first set this to false, then delete the CR.
+                  type: boolean
+                pangeaNamespace:
+                  description: Pangea namespace for state isolation. This determines the PostgreSQL schema used for state storage.
+                  type: string
+                policies:
+                  description: |-
+                    Per-resource policy rules controlling what the operator may do without human approval. Evaluated top-to-bottom against each resource change in a plan; the FIRST matching rule's `decision` applies. Changes that match no rule fall back to `defaultDecision` (or to `autoApprove` if `defaultDecision` is unset).
 
-                  To actually destroy protected infrastructure, first set this to false, then delete the CR.
-                type: boolean
-              pangeaNamespace:
-                description: Pangea namespace for state isolation. This determines the PostgreSQL schema used for state storage.
-                type: string
-              policies:
-                description: |-
-                  Per-resource policy rules controlling what the operator may do without human approval. Evaluated top-to-bottom against each resource change in a plan; the FIRST matching rule's `decision` applies. Changes that match no rule fall back to `defaultDecision` (or to `autoApprove` if `defaultDecision` is unset).
+                    Aggregation across all changes: - any `refuse`          → operator marks plan Failed, won't apply - else any `requireApproval` → operator waits for `approvedPlanHash` - else                  → operator applies immediately
 
-                  Aggregation across all changes: - any `refuse`          → operator marks plan Failed, won't apply - else any `requireApproval` → operator waits for `approvedPlanHash` - else                  → operator applies immediately
-
-                  Empty list = behave exactly as before (`autoApprove` controls everything). Use this to express things like "auto-apply low-risk DNS creates, require approval for any `cloudflare_dns_record` delete, refuse any `cloudflare_zone` destroy".
-                items:
-                  description: One policy rule. Match clauses use AND semantics (all set fields must match the change); within a clause, list entries use OR semantics (any list entry that matches counts). Empty / omitted clauses are wildcards.
-                  properties:
-                    decision:
-                      description: What the controller may do for changes this rule matches.
-                      enum:
-                      - autoApply
-                      - requireApproval
-                      - refuse
-                      type: string
-                    match:
-                      description: Match criteria. All set fields must match (AND); within each list, any entry counts (OR).
-                      properties:
-                        actions:
-                          description: 'Restrict to specific actions. Empty = any action. Valid values: `create`, `update`, `delete`, `replace`.'
-                          items:
-                            type: string
-                          type: array
-                        addressPatterns:
-                          description: Regular expressions matched against the full resource address (e.g. `^cloudflare_dns_record\\.rio-.*$`). Invalid regexes are rejected at evaluation time and logged — they never silently match nothing.
-                          items:
-                            type: string
-                          type: array
-                        attributes:
-                          description: Glob patterns against the changed-attribute names. Matches if ANY of the change's attributes matches ANY of these patterns. Useful for "require approval if `ttl` or any `secret*` field changes".
-                          items:
-                            type: string
-                          type: array
-                        resourceTypes:
-                          description: Glob patterns against the terraform resource type (e.g. `cloudflare_dns_record`, `cloudflare_*`, `aws_iam_*`). Only `*` (zero-or-more chars) is supported — keeps matching trivial and predictable.
-                          items:
-                            type: string
-                          type: array
-                        riskLevels:
-                          description: 'Restrict to specific risk levels. Empty = any risk. Valid values: `none`, `low`, `medium`, `high`.'
-                          items:
-                            type: string
-                          type: array
-                      type: object
-                    name:
-                      description: Human-readable label. Surfaced in `status.driftDetails[].matchedPolicy` and in the per-rule planSummary, so a quick `kubectl describe` shows which rule triggered which decision.
-                      type: string
-                  required:
-                  - decision
-                  - match
-                  - name
-                  type: object
-                type: array
-              providerCredentials:
-                description: Provider credentials configuration.
-                nullable: true
-                properties:
-                  aws:
-                    description: AWS credentials configuration.
-                    nullable: true
+                    Empty list = behave exactly as before (`autoApprove` controls everything). Use this to express things like "auto-apply low-risk DNS creates, require approval for any `cloudflare_dns_record` delete, refuse any `cloudflare_zone` destroy".
+                  items:
+                    description: One policy rule. Match clauses use AND semantics (all set fields must match the change); within a clause, list entries use OR semantics (any list entry that matches counts). Empty / omitted clauses are wildcards.
                     properties:
-                      region:
-                        description: Region to use for AWS operations.
-                        nullable: true
+                      decision:
+                        description: What the controller may do for changes this rule matches.
+                        enum:
+                          - autoApply
+                          - requireApproval
+                          - refuse
                         type: string
-                      roleArn:
-                        description: Optional role ARN to assume.
-                        nullable: true
-                        type: string
-                      secretRef:
-                        description: Secret containing AWS credentials.
+                      match:
+                        description: Match criteria. All set fields must match (AND); within each list, any entry counts (OR).
                         properties:
-                          name:
-                            description: Name of the Secret.
-                            type: string
-                          namespace:
-                            description: Namespace of the Secret (defaults to same namespace as the resource).
-                            nullable: true
-                            type: string
-                        required:
-                        - name
+                          actions:
+                            description: 'Restrict to specific actions. Empty = any action. Valid values: `create`, `update`, `delete`, `replace`.'
+                            items:
+                              type: string
+                            type: array
+                          addressPatterns:
+                            description: Regular expressions matched against the full resource address (e.g. `^cloudflare_dns_record\\.rio-.*$`). Invalid regexes are rejected at evaluation time and logged — they never silently match nothing.
+                            items:
+                              type: string
+                            type: array
+                          attributes:
+                            description: Glob patterns against the changed-attribute names. Matches if ANY of the change's attributes matches ANY of these patterns. Useful for "require approval if `ttl` or any `secret*` field changes".
+                            items:
+                              type: string
+                            type: array
+                          resourceTypes:
+                            description: Glob patterns against the terraform resource type (e.g. `cloudflare_dns_record`, `cloudflare_*`, `aws_iam_*`). Only `*` (zero-or-more chars) is supported — keeps matching trivial and predictable.
+                            items:
+                              type: string
+                            type: array
+                          riskLevels:
+                            description: 'Restrict to specific risk levels. Empty = any risk. Valid values: `none`, `low`, `medium`, `high`.'
+                            items:
+                              type: string
+                            type: array
                         type: object
-                    required:
-                    - secretRef
-                    type: object
-                  cloudflare:
-                    description: Cloudflare credentials configuration.
-                    nullable: true
-                    properties:
-                      secretRef:
-                        description: Secret containing Cloudflare API token.
-                        properties:
-                          name:
-                            description: Name of the Secret.
-                            type: string
-                          namespace:
-                            description: Namespace of the Secret (defaults to same namespace as the resource).
-                            nullable: true
-                            type: string
-                        required:
-                        - name
-                        type: object
-                    required:
-                    - secretRef
-                    type: object
-                type: object
-              refreshInterval:
-                default: 5m
-                description: Interval for drift detection checks. Defaults to "5m" (5 minutes).
-                type: string
-              retryPolicy:
-                description: Retry policy for failed operations.
-                nullable: true
-                properties:
-                  backoffSeconds:
-                    default: 30
-                    description: Base delay between retries in seconds.
-                    format: uint32
-                    minimum: 0.0
-                    type: integer
-                  maxRetries:
-                    default: 3
-                    description: Maximum number of retry attempts.
-                    format: uint32
-                    minimum: 0.0
-                    type: integer
-                type: object
-              settlingPolicy:
-                description: |-
-                  Bounds on how long the operator may keep cycling through drift→apply→drift loops before declaring the template stuck. State settling is the operator's primary success metric — when it can't reach a settled state after the configured number of cycles, this is escalated loudly via a `Settled=False` condition + Warning event.
-
-                  Defaults: 5 cycles, then `fail` (transition to Failed, surface the address list of resources that keep re-drifting).
-                nullable: true
-                properties:
-                  maxConsecutiveDriftCycles:
-                    default: 5
-                    description: Maximum allowed consecutive drift cycles before escalation. A "cycle" is one Ready→Drifted→(plan→apply)→Ready transition where the post-apply drift check still reports changes. Defaults to 5.
-                    format: uint32
-                    minimum: 0.0
-                    type: integer
-                  onExhaustion:
-                    default: fail
-                    description: 'What to do when `maxConsecutiveDriftCycles` is exceeded. Defaults to `fail` — the loudest signal: phase Failed, error message naming the stuck resources, Warning event, condition `Settled=False reason=StuckInDriftLoop`. The point is to make it impossible to ignore a system that can''t reach steady state.'
-                    enum:
-                    - fail
-                    - alert
-                    - continue
-                    type: string
-                type: object
-              source:
-                description: Source of the infrastructure template.
-                properties:
-                  configMapRef:
-                    description: Reference to a ConfigMap containing the template.
-                    nullable: true
-                    properties:
-                      key:
-                        description: Key within the ConfigMap containing the template.
-                        type: string
                       name:
-                        description: Name of the ConfigMap.
-                        type: string
-                      namespace:
-                        description: Namespace of the ConfigMap (defaults to same namespace as the InfrastructureTemplate).
-                        nullable: true
+                        description: Human-readable label. Surfaced in `status.driftDetails[].matchedPolicy` and in the per-rule planSummary, so a quick `kubectl describe` shows which rule triggered which decision.
                         type: string
                     required:
-                    - key
-                    - name
+                      - decision
+                      - match
+                      - name
                     type: object
-                  gitRepository:
-                    description: Reference to a Git repository containing the template.
-                    nullable: true
-                    properties:
-                      path:
-                        description: Path to the template file within the repository.
-                        type: string
-                      ref:
-                        default: main
-                        description: Git reference (branch, tag, or commit SHA).
-                        type: string
-                      secretRef:
-                        description: Reference to a Secret containing Git credentials.
-                        nullable: true
-                        properties:
-                          name:
-                            description: Name of the Secret.
-                            type: string
-                          namespace:
-                            description: Namespace of the Secret (defaults to same namespace as the resource).
-                            nullable: true
-                            type: string
-                        required:
-                        - name
-                        type: object
-                      url:
-                        description: Git repository URL.
-                        type: string
-                    required:
-                    - path
-                    - url
-                    type: object
-                  inline:
-                    description: Inline Ruby DSL template content.
-                    nullable: true
-                    type: string
-                type: object
-              suspend:
-                default: false
-                description: Suspend reconciliation for this template.
-                type: boolean
-              templateName:
-                description: Optional specific template name to deploy if the source file contains multiple templates.
-                nullable: true
-                type: string
-              variableRefs:
-                additionalProperties:
-                  description: Cross-template variable reference. Fetches an output from another template.
+                  type: array
+                providerCredentials:
+                  description: Provider credentials configuration.
+                  nullable: true
                   properties:
-                    outputKey:
-                      description: Key in the source template's status.outputs to read.
-                      type: string
-                    templateRef:
-                      description: Reference to the source template.
+                    aws:
+                      description: AWS credentials configuration.
+                      nullable: true
                       properties:
+                        region:
+                          description: Region to use for AWS operations.
+                          nullable: true
+                          type: string
+                        roleArn:
+                          description: Optional role ARN to assume.
+                          nullable: true
+                          type: string
+                        secretRef:
+                          description: Secret containing AWS credentials.
+                          properties:
+                            name:
+                              description: Name of the Secret.
+                              type: string
+                            namespace:
+                              description: Namespace of the Secret (defaults to same namespace as the resource).
+                              nullable: true
+                              type: string
+                          required:
+                            - name
+                          type: object
+                      required:
+                        - secretRef
+                      type: object
+                    cloudflare:
+                      description: Cloudflare credentials configuration.
+                      nullable: true
+                      properties:
+                        secretRef:
+                          description: Secret containing Cloudflare API token.
+                          properties:
+                            name:
+                              description: Name of the Secret.
+                              type: string
+                            namespace:
+                              description: Namespace of the Secret (defaults to same namespace as the resource).
+                              nullable: true
+                              type: string
+                          required:
+                            - name
+                          type: object
+                      required:
+                        - secretRef
+                      type: object
+                  type: object
+                refreshInterval:
+                  default: 5m
+                  description: Interval for drift detection checks. Defaults to "5m" (5 minutes).
+                  type: string
+                retryPolicy:
+                  description: Retry policy for failed operations.
+                  nullable: true
+                  properties:
+                    backoffSeconds:
+                      default: 30
+                      description: Base delay between retries in seconds.
+                      format: uint32
+                      minimum: 0.0
+                      type: integer
+                    maxRetries:
+                      default: 3
+                      description: Maximum number of retry attempts.
+                      format: uint32
+                      minimum: 0.0
+                      type: integer
+                  type: object
+                settlingPolicy:
+                  description: |-
+                    Bounds on how long the operator may keep cycling through drift→apply→drift loops before declaring the template stuck. State settling is the operator's primary success metric — when it can't reach a settled state after the configured number of cycles, this is escalated loudly via a `Settled=False` condition + Warning event.
+
+                    Defaults: 5 cycles, then `fail` (transition to Failed, surface the address list of resources that keep re-drifting).
+                  nullable: true
+                  properties:
+                    maxConsecutiveDriftCycles:
+                      default: 5
+                      description: Maximum allowed consecutive drift cycles before escalation. A "cycle" is one Ready→Drifted→(plan→apply)→Ready transition where the post-apply drift check still reports changes. Defaults to 5.
+                      format: uint32
+                      minimum: 0.0
+                      type: integer
+                    onExhaustion:
+                      default: fail
+                      description: 'What to do when `maxConsecutiveDriftCycles` is exceeded. Defaults to `fail` — the loudest signal: phase Failed, error message naming the stuck resources, Warning event, condition `Settled=False reason=StuckInDriftLoop`. The point is to make it impossible to ignore a system that can''t reach steady state.'
+                      enum:
+                        - fail
+                        - alert
+                        - continue
+                      type: string
+                  type: object
+                source:
+                  description: Source of the infrastructure template.
+                  properties:
+                    configMapRef:
+                      description: Reference to a ConfigMap containing the template.
+                      nullable: true
+                      properties:
+                        key:
+                          description: Key within the ConfigMap containing the template.
+                          type: string
                         name:
-                          description: Name of the InfrastructureTemplate.
+                          description: Name of the ConfigMap.
                           type: string
                         namespace:
-                          description: Namespace (defaults to same namespace as the referencing template).
+                          description: Namespace of the ConfigMap (defaults to same namespace as the InfrastructureTemplate).
                           nullable: true
                           type: string
                       required:
-                      - name
+                        - key
+                        - name
                       type: object
-                  required:
-                  - outputKey
-                  - templateRef
-                  type: object
-                description: |-
-                  Cross-template variable references. Resolved before compilation by fetching the referenced template's outputs.
-
-                  Example: ```yaml variableRefs: vpc_id: templateRef: { name: vpc-template } outputKey: vpc_id ```
-                nullable: true
-                type: object
-              variables:
-                additionalProperties: true
-                description: Variables to pass to the template during compilation.
-                nullable: true
-                type: object
-            required:
-            - pangeaNamespace
-            - source
-            type: object
-          status:
-            description: Status of an InfrastructureTemplate.
-            nullable: true
-            properties:
-              approvedPlanHash:
-                description: Hash of the approved plan. Set by the user to approve a pending plan. When this matches `pendingPlanHash`, the operator proceeds to apply.
-                nullable: true
-                type: string
-              compliance:
-                description: Compliance check results.
-                nullable: true
-                properties:
-                  failedControls:
-                    description: Number of failed controls.
-                    format: uint32
-                    minimum: 0.0
-                    type: integer
-                  lastCheckAt:
-                    description: Last compliance check timestamp.
-                    format: date-time
-                    type: string
-                  passedControls:
-                    description: Number of passed controls.
-                    format: uint32
-                    minimum: 0.0
-                    type: integer
-                  profiles:
-                    description: Per-profile results.
-                    items:
-                      description: Result for a single compliance profile.
+                    gitRepository:
+                      description: Reference to a Git repository containing the template.
+                      nullable: true
                       properties:
-                        failedControlIds:
-                          description: IDs of failed controls.
-                          items:
-                            type: string
-                          type: array
-                        profile:
-                          description: Profile name.
+                        path:
+                          description: Path to the template file within the repository.
                           type: string
-                        score:
-                          description: Profile score (0-100).
-                          format: double
-                          type: number
-                        status:
-                          description: Profile status (compliant, non-compliant).
+                        ref:
+                          default: main
+                          description: Git reference (branch, tag, or commit SHA).
+                          type: string
+                        secretRef:
+                          description: Reference to a Secret containing Git credentials.
+                          nullable: true
+                          properties:
+                            name:
+                              description: Name of the Secret.
+                              type: string
+                            namespace:
+                              description: Namespace of the Secret (defaults to same namespace as the resource).
+                              nullable: true
+                              type: string
+                          required:
+                            - name
+                          type: object
+                        url:
+                          description: Git repository URL.
                           type: string
                       required:
-                      - profile
-                      - score
-                      - status
+                        - path
+                        - url
                       type: object
-                    type: array
-                  score:
-                    description: Compliance score (0-100).
-                    format: double
-                    type: number
-                  skippedControls:
-                    description: Number of skipped controls.
-                    format: uint32
-                    minimum: 0.0
-                    type: integer
-                  status:
-                    description: Overall compliance status.
-                    type: string
-                required:
-                - failedControls
-                - lastCheckAt
-                - passedControls
-                - score
-                - skippedControls
-                - status
-                type: object
-              conditions:
-                description: Conditions representing the current state.
-                items:
-                  description: Kubernetes-style condition.
+                    inline:
+                      description: Inline Ruby DSL template content.
+                      nullable: true
+                      type: string
+                  type: object
+                suspend:
+                  default: false
+                  description: Suspend reconciliation for this template.
+                  type: boolean
+                templateName:
+                  description: Optional specific template name to deploy if the source file contains multiple templates.
+                  nullable: true
+                  type: string
+                variableRefs:
+                  additionalProperties:
+                    description: Cross-template variable reference. Fetches an output from another template.
+                    properties:
+                      outputKey:
+                        description: Key in the source template's status.outputs to read.
+                        type: string
+                      templateRef:
+                        description: Reference to the source template.
+                        properties:
+                          name:
+                            description: Name of the InfrastructureTemplate.
+                            type: string
+                          namespace:
+                            description: Namespace (defaults to same namespace as the referencing template).
+                            nullable: true
+                            type: string
+                        required:
+                          - name
+                        type: object
+                    required:
+                      - outputKey
+                      - templateRef
+                    type: object
+                  description: |-
+                    Cross-template variable references. Resolved before compilation by fetching the referenced template's outputs.
+
+                    Example: ```yaml variableRefs: vpc_id: templateRef: { name: vpc-template } outputKey: vpc_id ```
+                  nullable: true
+                  type: object
+                variables:
+                  additionalProperties: true
+                  description: Variables to pass to the template during compilation.
+                  nullable: true
+                  type: object
+              required:
+                - pangeaNamespace
+                - source
+              type: object
+            status:
+              description: Status of an InfrastructureTemplate.
+              nullable: true
+              properties:
+                approvedPlanHash:
+                  description: Hash of the approved plan. Set by the user to approve a pending plan. When this matches `pendingPlanHash`, the operator proceeds to apply.
+                  nullable: true
+                  type: string
+                compliance:
+                  description: Compliance check results.
+                  nullable: true
                   properties:
-                    lastTransitionTime:
-                      description: Last time the condition transitioned.
+                    failedControls:
+                      description: Number of failed controls.
+                      format: uint32
+                      minimum: 0.0
+                      type: integer
+                    lastCheckAt:
+                      description: Last compliance check timestamp.
                       format: date-time
                       type: string
-                    message:
-                      description: Human-readable message.
-                      type: string
-                    reason:
-                      description: Machine-readable reason for the condition.
-                      type: string
+                    passedControls:
+                      description: Number of passed controls.
+                      format: uint32
+                      minimum: 0.0
+                      type: integer
+                    profiles:
+                      description: Per-profile results.
+                      items:
+                        description: Result for a single compliance profile.
+                        properties:
+                          failedControlIds:
+                            description: IDs of failed controls.
+                            items:
+                              type: string
+                            type: array
+                          profile:
+                            description: Profile name.
+                            type: string
+                          score:
+                            description: Profile score (0-100).
+                            format: double
+                            type: number
+                          status:
+                            description: Profile status (compliant, non-compliant).
+                            type: string
+                        required:
+                          - profile
+                          - score
+                          - status
+                        type: object
+                      type: array
+                    score:
+                      description: Compliance score (0-100).
+                      format: double
+                      type: number
+                    skippedControls:
+                      description: Number of skipped controls.
+                      format: uint32
+                      minimum: 0.0
+                      type: integer
                     status:
-                      description: Status of the condition (True, False, Unknown).
-                      type: string
-                    type:
-                      description: Type of condition.
+                      description: Overall compliance status.
                       type: string
                   required:
-                  - lastTransitionTime
-                  - message
-                  - reason
-                  - status
-                  - type
+                    - failedControls
+                    - lastCheckAt
+                    - passedControls
+                    - score
+                    - skippedControls
+                    - status
                   type: object
-                type: array
-              consecutiveDriftCycles:
-                default: 0
-                description: State-settling counter. Counts consecutive drift cycles where applying a plan does NOT result in a clean drift check. Reset to zero when a Ready→Ready transition sees no drift. Drives `SettlingPolicy` escalation.
-                format: uint32
-                minimum: 0.0
-                type: integer
-              driftDetails:
-                default: []
-                description: |-
-                  Per-resource drift / change detail from the last plan. Populated whenever a plan reports `has_changes`. Lets external observers see WHICH resources changed and HOW without parsing raw tofu output. Capped to 50 entries (full list available via the operator's GraphQL API for large plans).
-
-                  Always serialized (no skip-if-empty) so an explicit empty array clears the field via JSON Merge Patch — otherwise stale drift would survive a clean settle.
-                items:
+                conditions:
+                  description: Conditions representing the current state.
+                  items:
+                    description: Kubernetes-style condition.
+                    properties:
+                      lastTransitionTime:
+                        description: Last time the condition transitioned.
+                        format: date-time
+                        type: string
+                      message:
+                        description: Human-readable message.
+                        type: string
+                      reason:
+                        description: Machine-readable reason for the condition.
+                        type: string
+                      status:
+                        description: Status of the condition (True, False, Unknown).
+                        type: string
+                      type:
+                        description: Type of condition.
+                        type: string
+                    required:
+                      - lastTransitionTime
+                      - message
+                      - reason
+                      - status
+                      - type
+                    type: object
+                  type: array
+                consecutiveDriftCycles:
+                  default: 0
+                  description: State-settling counter. Counts consecutive drift cycles where applying a plan does NOT result in a clean drift check. Reset to zero when a Ready→Ready transition sees no drift. Drives `SettlingPolicy` escalation.
+                  format: uint32
+                  minimum: 0.0
+                  type: integer
+                driftDetails:
+                  default: []
                   description: |-
-                    Per-resource drift / change detail from a plan.
+                    Per-resource drift / change detail from the last plan. Populated whenever a plan reports `has_changes`. Lets external observers see WHICH resources changed and HOW without parsing raw tofu output. Capped to 50 entries (full list available via the operator's GraphQL API for large plans).
 
-                    One entry per resource the plan would touch. Action is the terraform action category; risk is a heuristic so observers can quickly triage (a `delete` on a destroy-protected resource is `high`, a no-op refresh is `none`, a single-attribute update is `low`). `attributes` lists the field names that differ — values are intentionally elided so secrets don't leak into the K8s API.
+                    Always serialized (no skip-if-empty) so an explicit empty array clears the field via JSON Merge Patch — otherwise stale drift would survive a clean settle.
+                  items:
+                    description: |-
+                      Per-resource drift / change detail from a plan.
+
+                      One entry per resource the plan would touch. Action is the terraform action category; risk is a heuristic so observers can quickly triage (a `delete` on a destroy-protected resource is `high`, a no-op refresh is `none`, a single-attribute update is `low`). `attributes` lists the field names that differ — values are intentionally elided so secrets don't leak into the K8s API.
+                    properties:
+                      action:
+                        description: 'Action category: create | update | delete | replace | noop.'
+                        type: string
+                      address:
+                        description: Terraform resource address (e.g. `cloudflare_dns_record.foo`).
+                        type: string
+                      attributes:
+                        description: Attribute names that differ between current and desired state. Empty for create / delete (no per-attr diff applies).
+                        items:
+                          type: string
+                        type: array
+                      matchedPolicy:
+                        description: Name of the `PolicyRule` that matched this change, or `<default>` if no rule matched and the default decision was applied. Absent means policy evaluation didn't run.
+                        nullable: true
+                        type: string
+                      policyDecision:
+                        description: 'Resolved policy decision for this specific change. Set when `spec.policies` is non-empty or `spec.defaultDecision` is non-null. Values: `autoApply` | `requireApproval` | `refuse`. Absent means policy evaluation didn''t run (legacy `autoApprove`-only mode).'
+                        nullable: true
+                        type: string
+                      risk:
+                        description: 'Risk heuristic: none | low | medium | high.'
+                        type: string
+                    required:
+                      - action
+                      - address
+                      - risk
+                    type: object
+                  type: array
+                failureCount:
+                  default: 0
+                  description: Number of consecutive failures.
+                  format: uint32
+                  minimum: 0.0
+                  type: integer
+                lastAppliedAt:
+                  description: Timestamp of the last successful apply.
+                  format: date-time
+                  nullable: true
+                  type: string
+                lastAppliedRevision:
+                  description: Last successfully applied revision (content hash or git commit).
+                  nullable: true
+                  type: string
+                lastDriftCheckAt:
+                  description: Timestamp of the last drift check.
+                  format: date-time
+                  nullable: true
+                  type: string
+                lastError:
+                  description: Last error message if in Failed state.
+                  nullable: true
+                  type: string
+                lastPlannedAt:
+                  description: Timestamp of the last successful plan.
+                  format: date-time
+                  nullable: true
+                  type: string
+                observedGeneration:
+                  default: 0
+                  description: Last observed generation of the spec.
+                  format: int64
+                  type: integer
+                outputs:
+                  additionalProperties: true
+                  description: Outputs from the last successful apply.
+                  nullable: true
+                  type: object
+                pendingPlanHash:
+                  description: Hash of the pending plan awaiting approval. Set by the operator after planning. Users approve by copying this value to `approvedPlanHash` via kubectl patch or GraphQL mutation.
+                  nullable: true
+                  type: string
+                phase:
+                  description: Current phase of the template lifecycle.
+                  enum:
+                    - Pending
+                    - Verifying
+                    - Verified
+                    - Compiling
+                    - Initializing
+                    - Planning
+                    - Applying
+                    - Ready
+                    - Drifted
+                    - Failed
+                    - Destroying
+                  nullable: true
+                  type: string
+                planSummary:
+                  description: Human-readable summary of the last plan.
+                  nullable: true
+                  type: string
+                policyEvaluation:
+                  description: Aggregate result of evaluating `spec.policies` against the last plan's drift details. Drives the plan→apply gate. Absent when the template uses legacy `autoApprove`-only mode (no `policies` and no `defaultDecision`).
+                  nullable: true
                   properties:
-                    action:
-                      description: 'Action category: create | update | delete | replace | noop.'
+                    aggregate:
+                      description: Worst decision across all changes. Drives the plan→apply transition.
                       type: string
-                    address:
-                      description: Terraform resource address (e.g. `cloudflare_dns_record.foo`).
-                      type: string
-                    attributes:
-                      description: Attribute names that differ between current and desired state. Empty for create / delete (no per-attr diff applies).
+                    autoApplyCount:
+                      default: 0
+                      description: Number of changes that resolved to `autoApply`.
+                      format: uint32
+                      minimum: 0.0
+                      type: integer
+                    refuseCount:
+                      default: 0
+                      description: Number of changes that resolved to `refuse`. Non-zero means `aggregate == refuse` and the plan is blocked.
+                      format: uint32
+                      minimum: 0.0
+                      type: integer
+                    refusedAddresses:
+                      description: Sample of refused resource addresses (capped at 10) to give quick triage signal in `kubectl describe`.
                       items:
                         type: string
                       type: array
-                    matchedPolicy:
-                      description: Name of the `PolicyRule` that matched this change, or `<default>` if no rule matched and the default decision was applied. Absent means policy evaluation didn't run.
-                      nullable: true
-                      type: string
-                    policyDecision:
-                      description: 'Resolved policy decision for this specific change. Set when `spec.policies` is non-empty or `spec.defaultDecision` is non-null. Values: `autoApply` | `requireApproval` | `refuse`. Absent means policy evaluation didn''t run (legacy `autoApprove`-only mode).'
-                      nullable: true
-                      type: string
-                    risk:
-                      description: 'Risk heuristic: none | low | medium | high.'
-                      type: string
+                    requireApprovalCount:
+                      default: 0
+                      description: Number of changes that resolved to `requireApproval`.
+                      format: uint32
+                      minimum: 0.0
+                      type: integer
                   required:
-                  - action
-                  - address
-                  - risk
+                    - aggregate
                   type: object
-                type: array
-              failureCount:
-                default: 0
-                description: Number of consecutive failures.
-                format: uint32
-                minimum: 0.0
-                type: integer
-              lastAppliedAt:
-                description: Timestamp of the last successful apply.
-                format: date-time
-                nullable: true
-                type: string
-              lastAppliedRevision:
-                description: Last successfully applied revision (content hash or git commit).
-                nullable: true
-                type: string
-              lastDriftCheckAt:
-                description: Timestamp of the last drift check.
-                format: date-time
-                nullable: true
-                type: string
-              lastError:
-                description: Last error message if in Failed state.
-                nullable: true
-                type: string
-              lastPlannedAt:
-                description: Timestamp of the last successful plan.
-                format: date-time
-                nullable: true
-                type: string
-              observedGeneration:
-                default: 0
-                description: Last observed generation of the spec.
-                format: int64
-                type: integer
-              outputs:
-                additionalProperties: true
-                description: Outputs from the last successful apply.
-                nullable: true
-                type: object
-              pendingPlanHash:
-                description: Hash of the pending plan awaiting approval. Set by the operator after planning. Users approve by copying this value to `approvedPlanHash` via kubectl patch or GraphQL mutation.
-                nullable: true
-                type: string
-              phase:
-                description: Current phase of the template lifecycle.
-                enum:
-                - Pending
-                - Compiling
-                - Initializing
-                - Planning
-                - Applying
-                - Ready
-                - Drifted
-                - Failed
-                - Destroying
-                nullable: true
-                type: string
-              planSummary:
-                description: Human-readable summary of the last plan.
-                nullable: true
-                type: string
-              policyEvaluation:
-                description: Aggregate result of evaluating `spec.policies` against the last plan's drift details. Drives the plan→apply gate. Absent when the template uses legacy `autoApprove`-only mode (no `policies` and no `defaultDecision`).
-                nullable: true
-                properties:
-                  aggregate:
-                    description: Worst decision across all changes. Drives the plan→apply transition.
-                    type: string
-                  autoApplyCount:
-                    default: 0
-                    description: Number of changes that resolved to `autoApply`.
-                    format: uint32
-                    minimum: 0.0
-                    type: integer
-                  refuseCount:
-                    default: 0
-                    description: Number of changes that resolved to `refuse`. Non-zero means `aggregate == refuse` and the plan is blocked.
-                    format: uint32
-                    minimum: 0.0
-                    type: integer
-                  refusedAddresses:
-                    description: Sample of refused resource addresses (capped at 10) to give quick triage signal in `kubectl describe`.
-                    items:
-                      type: string
-                    type: array
-                  requireApprovalCount:
-                    default: 0
-                    description: Number of changes that resolved to `requireApproval`.
-                    format: uint32
-                    minimum: 0.0
-                    type: integer
-                required:
-                - aggregate
-                type: object
-              resources:
-                description: Summary of managed resources.
-                nullable: true
-                properties:
-                  added:
-                    default: 0
-                    description: Resources to be added in the pending plan.
-                    format: uint32
-                    minimum: 0.0
-                    type: integer
-                  changed:
-                    default: 0
-                    description: Resources to be changed in the pending plan.
-                    format: uint32
-                    minimum: 0.0
-                    type: integer
-                  destroyed:
-                    default: 0
-                    description: Resources to be destroyed in the pending plan.
-                    format: uint32
-                    minimum: 0.0
-                    type: integer
-                  total:
-                    default: 0
-                    description: Total number of managed resources.
-                    format: uint32
-                    minimum: 0.0
-                    type: integer
-                type: object
-              stateKey:
-                description: PostgreSQL state key path.
-                nullable: true
-                type: string
-              stuckResources:
-                default: []
-                description: |-
-                  Resource addresses that keep showing up in successive drift cycles — the "stuck" set. Computed as the intersection of drift-detail addresses across the last N cycles. Capped at 20 for status hygiene; full set available via the operator's GraphQL API. Empty when `consecutiveDriftCycles == 0`.
-
-                  Always serialized (no skip-if-empty) so explicit clearing on a settle propagates via JSON Merge Patch.
-                items:
+                resources:
+                  description: Summary of managed resources.
+                  nullable: true
+                  properties:
+                    added:
+                      default: 0
+                      description: Resources to be added in the pending plan.
+                      format: uint32
+                      minimum: 0.0
+                      type: integer
+                    changed:
+                      default: 0
+                      description: Resources to be changed in the pending plan.
+                      format: uint32
+                      minimum: 0.0
+                      type: integer
+                    destroyed:
+                      default: 0
+                      description: Resources to be destroyed in the pending plan.
+                      format: uint32
+                      minimum: 0.0
+                      type: integer
+                    total:
+                      default: 0
+                      description: Total number of managed resources.
+                      format: uint32
+                      minimum: 0.0
+                      type: integer
+                  type: object
+                stateKey:
+                  description: PostgreSQL state key path.
+                  nullable: true
                   type: string
-                type: array
-            type: object
-        required:
-        - spec
-        title: InfrastructureTemplate
-        type: object
-    served: true
-    storage: true
-    subresources:
-      status: {}
+                stuckResources:
+                  default: []
+                  description: |-
+                    Resource addresses that keep showing up in successive drift cycles — the "stuck" set. Computed as the intersection of drift-detail addresses across the last N cycles. Capped at 20 for status hygiene; full set available via the operator's GraphQL API. Empty when `consecutiveDriftCycles == 0`.
+
+                    Always serialized (no skip-if-empty) so explicit clearing on a settle propagates via JSON Merge Patch.
+                  items:
+                    type: string
+                  type: array
+              type: object
+          required:
+            - spec
+          title: InfrastructureTemplate
+          type: object
+      served: true
+      storage: true
+      subresources:
+        status: {}

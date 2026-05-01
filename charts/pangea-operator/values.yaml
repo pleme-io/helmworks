@@ -61,6 +61,14 @@ rbac:
     - apiGroups: ["pangea.pleme.io"]
       resources: ["synthesizerformats", "synthesizerformats/status"]
       verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    # ── M1: ArchitectureGem (typed gem registry, smoke-test gate) ──
+    - apiGroups: ["pangea.pleme.io"]
+      resources: ["architecturegems", "architecturegems/status", "architecturegems/finalizers"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    # ── M3: WorkspaceCatalog (workspace-level cascade policy) ──
+    - apiGroups: ["pangea.pleme.io"]
+      resources: ["workspacecatalogs", "workspacecatalogs/status", "workspacecatalogs/finalizers"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
     # ── Supporting resources ──
     - apiGroups: [""]
       resources: ["events"]

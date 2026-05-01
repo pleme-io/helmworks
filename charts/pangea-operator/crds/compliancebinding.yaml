@@ -1,3 +1,4 @@
+---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
@@ -9,241 +10,241 @@ spec:
     kind: ComplianceBinding
     plural: compliancebindings
     shortNames:
-    - cb
+      - cb
     singular: compliancebinding
   scope: Namespaced
   versions:
-  - additionalPrinterColumns:
-    - jsonPath: .spec.enforcement
-      name: Enforcement
-      type: string
-    - jsonPath: .status.complianceState
-      name: Compliance
-      type: string
-    - jsonPath: .status.targetCount
-      name: Targets
-      type: integer
-    - jsonPath: .metadata.creationTimestamp
-      name: Age
-      type: date
-    name: v1alpha1
-    schema:
-      openAPIV3Schema:
-        description: Auto-generated derived type for ComplianceBindingSpec via `CustomResource`
-        properties:
-          spec:
-            description: ComplianceBinding connects a ComplianceSchedule to infrastructure targets and defines enforcement behavior when compliance state changes.
-            properties:
-              complianceRef:
-                description: Reference to the ComplianceSchedule that provides compliance state.
-                properties:
-                  name:
-                    description: Name of the ComplianceSchedule.
-                    type: string
-                  namespace:
-                    description: Namespace (defaults to same as binding).
-                    nullable: true
-                    type: string
-                required:
-                - name
-                type: object
-              enforcement:
-                default: gate
-                description: Enforcement level when compliance fails.
-                enum:
-                - audit
-                - gate
-                - rollback
-                - admissionOnly
-                type: string
-              minConsecutiveCompliant:
-                default: 1
-                description: Minimum consecutive compliant runs before allowing gated operations. Prevents a single passing run from unblocking after a series of failures.
-                format: uint32
-                minimum: 0.0
-                type: integer
-              reactions:
-                description: Automated reactions to compliance state changes.
-                items:
-                  description: Automated reaction to a compliance state change.
+    - additionalPrinterColumns:
+        - jsonPath: .spec.enforcement
+          name: Enforcement
+          type: string
+        - jsonPath: .status.complianceState
+          name: Compliance
+          type: string
+        - jsonPath: .status.targetCount
+          name: Targets
+          type: integer
+        - jsonPath: .metadata.creationTimestamp
+          name: Age
+          type: date
+      name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          description: Auto-generated derived type for ComplianceBindingSpec via `CustomResource`
+          properties:
+            spec:
+              description: ComplianceBinding connects a ComplianceSchedule to infrastructure targets and defines enforcement behavior when compliance state changes.
+              properties:
+                complianceRef:
+                  description: Reference to the ComplianceSchedule that provides compliance state.
                   properties:
-                    action:
-                      description: Action to take.
-                      enum:
-                      - suspendTarget
-                      - resumeTarget
-                      - webhook
-                      - event
-                      - reconcile
-                      type: string
-                    event:
-                      description: Event that triggers this reaction.
-                      enum:
-                      - nonCompliant
-                      - compliant
-                      - controlFailed
-                      - error
-                      - hashChanged
-                      type: string
-                    messageTemplate:
-                      description: Custom message template for webhook/alert actions.
-                      nullable: true
-                      type: string
-                    webhookUrl:
-                      description: Webhook URL for webhook actions.
-                      nullable: true
-                      type: string
-                  required:
-                  - action
-                  - event
-                  type: object
-                type: array
-              sekibanIntegration:
-                description: Sekiban admission webhook integration.
-                nullable: true
-                properties:
-                  annotateDeployments:
-                    default: false
-                    description: Update deployment annotations with certification hash for sekiban admission webhook enforcement.
-                    type: boolean
-                  annotationKey:
-                    default: sekiban.pleme.io/certification-hash
-                    description: Annotation key for the certification hash.
-                    type: string
-                  certificationRef:
-                    description: Certification to update with compliance attestation.
-                    nullable: true
-                    type: string
-                  signatureGateRef:
-                    description: SignatureGate to update with compliance hash.
-                    nullable: true
-                    type: string
-                type: object
-              suspend:
-                default: false
-                description: Suspend this binding (targets are ungated).
-                type: boolean
-              targets:
-                description: Infrastructure targets bound to this compliance schedule.
-                items:
-                  description: An infrastructure target bound to compliance.
-                  properties:
-                    kind:
-                      description: Kind of the target resource.
-                      enum:
-                      - InfrastructureTemplate
-                      - InfrastructureFlow
-                      - ImagePipeline
-                      - PackerBuild
-                      type: string
                     name:
-                      description: Name of the target resource.
+                      description: Name of the ComplianceSchedule.
                       type: string
                     namespace:
                       description: Namespace (defaults to same as binding).
                       nullable: true
                       type: string
                   required:
-                  - kind
-                  - name
+                    - name
                   type: object
-                type: array
-            required:
-            - complianceRef
-            - targets
-            type: object
-          status:
-            description: Status of a ComplianceBinding.
-            nullable: true
-            properties:
-              complianceHash:
-                description: Compliance hash from the referenced ComplianceSchedule.
-                nullable: true
-                type: string
-              complianceState:
-                description: Current compliance state as observed by this binding.
-                enum:
-                - compliant
-                - nonCompliant
-                - unknown
-                - suspended
-                nullable: true
-                type: string
-              conditions:
-                description: Kubernetes-style conditions.
-                items:
-                  description: Kubernetes-style condition.
+                enforcement:
+                  default: gate
+                  description: Enforcement level when compliance fails.
+                  enum:
+                    - audit
+                    - gate
+                    - rollback
+                    - admissionOnly
+                  type: string
+                minConsecutiveCompliant:
+                  default: 1
+                  description: Minimum consecutive compliant runs before allowing gated operations. Prevents a single passing run from unblocking after a series of failures.
+                  format: uint32
+                  minimum: 0.0
+                  type: integer
+                reactions:
+                  description: Automated reactions to compliance state changes.
+                  items:
+                    description: Automated reaction to a compliance state change.
+                    properties:
+                      action:
+                        description: Action to take.
+                        enum:
+                          - suspendTarget
+                          - resumeTarget
+                          - webhook
+                          - event
+                          - reconcile
+                        type: string
+                      event:
+                        description: Event that triggers this reaction.
+                        enum:
+                          - nonCompliant
+                          - compliant
+                          - controlFailed
+                          - error
+                          - hashChanged
+                        type: string
+                      messageTemplate:
+                        description: Custom message template for webhook/alert actions.
+                        nullable: true
+                        type: string
+                      webhookUrl:
+                        description: Webhook URL for webhook actions.
+                        nullable: true
+                        type: string
+                    required:
+                      - action
+                      - event
+                    type: object
+                  type: array
+                sekibanIntegration:
+                  description: Sekiban admission webhook integration.
+                  nullable: true
                   properties:
-                    lastTransitionTime:
-                      description: Last time the condition transitioned.
-                      format: date-time
-                      type: string
-                    message:
-                      description: Human-readable message.
-                      type: string
-                    reason:
-                      description: Machine-readable reason for the condition.
-                      type: string
-                    status:
-                      description: Status of the condition (True, False, Unknown).
-                      type: string
-                    type:
-                      description: Type of condition.
-                      type: string
-                  required:
-                  - lastTransitionTime
-                  - message
-                  - reason
-                  - status
-                  - type
-                  type: object
-                type: array
-              observedGeneration:
-                default: 0
-                description: Last observed generation.
-                format: int64
-                type: integer
-              targetCount:
-                default: 0
-                description: Number of bound targets.
-                format: uint32
-                minimum: 0.0
-                type: integer
-              targets:
-                description: Per-target enforcement status.
-                items:
-                  description: Enforcement status for a single target.
-                  properties:
-                    gated:
-                      description: Whether the target is currently gated (suspended).
+                    annotateDeployments:
+                      default: false
+                      description: Update deployment annotations with certification hash for sekiban admission webhook enforcement.
                       type: boolean
-                    kind:
-                      description: Target kind.
-                      enum:
-                      - InfrastructureTemplate
-                      - InfrastructureFlow
-                      - ImagePipeline
-                      - PackerBuild
+                    annotationKey:
+                      default: sekiban.pleme.io/certification-hash
+                      description: Annotation key for the certification hash.
                       type: string
-                    lastAction:
-                      description: Last action taken on this target.
+                    certificationRef:
+                      description: Certification to update with compliance attestation.
                       nullable: true
                       type: string
-                    name:
-                      description: Target name.
+                    signatureGateRef:
+                      description: SignatureGate to update with compliance hash.
+                      nullable: true
                       type: string
-                  required:
-                  - gated
-                  - kind
-                  - name
                   type: object
-                type: array
-            type: object
-        required:
-        - spec
-        title: ComplianceBinding
-        type: object
-    served: true
-    storage: true
-    subresources:
-      status: {}
+                suspend:
+                  default: false
+                  description: Suspend this binding (targets are ungated).
+                  type: boolean
+                targets:
+                  description: Infrastructure targets bound to this compliance schedule.
+                  items:
+                    description: An infrastructure target bound to compliance.
+                    properties:
+                      kind:
+                        description: Kind of the target resource.
+                        enum:
+                          - InfrastructureTemplate
+                          - InfrastructureFlow
+                          - ImagePipeline
+                          - PackerBuild
+                        type: string
+                      name:
+                        description: Name of the target resource.
+                        type: string
+                      namespace:
+                        description: Namespace (defaults to same as binding).
+                        nullable: true
+                        type: string
+                    required:
+                      - kind
+                      - name
+                    type: object
+                  type: array
+              required:
+                - complianceRef
+                - targets
+              type: object
+            status:
+              description: Status of a ComplianceBinding.
+              nullable: true
+              properties:
+                complianceHash:
+                  description: Compliance hash from the referenced ComplianceSchedule.
+                  nullable: true
+                  type: string
+                complianceState:
+                  description: Current compliance state as observed by this binding.
+                  enum:
+                    - compliant
+                    - nonCompliant
+                    - unknown
+                    - suspended
+                  nullable: true
+                  type: string
+                conditions:
+                  description: Kubernetes-style conditions.
+                  items:
+                    description: Kubernetes-style condition.
+                    properties:
+                      lastTransitionTime:
+                        description: Last time the condition transitioned.
+                        format: date-time
+                        type: string
+                      message:
+                        description: Human-readable message.
+                        type: string
+                      reason:
+                        description: Machine-readable reason for the condition.
+                        type: string
+                      status:
+                        description: Status of the condition (True, False, Unknown).
+                        type: string
+                      type:
+                        description: Type of condition.
+                        type: string
+                    required:
+                      - lastTransitionTime
+                      - message
+                      - reason
+                      - status
+                      - type
+                    type: object
+                  type: array
+                observedGeneration:
+                  default: 0
+                  description: Last observed generation.
+                  format: int64
+                  type: integer
+                targetCount:
+                  default: 0
+                  description: Number of bound targets.
+                  format: uint32
+                  minimum: 0.0
+                  type: integer
+                targets:
+                  description: Per-target enforcement status.
+                  items:
+                    description: Enforcement status for a single target.
+                    properties:
+                      gated:
+                        description: Whether the target is currently gated (suspended).
+                        type: boolean
+                      kind:
+                        description: Target kind.
+                        enum:
+                          - InfrastructureTemplate
+                          - InfrastructureFlow
+                          - ImagePipeline
+                          - PackerBuild
+                        type: string
+                      lastAction:
+                        description: Last action taken on this target.
+                        nullable: true
+                        type: string
+                      name:
+                        description: Target name.
+                        type: string
+                    required:
+                      - gated
+                      - kind
+                      - name
+                    type: object
+                  type: array
+              type: object
+          required:
+            - spec
+          title: ComplianceBinding
+          type: object
+      served: true
+      storage: true
+      subresources:
+        status: {}
