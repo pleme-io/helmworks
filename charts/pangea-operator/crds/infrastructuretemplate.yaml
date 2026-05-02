@@ -117,6 +117,42 @@ spec:
                   \ skipped with a Warning event; hint imports that fail (e.g. ID\
                   \ doesn't match) leave the resource for the apply to handle."
                 type: object
+              importPolicy:
+                description: "Automatic-import policy \u2014 when set with `autoOnConflict:\
+                  \ true`, the operator runs `tofu import` for EVERY plan `create`-action\
+                  \ whose resource-type has a natural-ID rule (declared in `naturalIds`,\
+                  \ fallback to operator-bundled defaults), substituting against the\
+                  \ planned attribute values from `tofu show -json plan`. Resources\
+                  \ that already exist in the cloud provider get adopted into state\
+                  \ instead of failing the apply with \"already exists\".\n\nThis\
+                  \ is the typed answer to \"fully consume existing infrastructure\
+                  \ into pangea-operator.\" `importHints` (per-address) takes precedence;\
+                  \ `importPolicy.naturalIds` (per-resource-type) is the fallback;\
+                  \ operator-bundled defaults (in `controller/import.rs::bundled_natural_ids`)\
+                  \ fill the rest. Three layers \u2014 author-explicit, then per-template\
+                  \ type-rules, then sensible cluster-wide defaults.\n\nDefault: unset\
+                  \ (no auto-import; existing `importHints` behaviour preserved)."
+                nullable: true
+                properties:
+                  autoOnConflict:
+                    default: false
+                    description: "Master switch. When `false` (default), no auto-import\
+                      \ fires regardless of `naturalIds` or bundled defaults \u2014\
+                      \ you stay on today's per-address `importHints`-only behaviour.\
+                      \ When `true`, every `create`-action is a candidate for auto-import."
+                    type: boolean
+                  naturalIds:
+                    additionalProperties:
+                      type: string
+                    description: 'Per-resource-type natural-ID extraction templates.
+                      Keys are terraform resource types (`github_repository`, `aws_iam_role`,
+                      etc.); values are substitution templates like `{{ .planned.name
+                      }}` or `{{ .planned.zone_id }}/{{ .planned.id }}`.
+
+
+                      Empty map = fall through to operator-bundled defaults.'
+                    type: object
+                type: object
               pangeaNamespace:
                 description: Pangea namespace for state isolation. This determines
                   the PostgreSQL schema used for state storage.
