@@ -74,9 +74,23 @@ rbac:
       resources: ["operatorpolicies", "operatorpolicies/status"]
       verbs: ["get", "list", "watch", "patch", "update"]
     # ── Supporting resources ──
+    # Events — operator emits Events on every controller's reconcile
+    # transitions and on policy/escalation actions. Two API groups:
+    #   * core/v1     (legacy `""/v1` Event)
+    #   * events.k8s.io/v1 (new shape used by kube-rs's Recorder)
+    # Both must be granted cluster-wide because the operator emits
+    # Events in *workspace* namespaces (cloudflare-pleme, pleme-io-
+    # opensource, …), not just pangea-system. Pre-0.8.2 only the
+    # legacy group was granted, so every reconcile in a workspace
+    # namespace hit "events.events.k8s.io is forbidden" — visible in
+    # operator logs as a WARN per reconcile, no functional impact
+    # other than the missing audit trail for those Events.
     - apiGroups: [""]
       resources: ["events"]
       verbs: ["create", "patch"]
+    - apiGroups: ["events.k8s.io"]
+      resources: ["events"]
+      verbs: ["create", "patch", "update"]
     - apiGroups: [""]
       resources: ["configmaps", "secrets"]
       verbs: ["get", "list", "watch"]
