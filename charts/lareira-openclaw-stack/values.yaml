@@ -27,5 +27,7 @@ scanner:
 # Image tags are NOT defaulted here — at fedramp-high every workload
 # must be digest-pinned, and the pinning is the responsibility of CI
 # (forge injects digests at release). Operators supply real tags via
-# overrides; the placeholder zeros in each sub-chart cause fail() at
-# template render until substituted, by design.
+# overrides; the placeholder zeros in each sub-chart's defaults are
+# structurally valid (sha256: shape), but image pull will fail at
+# runtime if a real digest hasn't been substituted — surfacing the
+# missing substitution as a deploy-time error.

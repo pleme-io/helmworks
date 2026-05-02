@@ -1,0 +1,97 @@
+# Example: lareira-openclaw-stack deployed at FedRAMP-High baseline.
+#
+# Apply to a cluster that already has:
+#   - sekiban admission webhook (chart: sekiban)
+#   - external-secrets-operator + cluster-secret-store
+#   - kyverno + pleme-admission-policies (overlays={fedramp-high})
+#   - StorageClass "encrypted-default"
+#   - authentik OIDC reachable
+#   - cofre-managed Akeyless entry: openclaw/publisher-pki/org-seed
+#
+# Install:
+#   helm install openclaw oci://ghcr.io/pleme-io/charts/lareira-openclaw-stack \
+#     --namespace openclaw --create-namespace \
+#     -f examples/openclaw-stack-fedramp-high.yaml
+#
+# Real release pipelines substitute the sha256 placeholders + tameshi
+# attestation hashes via forge at build time; the placeholder zeros
+# below cause helm template render to fail() until substituted, by
+# design.
+
+pki:
+  enabled: true
+  pleme-microservice:
+    # Compose fedramp-high with the supply-chain overlay — adds SBOM
+    # attestation, cosign image signature verification, SLSA build
+    # provenance. Symmetric: pleme-admission-policies enforces the
+    # same Kyverno rules at admission time on the cluster.
+    compliance:
+      overlays:
+        - fedramp-high
+        - supplychain
+      enforce: true
+    image:
+      repository: ghcr.io/pleme-io/openclaw-publisher-pki
+      tag: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      pullPolicy: Always
+    replicaCount: 3
+    attestation:
+      enabled: true
+      # forge injects these at release time. Empty values now fail()
+      # at template render — see docs/RELEASE-FLOW.md.
+      signature: ""
+      certificationHash: ""
+      complianceHash: ""
+      changesetHash: ""
+
+store:
+  enabled: true
+  pleme-microservice:
+    compliance:
+      overlays:
+        - fedramp-high
+        - supplychain
+      enforce: true
+  persistence:
+    backend: postgres                 # HA in production; sqlite for demos
+    postgres:
+      enabled: true
+      host: cnpg-openclaw-rw.openclaw.svc.cluster.local
+      port: 5432
+      database: openclaw_store
+      sslMode: require
+      secretRef:
+        name: openclaw-store-postgres
+        passwordKey: password
+    sqlite:
+      enabled: false
+  pleme-microservice:
+    image:
+      repository: ghcr.io/pleme-io/openclaw-skill-store
+      tag: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      pullPolicy: Always
+    replicaCount: 3
+    autoscaling:
+      enabled: true
+      minReplicas: 3
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 70
+    attestation:
+      enabled: true
+
+scanner:
+  enabled: true
+  scanIntervalSecs: 1800              # 30-minute re-attestation
+  pleme-microservice:
+    compliance:
+      overlays:
+        - fedramp-high
+        - supplychain
+      enforce: true
+    image:
+      repository: ghcr.io/pleme-io/openclaw-scanner
+      tag: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      pullPolicy: Always
+    replicaCount: 2
+    attestation:
+      enabled: true

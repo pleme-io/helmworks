@@ -11,7 +11,9 @@ spec:
     {{- range .Values.sekiban.signatureGate.layers }}
     - {{ . | quote }}
     {{- end }}
-  expectedSignature: {{ .Values.sekiban.signatureGate.expectedSignature | quote }}
+  {{- $sub := index .Values "pleme-microservice" -}}
+  {{- $sig := default "" (dig "attestation" "signature" "" $sub) }}
+  expectedSignature: {{ default $sig .Values.sekiban.signatureGate.signatureOverride | quote }}
   targetResources:
     - group: apps
       kind: Deployment

@@ -11,7 +11,13 @@ spec:
     {{- range .Values.sekiban.signatureGate.layers }}
     - {{ . | quote }}
     {{- end }}
-  expectedSignature: {{ .Values.sekiban.signatureGate.expectedSignature | quote }}
+  # Single source of truth: the expected signature is the same one
+  # forge stamped onto the deployment via attestation.signature.
+  # `sekiban.signatureGate.signatureOverride` is for emergency manual
+  # pinning only — defaults to empty so attestation.signature wins.
+  {{- $sub := index .Values "pleme-microservice" -}}
+  {{- $sig := default "" (dig "attestation" "signature" "" $sub) }}
+  expectedSignature: {{ default $sig .Values.sekiban.signatureGate.signatureOverride | quote }}
   targetResources:
     - group: apps
       kind: Deployment

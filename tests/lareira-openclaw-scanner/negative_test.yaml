@@ -1,0 +1,79 @@
+suite: lareira-openclaw-scanner — negative invariants
+templates:
+  - templates/validations.yaml
+release:
+  name: openclaw-scanner
+  namespace: openclaw
+attest: &attest
+  pleme-microservice.attestation.signature: "blake3:test-sig-aaaaaaaaaaaaaaaa"
+  pleme-microservice.attestation.certificationHash: "blake3:test-cert-bbbbbbbbbbbb"
+  pleme-microservice.attestation.complianceHash: "blake3:test-comp-cccccccccccc"
+tests:
+  - it: rejects the all-zero placeholder digest
+    set:
+      <<: *attest
+      pleme-microservice.image.tag: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    asserts:
+      - failedTemplate:
+          errorPattern: "all-zero placeholder digest"
+
+  - it: rejects scan interval below 60s (would hammer the store)
+    set:
+      <<: *attest
+      pleme-microservice.image.tag: "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+      pleme-microservice.env:
+        - name: SCAN_INTERVAL_SECS
+          value: "30"
+    asserts:
+      - failedTemplate:
+          errorPattern: "below the 60s minimum"
+
+  - it: rejects scan interval above 24h (drift latency too long)
+    set:
+      <<: *attest
+      pleme-microservice.image.tag: "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+      pleme-microservice.env:
+        - name: SCAN_INTERVAL_SECS
+          value: "172800"
+    asserts:
+      - failedTemplate:
+          errorPattern: "above the 86400s"
+
+  - it: accepts the default 1h scan interval
+    set:
+      <<: *attest
+      pleme-microservice.image.tag: "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: accepts a 30-minute scan interval
+    set:
+      <<: *attest
+      pleme-microservice.image.tag: "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+      pleme-microservice.env:
+        - name: SCAN_INTERVAL_SECS
+          value: "1800"
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # ─── tameshi attestation gate ───────────────────────────────────────
+  - it: rejects empty attestation.signature
+    set:
+      pleme-microservice.image.tag: "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+      pleme-microservice.attestation.signature: ""
+      pleme-microservice.attestation.certificationHash: "blake3:cert"
+      pleme-microservice.attestation.complianceHash: "blake3:comp"
+    asserts:
+      - failedTemplate:
+          errorPattern: "requires pleme-microservice.attestation.signature"
+
+  - it: rejects sekiban.enabled=false at fedramp-high
+    set:
+      <<: *attest
+      pleme-microservice.image.tag: "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+      sekiban.enabled: false
+    asserts:
+      - failedTemplate:
+          errorPattern: "sekiban.enabled=true"

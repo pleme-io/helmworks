@@ -1,0 +1,35 @@
+suite: lareira-openclaw-scanner — security context hardening
+templates:
+  - charts/pleme-microservice/templates/deployment.yaml
+release:
+  name: openclaw-scanner
+  namespace: openclaw
+defaults: &defaults
+  pleme-microservice.image.tag: "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+  pleme-microservice.attestation.signature: "blake3:test-sig-aaaaaaaaaaaaaaaa"
+  pleme-microservice.attestation.certificationHash: "blake3:test-cert-bbbbbbbbbbbb"
+  pleme-microservice.attestation.complianceHash: "blake3:test-comp-cccccccccccc"
+tests:
+  - it: pod runs as non-root
+    set:
+      <<: *defaults
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+
+  - it: container drops ALL capabilities
+    set:
+      <<: *defaults
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+
+  - it: replicaCount >= 2 satisfies CP-2
+    set:
+      <<: *defaults
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 2

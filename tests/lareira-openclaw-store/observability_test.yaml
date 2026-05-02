@@ -1,0 +1,46 @@
+suite: lareira-openclaw-store — observability + autoscaling
+templates:
+  - charts/pleme-microservice/templates/servicemonitor.yaml
+  - charts/pleme-microservice/templates/hpa.yaml
+  - charts/pleme-microservice/templates/pdb.yaml
+release:
+  name: openclaw-store
+  namespace: openclaw
+defaults: &defaults
+  pleme-microservice.image.tag: "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+  pleme-microservice.attestation.signature: "blake3:test-sig-aaaaaaaaaaaaaaaa"
+  pleme-microservice.attestation.certificationHash: "blake3:test-cert-bbbbbbbbbbbb"
+  pleme-microservice.attestation.complianceHash: "blake3:test-comp-cccccccccccc"
+tests:
+  - it: ServiceMonitor scrapes /metrics
+    template: charts/pleme-microservice/templates/servicemonitor.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - equal:
+          path: spec.endpoints[0].path
+          value: /metrics
+
+  - it: HPA targets 70% CPU on min 3 / max 10
+    template: charts/pleme-microservice/templates/hpa.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - equal:
+          path: spec.minReplicas
+          value: 3
+      - equal:
+          path: spec.maxReplicas
+          value: 10
+      - equal:
+          path: spec.metrics[0].resource.target.averageUtilization
+          value: 70
+
+  - it: PDB requires minAvailable 2
+    template: charts/pleme-microservice/templates/pdb.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - equal:
+          path: spec.minAvailable
+          value: 2

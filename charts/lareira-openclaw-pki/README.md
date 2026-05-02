@@ -49,9 +49,12 @@ helm install openclaw-pki oci://ghcr.io/pleme-io/charts/lareira-openclaw-pki \
 ```
 
 CI substitutes the real image digest and tameshi signature at release
-time. A placeholder digest of all zeros causes the fedramp-high
-overlay to `fail()` at template render — chart authors cannot
-accidentally ship an unpinned image.
+time. The fedramp-high overlay enforces the **shape** of the digest
+(`@sha256:...` or `sha256:` tag prefix) but does not check entropy —
+the all-zero placeholder is structurally valid but image pull will
+fail at runtime, surfacing the missing substitution as a deploy-time
+error rather than a render-time error. (Catching this earlier would
+require a defense-in-depth check; track if needed.)
 
 ## Endpoints
 

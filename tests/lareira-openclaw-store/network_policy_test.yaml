@@ -1,0 +1,50 @@
+suite: lareira-openclaw-store — network policy allowlists
+templates:
+  - charts/pleme-microservice/templates/networkpolicy.yaml
+release:
+  name: openclaw-store
+  namespace: openclaw
+defaults: &defaults
+  pleme-microservice.image.tag: "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+  pleme-microservice.attestation.signature: "blake3:test-sig-aaaaaaaaaaaaaaaa"
+  pleme-microservice.attestation.certificationHash: "blake3:test-cert-bbbbbbbbbbbb"
+  pleme-microservice.attestation.complianceHash: "blake3:test-comp-cccccccccccc"
+tests:
+  - it: emits an allow-to-pki egress policy
+    set:
+      <<: *defaults
+    documentSelector:
+      path: metadata.name
+      value: openclaw-store-openclaw-skill-store-allow-to-pki
+    asserts:
+      - equal:
+          path: spec.egress[0].to[0].podSelector.matchLabels["app.kubernetes.io/name"]
+          value: openclaw-publisher-pki
+      - equal:
+          path: spec.egress[0].ports[0].port
+          value: 8090
+
+  - it: emits an allow-from-scanner ingress policy
+    set:
+      <<: *defaults
+    documentSelector:
+      path: metadata.name
+      value: openclaw-store-openclaw-skill-store-allow-from-scanner
+    asserts:
+      - equal:
+          path: spec.ingress[0].from[0].podSelector.matchLabels["app.kubernetes.io/name"]
+          value: openclaw-scanner
+      - equal:
+          path: spec.ingress[0].ports[0].port
+          value: 8080
+
+  - it: emits the fedramp-high default-deny baseline
+    set:
+      <<: *defaults
+    documentSelector:
+      path: metadata.name
+      value: openclaw-store-openclaw-skill-store-compliance-deny-all
+    asserts:
+      - equal:
+          path: kind
+          value: NetworkPolicy

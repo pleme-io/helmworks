@@ -1,0 +1,42 @@
+suite: lareira-openclaw-pki — observability surface
+templates:
+  - charts/pleme-microservice/templates/servicemonitor.yaml
+  - charts/pleme-microservice/templates/service.yaml
+release:
+  name: openclaw-pki
+  namespace: openclaw
+defaults: &defaults
+  pleme-microservice.image.tag: "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+  pleme-microservice.attestation.signature: "blake3:test-sig-aaaaaaaaaaaaaaaa"
+  pleme-microservice.attestation.certificationHash: "blake3:test-cert-bbbbbbbbbbbb"
+  pleme-microservice.attestation.complianceHash: "blake3:test-comp-cccccccccccc"
+tests:
+  - it: ServiceMonitor scrapes every 30s on /metrics
+    template: charts/pleme-microservice/templates/servicemonitor.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - equal:
+          path: kind
+          value: ServiceMonitor
+      - equal:
+          path: spec.endpoints[0].interval
+          value: 30s
+      - equal:
+          path: spec.endpoints[0].path
+          value: /metrics
+      - equal:
+          path: spec.endpoints[0].port
+          value: http
+
+  - it: Service exposes the http port
+    template: charts/pleme-microservice/templates/service.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - equal:
+          path: spec.ports[0].port
+          value: 8090
+      - equal:
+          path: spec.ports[0].name
+          value: http

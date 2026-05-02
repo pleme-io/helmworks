@@ -1,0 +1,88 @@
+suite: lareira-openclaw-pki — network policy allowlists
+#
+# The PKI is internal-only; only the store + scanner may dial port 8090.
+# This suite asserts the additional NetworkPolicies render with the
+# right pod selectors AND the fedramp-high default-deny baseline holds.
+templates:
+  - charts/pleme-microservice/templates/networkpolicy.yaml
+release:
+  name: openclaw-pki
+  namespace: openclaw
+defaults: &defaults
+  pleme-microservice.image.tag: "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+  pleme-microservice.attestation.signature: "blake3:test-sig-aaaaaaaaaaaaaaaa"
+  pleme-microservice.attestation.certificationHash: "blake3:test-cert-bbbbbbbbbbbb"
+  pleme-microservice.attestation.complianceHash: "blake3:test-comp-cccccccccccc"
+tests:
+  - it: emits an allow-from-store ingress policy on port 8090
+    set:
+      <<: *defaults
+    documentSelector:
+      path: metadata.name
+      value: openclaw-pki-openclaw-publisher-pki-allow-from-openclaw-store
+    asserts:
+      - equal:
+          path: kind
+          value: NetworkPolicy
+      - equal:
+          path: spec.ingress[0].from[0].podSelector.matchLabels["app.kubernetes.io/name"]
+          value: openclaw-skill-store
+      - equal:
+          path: spec.ingress[0].ports[0].port
+          value: 8090
+
+  - it: emits an allow-from-scanner ingress policy on port 8090
+    set:
+      <<: *defaults
+    documentSelector:
+      path: metadata.name
+      value: openclaw-pki-openclaw-publisher-pki-allow-from-openclaw-scanner
+    asserts:
+      - equal:
+          path: spec.ingress[0].from[0].podSelector.matchLabels["app.kubernetes.io/name"]
+          value: openclaw-scanner
+      - equal:
+          path: spec.ingress[0].ports[0].port
+          value: 8090
+
+  - it: emits the fedramp-high default-deny ingress baseline
+    set:
+      <<: *defaults
+    documentSelector:
+      path: metadata.name
+      value: openclaw-pki-openclaw-publisher-pki-compliance-deny-all
+    asserts:
+      - equal:
+          path: kind
+          value: NetworkPolicy
+      - contains:
+          path: spec.policyTypes
+          content: Ingress
+      - contains:
+          path: spec.policyTypes
+          content: Egress
+
+  - it: emits the fedramp-high allow-dns egress policy
+    set:
+      <<: *defaults
+    documentSelector:
+      path: metadata.name
+      value: openclaw-pki-openclaw-publisher-pki-compliance-allow-dns
+    asserts:
+      - equal:
+          path: kind
+          value: NetworkPolicy
+      - contains:
+          path: spec.policyTypes
+          content: Egress
+
+  - it: emits the fedramp-high allow-tls-egress policy
+    set:
+      <<: *defaults
+    documentSelector:
+      path: metadata.name
+      value: openclaw-pki-openclaw-publisher-pki-compliance-allow-tls-egress
+    asserts:
+      - equal:
+          path: kind
+          value: NetworkPolicy

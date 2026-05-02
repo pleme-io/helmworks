@@ -37,7 +37,7 @@ sekiban:
   schedule: "0 */6 * * *"
   signatureGate:
     layers: ["image", "config", "rbac", "network"]
-    expectedSignature: ""
+    signatureOverride: ""
     verificationIntervalSecs: 3600
 
 # ─────────────────────────────────────────────────────────────────────
@@ -155,6 +155,7 @@ pleme-microservice:
     complianceHash: ""
     changesetHash: ""
 
+  nameOverride: openclaw-scanner
+
   additionalLabels:
-    app.kubernetes.io/name: openclaw-scanner
-    app.kubernetes.io/part-of: openclaw
+    pleme.io/part-of: openclaw

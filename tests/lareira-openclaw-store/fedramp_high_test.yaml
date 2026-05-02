@@ -8,6 +8,9 @@ release:
   namespace: openclaw
 defaults: &defaults
   pleme-microservice.image.tag: "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+  pleme-microservice.attestation.signature: "blake3:test-sig-aaaaaaaaaaaaaaaa"
+  pleme-microservice.attestation.certificationHash: "blake3:test-cert-bbbbbbbbbbbb"
+  pleme-microservice.attestation.complianceHash: "blake3:test-comp-cccccccccccc"
 tests:
   - it: emits a NIST_800_53 high CompliancePolicy
     template: templates/compliancepolicy.yaml

@@ -1,0 +1,39 @@
+suite: lareira-openclaw-scanner — network policy allowlists
+templates:
+  - charts/pleme-microservice/templates/networkpolicy.yaml
+release:
+  name: openclaw-scanner
+  namespace: openclaw
+defaults: &defaults
+  pleme-microservice.image.tag: "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+  pleme-microservice.attestation.signature: "blake3:test-sig-aaaaaaaaaaaaaaaa"
+  pleme-microservice.attestation.certificationHash: "blake3:test-cert-bbbbbbbbbbbb"
+  pleme-microservice.attestation.complianceHash: "blake3:test-comp-cccccccccccc"
+tests:
+  - it: emits an allow-to-store egress policy on port 8080
+    set:
+      <<: *defaults
+    documentSelector:
+      path: metadata.name
+      value: openclaw-scanner-allow-to-store
+    asserts:
+      - equal:
+          path: spec.egress[0].to[0].podSelector.matchLabels["app.kubernetes.io/name"]
+          value: openclaw-skill-store
+      - equal:
+          path: spec.egress[0].ports[0].port
+          value: 8080
+
+  - it: emits an allow-to-pki egress policy on port 8090
+    set:
+      <<: *defaults
+    documentSelector:
+      path: metadata.name
+      value: openclaw-scanner-allow-to-pki
+    asserts:
+      - equal:
+          path: spec.egress[0].to[0].podSelector.matchLabels["app.kubernetes.io/name"]
+          value: openclaw-publisher-pki
+      - equal:
+          path: spec.egress[0].ports[0].port
+          value: 8090

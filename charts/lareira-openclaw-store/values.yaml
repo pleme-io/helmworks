@@ -46,7 +46,9 @@ sekiban:
   schedule: "0 */6 * * *"
   signatureGate:
     layers: ["image", "config", "rbac", "network", "data-plane"]
-    expectedSignature: ""
+    # Defaults to pleme-microservice.attestation.signature; override for
+    # emergency manual pinning only.
+    signatureOverride: ""
     verificationIntervalSecs: 3600
 
 # ─────────────────────────────────────────────────────────────────────
@@ -158,9 +160,10 @@ pleme-microservice:
     complianceHash: ""
     changesetHash: ""
 
+  nameOverride: openclaw-skill-store
+
   additionalLabels:
-    app.kubernetes.io/name: openclaw-skill-store
-    app.kubernetes.io/part-of: openclaw
+    pleme.io/part-of: openclaw
 
   # The merkle ledger is a stateful concern; mount the SQLite PVC.
   # When persistence.backend=postgres, this is unused.

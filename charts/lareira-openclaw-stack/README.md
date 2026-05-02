@@ -73,6 +73,18 @@ values.yaml
 A control either passes through the entire chain or the stack fails to
 deploy. There is no half-compliant state.
 
+## Documentation (`docs/`)
+
+| Doc | Purpose |
+|---|---|
+| [`ARCHITECTURE.md`](./docs/ARCHITECTURE.md) | Mental model, components, trust boundaries, failure domains |
+| [`THREAT-MODEL.md`](./docs/THREAT-MODEL.md) | Adversary model, 5 attacker goals × controls table |
+| [`RUNBOOK.md`](./docs/RUNBOOK.md) | Operator playbooks for health checks, enroll/revoke, rotation, recovery |
+| [`CLUSTER-PREREQUISITES.md`](./docs/CLUSTER-PREREQUISITES.md) | Checklist of cluster-side dependencies |
+| [`RELEASE-FLOW.md`](./docs/RELEASE-FLOW.md) | The 8-step chain from source to admitted workload (forge → tameshi → helm → sekiban) |
+| [`ATTACHMENT-GATING.md`](./docs/ATTACHMENT-GATING.md) | How tameshi gating extends to skill listings, publisher enrollment, service-to-service |
+| [`COVERAGE.md`](./docs/COVERAGE.md) | helm-unittest test inventory (71 cases) + values-surface coverage |
+
 ## See also
 
 - `pleme-io/helmworks/docs/COMPLIANCE-PROOF.md` — the proof

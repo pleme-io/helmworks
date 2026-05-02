@@ -1,0 +1,97 @@
+# FluxCD HelmRelease for lareira-openclaw-stack.
+#
+# Drop into the target cluster's k8s repo (e.g. pleme-io/k8s/clusters/<cluster>/openclaw/release.yaml)
+# and let FluxCD reconcile. Per-cluster overrides land in a kustomize
+# patch alongside this file.
+#
+# Prerequisites in the cluster (ordered):
+#   1. flux-system bootstrapped
+#   2. external-secrets-operator + cluster-secret-store (cofre-managed)
+#   3. kyverno + pleme-admission-policies (overlays={fedramp-high})
+#   4. sekiban admission webhook
+#   5. SOPS secret openclaw-store-postgres (Postgres credentials, if HA mode)
+#   6. ExternalSecret materializing openclaw/publisher-pki/org-seed → openclaw-pki-org-seed
+#      (the chart emits this ESO resource itself)
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: pleme-charts
+  namespace: flux-system
+spec:
+  type: oci
+  url: oci://ghcr.io/pleme-io/charts
+  interval: 5m
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: openclaw
+  namespace: openclaw
+spec:
+  releaseName: openclaw
+  interval: 10m
+  chart:
+    spec:
+      chart: lareira-openclaw-stack
+      version: "0.1.0"
+      sourceRef:
+        kind: HelmRepository
+        name: pleme-charts
+        namespace: flux-system
+  install:
+    createNamespace: true
+    crds: CreateReplace
+  upgrade:
+    crds: CreateReplace
+  values:
+    pki:
+      enabled: true
+      pleme-microservice:
+        image:
+          repository: ghcr.io/pleme-io/openclaw-publisher-pki
+          # Digest pinned at release time by forge — placeholder fails fedramp-high
+          # render until substituted. NEVER commit a real digest here directly;
+          # let forge inject it via a kustomize patch on this HelmRelease.
+          tag: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+          pullPolicy: Always
+        replicaCount: 3
+        attestation:
+          enabled: true
+    store:
+      enabled: true
+      persistence:
+        backend: postgres
+        postgres:
+          enabled: true
+          host: cnpg-openclaw-rw.openclaw.svc.cluster.local
+          database: openclaw_store
+          sslMode: require
+          secretRef:
+            name: openclaw-store-postgres
+            passwordKey: password
+        sqlite:
+          enabled: false
+      pleme-microservice:
+        image:
+          repository: ghcr.io/pleme-io/openclaw-skill-store
+          tag: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+          pullPolicy: Always
+        replicaCount: 3
+        autoscaling:
+          enabled: true
+          minReplicas: 3
+          maxReplicas: 10
+        attestation:
+          enabled: true
+    scanner:
+      enabled: true
+      scanIntervalSecs: 1800
+      pleme-microservice:
+        image:
+          repository: ghcr.io/pleme-io/openclaw-scanner
+          tag: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+          pullPolicy: Always
+        replicaCount: 2
+        attestation:
+          enabled: true

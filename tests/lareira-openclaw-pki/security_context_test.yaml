@@ -1,0 +1,69 @@
+suite: lareira-openclaw-pki — security context hardening
+#
+# The hardening is mostly delegated to the fedramp-high overlay, but
+# this suite documents the workload-visible surface so a regression
+# (e.g. a future override that loosens the spec) is caught.
+templates:
+  - charts/pleme-microservice/templates/deployment.yaml
+release:
+  name: openclaw-pki
+  namespace: openclaw
+defaults: &defaults
+  pleme-microservice.image.tag: "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+  pleme-microservice.attestation.signature: "blake3:test-sig-aaaaaaaaaaaaaaaa"
+  pleme-microservice.attestation.certificationHash: "blake3:test-cert-bbbbbbbbbbbb"
+  pleme-microservice.attestation.complianceHash: "blake3:test-comp-cccccccccccc"
+tests:
+  - it: pod runs as non-root
+    set:
+      <<: *defaults
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+
+  - it: container drops ALL capabilities
+    set:
+      <<: *defaults
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+
+  - it: container has read-only root filesystem
+    set:
+      <<: *defaults
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+
+  - it: container disallows privilege escalation
+    set:
+      <<: *defaults
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+
+  - it: replicaCount >= 2 satisfies CP-2 (defaults to 3)
+    set:
+      <<: *defaults
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+
+  - it: org-seed is mounted via secretKeyRef, not literal env value
+    set:
+      <<: *defaults
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[1].name
+          value: OPENCLAW_ORG_SEED_HEX
+      - equal:
+          path: spec.template.spec.containers[0].env[1].valueFrom.secretKeyRef.name
+          value: openclaw-pki-org-seed
+      - equal:
+          path: spec.template.spec.containers[0].env[1].valueFrom.secretKeyRef.key
+          value: hex

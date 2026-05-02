@@ -1,0 +1,3 @@
+{{- include "lareira-openclaw-store.validate.digest" . -}}
+{{- include "lareira-openclaw-store.validate.persistence" . -}}
+{{- include "lareira-openclaw-store.validate.attestation" . -}}

@@ -46,8 +46,11 @@ sekiban:
   schedule: "0 */6 * * *"
   signatureGate:
     layers: ["image", "config", "rbac", "network"]
-    # CI injects the composite signature at release time.
-    expectedSignature: ""
+    # The expected signature defaults to pleme-microservice.attestation.signature
+    # (single source of truth — forge stamps both at release time).
+    # `signatureOverride` is for emergency manual pinning only;
+    # leave empty in normal operation.
+    signatureOverride: ""
     verificationIntervalSecs: 3600
 
 # ─────────────────────────────────────────────────────────────────────
@@ -163,6 +166,14 @@ pleme-microservice:
     complianceHash: ""
     changesetHash: ""
 
+  # Override the chart name so all rendered resources are tagged
+  # `app.kubernetes.io/name: openclaw-publisher-pki` (not pleme-microservice).
+  # This propagates through labels + selectors via pleme-lib.name.
+  nameOverride: openclaw-publisher-pki
+
+  # Custom (non-app.kubernetes.io/) label so cluster operators can
+  # filter the whole openclaw family with one selector. The
+  # app.kubernetes.io/part-of label is hardcoded to "nexus-platform"
+  # by pleme-lib; we layer ours alongside.
   additionalLabels:
-    app.kubernetes.io/name: openclaw-publisher-pki
-    app.kubernetes.io/part-of: openclaw
+    pleme.io/part-of: openclaw
