@@ -563,6 +563,44 @@ prometheusRules:
       annotations:
         summary: "{{ $value }} targets gated by compliance binding {{ $labels.name }}"
         description: "Infrastructure targets are suspended due to compliance failure."
+    # ── 0.8.x — Item J workqueue forensics alerts ────────────────
+    - alert: PangeaTemplateStuckCompiling
+      expr: pangea_template_consecutive_compile_failures >= 3
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Template {{ $labels.namespace }}/{{ $labels.name }} stuck compiling ({{ $value }} consecutive failures)"
+        description: |
+          The template's compile phase has failed {{ $value }} times in a row.
+          Common causes: missing provider gem (e.g., pangea-github not bundled),
+          syntax error in workspace DSL, unresolved git source. At
+          settlingPolicy.maxConsecutiveDriftCycles (default 5), the operator
+          escalates to phase=Failed. Check `kubectl describe infra` for the
+          exact compile error message.
+    - alert: PangeaOperatorPaused
+      expr: increase(pangea_policy_skipped_total{reason="globalSuspend"}[5m]) > 10
+      for: 1m
+      labels:
+        severity: info
+      annotations:
+        summary: "Operator globally paused — {{ $value }} reconciles skipped in 5m"
+        description: |
+          OperatorPolicy/default has spec.globalSuspend=true. This is INFO
+          severity because the pause is intentional (operator rewrite,
+          maintenance window, etc.); fires to provide visibility, not to
+          alarm. Resume by patching globalSuspend=false on the HelmRelease
+          values or directly on the OperatorPolicy/default CR.
+    - alert: PangeaControllerSuspended
+      expr: increase(pangea_policy_skipped_total{reason="controllerSuspend"}[15m]) > 5
+      for: 5m
+      labels:
+        severity: info
+      annotations:
+        summary: "Controller {{ $labels.controller }} suspended via OperatorPolicy"
+        description: |
+          A specific controller has been paused via spec.controllerSuspend.{{ $labels.controller }}=true.
+          Surface this as an info-level alert so the dashboard reflects the partial pause state.
 
 # ────────────────────────────────────────────────────────────────────
 # OperatorPolicy — fleet-wide kill-switch primitive
