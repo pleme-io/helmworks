@@ -1,0 +1,59 @@
+{{- /*
+  Default OperatorPolicy/default — the singleton fleet-wide kill-switch.
+
+  Ships with everything `false` so a fresh install behaves identically
+  to pre-OperatorPolicy operator versions. Operators flip individual
+  fields at runtime via `kubectl patch` to pause specific controllers
+  or the whole operator:
+
+    # Pause everything (e.g. during operator rewrite or PG recovery):
+    kubectl patch operatorpolicy default --type=merge \
+      -p '{"spec":{"globalSuspend":true,"globalSuspendReason":"rewrite-2026-05"}}'
+
+    # Pause just the dashboard controller:
+    kubectl patch operatorpolicy default --type=merge \
+      -p '{"spec":{"controllerSuspend":{"dashboard":true}}}'
+
+    # Resume:
+    kubectl patch operatorpolicy default --type=merge \
+      -p '{"spec":{"globalSuspend":false}}'
+
+  Helm `keep` annotations: deliberately NOT used. The policy is owned
+  by the chart so an upgrade can introduce new fields with sensible
+  defaults. If you want a custom policy, create one with a different
+  name (warning: only `default` is honored by the operator) or
+  override these values via the chart's `operatorPolicy.*` keys.
+*/}}
+{{- if .Values.operatorPolicy.create -}}
+apiVersion: pangea.pleme.io/v1alpha1
+kind: OperatorPolicy
+metadata:
+  name: default
+  labels:
+    app.kubernetes.io/name: {{ include "pangea-operator.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/resource-policy": keep
+spec:
+  globalSuspend: {{ .Values.operatorPolicy.globalSuspend }}
+  {{- with .Values.operatorPolicy.globalSuspendReason }}
+  globalSuspendReason: {{ . | quote }}
+  {{- end }}
+  controllerSuspend:
+    template: {{ .Values.operatorPolicy.controllerSuspend.template }}
+    namespace: {{ .Values.operatorPolicy.controllerSuspend.namespace }}
+    workspaceCatalog: {{ .Values.operatorPolicy.controllerSuspend.workspaceCatalog }}
+    architectureGem: {{ .Values.operatorPolicy.controllerSuspend.architectureGem }}
+    complianceBinding: {{ .Values.operatorPolicy.controllerSuspend.complianceBinding }}
+    complianceSchedule: {{ .Values.operatorPolicy.controllerSuspend.complianceSchedule }}
+    imagePipeline: {{ .Values.operatorPolicy.controllerSuspend.imagePipeline }}
+    flow: {{ .Values.operatorPolicy.controllerSuspend.flow }}
+    dashboard: {{ .Values.operatorPolicy.controllerSuspend.dashboard }}
+    amiTest: {{ .Values.operatorPolicy.controllerSuspend.amiTest }}
+    packerBuild: {{ .Values.operatorPolicy.controllerSuspend.packerBuild }}
+    synthesizerFormat: {{ .Values.operatorPolicy.controllerSuspend.synthesizerFormat }}
+{{- end -}}

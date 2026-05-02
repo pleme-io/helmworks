@@ -1,0 +1,218 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: operatorpolicies.pangea.pleme.io
+spec:
+  group: pangea.pleme.io
+  names:
+    categories: []
+    kind: OperatorPolicy
+    plural: operatorpolicies
+    shortNames:
+    - oppol
+    singular: operatorpolicy
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.globalSuspend
+      name: GlobalSuspend
+      type: boolean
+    - jsonPath: .spec.globalSuspendReason
+      name: Reason
+      type: string
+    - jsonPath: .status.reconcilesSkipped
+      name: Skipped
+      type: integer
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Auto-generated derived type for OperatorPolicySpec via `CustomResource`
+        properties:
+          spec:
+            description: Cluster-scoped fleet-wide kill-switch for the operator's controllers.
+            properties:
+              controllerSuspend:
+                default:
+                  amiTest: false
+                  architectureGem: false
+                  complianceBinding: false
+                  complianceSchedule: false
+                  dashboard: false
+                  flow: false
+                  imagePipeline: false
+                  namespace: false
+                  packerBuild: false
+                  synthesizerFormat: false
+                  template: false
+                  workspaceCatalog: false
+                description: Per-controller suspend. Use to pause a specific controller while debugging without freezing the whole operator. `globalSuspend` dominates this field — if it's true, per-controller flags are not consulted.
+                properties:
+                  amiTest:
+                    default: false
+                    description: Pause `ami_test_controller`.
+                    type: boolean
+                  architectureGem:
+                    default: false
+                    description: Pause `architecture_gem_controller`.
+                    type: boolean
+                  complianceBinding:
+                    default: false
+                    description: Pause `compliance_binding_controller`.
+                    type: boolean
+                  complianceSchedule:
+                    default: false
+                    description: Pause `compliance_schedule_controller`.
+                    type: boolean
+                  dashboard:
+                    default: false
+                    description: Pause `dashboard_controller` (PangeaDashboard).
+                    type: boolean
+                  flow:
+                    default: false
+                    description: Pause `flow_controller` (InfrastructureFlow).
+                    type: boolean
+                  imagePipeline:
+                    default: false
+                    description: Pause `image_pipeline_controller`.
+                    type: boolean
+                  namespace:
+                    default: false
+                    description: Pause `namespace_controller` (PangeaNamespace).
+                    type: boolean
+                  packerBuild:
+                    default: false
+                    description: Pause `packer_build_controller`.
+                    type: boolean
+                  synthesizerFormat:
+                    default: false
+                    description: Pause `synthesizer_format_controller`.
+                    type: boolean
+                  template:
+                    default: false
+                    description: Pause `template_controller` (InfrastructureTemplate).
+                    type: boolean
+                  workspaceCatalog:
+                    default: false
+                    description: Pause `workspace_catalog_controller`.
+                    type: boolean
+                type: object
+              globalSuspend:
+                default: false
+                description: Master kill-switch. When true, every operator controller skips reconciliation entirely. Status counter `reconcilesSkipped` increments on every skipped reconcile so you can verify the pause is taking effect.
+                type: boolean
+              globalSuspendReason:
+                description: 'Operator-readable reason for the suspend, surfaced in: * structured logs on every skipped reconcile * Kubernetes Events with reason=`OperatorSuspended` * `kubectl describe operatorpolicy default` output'
+                nullable: true
+                type: string
+            type: object
+          status:
+            description: Status of an OperatorPolicy. The reconciler mirrors `spec` into `status.effective` after every spec change so consumers can observe the policy's resolved view without re-reading spec.
+            nullable: true
+            properties:
+              effective:
+                description: Effective view of the spec. Mirrors spec verbatim today; reserved for future computed fields (e.g., merged-from-multiple-sources).
+                nullable: true
+                properties:
+                  controllerSuspend:
+                    default:
+                      amiTest: false
+                      architectureGem: false
+                      complianceBinding: false
+                      complianceSchedule: false
+                      dashboard: false
+                      flow: false
+                      imagePipeline: false
+                      namespace: false
+                      packerBuild: false
+                      synthesizerFormat: false
+                      template: false
+                      workspaceCatalog: false
+                    description: Per-controller suspend. Use to pause a specific controller while debugging without freezing the whole operator. `globalSuspend` dominates this field — if it's true, per-controller flags are not consulted.
+                    properties:
+                      amiTest:
+                        default: false
+                        description: Pause `ami_test_controller`.
+                        type: boolean
+                      architectureGem:
+                        default: false
+                        description: Pause `architecture_gem_controller`.
+                        type: boolean
+                      complianceBinding:
+                        default: false
+                        description: Pause `compliance_binding_controller`.
+                        type: boolean
+                      complianceSchedule:
+                        default: false
+                        description: Pause `compliance_schedule_controller`.
+                        type: boolean
+                      dashboard:
+                        default: false
+                        description: Pause `dashboard_controller` (PangeaDashboard).
+                        type: boolean
+                      flow:
+                        default: false
+                        description: Pause `flow_controller` (InfrastructureFlow).
+                        type: boolean
+                      imagePipeline:
+                        default: false
+                        description: Pause `image_pipeline_controller`.
+                        type: boolean
+                      namespace:
+                        default: false
+                        description: Pause `namespace_controller` (PangeaNamespace).
+                        type: boolean
+                      packerBuild:
+                        default: false
+                        description: Pause `packer_build_controller`.
+                        type: boolean
+                      synthesizerFormat:
+                        default: false
+                        description: Pause `synthesizer_format_controller`.
+                        type: boolean
+                      template:
+                        default: false
+                        description: Pause `template_controller` (InfrastructureTemplate).
+                        type: boolean
+                      workspaceCatalog:
+                        default: false
+                        description: Pause `workspace_catalog_controller`.
+                        type: boolean
+                    type: object
+                  globalSuspend:
+                    default: false
+                    description: Master kill-switch. When true, every operator controller skips reconciliation entirely. Status counter `reconcilesSkipped` increments on every skipped reconcile so you can verify the pause is taking effect.
+                    type: boolean
+                  globalSuspendReason:
+                    description: 'Operator-readable reason for the suspend, surfaced in: * structured logs on every skipped reconcile * Kubernetes Events with reason=`OperatorSuspended` * `kubectl describe operatorpolicy default` output'
+                    nullable: true
+                    type: string
+                type: object
+              lastChangedAt:
+                description: Wall-clock timestamp of the last spec change observed by the controller. Empty until the policy is first reconciled.
+                format: date-time
+                nullable: true
+                type: string
+              observedGeneration:
+                default: 0
+                description: Last `metadata.generation` the controller has reconciled.
+                format: int64
+                type: integer
+              reconcilesSkipped:
+                default: 0
+                description: 'Rolling counter incremented every time a controller skips a reconcile due to this policy. Resets to zero on operator restart. Use to confirm the kill-switch is taking effect: `kubectl get operatorpolicy default -o jsonpath=''{.status.reconcilesSkipped}''`'
+                format: uint64
+                minimum: 0.0
+                type: integer
+            type: object
+        required:
+        - spec
+        title: OperatorPolicy
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

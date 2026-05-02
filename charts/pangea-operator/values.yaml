@@ -545,3 +545,45 @@ prometheusRules:
       annotations:
         summary: "{{ $value }} targets gated by compliance binding {{ $labels.name }}"
         description: "Infrastructure targets are suspended due to compliance failure."
+
+# ────────────────────────────────────────────────────────────────────
+# OperatorPolicy — fleet-wide kill-switch primitive
+# ────────────────────────────────────────────────────────────────────
+#
+# The chart ships an `OperatorPolicy/default` CR with everything `false`
+# so a fresh install matches pre-OperatorPolicy behavior. Operators
+# flip flags at runtime via `kubectl patch`; static overrides via
+# values.yaml are useful for clusters that should boot suspended
+# (e.g., a rebuild cluster that needs CRs in place but no reconciliation
+# until manually un-paused).
+#
+# Composes with each CR's per-resource `spec.suspend`:
+#   * globalSuspend=true             → every controller skips
+#   * controllerSuspend.<kind>=true  → only that controller skips
+#   * spec.suspend=true on a CR      → only that CR is skipped
+operatorPolicy:
+  # Whether to ship the singleton `OperatorPolicy/default` CR. Set to
+  # false if managing the policy externally (e.g., via Flux + a
+  # separate manifest).
+  create: true
+
+  # Master kill-switch. true = pause everything.
+  globalSuspend: false
+
+  # Operator-readable string surfaced in logs + Events. Empty by default.
+  globalSuspendReason: ""
+
+  # Per-controller suspend flags. Each maps 1:1 to a reconciler.
+  controllerSuspend:
+    template: false
+    namespace: false
+    workspaceCatalog: false
+    architectureGem: false
+    complianceBinding: false
+    complianceSchedule: false
+    imagePipeline: false
+    flow: false
+    dashboard: false
+    amiTest: false
+    packerBuild: false
+    synthesizerFormat: false
