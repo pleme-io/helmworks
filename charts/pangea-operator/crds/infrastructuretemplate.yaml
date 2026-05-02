@@ -37,6 +37,12 @@ spec:
     - jsonPath: .status.lastCycle.summary.driftedUncorrected
       name: Drifted
       type: integer
+    - jsonPath: .status.conditions[?(@.type=='Healthy')].status
+      name: Healthy
+      type: string
+    - jsonPath: .status.autoSuspended
+      name: Suspended
+      type: boolean
     - jsonPath: .spec.destroyProtection
       name: Protected
       type: boolean
@@ -274,6 +280,144 @@ spec:
                     - secretRef
                     type: object
                 type: object
+              reactivePolicy:
+                description: "Reactive policy \u2014 declarative responses to \"things\
+                  \ didn't go to a good state\". Innermost level of the cascade (gem\
+                  \ \u2192 workspace \u2192 template). When unset at every cascade\
+                  \ level, the operator applies sensible defaults: 5 consecutive failures\
+                  \ \u2192 Alert, phase timeouts of 5m / 10m / 30m for Compiling /\
+                  \ Planning / Applying \u2192 Alert, Verified=False for 10m \u2192\
+                  \ Alert. See the `ReactivePolicy` type in the shared `architecture_gem`\
+                  \ module."
+                nullable: true
+                properties:
+                  failureEscalation:
+                    description: What to do when consecutive Failed reconciles exceed
+                      threshold.
+                    nullable: true
+                    properties:
+                      maxConsecutiveFailures:
+                        default: 5
+                        description: Threshold. Default 5.
+                        format: uint32
+                        minimum: 0.0
+                        type: integer
+                      onExhaustion:
+                        default: alert
+                        description: What to do when threshold is reached.
+                        enum:
+                        - alert
+                        - suspend
+                        - page
+                        type: string
+                      routing:
+                        description: Where to route the notification.
+                        nullable: true
+                        properties:
+                          githubIssueTemplate:
+                            description: GitHub issue template name. Operator opens
+                              an issue in the workspace's source repo.
+                            nullable: true
+                            type: string
+                          ntfyTopic:
+                            description: "ntfy topic name (homelab convention \u2014\
+                              \ see pleme-io alertmanager-ntfy module)."
+                            nullable: true
+                            type: string
+                          slackChannel:
+                            description: "Slack channel (SaaS convention \u2014 Datadog/Splunk-paired\
+                              \ clusters)."
+                            nullable: true
+                            type: string
+                        type: object
+                    type: object
+                  phaseTimeout:
+                    description: What to do when stuck in a non-terminal phase too
+                      long.
+                    nullable: true
+                    properties:
+                      applying:
+                        default: 30m
+                        description: '`Applying` threshold. Default `30m`.'
+                        type: string
+                      compiling:
+                        default: 5m
+                        description: How long can `Compiling` last before escalating.
+                          Format same as refreshInterval (`5m`, `30s`, `1h`). Default
+                          `5m`.
+                        type: string
+                      onTimeout:
+                        default: alert
+                        description: What to do when the threshold is exceeded.
+                        enum:
+                        - alert
+                        - suspend
+                        - page
+                        type: string
+                      planning:
+                        default: 10m
+                        description: '`Planning` threshold. Default `10m`.'
+                        type: string
+                      routing:
+                        description: Where to route the notification.
+                        nullable: true
+                        properties:
+                          githubIssueTemplate:
+                            description: GitHub issue template name. Operator opens
+                              an issue in the workspace's source repo.
+                            nullable: true
+                            type: string
+                          ntfyTopic:
+                            description: "ntfy topic name (homelab convention \u2014\
+                              \ see pleme-io alertmanager-ntfy module)."
+                            nullable: true
+                            type: string
+                          slackChannel:
+                            description: "Slack channel (SaaS convention \u2014 Datadog/Splunk-paired\
+                              \ clusters)."
+                            nullable: true
+                            type: string
+                        type: object
+                    type: object
+                  verifiedBlocked:
+                    description: What to do when `Verified=False` persists past timeout.
+                    nullable: true
+                    properties:
+                      onBlocked:
+                        default: alert
+                        description: What to do when the threshold is exceeded.
+                        enum:
+                        - alert
+                        - suspend
+                        - page
+                        type: string
+                      routing:
+                        description: Where to route the notification.
+                        nullable: true
+                        properties:
+                          githubIssueTemplate:
+                            description: GitHub issue template name. Operator opens
+                              an issue in the workspace's source repo.
+                            nullable: true
+                            type: string
+                          ntfyTopic:
+                            description: "ntfy topic name (homelab convention \u2014\
+                              \ see pleme-io alertmanager-ntfy module)."
+                            nullable: true
+                            type: string
+                          slackChannel:
+                            description: "Slack channel (SaaS convention \u2014 Datadog/Splunk-paired\
+                              \ clusters)."
+                            nullable: true
+                            type: string
+                        type: object
+                      timeout:
+                        default: 10m
+                        description: How long can `Verified=False` persist. Default
+                          `10m`.
+                        type: string
+                    type: object
+                type: object
               refreshInterval:
                 default: 5m
                 description: Interval for drift detection checks. Defaults to "5m"
@@ -452,6 +596,14 @@ spec:
                   proceeds to apply.
                 nullable: true
                 type: string
+              autoSuspended:
+                default: false
+                description: Set to true by a ReactivePolicy `Suspend` action. The
+                  operator halts reconcile for this template until cleared. Cleared
+                  manually via `kubectl patch ... --subresource status -p '{"status":{"autoSuspended":false}}'`
+                  (or by deleting the CR and recreating it). See `lastEscalationReason`
+                  for why the auto-suspend triggered.
+                type: boolean
               compliance:
                 description: Compliance check results.
                 nullable: true
@@ -792,6 +944,21 @@ spec:
                 description: Last error message if in Failed state.
                 nullable: true
                 type: string
+              lastEscalatedAt:
+                description: "When the operator last emitted an escalation event for\
+                  \ this template. Debounce signal \u2014 escalation actions don't\
+                  \ re-fire every reconcile while the bad state persists; they fire\
+                  \ once per entry into the bad state and then stay quiet until the\
+                  \ state clears + re-enters."
+                format: date-time
+                nullable: true
+                type: string
+              lastEscalationReason:
+                description: Machine-readable reason for the last escalation. One
+                  of `FailureEscalation`, `PhaseTimeout:<phase>`, `VerifiedBlocked`.
+                  Empty when no escalation has fired.
+                nullable: true
+                type: string
               lastPlannedAt:
                 description: Timestamp of the last successful plan.
                 format: date-time
@@ -827,6 +994,13 @@ spec:
                 - Drifted
                 - Failed
                 - Destroying
+                nullable: true
+                type: string
+              phaseEnteredAt:
+                description: When the current `phase` was entered. Reset on every
+                  phase transition. Used by ReactivePolicy.phaseTimeout to detect
+                  templates stuck in a non-terminal phase.
+                format: date-time
                 nullable: true
                 type: string
               planSummary:
@@ -917,6 +1091,14 @@ spec:
                 items:
                   type: string
                 type: array
+              verifiedBlockedSince:
+                description: First time the `Verified` condition flipped to False.
+                  Used by ReactivePolicy.verifiedBlocked to detect templates whose
+                  gate has been blocked too long. Cleared when Verified flips back
+                  to True.
+                format: date-time
+                nullable: true
+                type: string
             type: object
         required:
         - spec

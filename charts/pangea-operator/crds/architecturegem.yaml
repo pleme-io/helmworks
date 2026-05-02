@@ -10,295 +10,476 @@ spec:
     kind: ArchitectureGem
     plural: architecturegems
     shortNames:
-      - archgem
-      - agem
+    - archgem
+    - agem
     singular: architecturegem
   scope: Cluster
   versions:
-    - additionalPrinterColumns:
-        - jsonPath: .status.phase
-          name: Phase
-          type: string
-        - jsonPath: .status.loadedClassCount
-          name: Loaded
-          type: integer
-        - jsonPath: .status.smokeStatus
-          name: Smoke
-          type: string
-        - jsonPath: .metadata.creationTimestamp
-          name: Age
-          type: date
-      name: v1alpha1
-      schema:
-        openAPIV3Schema:
-          description: Auto-generated derived type for ArchitectureGemSpec via `CustomResource`
-          properties:
-            spec:
-              description: ArchitectureGem declares a Pangea architecture gem to be loaded + smoke-tested by the operator's compiler sidecar.
-              properties:
-                expectedClasses:
-                  description: |-
-                    Classes the operator EXPECTS this gem to expose. Operator refuses to advance past `Verifying` if any expected class is missing from the compiler's loaded namespace.
+  - additionalPrinterColumns:
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .status.loadedClassCount
+      name: Loaded
+      type: integer
+    - jsonPath: .status.smokeStatus
+      name: Smoke
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Auto-generated derived type for ArchitectureGemSpec via `CustomResource`
+        properties:
+          spec:
+            description: ArchitectureGem declares a Pangea architecture gem to be
+              loaded + smoke-tested by the operator's compiler sidecar.
+            properties:
+              expectedClasses:
+                description: 'Classes the operator EXPECTS this gem to expose. Operator
+                  refuses to advance past `Verifying` if any expected class is missing
+                  from the compiler''s loaded namespace.
 
-                    Format: fully-qualified Ruby class names, e.g. `Pangea::Architectures::CloudflareTunnel`.
-                  items:
-                    type: string
-                  type: array
-                fixtures:
-                  default: []
-                  description: Smoke-test fixtures. Each fixture exercises one class with a known-good input; the operator runs them against the compiler sidecar at reconcile time. ALL fixtures must pass for the gem to advance to `Loaded`.
-                  items:
-                    description: Smoke-test fixture for one architecture class. The compiler runs the architecture's `.build(...)` method against the inputs and confirms the result compiles to valid Terraform JSON.
-                    properties:
-                      className:
-                        description: Fully-qualified class name being exercised. E.g. `Pangea::Architectures::CloudflareTunnel`.
-                        type: string
-                      description:
-                        description: Optional human-readable description shown in error messages when the fixture fails.
-                        nullable: true
-                        type: string
-                      fixturePath:
-                        description: 'Path to the fixture input file, relative to the gem''s repository root. Format is YAML; the YAML is deserialized as the architecture''s `.build(synth, args)` second argument. Example: `spec/fixtures/cloudflare_tunnel.yaml`.'
-                        type: string
-                    required:
-                      - className
-                      - fixturePath
-                    type: object
-                  type: array
-                gemName:
-                  description: 'Ruby gem name as it appears in Bundler / require statements. Example: `pangea-architectures`.'
+
+                  Format: fully-qualified Ruby class names, e.g. `Pangea::Architectures::CloudflareTunnel`.'
+                items:
                   type: string
-                policy:
-                  default: {}
-                  description: Gem-level policy defaults — root of the four-level cascade (gem → workspace → template → resource). Lower levels can override with safety precedence (`refuse > requireApproval > autoApply`).
+                type: array
+              fixtures:
+                default: []
+                description: Smoke-test fixtures. Each fixture exercises one class
+                  with a known-good input; the operator runs them against the compiler
+                  sidecar at reconcile time. ALL fixtures must pass for the gem to
+                  advance to `Loaded`.
+                items:
+                  description: Smoke-test fixture for one architecture class. The
+                    compiler runs the architecture's `.build(...)` method against
+                    the inputs and confirms the result compiles to valid Terraform
+                    JSON.
                   properties:
-                    approvalRouting:
-                      description: Approval routing for `requireApproval` reactions.
-                      nullable: true
-                      properties:
-                        githubIssueTemplate:
-                          description: GitHub issue template name. Operator opens an issue in the workspace's source repo.
-                          nullable: true
-                          type: string
-                        ntfyTopic:
-                          description: ntfy topic name (homelab convention — see pleme-io alertmanager-ntfy module).
-                          nullable: true
-                          type: string
-                        slackChannel:
-                          description: Slack channel (SaaS convention — Datadog/Splunk-paired clusters).
-                          nullable: true
-                          type: string
-                      type: object
-                    destroyProtection:
-                      description: Default destroy protection for resources from this gem.
-                      nullable: true
-                      type: boolean
-                    driftReaction:
-                      description: Default drift reaction for resources from this gem. `autoApply` (silent), `requireApproval` (stall), `refuse` (block all changes), `alert` (notify but don't apply).
-                      enum:
-                        - autoApply
-                        - requireApproval
-                        - refuse
-                        - alert
+                    className:
+                      description: Fully-qualified class name being exercised. E.g.
+                        `Pangea::Architectures::CloudflareTunnel`.
+                      type: string
+                    description:
+                      description: Optional human-readable description shown in error
+                        messages when the fixture fails.
                       nullable: true
                       type: string
-                    settlingPolicy:
-                      description: Settling policy — what to do if the gem keeps drifting.
-                      nullable: true
-                      properties:
-                        maxConsecutiveDriftCycles:
-                          default: 4
-                          description: After this many consecutive drift cycles, take `onExhaustion` action.
-                          format: uint32
-                          minimum: 0.0
-                          type: integer
-                        onExhaustion:
-                          default: fail
-                          description: What to do when `maxConsecutiveDriftCycles` is hit.
-                          enum:
-                            - fail
+                    fixturePath:
+                      description: 'Path to the fixture input file, relative to the
+                        gem''s repository root. Format is YAML; the YAML is deserialized
+                        as the architecture''s `.build(synth, args)` second argument.
+                        Example: `spec/fixtures/cloudflare_tunnel.yaml`.'
+                      type: string
+                  required:
+                  - className
+                  - fixturePath
+                  type: object
+                type: array
+              gemName:
+                description: 'Ruby gem name as it appears in Bundler / require statements.
+                  Example: `pangea-architectures`.'
+                type: string
+              policy:
+                default: {}
+                description: "Gem-level policy defaults \u2014 root of the four-level\
+                  \ cascade (gem \u2192 workspace \u2192 template \u2192 resource).\
+                  \ Lower levels can override with safety precedence (`refuse > requireApproval\
+                  \ > autoApply`)."
+                properties:
+                  approvalRouting:
+                    description: Approval routing for `requireApproval` reactions.
+                    nullable: true
+                    properties:
+                      githubIssueTemplate:
+                        description: GitHub issue template name. Operator opens an
+                          issue in the workspace's source repo.
+                        nullable: true
+                        type: string
+                      ntfyTopic:
+                        description: "ntfy topic name (homelab convention \u2014 see\
+                          \ pleme-io alertmanager-ntfy module)."
+                        nullable: true
+                        type: string
+                      slackChannel:
+                        description: "Slack channel (SaaS convention \u2014 Datadog/Splunk-paired\
+                          \ clusters)."
+                        nullable: true
+                        type: string
+                    type: object
+                  destroyProtection:
+                    description: Default destroy protection for resources from this
+                      gem.
+                    nullable: true
+                    type: boolean
+                  driftReaction:
+                    description: Default drift reaction for resources from this gem.
+                      `autoApply` (silent), `requireApproval` (stall), `refuse` (block
+                      all changes), `alert` (notify but don't apply).
+                    enum:
+                    - autoApply
+                    - requireApproval
+                    - refuse
+                    - alert
+                    nullable: true
+                    type: string
+                  reactive:
+                    description: "Reactive policy \u2014 declarative responses to\
+                      \ \"things didn't go to a good state\". Cascade root for downstream\
+                      \ workspaces + templates. See `ReactivePolicy` for the shape."
+                    nullable: true
+                    properties:
+                      failureEscalation:
+                        description: What to do when consecutive Failed reconciles
+                          exceed threshold.
+                        nullable: true
+                        properties:
+                          maxConsecutiveFailures:
+                            default: 5
+                            description: Threshold. Default 5.
+                            format: uint32
+                            minimum: 0.0
+                            type: integer
+                          onExhaustion:
+                            default: alert
+                            description: What to do when threshold is reached.
+                            enum:
                             - alert
-                            - retry
-                          type: string
-                      type: object
-                  type: object
-                refreshInterval:
-                  default: 5m
-                  description: How often to re-verify the gem (e.g. catch sidecar restart where the gem was unloaded). Defaults to `5m`.
-                  type: string
-                source:
-                  description: 'Where the gem source lives + which evaluator runs it. M1 supports gitRepository only; future: published-gem (RubyGems.org) and OCI-artifact modes. Source kind is per theory/TERRENO.md M2 — Ruby (Pangea, default), Lisp (terreno), or Wasm (typed WIT component).'
+                            - suspend
+                            - page
+                            type: string
+                          routing:
+                            description: Where to route the notification.
+                            nullable: true
+                            properties:
+                              githubIssueTemplate:
+                                description: GitHub issue template name. Operator
+                                  opens an issue in the workspace's source repo.
+                                nullable: true
+                                type: string
+                              ntfyTopic:
+                                description: "ntfy topic name (homelab convention\
+                                  \ \u2014 see pleme-io alertmanager-ntfy module)."
+                                nullable: true
+                                type: string
+                              slackChannel:
+                                description: "Slack channel (SaaS convention \u2014\
+                                  \ Datadog/Splunk-paired clusters)."
+                                nullable: true
+                                type: string
+                            type: object
+                        type: object
+                      phaseTimeout:
+                        description: What to do when stuck in a non-terminal phase
+                          too long.
+                        nullable: true
+                        properties:
+                          applying:
+                            default: 30m
+                            description: '`Applying` threshold. Default `30m`.'
+                            type: string
+                          compiling:
+                            default: 5m
+                            description: How long can `Compiling` last before escalating.
+                              Format same as refreshInterval (`5m`, `30s`, `1h`).
+                              Default `5m`.
+                            type: string
+                          onTimeout:
+                            default: alert
+                            description: What to do when the threshold is exceeded.
+                            enum:
+                            - alert
+                            - suspend
+                            - page
+                            type: string
+                          planning:
+                            default: 10m
+                            description: '`Planning` threshold. Default `10m`.'
+                            type: string
+                          routing:
+                            description: Where to route the notification.
+                            nullable: true
+                            properties:
+                              githubIssueTemplate:
+                                description: GitHub issue template name. Operator
+                                  opens an issue in the workspace's source repo.
+                                nullable: true
+                                type: string
+                              ntfyTopic:
+                                description: "ntfy topic name (homelab convention\
+                                  \ \u2014 see pleme-io alertmanager-ntfy module)."
+                                nullable: true
+                                type: string
+                              slackChannel:
+                                description: "Slack channel (SaaS convention \u2014\
+                                  \ Datadog/Splunk-paired clusters)."
+                                nullable: true
+                                type: string
+                            type: object
+                        type: object
+                      verifiedBlocked:
+                        description: What to do when `Verified=False` persists past
+                          timeout.
+                        nullable: true
+                        properties:
+                          onBlocked:
+                            default: alert
+                            description: What to do when the threshold is exceeded.
+                            enum:
+                            - alert
+                            - suspend
+                            - page
+                            type: string
+                          routing:
+                            description: Where to route the notification.
+                            nullable: true
+                            properties:
+                              githubIssueTemplate:
+                                description: GitHub issue template name. Operator
+                                  opens an issue in the workspace's source repo.
+                                nullable: true
+                                type: string
+                              ntfyTopic:
+                                description: "ntfy topic name (homelab convention\
+                                  \ \u2014 see pleme-io alertmanager-ntfy module)."
+                                nullable: true
+                                type: string
+                              slackChannel:
+                                description: "Slack channel (SaaS convention \u2014\
+                                  \ Datadog/Splunk-paired clusters)."
+                                nullable: true
+                                type: string
+                            type: object
+                          timeout:
+                            default: 10m
+                            description: How long can `Verified=False` persist. Default
+                              `10m`.
+                            type: string
+                        type: object
+                    type: object
+                  settlingPolicy:
+                    description: "Settling policy \u2014 what to do if the gem keeps\
+                      \ drifting."
+                    nullable: true
+                    properties:
+                      maxConsecutiveDriftCycles:
+                        default: 4
+                        description: After this many consecutive drift cycles, take
+                          `onExhaustion` action.
+                        format: uint32
+                        minimum: 0.0
+                        type: integer
+                      onExhaustion:
+                        default: fail
+                        description: What to do when `maxConsecutiveDriftCycles` is
+                          hit.
+                        enum:
+                        - fail
+                        - alert
+                        - retry
+                        type: string
+                    type: object
+                type: object
+              refreshInterval:
+                default: 5m
+                description: How often to re-verify the gem (e.g. catch sidecar restart
+                  where the gem was unloaded). Defaults to `5m`.
+                type: string
+              source:
+                description: 'Where the gem source lives. M1 supports gitRepository
+                  only; future: published-gem (RubyGems.org) and OCI-artifact modes.'
+                properties:
+                  gitRepository:
+                    description: "Git repository \u2014 clone the gem at the given\
+                      \ ref. Operator (embedded mode) clones into the gem cache +\
+                      \ prepends to $LOAD_PATH (Ruby) or registers with the lisp/wasm\
+                      \ evaluator per `kind`."
+                    nullable: true
+                    properties:
+                      path:
+                        description: Path to the template file within the repository.
+                        type: string
+                      ref:
+                        default: main
+                        description: Git reference (branch, tag, or commit SHA).
+                        type: string
+                      secretRef:
+                        description: Reference to a Secret containing Git credentials.
+                        nullable: true
+                        properties:
+                          name:
+                            description: Name of the Secret.
+                            type: string
+                          namespace:
+                            description: Namespace of the Secret (defaults to same
+                              namespace as the resource).
+                            nullable: true
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      url:
+                        description: Git repository URL.
+                        type: string
+                    required:
+                    - path
+                    - url
+                    type: object
+                  kind:
+                    default: Ruby
+                    description: "Which evaluator runs this gem. `Ruby` is the default\
+                      \ for backward compatibility \u2014 every existing ArchitectureGem\
+                      \ CR continues to validate + reconcile unchanged.\n\n`Lisp`\
+                      \ selects the terreno evaluator (theory/TERRENO.md M2); `Wasm`\
+                      \ selects a typed wasmtime component. Both are reserved at the\
+                      \ schema layer today; the operator's prepare_gem returns a typed\
+                      \ `NotImplemented` condition until terreno-eval lands."
+                    enum:
+                    - Ruby
+                    - Lisp
+                    - Wasm
+                    type: string
+                type: object
+              suspend:
+                default: false
+                description: Suspend reconciliation. Operator skips this gem entirely;
+                  existing classes stay in the registry (last-known-good).
+                type: boolean
+              version:
+                description: Required gem version (semver constraint or exact). Operator
+                  refuses to load if the compiler sidecar reports a different version.
+                type: string
+            required:
+            - expectedClasses
+            - gemName
+            - source
+            - version
+            type: object
+          status:
+            description: Status reflecting the loader's view of this gem.
+            nullable: true
+            properties:
+              conditions:
+                default: []
+                description: 'Standard kube conditions: `Loaded`, `SmokeTested`, `Ready`.'
+                items:
+                  description: Standard kube condition shape.
                   properties:
-                    kind:
-                      description: 'Which evaluator interprets the gem source. `Ruby` (default) is the existing Pangea path (magnus-embedded CRuby in operator embedded mode; sidecar bundle in HTTP mode). `Lisp` reserves the terreno path (Track B; theory/TERRENO.md M2). `Wasm` reserves the typed wasmtime path (M2+). Lisp + Wasm are typed today but their evaluators are NotImplemented until landed; the operator surfaces this as a `GemPrepareFailed` condition.'
-                      enum:
-                        - Ruby
-                        - Lisp
-                        - Wasm
-                      default: Ruby
+                    lastTransitionTime:
+                      description: When the condition last transitioned.
+                      format: date-time
                       type: string
-                    gitRepository:
-                      description: Git repository — clone the gem at the given ref. Compiler sidecar bundles + requires from this path (Ruby kind); embedded mode clones into the gem cache and registers with the matching evaluator per `kind`.
-                      nullable: true
-                      properties:
-                        path:
-                          description: Path to the template file within the repository.
-                          type: string
-                        ref:
-                          default: main
-                          description: Git reference (branch, tag, or commit SHA).
-                          type: string
-                        secretRef:
-                          description: Reference to a Secret containing Git credentials.
-                          nullable: true
-                          properties:
-                            name:
-                              description: Name of the Secret.
-                              type: string
-                            namespace:
-                              description: Namespace of the Secret (defaults to same namespace as the resource).
-                              nullable: true
-                              type: string
-                          required:
-                            - name
-                          type: object
-                        url:
-                          description: Git repository URL.
-                          type: string
-                      required:
-                        - path
-                        - url
-                      type: object
+                    message:
+                      description: Human-readable message.
+                      type: string
+                    reason:
+                      description: Machine-readable reason.
+                      type: string
+                    status:
+                      description: '`True`, `False`, `Unknown`.'
+                      type: string
+                    type:
+                      description: "Condition type \u2014 `Loaded`, `SmokeTested`,\
+                        \ `Ready`."
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
                   type: object
-                suspend:
-                  default: false
-                  description: Suspend reconciliation. Operator skips this gem entirely; existing classes stay in the registry (last-known-good).
-                  type: boolean
-                version:
-                  description: Required gem version (semver constraint or exact). Operator refuses to load if the compiler sidecar reports a different version.
+                type: array
+              fixtureResults:
+                default: []
+                description: Per-fixture smoke-test results.
+                items:
+                  description: Per-fixture smoke-test result.
+                  properties:
+                    className:
+                      description: Class the fixture exercised.
+                      type: string
+                    error:
+                      description: Error message if the fixture failed.
+                      nullable: true
+                      type: string
+                    inputHash:
+                      description: "Hash of the fixture input \u2014 operator detects\
+                        \ fixture drift between releases and re-runs accordingly."
+                      nullable: true
+                      type: string
+                    lastRun:
+                      description: When the fixture last ran.
+                      format: date-time
+                      type: string
+                    passed:
+                      description: Whether the fixture passed.
+                      type: boolean
+                  required:
+                  - className
+                  - lastRun
+                  - passed
+                  type: object
+                type: array
+              lastReconcileTime:
+                description: Last reconcile timestamp.
+                format: date-time
+                nullable: true
+                type: string
+              loadedClassCount:
+                default: 0
+                description: "`loadedClasses.len()` \u2014 exposed as a printer column\
+                  \ for `kubectl get archgem` ergonomics."
+                format: uint32
+                minimum: 0.0
+                type: integer
+              loadedClasses:
+                default: []
+                description: Classes actually present in the compiler's loaded namespace
+                  for this gem. Source of truth for admission webhook + template `Verified`
+                  check.
+                items:
                   type: string
-              required:
-                - expectedClasses
-                - gemName
-                - source
-                - version
-              type: object
-            status:
-              description: Status reflecting the loader's view of this gem.
-              nullable: true
-              properties:
-                conditions:
-                  default: []
-                  description: 'Standard kube conditions: `Loaded`, `SmokeTested`, `Ready`.'
-                  items:
-                    description: Standard kube condition shape.
-                    properties:
-                      lastTransitionTime:
-                        description: When the condition last transitioned.
-                        format: date-time
-                        type: string
-                      message:
-                        description: Human-readable message.
-                        type: string
-                      reason:
-                        description: Machine-readable reason.
-                        type: string
-                      status:
-                        description: '`True`, `False`, `Unknown`.'
-                        type: string
-                      type:
-                        description: Condition type — `Loaded`, `SmokeTested`, `Ready`.
-                        type: string
-                    required:
-                      - lastTransitionTime
-                      - message
-                      - reason
-                      - status
-                      - type
-                    type: object
-                  type: array
-                fixtureResults:
-                  default: []
-                  description: Per-fixture smoke-test results.
-                  items:
-                    description: Per-fixture smoke-test result.
-                    properties:
-                      className:
-                        description: Class the fixture exercised.
-                        type: string
-                      error:
-                        description: Error message if the fixture failed.
-                        nullable: true
-                        type: string
-                      inputHash:
-                        description: Hash of the fixture input — operator detects fixture drift between releases and re-runs accordingly.
-                        nullable: true
-                        type: string
-                      lastRun:
-                        description: When the fixture last ran.
-                        format: date-time
-                        type: string
-                      passed:
-                        description: Whether the fixture passed.
-                        type: boolean
-                    required:
-                      - className
-                      - lastRun
-                      - passed
-                    type: object
-                  type: array
-                lastReconcileTime:
-                  description: Last reconcile timestamp.
-                  format: date-time
-                  nullable: true
+                type: array
+              missingClasses:
+                default: []
+                description: Classes from `spec.expectedClasses` that are MISSING
+                  from the compiler's namespace. Empty when the gem is fully loaded.
+                items:
                   type: string
-                loadedClassCount:
-                  default: 0
-                  description: '`loadedClasses.len()` — exposed as a printer column for `kubectl get archgem` ergonomics.'
-                  format: uint32
-                  minimum: 0.0
-                  type: integer
-                loadedClasses:
-                  default: []
-                  description: Classes actually present in the compiler's loaded namespace for this gem. Source of truth for admission webhook + template `Verified` check.
-                  items:
-                    type: string
-                  type: array
-                missingClasses:
-                  default: []
-                  description: Classes from `spec.expectedClasses` that are MISSING from the compiler's namespace. Empty when the gem is fully loaded.
-                  items:
-                    type: string
-                  type: array
-                observedVersion:
-                  description: Compiler-reported gem version (compared against `spec.version`).
-                  nullable: true
-                  type: string
-                phase:
-                  description: Lifecycle phase. See `Phase` enum.
-                  enum:
-                    - Pending
-                    - Loading
-                    - SmokeTesting
-                    - Loaded
-                    - Failed
-                    - Suspended
-                  nullable: true
-                  type: string
-                smokeStatus:
-                  description: Smoke test outcome.
-                  enum:
-                    - NotRun
-                    - Passed
-                    - Failed
-                  nullable: true
-                  type: string
-              type: object
-          required:
-            - spec
-          title: ArchitectureGem
-          type: object
-      served: true
-      storage: true
-      subresources:
-        status: {}
+                type: array
+              observedVersion:
+                description: Compiler-reported gem version (compared against `spec.version`).
+                nullable: true
+                type: string
+              phase:
+                description: Lifecycle phase. See `Phase` enum.
+                enum:
+                - Pending
+                - Loading
+                - SmokeTesting
+                - Loaded
+                - Failed
+                - Suspended
+                nullable: true
+                type: string
+              smokeStatus:
+                description: Smoke test outcome.
+                enum:
+                - NotRun
+                - Passed
+                - Failed
+                nullable: true
+                type: string
+            type: object
+        required:
+        - spec
+        title: ArchitectureGem
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

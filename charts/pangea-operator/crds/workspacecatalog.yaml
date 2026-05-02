@@ -72,6 +72,141 @@ spec:
                     - alert
                     nullable: true
                     type: string
+                  reactive:
+                    description: "Reactive policy \u2014 declarative responses for\
+                      \ templates under this workspace when they don't reach a good\
+                      \ state. Inherits from gem-level; overrides per-field for templates\
+                      \ that don't declare their own. See `ReactivePolicy`."
+                    nullable: true
+                    properties:
+                      failureEscalation:
+                        description: What to do when consecutive Failed reconciles
+                          exceed threshold.
+                        nullable: true
+                        properties:
+                          maxConsecutiveFailures:
+                            default: 5
+                            description: Threshold. Default 5.
+                            format: uint32
+                            minimum: 0.0
+                            type: integer
+                          onExhaustion:
+                            default: alert
+                            description: What to do when threshold is reached.
+                            enum:
+                            - alert
+                            - suspend
+                            - page
+                            type: string
+                          routing:
+                            description: Where to route the notification.
+                            nullable: true
+                            properties:
+                              githubIssueTemplate:
+                                description: GitHub issue template name. Operator
+                                  opens an issue in the workspace's source repo.
+                                nullable: true
+                                type: string
+                              ntfyTopic:
+                                description: "ntfy topic name (homelab convention\
+                                  \ \u2014 see pleme-io alertmanager-ntfy module)."
+                                nullable: true
+                                type: string
+                              slackChannel:
+                                description: "Slack channel (SaaS convention \u2014\
+                                  \ Datadog/Splunk-paired clusters)."
+                                nullable: true
+                                type: string
+                            type: object
+                        type: object
+                      phaseTimeout:
+                        description: What to do when stuck in a non-terminal phase
+                          too long.
+                        nullable: true
+                        properties:
+                          applying:
+                            default: 30m
+                            description: '`Applying` threshold. Default `30m`.'
+                            type: string
+                          compiling:
+                            default: 5m
+                            description: How long can `Compiling` last before escalating.
+                              Format same as refreshInterval (`5m`, `30s`, `1h`).
+                              Default `5m`.
+                            type: string
+                          onTimeout:
+                            default: alert
+                            description: What to do when the threshold is exceeded.
+                            enum:
+                            - alert
+                            - suspend
+                            - page
+                            type: string
+                          planning:
+                            default: 10m
+                            description: '`Planning` threshold. Default `10m`.'
+                            type: string
+                          routing:
+                            description: Where to route the notification.
+                            nullable: true
+                            properties:
+                              githubIssueTemplate:
+                                description: GitHub issue template name. Operator
+                                  opens an issue in the workspace's source repo.
+                                nullable: true
+                                type: string
+                              ntfyTopic:
+                                description: "ntfy topic name (homelab convention\
+                                  \ \u2014 see pleme-io alertmanager-ntfy module)."
+                                nullable: true
+                                type: string
+                              slackChannel:
+                                description: "Slack channel (SaaS convention \u2014\
+                                  \ Datadog/Splunk-paired clusters)."
+                                nullable: true
+                                type: string
+                            type: object
+                        type: object
+                      verifiedBlocked:
+                        description: What to do when `Verified=False` persists past
+                          timeout.
+                        nullable: true
+                        properties:
+                          onBlocked:
+                            default: alert
+                            description: What to do when the threshold is exceeded.
+                            enum:
+                            - alert
+                            - suspend
+                            - page
+                            type: string
+                          routing:
+                            description: Where to route the notification.
+                            nullable: true
+                            properties:
+                              githubIssueTemplate:
+                                description: GitHub issue template name. Operator
+                                  opens an issue in the workspace's source repo.
+                                nullable: true
+                                type: string
+                              ntfyTopic:
+                                description: "ntfy topic name (homelab convention\
+                                  \ \u2014 see pleme-io alertmanager-ntfy module)."
+                                nullable: true
+                                type: string
+                              slackChannel:
+                                description: "Slack channel (SaaS convention \u2014\
+                                  \ Datadog/Splunk-paired clusters)."
+                                nullable: true
+                                type: string
+                            type: object
+                          timeout:
+                            default: 10m
+                            description: How long can `Verified=False` persist. Default
+                              `10m`.
+                            type: string
+                        type: object
+                    type: object
                   reconcileInterval:
                     description: How often the operator runs `tofu plan` to detect
                       drift.
