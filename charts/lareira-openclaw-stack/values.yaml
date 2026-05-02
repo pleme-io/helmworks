@@ -1,0 +1,31 @@
+# lareira-openclaw-stack — umbrella for the three openclaw services.
+#
+# Each sub-chart is independently toggleable. The default posture is
+# all-on at fedramp-high; flip any of these to false to deploy a
+# subset (e.g. only the store + scanner if you already operate a
+# central PKI elsewhere).
+
+pki:
+  enabled: true
+store:
+  enabled: true
+scanner:
+  enabled: true
+
+# Sub-chart overrides flow through the alias names declared in
+# Chart.yaml dependencies. Example: bump store image digest.
+#
+#   store:
+#     pleme-microservice:
+#       image:
+#         tag: "sha256:abc123..."
+#
+# This shape is identical to installing each sub-chart standalone;
+# the umbrella adds composition + a single release lifecycle, not new
+# values structure.
+
+# Image tags are NOT defaulted here — at fedramp-high every workload
+# must be digest-pinned, and the pinning is the responsibility of CI
+# (forge injects digests at release). Operators supply real tags via
+# overrides; the placeholder zeros in each sub-chart cause fail() at
+# template render until substituted, by design.

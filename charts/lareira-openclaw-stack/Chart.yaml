@@ -1,0 +1,31 @@
+apiVersion: v2
+name: lareira-openclaw-stack
+description: |
+  openclaw stack — umbrella chart composing the publisher PKI, the
+  attested skill-store API, and the continuous re-attestation scanner
+  into a single deploy unit. Every sub-chart inherits the fedramp-high
+  compliance overlay; sub-charts can be enabled/disabled independently
+  via top-level toggles.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+
+keywords: [openclaw, fedramp-high, attestation, lareira, umbrella]
+maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]
+
+dependencies:
+  - name: lareira-openclaw-pki
+    alias: pki
+    version: "~0.1.0"
+    repository: "file://../lareira-openclaw-pki"
+    condition: pki.enabled
+  - name: lareira-openclaw-store
+    alias: store
+    version: "~0.1.0"
+    repository: "file://../lareira-openclaw-store"
+    condition: store.enabled
+  - name: lareira-openclaw-scanner
+    alias: scanner
+    version: "~0.1.0"
+    repository: "file://../lareira-openclaw-scanner"
+    condition: scanner.enabled

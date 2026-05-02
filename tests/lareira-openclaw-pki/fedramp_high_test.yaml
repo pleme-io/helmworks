@@ -1,0 +1,109 @@
+suite: lareira-openclaw-pki — fedramp-high invariants
+#
+# Asserts the chart's wrapper-specific resources (sekiban CRDs and the
+# org-seed ExternalSecret) render correctly with the chart's defaults
+# under fedramp-high. The pleme-microservice subchart's compliance
+# proof is tested in tests/pleme-microservice/.
+templates:
+  - templates/compliancepolicy.yaml
+  - templates/signaturegate.yaml
+  - templates/externalsecret.yaml
+release:
+  name: openclaw-pki
+  namespace: openclaw
+defaults: &defaults
+  org: pleme-io
+  pleme-microservice.image.tag: "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+tests:
+  - it: emits a NIST_800_53 high CompliancePolicy bound to the deployment
+    template: templates/compliancepolicy.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - equal:
+          path: kind
+          value: CompliancePolicy
+      - equal:
+          path: apiVersion
+          value: sekiban.pleme.io/v1alpha1
+      - equal:
+          path: spec.framework
+          value: NIST_800_53
+      - equal:
+          path: spec.baseline
+          value: high
+      - equal:
+          path: spec.testRunner.runnerType
+          value: kensa
+      - equal:
+          path: spec.testRunner.profile
+          value: nist-800-53-high
+      - matchRegex:
+          path: spec.schedule
+          pattern: '^\d+ \*/\d+ \* \* \*$'
+
+  - it: emits a SignatureGate referencing the CompliancePolicy
+    template: templates/signaturegate.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - equal:
+          path: kind
+          value: SignatureGate
+      - equal:
+          path: spec.compliancePolicy
+          value: openclaw-pki-lareira-openclaw-pki
+      - contains:
+          path: spec.layers
+          content: image
+      - contains:
+          path: spec.layers
+          content: rbac
+      - contains:
+          path: spec.targetResources
+          content:
+            group: apps
+            kind: Deployment
+            operations: [CREATE, UPDATE]
+
+  - it: emits an ExternalSecret materializing the org-seed from the cluster store
+    template: templates/externalsecret.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - equal:
+          path: kind
+          value: ExternalSecret
+      - equal:
+          path: apiVersion
+          value: external-secrets.io/v1beta1
+      - equal:
+          path: spec.secretStoreRef.kind
+          value: ClusterSecretStore
+      - equal:
+          path: spec.secretStoreRef.name
+          value: cluster-secret-store
+      - equal:
+          path: spec.target.name
+          value: openclaw-pki-org-seed
+      - equal:
+          path: spec.target.template.metadata.labels["pleme.io/secret-class"]
+          value: ca-root-key
+
+  - it: ExternalSecret can be disabled (e.g. when seed is provisioned out-of-band)
+    template: templates/externalsecret.yaml
+    set:
+      <<: *defaults
+      orgSeed.externalSecret.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: sekiban CRDs disappear when sekiban is disabled
+    template: templates/signaturegate.yaml
+    set:
+      <<: *defaults
+      sekiban.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0

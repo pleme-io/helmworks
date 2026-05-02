@@ -1,0 +1,40 @@
+{{- /*
+The openclaw stack has been deployed. The three sub-charts each emit
+their own SignatureGate + CompliancePolicy via sekiban; the cluster
+must already have:
+
+  1. sekiban admission webhook installed (chart: sekiban)
+  2. external-secrets-operator installed
+  3. kyverno installed (chart: lareira-kyverno)
+  4. pleme-admission-policies installed with overlays={fedramp-high}
+  5. an "encrypted-default" StorageClass (SC-28)
+  6. authentik OIDC provider reachable from cluster
+  7. cofre-managed secret backend with the openclaw/publisher-pki/org-seed
+     entry materialized
+
+If any are missing, chart-time validators or admission policies will
+reject the deploy with a clear control citation.
+*/ -}}
+openclaw stack — fedramp-high baseline.
+
+Sub-charts:
+{{- if .Values.pki.enabled }}
+  ✓ pki      → ClusterIP :8090   (internal only)
+{{- end }}
+{{- if .Values.store.enabled }}
+  ✓ store    → ClusterIP :8080   (gate via saguão / authentik forward-auth)
+{{- end }}
+{{- if .Values.scanner.enabled }}
+  ✓ scanner  → ClusterIP :8081   (status API)
+{{- end }}
+
+Smoke check:
+
+  kubectl -n {{ .Release.Namespace }} get \
+    deploy,svc,signaturegate,compliancepolicy,externalsecret \
+    -l app.kubernetes.io/part-of=openclaw
+
+Release-time CI is responsible for substituting:
+  - <chart>.pleme-microservice.image.tag           (sha256: digest)
+  - <chart>.pleme-microservice.attestation.*       (tameshi hashes)
+  - <chart>.sekiban.signatureGate.expectedSignature (composite sig)

@@ -1,0 +1,24 @@
+{{- if .Values.sekiban.enabled }}
+apiVersion: sekiban.pleme.io/v1alpha1
+kind: SignatureGate
+metadata:
+  name: {{ include "lareira-openclaw-scanner.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "lareira-openclaw-scanner.labels" . | nindent 4 }}
+spec:
+  layers:
+    {{- range .Values.sekiban.signatureGate.layers }}
+    - {{ . | quote }}
+    {{- end }}
+  expectedSignature: {{ .Values.sekiban.signatureGate.expectedSignature | quote }}
+  targetResources:
+    - group: apps
+      kind: Deployment
+      operations: [CREATE, UPDATE]
+    - group: ""
+      kind: Service
+      operations: [CREATE, UPDATE]
+  compliancePolicy: {{ include "lareira-openclaw-scanner.fullname" . | quote }}
+  verificationIntervalSecs: {{ .Values.sekiban.signatureGate.verificationIntervalSecs | int }}
+{{- end }}

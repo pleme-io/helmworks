@@ -1,0 +1,22 @@
+apiVersion: v2
+name: lareira-openclaw-pki
+description: |
+  openclaw-publisher-pki — publisher enrollment + signed CRL HTTP server
+  for the openclaw skill-store ecosystem. Wraps
+  https://github.com/pleme-io/openclaw-publisher-pki as a K8s service
+  on top of pleme-microservice with the fedramp-high compliance overlay.
+
+  The org-seed (CA root key material) is materialized at runtime from
+  ExternalSecret bound to a backend (Akeyless / SOPS / Vault) — never
+  stored in chart values.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+
+keywords: [openclaw, pki, fedramp-high, attestation, lareira]
+maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]
+
+dependencies:
+  - name: pleme-microservice
+    version: "~0.1.0"
+    repository: "file://../pleme-microservice"

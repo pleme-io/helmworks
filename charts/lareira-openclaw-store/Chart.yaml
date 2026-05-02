@@ -1,0 +1,22 @@
+apiVersion: v2
+name: lareira-openclaw-store
+description: |
+  openclaw-skill-store — attested skill registry + marketplace API for
+  OpenClaw agents. Wraps https://github.com/pleme-io/openclaw-skill-store
+  as a K8s service on top of pleme-microservice with the fedramp-high
+  compliance overlay.
+
+  Listings are admitted only if their merkle proofs verify against the
+  publisher PKI org-root + tameshi composite signature; tampering
+  anywhere breaks a hash and the listing is rejected.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+
+keywords: [openclaw, skill-store, fedramp-high, attestation, lareira]
+maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]
+
+dependencies:
+  - name: pleme-microservice
+    version: "~0.1.0"
+    repository: "file://../pleme-microservice"

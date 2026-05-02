@@ -1,0 +1,67 @@
+suite: lareira-openclaw-stack — umbrella composition
+#
+# Each sub-chart's compliance proof is tested in its own suite. This
+# umbrella suite covers composition: that values flow correctly through
+# the dependency aliases (pki/store/scanner) when the sub-charts are
+# enabled.
+#
+# The `condition: <field>` semantic in dependencies is enforced by
+# Helm itself; testing the disabled case here would require rendering
+# excluded sub-chart templates, which helm-unittest treats as an error.
+templates:
+  - charts/pki/templates/compliancepolicy.yaml
+  - charts/pki/templates/signaturegate.yaml
+  - charts/pki/templates/externalsecret.yaml
+  - charts/store/templates/compliancepolicy.yaml
+  - charts/store/templates/signaturegate.yaml
+  - charts/scanner/templates/compliancepolicy.yaml
+  - charts/scanner/templates/signaturegate.yaml
+release:
+  name: stack
+  namespace: openclaw
+defaults: &defaults
+  pki.pleme-microservice.image.tag: "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+  store.pleme-microservice.image.tag: "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+  scanner.pleme-microservice.image.tag: "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+tests:
+  - it: pki sub-chart emits its CompliancePolicy bound to NIST 800-53 high
+    template: charts/pki/templates/compliancepolicy.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - equal:
+          path: spec.framework
+          value: NIST_800_53
+      - equal:
+          path: spec.baseline
+          value: high
+
+  - it: store sub-chart SignatureGate covers data-plane layer
+    template: charts/store/templates/signaturegate.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - contains:
+          path: spec.layers
+          content: data-plane
+
+  - it: scanner sub-chart CompliancePolicy bound to NIST 800-53 high
+    template: charts/scanner/templates/compliancepolicy.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - equal:
+          path: spec.baseline
+          value: high
+
+  - it: pki ExternalSecret references the canonical org-seed key path
+    template: charts/pki/templates/externalsecret.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - equal:
+          path: spec.data[0].remoteRef.key
+          value: openclaw/publisher-pki/org-seed
+      - equal:
+          path: spec.target.template.metadata.labels["pleme.io/secret-class"]
+          value: ca-root-key

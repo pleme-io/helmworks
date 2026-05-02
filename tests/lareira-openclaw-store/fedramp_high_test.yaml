@@ -1,0 +1,66 @@
+suite: lareira-openclaw-store — fedramp-high invariants
+templates:
+  - templates/compliancepolicy.yaml
+  - templates/signaturegate.yaml
+  - templates/pvc.yaml
+release:
+  name: openclaw-store
+  namespace: openclaw
+defaults: &defaults
+  pleme-microservice.image.tag: "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+tests:
+  - it: emits a NIST_800_53 high CompliancePolicy
+    template: templates/compliancepolicy.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - equal:
+          path: spec.framework
+          value: NIST_800_53
+      - equal:
+          path: spec.baseline
+          value: high
+
+  - it: SignatureGate covers data-plane layer
+    template: templates/signaturegate.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - contains:
+          path: spec.layers
+          content: data-plane
+
+  - it: PVC binds to encrypted-default storage class (SC-28)
+    template: templates/pvc.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - equal:
+          path: kind
+          value: PersistentVolumeClaim
+      - equal:
+          path: spec.storageClassName
+          value: encrypted-default
+      - equal:
+          path: spec.resources.requests.storage
+          value: 20Gi
+
+  - it: PVC disappears when persistence backend is postgres
+    template: templates/pvc.yaml
+    set:
+      <<: *defaults
+      persistence.backend: postgres
+      persistence.sqlite.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: encrypted storage class is overridable for FIPS-strict environments
+    template: templates/pvc.yaml
+    set:
+      <<: *defaults
+      persistence.sqlite.storageClass: encrypted-fips
+    asserts:
+      - equal:
+          path: spec.storageClassName
+          value: encrypted-fips

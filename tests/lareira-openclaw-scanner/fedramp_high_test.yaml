@@ -1,0 +1,58 @@
+suite: lareira-openclaw-scanner — fedramp-high invariants
+templates:
+  - templates/compliancepolicy.yaml
+  - templates/signaturegate.yaml
+release:
+  name: openclaw-scanner
+  namespace: openclaw
+defaults: &defaults
+  pleme-microservice.image.tag: "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+tests:
+  - it: emits a NIST_800_53 high CompliancePolicy
+    template: templates/compliancepolicy.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - equal:
+          path: spec.framework
+          value: NIST_800_53
+      - equal:
+          path: spec.baseline
+          value: high
+
+  - it: SignatureGate covers core security layers (image, config, rbac, network)
+    template: templates/signaturegate.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - contains:
+          path: spec.layers
+          content: image
+      - contains:
+          path: spec.layers
+          content: config
+      - contains:
+          path: spec.layers
+          content: rbac
+      - contains:
+          path: spec.layers
+          content: network
+
+  - it: re-verification cadence defaults to 1h
+    template: templates/signaturegate.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - equal:
+          path: spec.verificationIntervalSecs
+          value: 3600
+
+  - it: re-verification cadence is overridable for higher-frequency drift detection
+    template: templates/signaturegate.yaml
+    set:
+      <<: *defaults
+      sekiban.signatureGate.verificationIntervalSecs: 600
+    asserts:
+      - equal:
+          path: spec.verificationIntervalSecs
+          value: 600

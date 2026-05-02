@@ -124,6 +124,12 @@
             { name = "pleme-garage"; chartDir = ./charts/pleme-garage; }
             { name = "pleme-ocis"; chartDir = ./charts/pleme-ocis; }
             { name = "lareira-authentik"; chartDir = ./charts/lareira-authentik; }
+            # ── openclaw skill-store ecosystem ──
+            { name = "lareira-openclaw"; chartDir = ./charts/lareira-openclaw; }
+            { name = "lareira-openclaw-pki"; chartDir = ./charts/lareira-openclaw-pki; }
+            { name = "lareira-openclaw-store"; chartDir = ./charts/lareira-openclaw-store; }
+            { name = "lareira-openclaw-scanner"; chartDir = ./charts/lareira-openclaw-scanner; }
+            { name = "lareira-openclaw-stack"; chartDir = ./charts/lareira-openclaw-stack; }
           ];
 
           # Use substrate's mkHelmAllApps for all chart lifecycle apps

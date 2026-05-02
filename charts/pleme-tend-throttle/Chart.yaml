@@ -10,7 +10,7 @@ dependencies:
     # Bumped to 0.11.x for rate-limit-worker.* + jetstream library
     # templates. This chart's templates are now one-line includes;
     # all logic lives in pleme-lib.
-    version: "~0.12.0"
+    version: "~0.13.0"
     repository: "file://../pleme-lib"
 
 keywords:

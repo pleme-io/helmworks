@@ -1,0 +1,20 @@
+apiVersion: v2
+name: lareira-openclaw-scanner
+description: |
+  openclaw-scanner — continuous compliance scanning daemon. Re-attests
+  listings in the openclaw-skill-store on a configurable interval and
+  emits drift alerts when merkle proofs no longer verify or publisher
+  certs land in the CRL. Wraps
+  https://github.com/pleme-io/openclaw-scanner as a K8s service on top
+  of pleme-microservice with the fedramp-high compliance overlay.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+
+keywords: [openclaw, scanner, attestation, fedramp-high, lareira]
+maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]
+
+dependencies:
+  - name: pleme-microservice
+    version: "~0.1.0"
+    repository: "file://../pleme-microservice"

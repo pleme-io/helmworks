@@ -1,0 +1,15 @@
+{{- if and (eq .Values.persistence.backend "sqlite") .Values.persistence.sqlite.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: openclaw-store-data
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "lareira-openclaw-store.labels" . | nindent 4 }}
+spec:
+  storageClassName: {{ .Values.persistence.sqlite.storageClass | quote }}
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: {{ .Values.persistence.sqlite.size }}
+{{- end }}

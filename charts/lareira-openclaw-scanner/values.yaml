@@ -1,0 +1,160 @@
+# lareira-openclaw-scanner — continuous attestation re-verifier.
+#
+# Long-running daemon (NOT a CronJob — the binary owns its own
+# interval scheduler and exposes a status API). Inherits the
+# fedramp-high overlay via pleme-microservice.
+
+# ─────────────────────────────────────────────────────────────────────
+# openclaw-scanner specific values
+# ─────────────────────────────────────────────────────────────────────
+
+# Scan cadence — how often each listing is re-verified.
+scanIntervalSecs: 3600
+
+# Reference to the upstream services.
+store:
+  serviceHost: openclaw-store-lareira-openclaw-store
+  port: 8080
+pki:
+  serviceHost: openclaw-pki-lareira-openclaw-pki
+  port: 8090
+
+# Drift alert sink — webhook the scanner posts to when a re-attestation
+# fails. Paired with the alertmanager fanout in pleme-lib.
+alertWebhook:
+  enabled: false
+  url: ""           # e.g. https://alertmanager.openclaw.svc/api/v1/alerts
+
+sekiban:
+  enabled: true
+  framework: NIST_800_53
+  baseline: high
+  testRunner:
+    runnerType: kensa
+    image: "ghcr.io/pleme-io/kensa:latest"
+    profile: nist-800-53-high
+    timeoutSecs: 600
+  schedule: "0 */6 * * *"
+  signatureGate:
+    layers: ["image", "config", "rbac", "network"]
+    expectedSignature: ""
+    verificationIntervalSecs: 3600
+
+# ─────────────────────────────────────────────────────────────────────
+# pleme-microservice subchart values
+# ─────────────────────────────────────────────────────────────────────
+
+pleme-microservice:
+  compliance:
+    overlays: [fedramp-high]
+    enforce: true
+    audit:
+      logLevel: info
+      retentionDays: 365
+    authn:
+      oidc:
+        provider: authentik
+    authz:
+      role:
+        rules:
+          - apiGroups: [""]
+            resources: ["configmaps"]
+            verbs: ["get", "watch"]
+
+  image:
+    repository: ghcr.io/pleme-io/openclaw-scanner
+    tag: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    pullPolicy: Always
+
+  # CP-2 minimum; scanner is read-only against the store and
+  # idempotent, so multi-replica scanning is benign (the cost is only
+  # duplicate webhook POSTs, dedupable downstream).
+  replicaCount: 2
+
+  resources:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits:   { cpu: 1000m, memory: 512Mi }
+
+  ports:
+    - name: http
+      containerPort: 8081
+      protocol: TCP
+
+  service:
+    type: ClusterIP
+    ports:
+      - name: http
+        port: 8081
+        targetPort: http
+        protocol: TCP
+
+  health:
+    path: /health
+    readyPath: /health
+    port: http
+
+  # K8s native $(VAR) substitution lets us drive --interval from env so
+  # the scanIntervalSecs top-level value flows through cleanly. To
+  # override at install time:
+  #   --set "pleme-microservice.env[5].value=1800"   (clunky)
+  # or supply a values overlay setting the env directly.
+  args:
+    - --interval=$(SCAN_INTERVAL_SECS)
+    - --port=8081
+
+  env:
+    - name: OPENCLAW_STORE_HOST
+      value: "openclaw-store-lareira-openclaw-store"
+    - name: OPENCLAW_STORE_PORT
+      value: "8080"
+    - name: OPENCLAW_PKI_HOST
+      value: "openclaw-pki-lareira-openclaw-pki"
+    - name: OPENCLAW_PKI_PORT
+      value: "8090"
+    - name: RUST_LOG
+      value: "info,openclaw_scanner=debug"
+    - name: SCAN_INTERVAL_SECS
+      value: "3600"   # 1h default; mirror of .Values.scanIntervalSecs
+
+  monitoring:
+    enabled: true
+    port: http
+    path: /metrics
+    interval: 30s
+
+  networkPolicy:
+    enabled: true
+    additionalEgress:
+      - name: allow-to-store
+        rules:
+          - to:
+              - podSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: openclaw-skill-store
+            ports:
+              - port: 8080
+                protocol: TCP
+      - name: allow-to-pki
+        rules:
+          - to:
+              - podSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: openclaw-publisher-pki
+            ports:
+              - port: 8090
+                protocol: TCP
+
+  pdb:
+    enabled: true
+    minAvailable: 1
+
+  attestation:
+    enabled: true
+    signature: ""
+    certificationHash: ""
+    complianceHash: ""
+    changesetHash: ""
+
+  additionalLabels:
+    app.kubernetes.io/name: openclaw-scanner
+    app.kubernetes.io/part-of: openclaw
