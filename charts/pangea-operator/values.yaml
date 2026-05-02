@@ -69,6 +69,10 @@ rbac:
     - apiGroups: ["pangea.pleme.io"]
       resources: ["workspacecatalogs", "workspacecatalogs/status", "workspacecatalogs/finalizers"]
       verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    # ── 0.8.0: OperatorPolicy (cluster-scoped fleet kill-switch) ──
+    - apiGroups: ["pangea.pleme.io"]
+      resources: ["operatorpolicies", "operatorpolicies/status"]
+      verbs: ["get", "list", "watch", "patch", "update"]
     # ── Supporting resources ──
     - apiGroups: [""]
       resources: ["events"]
