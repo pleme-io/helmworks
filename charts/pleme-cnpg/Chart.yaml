@@ -1,0 +1,50 @@
+apiVersion: v2
+name: pleme-cnpg
+description: |-
+  Unified CNPG cluster chart for the pleme-io fleet. Subsumes the
+  earlier pleme-cnpg-cluster (initdb mode) and pleme-cnpg-restore
+  (recovery mode) into a single chart with a `bootstrap.mode` switch:
+
+    bootstrap.mode: initdb     # fresh cluster + database create
+    bootstrap.mode: recovery   # fresh cluster restored from S3 archive
+
+  Why one chart instead of two: CNPG ignores `spec.bootstrap.*` changes
+  after the initial cluster creation. A live cluster's HelmRelease
+  can therefore safely flip between `mode: initdb` and `mode: recovery`
+  without re-bootstrapping or losing data — the spec patch is a no-op
+  at the operator level. This means a HR can keep `mode: recovery`
+  permanently after a one-time restore, and that's still
+  equivalent-at-runtime to a freshly-bootstrapped cluster.
+
+  Resources emitted (each conditional on enabled gate + sub-flag):
+
+    Cluster                                 always (when enabled)
+    ScheduledBackup                         when walArchive.enabled + scheduledBackup.enabled
+    Role + RoleBinding (wal-archive read)   when walArchive.enabled
+    NetworkPolicy in drive (additive)       when walArchive.enabled + garageNetworkPolicy.enabled
+
+  Defense-in-depth: Cluster + ScheduledBackup carry
+  `helm.sh/resource-policy: keep` so a stray `helm uninstall` doesn't
+  cascade into PVC deletion. Recovery from accidental delete is then
+  always at-most a re-install, never a re-init.
+
+  Companion runbook + adoption playbook:
+    k8s/clusters/rio/infrastructure/pangea-database/RESTORE-RUNBOOK.md
+    theory/CHART-ADOPTION-PLAYBOOK.md   (multi-commit migration safety)
+type: application
+version: 0.1.0
+appVersion: "1.0"
+keywords:
+  - cnpg
+  - postgresql
+  - barman-cloud
+  - garage
+  - lareira
+home: https://github.com/pleme-io/helmworks
+sources:
+  - https://github.com/pleme-io/helmworks
+  - https://cloudnative-pg.io/documentation/current/bootstrap/
+  - https://cloudnative-pg.io/documentation/current/recovery/
+maintainers:
+  - name: drzzln
+    email: drzzln@protonmail.com

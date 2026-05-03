@@ -1,0 +1,35 @@
+{{- if and .Values.enabled .Values.walArchive.enabled .Values.garageNetworkPolicy.enabled }}
+{{- include "pleme-cnpg.requireClusterName" . }}
+---
+# Additive NetworkPolicy in the garage's namespace allowing this
+# cluster's pods to reach the S3 endpoint. Co-located with the
+# Cluster CR so a future un-install cleanly takes the NetPol entry
+# with it.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Values.clusterName }}-allow-garage
+  namespace: {{ .Values.garageNetworkPolicy.namespace }}
+  labels:
+    {{- include "pleme-cnpg.labels" . | nindent 4 }}
+    {{- with .Values.clusterLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- toYaml .Values.garageNetworkPolicy.garagePodLabels | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Release.Namespace }}
+          podSelector:
+            matchLabels:
+              cnpg.io/cluster: {{ .Values.clusterName }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.garageNetworkPolicy.port }}
+{{- end }}

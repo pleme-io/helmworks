@@ -1,0 +1,143 @@
+# Master toggle. Default `false` because the chart requires several
+# fields with no meaningful defaults (clusterName + bootstrap-mode-
+# specific values). Consumers explicitly set `enabled: true` together
+# with the required values.
+#
+# Flipping back to `false` triggers Helm uninstall. Cluster +
+# ScheduledBackup are tagged with `helm.sh/resource-policy: keep` so
+# the underlying PVCs survive — recovery from accidental disable is
+# a re-install, NEVER a re-init from empty state. Cleanup intentional?
+# Use `helm uninstall --no-hooks` after manually deleting the Cluster
+# CR to bypass the keep annotation.
+enabled: false
+
+# REQUIRED: name of the CNPG Cluster. Becomes metadata.name; CNPG
+# derives the per-instance ServiceAccount name from it.
+clusterName: ""
+
+# Cluster topology
+instances: 2
+imageName: ghcr.io/cloudnative-pg/postgresql:16.6
+storage:
+  size: 10Gi
+  storageClass: local-path
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
+
+enableSuperuserAccess: true
+
+postgresql:
+  parameters:
+    max_connections: "100"
+    shared_buffers: "256MB"
+    effective_cache_size: "768MB"
+    maintenance_work_mem: "64MB"
+    checkpoint_completion_target: "0.9"
+    wal_buffers: "16MB"
+    default_statistics_target: "100"
+    random_page_cost: "1.1"
+    effective_io_concurrency: "200"
+    work_mem: "8MB"
+    min_wal_size: "1GB"
+    max_wal_size: "4GB"
+
+monitoring:
+  enabled: true
+
+affinity:
+  enabled: true
+  topologyKey: kubernetes.io/hostname
+
+clusterLabels: {}
+
+# ── Bootstrap mode switch ──────────────────────────────────────────
+#
+# Two modes:
+#
+#   initdb    — fresh cluster, runs initdb against empty PVCs to
+#               create `database` owned by `owner` from credentials in
+#               `secretName`. Use for new clusters.
+#
+#   recovery  — fresh PVCs initialized by replaying a barman-cloud
+#               archive (base backup + WAL chain). Use for one-shot
+#               restore from S3.
+#
+# Both modes are post-init no-ops: changing `mode` on a live cluster
+# patches the spec but CNPG ignores it (bootstrap is consulted only
+# at first instance creation). Lets a HelmRelease that originally
+# bootstrapped via `recovery` keep `mode: recovery` forever without
+# triggering destructive helm-upgrades.
+bootstrap:
+  mode: initdb        # initdb | recovery
+
+  # Required when mode=initdb. Ignored otherwise.
+  initdb:
+    database: ""      # e.g. pangea_state
+    owner: ""         # e.g. pangea — gets CREATEDB+CREATEROLE via postInitSQL
+    secretName: ""    # existing Secret with `username` + `password` keys
+    postInitSQL:
+      # Pleme convention: owner is granted CREATEDB+CREATEROLE so consumer
+      # bootstrap Jobs (cracha-bootstrap, etc.) can author per-app
+      # databases. CNPG defaults to plain LOGIN.
+      - ALTER ROLE __OWNER__ WITH CREATEDB CREATEROLE;
+      - CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+    postInitTemplateSQL:
+      - CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+
+  # Required when mode=recovery. Ignored otherwise.
+  recovery:
+    # External-cluster name used in the Cluster CR. Internal to the
+    # chart; bump if you ever need two recovery sources.
+    source: pangea-database-archive
+    # Original cluster name (== bucket subdir). Defaults to clusterName
+    # but typically overridden when restoring INTO a different name
+    # FROM the original (e.g., temporary verification rehearsal).
+    externalServerName: ""
+    # Optional point-in-time recovery target. Empty = latest WAL.
+    recoveryTargetTime: ""
+
+# ── WAL archive backend ────────────────────────────────────────────
+#
+# Continuous WAL archive to garage S3. Same shape regardless of
+# bootstrap mode (a recovery-bootstrapped cluster archives onward
+# from its restore point under a new timeline).
+walArchive:
+  enabled: true
+  bucket: pangea-wal
+  endpointURL: http://garage-s3.drive.svc.cluster.local:3900
+  region: garage
+  addressingStyle: path
+  credentialsSecretName: pangea-database-wal-archive
+  retentionPolicy: 30d
+  wal:
+    compression: gzip
+    maxParallel: 8
+
+# ── Scheduled base backup ──────────────────────────────────────────
+#
+# Anchors the WAL archive's retentionPolicy. Without this, the archive
+# grows unbounded.
+scheduledBackup:
+  enabled: true
+  schedule: "0 13 2 * * *"      # 02:13 UTC daily
+  target: prefer-standby
+  immediate: true
+
+# ── Garage NetworkPolicy patch ─────────────────────────────────────
+#
+# Owns the cnpg.io/cluster=<clusterName> ingress entry on the
+# garage NetworkPolicy. Co-located with the Cluster CR so a future
+# un-install cleanly takes the NetPol entry with it.
+garageNetworkPolicy:
+  enabled: true
+  namespace: drive
+  port: 3900
+  garagePodLabels:
+    app.kubernetes.io/instance: garage
+    app.kubernetes.io/name: pleme-garage

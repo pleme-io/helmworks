@@ -1,0 +1,27 @@
+{{- if and .Values.enabled .Values.walArchive.enabled .Values.scheduledBackup.enabled }}
+{{- include "pleme-cnpg.requireClusterName" . }}
+---
+# Daily ScheduledBackup — anchors the WAL retentionPolicy. Without a
+# base backup, CNPG's WAL archive grows unbounded because there's no
+# reference point for "drop everything older than <retention>".
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: {{ .Values.clusterName }}-daily
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pleme-cnpg.labels" . | nindent 4 }}
+    {{- with .Values.clusterLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  cluster:
+    name: {{ .Values.clusterName }}
+  schedule: {{ .Values.scheduledBackup.schedule | quote }}
+  backupOwnerReference: self
+  immediate: {{ .Values.scheduledBackup.immediate }}
+  target: {{ .Values.scheduledBackup.target }}
+  method: barmanObjectStore
+{{- end }}
