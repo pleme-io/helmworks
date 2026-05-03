@@ -24,6 +24,9 @@ spec:
     - jsonPath: .status.reconcilesSkipped
       name: Skipped
       type: integer
+    - jsonPath: .status.workspaceOverrides
+      name: WorkspaceOverrides
+      type: integer
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
@@ -108,6 +111,54 @@ spec:
                 description: 'Operator-readable reason for the suspend, surfaced in: * structured logs on every skipped reconcile * Kubernetes Events with reason=`OperatorSuspended` * `kubectl describe operatorpolicy default` output'
                 nullable: true
                 type: string
+              workspaceSuspend:
+                default: {}
+                description: |-
+                  Per-workspace tri-state suspend. Specific overrides general: the resolution ladder for a single template is
+
+                  1. `workspaceSuspend.templates["<ns>/<name>"].state` 2. `workspaceSuspend.catalogs["<owner-catalog>"].state` (cascade — catalog Active carves the entire catalog out of a global pause, catalog Paused freezes everything under it) 3. `controllerSuspend.template` 4. `globalSuspend`
+
+                  stopping at the first non-`Inherit` decision. `Active` at any of layers 1–2 means "specifically configured to reconcile during a global pause" — a surgical carve-out. `Paused` at any of layers 1–2 freezes that workspace regardless of more general state.
+                properties:
+                  catalogs:
+                    additionalProperties:
+                      description: 'A single per-workspace decision: what state, optionally why.'
+                      properties:
+                        reason:
+                          description: Optional human-readable note, surfaced in skip logs and the `policy_skipped_total{reason=...}` metric label. Optional throughout the surface — pausing without a reason is allowed, dashboards display "(no reason given)".
+                          nullable: true
+                          type: string
+                        state:
+                          default: inherit
+                          description: Tri-state decision. Defaults to `Inherit`, which is equivalent to omitting the entry entirely.
+                          enum:
+                          - inherit
+                          - paused
+                          - active
+                          type: string
+                      type: object
+                    description: Per-catalog overrides keyed by `WorkspaceCatalog` name. Cascades to children unless a child template overrides.
+                    type: object
+                  templates:
+                    additionalProperties:
+                      description: 'A single per-workspace decision: what state, optionally why.'
+                      properties:
+                        reason:
+                          description: Optional human-readable note, surfaced in skip logs and the `policy_skipped_total{reason=...}` metric label. Optional throughout the surface — pausing without a reason is allowed, dashboards display "(no reason given)".
+                          nullable: true
+                          type: string
+                        state:
+                          default: inherit
+                          description: Tri-state decision. Defaults to `Inherit`, which is equivalent to omitting the entry entirely.
+                          enum:
+                          - inherit
+                          - paused
+                          - active
+                          type: string
+                      type: object
+                    description: Per-template overrides keyed `"<namespace>/<name>"`.
+                    type: object
+                type: object
             type: object
           status:
             description: Status of an OperatorPolicy. The reconciler mirrors `spec` into `status.effective` after every spec change so consumers can observe the policy's resolved view without re-reading spec.
@@ -190,6 +241,54 @@ spec:
                     description: 'Operator-readable reason for the suspend, surfaced in: * structured logs on every skipped reconcile * Kubernetes Events with reason=`OperatorSuspended` * `kubectl describe operatorpolicy default` output'
                     nullable: true
                     type: string
+                  workspaceSuspend:
+                    default: {}
+                    description: |-
+                      Per-workspace tri-state suspend. Specific overrides general: the resolution ladder for a single template is
+
+                      1. `workspaceSuspend.templates["<ns>/<name>"].state` 2. `workspaceSuspend.catalogs["<owner-catalog>"].state` (cascade — catalog Active carves the entire catalog out of a global pause, catalog Paused freezes everything under it) 3. `controllerSuspend.template` 4. `globalSuspend`
+
+                      stopping at the first non-`Inherit` decision. `Active` at any of layers 1–2 means "specifically configured to reconcile during a global pause" — a surgical carve-out. `Paused` at any of layers 1–2 freezes that workspace regardless of more general state.
+                    properties:
+                      catalogs:
+                        additionalProperties:
+                          description: 'A single per-workspace decision: what state, optionally why.'
+                          properties:
+                            reason:
+                              description: Optional human-readable note, surfaced in skip logs and the `policy_skipped_total{reason=...}` metric label. Optional throughout the surface — pausing without a reason is allowed, dashboards display "(no reason given)".
+                              nullable: true
+                              type: string
+                            state:
+                              default: inherit
+                              description: Tri-state decision. Defaults to `Inherit`, which is equivalent to omitting the entry entirely.
+                              enum:
+                              - inherit
+                              - paused
+                              - active
+                              type: string
+                          type: object
+                        description: Per-catalog overrides keyed by `WorkspaceCatalog` name. Cascades to children unless a child template overrides.
+                        type: object
+                      templates:
+                        additionalProperties:
+                          description: 'A single per-workspace decision: what state, optionally why.'
+                          properties:
+                            reason:
+                              description: Optional human-readable note, surfaced in skip logs and the `policy_skipped_total{reason=...}` metric label. Optional throughout the surface — pausing without a reason is allowed, dashboards display "(no reason given)".
+                              nullable: true
+                              type: string
+                            state:
+                              default: inherit
+                              description: Tri-state decision. Defaults to `Inherit`, which is equivalent to omitting the entry entirely.
+                              enum:
+                              - inherit
+                              - paused
+                              - active
+                              type: string
+                          type: object
+                        description: Per-template overrides keyed `"<namespace>/<name>"`.
+                        type: object
+                    type: object
                 type: object
               lastChangedAt:
                 description: Wall-clock timestamp of the last spec change observed by the controller. Empty until the policy is first reconciled.
@@ -207,6 +306,12 @@ spec:
                 format: uint64
                 minimum: 0.0
                 type: integer
+              workspaceOverrides:
+                default: 0
+                description: Number of `Active` workspace carve-outs currently in effect (templates + catalogs combined). Surfaced as a printer column so `kubectl get oppol` shows at a glance how many surgical exemptions exist while a global pause is in place. Counted directly from `spec.workspaceSuspend`; not a runtime gauge.
+                format: uint64
+                minimum: 0.0
+                type: integer
             type: object
         required:
         - spec
@@ -216,3 +321,4 @@ spec:
     storage: true
     subresources:
       status: {}
+

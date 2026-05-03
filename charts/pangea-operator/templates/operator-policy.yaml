@@ -56,4 +56,35 @@ spec:
     amiTest: {{ .Values.operatorPolicy.controllerSuspend.amiTest }}
     packerBuild: {{ .Values.operatorPolicy.controllerSuspend.packerBuild }}
     synthesizerFormat: {{ .Values.operatorPolicy.controllerSuspend.synthesizerFormat }}
+  {{- /*
+    Per-workspace tri-state suspend. The tri-state per entry is one of
+    inherit (default), paused, or active. Specific overrides general:
+    template entries override catalog entries, both override
+    controller/global. `Active` is the surgical carve-out — keep
+    reconciling under a more-general pause. `Paused` is an explicit
+    freeze regardless of more-general state.
+  */}}
+  {{- with .Values.operatorPolicy.workspaceSuspend }}
+  workspaceSuspend:
+    {{- with .templates }}
+    templates:
+      {{- range $key, $entry := . }}
+      {{ $key | quote }}:
+        state: {{ default "inherit" $entry.state }}
+        {{- with $entry.reason }}
+        reason: {{ . | quote }}
+        {{- end }}
+      {{- end }}
+    {{- end }}
+    {{- with .catalogs }}
+    catalogs:
+      {{- range $key, $entry := . }}
+      {{ $key | quote }}:
+        state: {{ default "inherit" $entry.state }}
+        {{- with $entry.reason }}
+        reason: {{ . | quote }}
+        {{- end }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
 {{- end -}}

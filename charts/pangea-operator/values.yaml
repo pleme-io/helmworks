@@ -579,7 +579,7 @@ prometheusRules:
           escalates to phase=Failed. Check `kubectl describe infra` for the
           exact compile error message.
     - alert: PangeaOperatorPaused
-      expr: increase(pangea_policy_skipped_total{reason="globalSuspend"}[5m]) > 10
+      expr: increase(pangea_policy_skipped_total{source="global"}[5m]) > 10
       for: 1m
       labels:
         severity: info
@@ -592,7 +592,7 @@ prometheusRules:
           alarm. Resume by patching globalSuspend=false on the HelmRelease
           values or directly on the OperatorPolicy/default CR.
     - alert: PangeaControllerSuspended
-      expr: increase(pangea_policy_skipped_total{reason="controllerSuspend"}[15m]) > 5
+      expr: increase(pangea_policy_skipped_total{source="controller"}[15m]) > 5
       for: 5m
       labels:
         severity: info
@@ -601,6 +601,33 @@ prometheusRules:
         description: |
           A specific controller has been paused via spec.controllerSuspend.{{ $labels.controller }}=true.
           Surface this as an info-level alert so the dashboard reflects the partial pause state.
+    - alert: PangeaWorkspacePaused
+      expr: increase(pangea_policy_skipped_total{source=~"workspace|catalog"}[15m]) > 5
+      for: 5m
+      labels:
+        severity: info
+      annotations:
+        summary: "Workspace {{ $labels.target }} paused via OperatorPolicy ({{ $labels.source }})"
+        description: |
+          A specific workspace ({{ $labels.target }}) is paused via
+          spec.workspaceSuspend.{{ $labels.source }}s — direct entry
+          (workspace) or cascade from parent catalog (catalog). INFO
+          severity: pause is intentional. Resolve by editing the
+          OperatorPolicy/default workspaceSuspend map.
+    - alert: PangeaActiveOverridesActive
+      expr: pangea_workspace_active_override > 0
+      for: 0m
+      labels:
+        severity: info
+      annotations:
+        summary: "{{ $labels.kind }}/{{ $labels.name }} carved out via workspaceSuspend.state=active"
+        description: |
+          A workspace has an explicit `Active` carve-out — it keeps
+          reconciling even when global/catalog/controller-level pauses
+          would otherwise stop it. INFO severity; dashboards show
+          which surgical exemptions are in effect during a fleet
+          pause. Source: {{ $labels.source }}, namespace:
+          {{ $labels.namespace }}.
 
 # ────────────────────────────────────────────────────────────────────
 # OperatorPolicy — fleet-wide kill-switch primitive
@@ -643,3 +670,35 @@ operatorPolicy:
     amiTest: false
     packerBuild: false
     synthesizerFormat: false
+
+  # Per-workspace tri-state suspend (templates + catalogs).
+  #
+  # Each entry's `state` is one of:
+  #
+  #   * inherit (default) — fall through to controllerSuspend / globalSuspend
+  #   * paused            — explicit pause regardless of more-general layer
+  #   * active            — explicit run even when global/controller is paused
+  #                         ("specifically configured to reconcile during a
+  #                         global pause" — surgical carve-out)
+  #
+  # Specific overrides general: a template entry overrides the catalog
+  # entry of its parent WorkspaceCatalog, both override controllerSuspend
+  # and globalSuspend.
+  #
+  # Example layouts:
+  #
+  #   workspaceSuspend:
+  #     templates:
+  #       "pangea-system/cloudflare-pleme":
+  #         state: paused
+  #         reason: "investigating drift"
+  #     catalogs:
+  #       "opensource":
+  #         state: active                     # carve out under global pause
+  #         reason: "monitoring github org"
+  #
+  # Reason is optional throughout. Pausing means no new reconcile actions —
+  # observability (status, metrics, alerts) stays fully on.
+  workspaceSuspend:
+    templates: {}
+    catalogs: {}

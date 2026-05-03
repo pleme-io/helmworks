@@ -3,17 +3,20 @@ name: pangea-operator
 description: >-
   Pangea infrastructure operator — manages 11 CRDs for infrastructure
   lifecycle, AMI pipeline, compliance testing, and dynamic synthesizer
-  formats. v0.7.4 wires the WorkspaceCatalog reconciler (typed
-  workspace primitive: status.{templateCount, verified,
-  conditions:[Reachable, GemsLoaded, Verified]}) and the tofu import
-  pre-apply path (spec.importHints map → operator runs
-  `tofu import` before apply for create-actions with hints, marks
-  resources Outcome::Imported in the cycle receipt). Pairs with
-  operator @d1530e1. Inherits 0.7.3's status.lastCycle typed
-  receipt + ArchitectureGem hot-loop fix.
+  formats. v0.8.4 adds per-workspace tri-state pause to
+  OperatorPolicy/default (spec.workspaceSuspend.{templates, catalogs}
+  with `state: inherit | paused | active` per entry). Specific
+  overrides general — template entries override catalog cascade,
+  both override controllerSuspend/globalSuspend. `Active` is the
+  surgical carve-out: keep reconciling under a more-general pause.
+  Adds `pangea_workspace_active_override` gauge + `target` label on
+  `pangea_policy_skipped_total` + 2 new alerts (PangeaWorkspacePaused,
+  PangeaActiveOverridesActive) + `WorkspaceOverrides` printer column
+  on OperatorPolicy. Inherits 0.8.3's events RBAC + load-bearing
+  primitive surface from Tier 1/2/3 surgery.
 type: application
-version: 0.8.3
-appVersion: "0.8.3"
+version: 0.8.4
+appVersion: "0.8.4"
 
 dependencies:
   - name: pleme-lib
