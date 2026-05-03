@@ -33,9 +33,18 @@ description: >-
   mirror (`pangea_operator::chart_values::ChartValues` + schemars).
   Schema-affecting values changes now flow from the struct →
   `cargo run -- --generate-values-schema` instead of hand-edits.
+  v0.8.9 ships PangeaFleetStatus — a new cluster-scoped operator-driven
+  singleton CRD that surfaces the operator's running rollup of every
+  pangea CRD class. `kubectl get pangeafleetstatus default` becomes the
+  canonical at-a-glance fleet command (printer columns: WCATS,
+  TEMPLATES, READY, FAILED, GEMS, NAMESPACES, UPDATED, AGE). The
+  fleet-status controller refreshes the singleton every 30s and
+  bypasses OperatorPolicy.globalSuspend so fleet visibility stays
+  live during a pause. New ClusterRole rules: pangeafleetstatuses
+  (with create) + pangeadashboards. Pairs with operator @acb4e1a.
 type: application
-version: 0.8.8
-appVersion: "0.8.8"
+version: 0.8.9
+appVersion: "0.8.9"
 
 dependencies:
   - name: pleme-lib

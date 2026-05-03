@@ -73,6 +73,18 @@ rbac:
     - apiGroups: ["pangea.pleme.io"]
       resources: ["operatorpolicies", "operatorpolicies/status"]
       verbs: ["get", "list", "watch", "patch", "update"]
+    # ── PangeaDashboard (rendered Grafana dashboards) ──
+    - apiGroups: ["pangea.pleme.io"]
+      resources: ["pangeadashboards", "pangeadashboards/status"]
+      verbs: ["get", "list", "watch", "patch", "update"]
+    # ── 0.8.9: PangeaFleetStatus (cluster-scoped operator-driven
+    # fleet aggregation singleton; bypasses globalSuspend so this
+    # CR keeps refreshing under a pause). The operator self-creates
+    # the `default` CR on startup, so `create` verb is required in
+    # addition to the usual list/watch/patch/update.
+    - apiGroups: ["pangea.pleme.io"]
+      resources: ["pangeafleetstatuses", "pangeafleetstatuses/status"]
+      verbs: ["get", "list", "watch", "create", "patch", "update"]
     # ── Supporting resources ──
     # Events — operator emits Events on every controller's reconcile
     # transitions and on policy/escalation actions. Two API groups:

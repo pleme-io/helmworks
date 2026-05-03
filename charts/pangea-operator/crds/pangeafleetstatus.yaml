@@ -1,0 +1,385 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: pangeafleetstatuses.pangea.pleme.io
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  group: pangea.pleme.io
+  names:
+    categories:
+    - pangea
+    kind: PangeaFleetStatus
+    plural: pangeafleetstatuses
+    shortNames:
+    - pfs
+    singular: pangeafleetstatus
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.workspaceCatalogs.summary
+      name: WCats
+      type: string
+    - jsonPath: .status.infrastructureTemplates.total
+      name: Templates
+      type: integer
+    - jsonPath: .status.infrastructureTemplates.ready
+      name: Ready
+      type: integer
+    - jsonPath: .status.infrastructureTemplates.failed
+      name: Failed
+      type: integer
+    - jsonPath: .status.architectureGems.summary
+      name: Gems
+      type: string
+    - jsonPath: .status.pangeaNamespaces.total
+      name: Namespaces
+      type: integer
+    - jsonPath: .status.lastUpdatedAt
+      name: Updated
+      type: date
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Auto-generated derived type for PangeaFleetStatusSpec via `CustomResource`
+        properties:
+          spec:
+            description: |-
+              Cluster-scoped operator-authored fleet aggregation singleton.
+
+              The operator self-creates `PangeaFleetStatus/default` at startup and refreshes its status periodically (every 30s) and on watch events from any tracked pangea CRD. Bypasses the OperatorPolicy kill-switch — fleet status is read-only observability and is especially useful while the operator is paused.
+            type: object
+          status:
+            description: Status fields populated by `fleet_status_controller`.
+            nullable: true
+            properties:
+              amiTests:
+                default:
+                  byPhase: {}
+                  total: 0
+                description: AmiTest rollup with per-phase histogram.
+                properties:
+                  byPhase:
+                    additionalProperties:
+                      format: uint32
+                      minimum: 0.0
+                      type: integer
+                    default: {}
+                    description: Per-phase histogram. Empty when total is zero.
+                    type: object
+                  total:
+                    default: 0
+                    description: Total CRs of this kind.
+                    format: uint32
+                    minimum: 0.0
+                    type: integer
+                type: object
+              architectureGems:
+                default:
+                  failed: 0
+                  loaded: 0
+                  summary: ''
+                  total: 0
+                description: ArchitectureGem rollup.
+                properties:
+                  failed:
+                    default: 0
+                    description: Gems whose `.status.phase == Failed`.
+                    format: uint32
+                    minimum: 0.0
+                    type: integer
+                  loaded:
+                    default: 0
+                    description: Gems whose `.status.phase == Loaded`.
+                    format: uint32
+                    minimum: 0.0
+                    type: integer
+                  summary:
+                    default: ''
+                    description: Pre-formatted "loaded/total" string for printer columns.
+                    type: string
+                  total:
+                    default: 0
+                    description: Total gems in the cluster.
+                    format: uint32
+                    minimum: 0.0
+                    type: integer
+                type: object
+              complianceBindings:
+                default:
+                  gated: 0
+                  total: 0
+                description: ComplianceBinding rollup. `gated` counts bindings whose status.complianceState is currently NonCompliant.
+                properties:
+                  gated:
+                    default: 0
+                    description: Bindings currently gating targets due to non-compliance.
+                    format: uint32
+                    minimum: 0.0
+                    type: integer
+                  total:
+                    default: 0
+                    description: Total bindings in the cluster.
+                    format: uint32
+                    minimum: 0.0
+                    type: integer
+                type: object
+              complianceSchedules:
+                default:
+                  byPhase: {}
+                  total: 0
+                description: ComplianceSchedule rollup with per-phase histogram.
+                properties:
+                  byPhase:
+                    additionalProperties:
+                      format: uint32
+                      minimum: 0.0
+                      type: integer
+                    default: {}
+                    description: Per-phase histogram. Empty when total is zero.
+                    type: object
+                  total:
+                    default: 0
+                    description: Total CRs of this kind.
+                    format: uint32
+                    minimum: 0.0
+                    type: integer
+                type: object
+              conditions:
+                default: []
+                description: Standard conditions. The fleet-status controller emits `Updated=True` after a successful refresh.
+                items:
+                  description: Kubernetes-style condition.
+                  properties:
+                    lastTransitionTime:
+                      description: Last time the condition transitioned.
+                      format: date-time
+                      type: string
+                    message:
+                      description: Human-readable message.
+                      type: string
+                    reason:
+                      description: Machine-readable reason for the condition.
+                      type: string
+                    status:
+                      description: Status of the condition (True, False, Unknown).
+                      type: string
+                    type:
+                      description: Type of condition.
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              imagePipelines:
+                default:
+                  byPhase: {}
+                  total: 0
+                description: ImagePipeline rollup with per-phase histogram.
+                properties:
+                  byPhase:
+                    additionalProperties:
+                      format: uint32
+                      minimum: 0.0
+                      type: integer
+                    default: {}
+                    description: Per-phase histogram. Empty when total is zero.
+                    type: object
+                  total:
+                    default: 0
+                    description: Total CRs of this kind.
+                    format: uint32
+                    minimum: 0.0
+                    type: integer
+                type: object
+              infrastructureFlows:
+                default:
+                  byPhase: {}
+                  total: 0
+                description: InfrastructureFlow rollup with per-phase histogram.
+                properties:
+                  byPhase:
+                    additionalProperties:
+                      format: uint32
+                      minimum: 0.0
+                      type: integer
+                    default: {}
+                    description: Per-phase histogram. Empty when total is zero.
+                    type: object
+                  total:
+                    default: 0
+                    description: Total CRs of this kind.
+                    format: uint32
+                    minimum: 0.0
+                    type: integer
+                type: object
+              infrastructureTemplates:
+                default:
+                  autoSuspended: 0
+                  byPhase: {}
+                  failed: 0
+                  ready: 0
+                  total: 0
+                description: InfrastructureTemplate rollup with per-phase histogram.
+                properties:
+                  autoSuspended:
+                    default: 0
+                    description: Templates whose `.status.autoSuspended` is true.
+                    format: uint32
+                    minimum: 0.0
+                    type: integer
+                  byPhase:
+                    additionalProperties:
+                      format: uint32
+                      minimum: 0.0
+                      type: integer
+                    default: {}
+                    description: Per-phase histogram. Keys are phase names (Pending, Compiling, Initializing, Planning, Applying, Verifying, Verified, Ready, Drifted, Failed, Destroying). Counts include the dedicated fields above — this is the full distribution.
+                    type: object
+                  failed:
+                    default: 0
+                    description: Templates whose `.status.phase` is `Failed`.
+                    format: uint32
+                    minimum: 0.0
+                    type: integer
+                  ready:
+                    default: 0
+                    description: Templates whose `.status.phase` is `Ready`.
+                    format: uint32
+                    minimum: 0.0
+                    type: integer
+                  total:
+                    default: 0
+                    description: Total InfrastructureTemplates in the cluster.
+                    format: uint32
+                    minimum: 0.0
+                    type: integer
+                type: object
+              lastUpdatedAt:
+                description: When the controller last refreshed this status.
+                format: date-time
+                nullable: true
+                type: string
+              packerBuilds:
+                default:
+                  byPhase: {}
+                  total: 0
+                description: PackerBuild rollup with per-phase histogram.
+                properties:
+                  byPhase:
+                    additionalProperties:
+                      format: uint32
+                      minimum: 0.0
+                      type: integer
+                    default: {}
+                    description: Per-phase histogram. Empty when total is zero.
+                    type: object
+                  total:
+                    default: 0
+                    description: Total CRs of this kind.
+                    format: uint32
+                    minimum: 0.0
+                    type: integer
+                type: object
+              pangeaDashboards:
+                default:
+                  byPhase: {}
+                  total: 0
+                description: PangeaDashboard rollup with per-phase histogram.
+                properties:
+                  byPhase:
+                    additionalProperties:
+                      format: uint32
+                      minimum: 0.0
+                      type: integer
+                    default: {}
+                    description: Per-phase histogram. Empty when total is zero.
+                    type: object
+                  total:
+                    default: 0
+                    description: Total CRs of this kind.
+                    format: uint32
+                    minimum: 0.0
+                    type: integer
+                type: object
+              pangeaNamespaces:
+                default:
+                  ready: 0
+                  total: 0
+                description: PangeaNamespace rollup.
+                properties:
+                  ready:
+                    default: 0
+                    description: Namespaces whose `.status.backendReady == true`.
+                    format: uint32
+                    minimum: 0.0
+                    type: integer
+                  total:
+                    default: 0
+                    description: Total namespaces in the cluster.
+                    format: uint32
+                    minimum: 0.0
+                    type: integer
+                type: object
+              synthesizerFormats:
+                default:
+                  byPhase: {}
+                  total: 0
+                description: SynthesizerFormat rollup with per-phase histogram.
+                properties:
+                  byPhase:
+                    additionalProperties:
+                      format: uint32
+                      minimum: 0.0
+                      type: integer
+                    default: {}
+                    description: Per-phase histogram. Empty when total is zero.
+                    type: object
+                  total:
+                    default: 0
+                    description: Total CRs of this kind.
+                    format: uint32
+                    minimum: 0.0
+                    type: integer
+                type: object
+              workspaceCatalogs:
+                default:
+                  summary: ''
+                  total: 0
+                  verified: 0
+                description: WorkspaceCatalog rollup.
+                properties:
+                  summary:
+                    default: ''
+                    description: Pre-formatted "verified/total" string for printer columns. Computed by the controller, not by users.
+                    type: string
+                  total:
+                    default: 0
+                    description: Total catalogs in the cluster.
+                    format: uint32
+                    minimum: 0.0
+                    type: integer
+                  verified:
+                    default: 0
+                    description: Catalogs with `status.verified == true`.
+                    format: uint32
+                    minimum: 0.0
+                    type: integer
+                type: object
+            type: object
+        required:
+        - spec
+        title: PangeaFleetStatus
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
