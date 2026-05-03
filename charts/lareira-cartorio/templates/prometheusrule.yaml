@@ -1,0 +1,121 @@
+{{- if .Values.observability.prometheusRule.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "lareira-cartorio.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "lareira-cartorio.labels" . | nindent 4 }}
+    role: alert-rules
+spec:
+  groups:
+    - name: cartorio.availability
+      interval: 30s
+      rules:
+        - alert: CartorioDown
+          expr: |
+            absent(kube_deployment_status_replicas_available{deployment=~".*cartorio.*"})
+            or (kube_deployment_status_replicas_available{deployment=~".*cartorio.*"} == 0)
+          for: 5m
+          labels:
+            severity: critical
+            component: cartorio
+            pleme_io_part_of: openclaw
+          annotations:
+            summary: "cartorio is down — every downstream gate is degraded"
+            description: |
+              The compliant artifact registry is unreachable. Every consumer
+              (Zot pre-push hook, Kyverno verifyImages, openclaw-scanner
+              re-attestation) is now reading stale state. New publishers
+              cannot admit; revocations cannot land. Check sekiban admission,
+              the registry's pod logs, and the configured PKI service URL.
+            runbook_url: "https://github.com/pleme-io/cartorio/blob/main/docs/RUNBOOK.md#cartoriodown"
+
+        - alert: CartorioReplicasBelowMinimum
+          expr: |
+            kube_deployment_status_replicas_available{deployment=~".*cartorio.*"} < 2
+          for: 10m
+          labels:
+            severity: warning
+            component: cartorio
+            pleme_io_part_of: openclaw
+          annotations:
+            summary: "cartorio running below CP-2 minimum (2 replicas)"
+            description: |
+              FedRAMP-High requires CP-2 (>= 2 replicas) for availability.
+              Current available replica count is below this floor. Investigate
+              pod scheduling, node pressure, or PDB blocking.
+
+    - name: cartorio.merkle_integrity
+      interval: 30s
+      rules:
+        - alert: CartorioVerificationFailures
+          expr: |
+            increase(openclaw_registry_artifacts_quarantined[15m]) > 0
+          for: 5m
+          labels:
+            severity: warning
+            component: cartorio
+            pleme_io_part_of: openclaw
+          annotations:
+            summary: "cartorio quarantined an artifact — re-attestation failed"
+            description: |
+              A previously-admitted artifact's merkle proof no longer
+              verifies, or its publisher cert was revoked. The scanner
+              quarantined it. Investigate by fetching the artifact's
+              event history and the most recent Reattestation event;
+              compare to the kensa result hash on the previous successful
+              run.
+
+        - alert: CartorioRevocationSpike
+          expr: |
+            increase(openclaw_registry_artifacts_revoked[1h]) > 5
+          for: 10m
+          labels:
+            severity: warning
+            component: cartorio
+            pleme_io_part_of: openclaw
+          annotations:
+            summary: "cartorio: high revocation rate — possible PKI compromise"
+            description: |
+              More than 5 artifacts revoked in the last hour. Either there's
+              a coordinated cleanup (operator-initiated bulk revocation), OR
+              the publisher PKI flagged a credential compromise and is
+              cascading. If unexpected, treat as a security incident and
+              page the on-call security operator.
+
+    - name: cartorio.growth
+      interval: 1m
+      rules:
+        - alert: CartorioStoreGrowthApproachingCeiling
+          expr: |
+            openclaw_registry_artifacts_total > {{ .Values.observability.prometheusRule.alerts.storeSizeAlertThreshold }}
+          for: 30m
+          labels:
+            severity: info
+            component: cartorio
+            pleme_io_part_of: openclaw
+          annotations:
+            summary: "cartorio approaching the in-memory store size ceiling"
+            description: |
+              The in-memory ledger holds more than {{ .Values.observability.prometheusRule.alerts.storeSizeAlertThreshold }}
+              artifacts. Below ~10⁴ in-memory works fine; above ~10⁵ the
+              merkle root recompute crosses 10ms. Plan the v0.3 sea-orm
+              upgrade per docs/PERSISTENCE.md.
+
+        - alert: CartorioEventLogGrowthHigh
+          expr: |
+            increase(openclaw_registry_events_total[1h]) > {{ .Values.observability.prometheusRule.alerts.eventRatePerHour }}
+          for: 1h
+          labels:
+            severity: info
+            component: cartorio
+            pleme_io_part_of: openclaw
+          annotations:
+            summary: "cartorio event-log growth above expected rate"
+            description: |
+              Event log appended {{ .Values.observability.prometheusRule.alerts.eventRatePerHour }}+
+              entries in the last hour. If this is sustained, the rebuild-
+              from-events cost grows linearly. Check whether the scanner
+              is in a tight reattestation loop.
+{{- end }}

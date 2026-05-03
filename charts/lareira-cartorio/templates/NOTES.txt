@@ -1,0 +1,57 @@
+{{- /*
+NOTES.txt — printed after `helm install` / `helm upgrade`.
+Operator-facing summary + first-step verification.
+*/ -}}
+cartorio v{{ .Chart.AppVersion }} deployed to namespace {{ .Release.Namespace }}.
+
+Ports:
+  http: 8082  (REST API + /metrics + /health)
+
+Smoke check (port-forward + curl):
+
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "lareira-cartorio.fullname" . }}-cartorio 8082:8082 &
+  curl -fsS http://localhost:8082/health
+  curl -fsS http://localhost:8082/api/v1/merkle/root | jq .
+  curl -fsS http://localhost:8082/metrics | grep openclaw_registry_
+
+OR, run the bundled smoke binary:
+  cargo run --example smoke -- --url http://localhost:8082
+
+Cluster-side verification:
+
+  # 1. Pod admitted by sekiban (state-tree composite signature verified):
+  kubectl -n {{ .Release.Namespace }} get signaturegate \
+    {{ include "lareira-cartorio.fullname" . }} \
+    -o jsonpath='{.status.phase}{"\n"}'  # expect "Verified"
+
+  # 2. CompliancePolicy passing kensa NIST_800_53 high:
+  kubectl -n {{ .Release.Namespace }} get compliancepolicy \
+    {{ include "lareira-cartorio.fullname" . }} \
+    -o jsonpath='{.status.phase}{"\n"}'  # expect "Compliant"
+
+  # 3. Resource inventory:
+  kubectl -n {{ .Release.Namespace }} get all,signaturegate,compliancepolicy,prometheusrule \
+    -l pleme.io/part-of=openclaw
+
+What this service is:
+
+  cartorio is the central merkle ledger for the openclaw stack. It
+  admits OCI images, helm charts, and skills only with valid tameshi
+  attestation chains. Every other compliance gate (Zot pre-push hook,
+  Kyverno verifyImages, openclaw-scanner re-attestation) reads from it.
+
+Next steps:
+
+  • Wire the Zot push pre-hook to call /api/v1/artifacts/by-digest/{digest}
+    (rejects PUTs whose digest isn't admitted)
+  • Configure Kyverno verifyImages to call /api/v1/artifacts/{id}/proof
+    and verify the inclusion proof against the pinned ledger root
+  • Point openclaw-scanner at /api/v1/artifacts/{id}/verify for re-attestation
+
+Docs:
+  pleme-io/cartorio/docs/ARCHITECTURE.md
+  pleme-io/cartorio/docs/RUNBOOK.md
+  pleme-io/cartorio/docs/THREAT-MODEL.md
+  pleme-io/cartorio/docs/INCLUSION-PROOFS.md
+  pleme-io/cartorio/docs/PERSISTENCE.md
+  pleme-io/cartorio/docs/TESTING.md
