@@ -1,0 +1,171 @@
+# lareira-openclaw-artifact-registry — the central merkle ledger.
+#
+# Admits OCI images, helm charts, and skills only with valid tameshi
+# attestation chains. Inherits the fedramp-high compliance overlay via
+# pleme-microservice; all hardening (digest-pinned image, runAsNonRoot,
+# default-deny network, PDB + topology spread, ServiceMonitor,
+# attestation gating) is mechanical.
+
+# ─────────────────────────────────────────────────────────────────────
+# openclaw-artifact-registry specific values
+# ─────────────────────────────────────────────────────────────────────
+
+# Reference to the publisher PKI service for org-root pinning + CRL
+# lookups during admission.
+pki:
+  serviceHost: openclaw-pki-lareira-openclaw-pki
+  port: 8090
+
+# sekiban gating — bind the deployment to a CompliancePolicy +
+# SignatureGate so the registry's own deployment is gated by tameshi.
+sekiban:
+  enabled: true
+  framework: NIST_800_53
+  baseline: high
+  testRunner:
+    runnerType: kensa
+    image: "ghcr.io/pleme-io/kensa:latest"
+    profile: nist-800-53-high
+    timeoutSecs: 600
+  schedule: "0 */6 * * *"
+  signatureGate:
+    layers: ["image", "config", "rbac", "network", "data-plane"]
+    # Defaults to pleme-microservice.attestation.signature; override for
+    # emergency manual pinning only.
+    signatureOverride: ""
+    verificationIntervalSecs: 3600
+
+# ─────────────────────────────────────────────────────────────────────
+# pleme-microservice subchart values
+# ─────────────────────────────────────────────────────────────────────
+
+pleme-microservice:
+  nameOverride: openclaw-artifact-registry
+
+  compliance:
+    overlays: [fedramp-high]
+    enforce: true
+    audit:
+      logLevel: info
+      retentionDays: 365
+    authn:
+      oidc:
+        provider: authentik
+    authz:
+      role:
+        rules:
+          - apiGroups: [""]
+            resources: ["configmaps"]
+            verbs: ["get", "watch"]
+
+  image:
+    repository: ghcr.io/pleme-io/openclaw-artifact-registry
+    tag: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    pullPolicy: Always
+
+  # 3 replicas — the registry is read-heavy from many gates (Kyverno
+  # verifyImages, sekiban admission, scanner re-attestation) and writes
+  # are admitted by any replica then synced via the postgres backend
+  # (when persistence.backend=postgres).
+  replicaCount: 3
+
+  resources:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits:   { cpu: 1000m, memory: 512Mi }
+
+  ports:
+    - name: http
+      containerPort: 8082
+      protocol: TCP
+
+  service:
+    type: ClusterIP
+    ports:
+      - name: http
+        port: 8082
+        targetPort: http
+        protocol: TCP
+
+  health:
+    path: /health
+    readyPath: /health
+    port: http
+
+  args:
+    - --listen=0.0.0.0:8082
+
+  env:
+    - name: REGISTRY_ORG
+      value: "pleme-io"
+    - name: REGISTRY_PKI_URL
+      value: "http://openclaw-pki-lareira-openclaw-pki:8090"
+    - name: RUST_LOG
+      value: "info,openclaw_artifact_registry=debug"
+
+  monitoring:
+    enabled: true
+    port: http
+    path: /metrics
+    interval: 30s
+
+  # The registry serves three downstream callers:
+  #   1. Zot pre-push webhook (asks "is this digest in the ledger?")
+  #   2. Kyverno verifyImages (asks "verify before admitting Pod")
+  #   3. openclaw-scanner re-attestation
+  # Plus publishers POST /api/v1/artifacts to admit new artifacts.
+  networkPolicy:
+    enabled: true
+    additionalIngress:
+      - name: allow-from-zot
+        rules:
+          - from:
+              - podSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: zot
+            ports:
+              - port: 8082
+                protocol: TCP
+      - name: allow-from-scanner
+        rules:
+          - from:
+              - podSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: openclaw-scanner
+            ports:
+              - port: 8082
+                protocol: TCP
+      - name: allow-from-kyverno
+        rules:
+          - from:
+              - namespaceSelector:
+                  matchLabels:
+                    kubernetes.io/metadata.name: kyverno-system
+            ports:
+              - port: 8082
+                protocol: TCP
+    additionalEgress:
+      - name: allow-to-pki
+        rules:
+          - to:
+              - podSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: openclaw-publisher-pki
+            ports:
+              - port: 8090
+                protocol: TCP
+
+  pdb:
+    enabled: true
+    minAvailable: 2
+
+  # Attestation hashes injected by forge at release time. Empty values
+  # cause fail() at template render under fedramp-high.
+  attestation:
+    enabled: true
+    signature: ""
+    certificationHash: ""
+    complianceHash: ""
+    changesetHash: ""
+
+  additionalLabels:
+    pleme.io/part-of: openclaw

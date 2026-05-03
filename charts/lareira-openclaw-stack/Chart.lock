@@ -2,11 +2,14 @@ dependencies:
 - name: lareira-openclaw-pki
   repository: file://../lareira-openclaw-pki
   version: 0.1.0
+- name: lareira-openclaw-artifact-registry
+  repository: file://../lareira-openclaw-artifact-registry
+  version: 0.1.0
 - name: lareira-openclaw-store
   repository: file://../lareira-openclaw-store
   version: 0.1.0
 - name: lareira-openclaw-scanner
   repository: file://../lareira-openclaw-scanner
   version: 0.1.0
-digest: sha256:69d537d9f78cabf2a79a5c29e4c7ab6dc5cb150a125f794b64aa799aac8a4f4c
-generated: "2026-05-02T15:59:02.334187-04:00"
+digest: sha256:92fbd8c9d948fc888ee1c9a4575e3add28b89dbce43234f86a94558dbfe62dfc
+generated: "2026-05-03T11:03:25.978068-04:00"

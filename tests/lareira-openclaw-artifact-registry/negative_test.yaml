@@ -1,0 +1,45 @@
+suite: lareira-openclaw-artifact-registry — negative invariants
+templates:
+  - templates/validations.yaml
+release:
+  name: openclaw-registry
+  namespace: openclaw
+attest: &attest
+  pleme-microservice.attestation.signature: "blake3:test-sig-aaaaaaaaaaaaaaaa"
+  pleme-microservice.attestation.certificationHash: "blake3:test-cert-bbbbbbbbbbbb"
+  pleme-microservice.attestation.complianceHash: "blake3:test-comp-cccccccccccc"
+tests:
+  - it: rejects all-zero placeholder digest
+    set:
+      <<: *attest
+      pleme-microservice.image.tag: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    asserts:
+      - failedTemplate:
+          errorPattern: "all-zero placeholder digest"
+
+  - it: rejects empty attestation.signature at fedramp-high
+    set:
+      pleme-microservice.image.tag: "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+      pleme-microservice.attestation.signature: ""
+      pleme-microservice.attestation.certificationHash: "blake3:c"
+      pleme-microservice.attestation.complianceHash: "blake3:p"
+    asserts:
+      - failedTemplate:
+          errorPattern: "requires pleme-microservice.attestation.signature"
+
+  - it: rejects sekiban.enabled=false at fedramp-high
+    set:
+      <<: *attest
+      pleme-microservice.image.tag: "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+      sekiban.enabled: false
+    asserts:
+      - failedTemplate:
+          errorPattern: "sekiban.enabled=true"
+
+  - it: accepts a real digest with full attestation
+    set:
+      <<: *attest
+      pleme-microservice.image.tag: "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+    asserts:
+      - hasDocuments:
+          count: 0

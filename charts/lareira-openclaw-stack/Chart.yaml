@@ -19,6 +19,11 @@ dependencies:
     version: "~0.1.0"
     repository: "file://../lareira-openclaw-pki"
     condition: pki.enabled
+  - name: lareira-openclaw-artifact-registry
+    alias: registry
+    version: "~0.1.0"
+    repository: "file://../lareira-openclaw-artifact-registry"
+    condition: registry.enabled
   - name: lareira-openclaw-store
     alias: store
     version: "~0.1.0"

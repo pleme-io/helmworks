@@ -1,0 +1,2 @@
+{{- include "lareira-openclaw-artifact-registry.validate.digest" . -}}
+{{- include "lareira-openclaw-artifact-registry.validate.attestation" . -}}
