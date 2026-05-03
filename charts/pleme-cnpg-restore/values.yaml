@@ -1,7 +1,8 @@
-# Master toggle. Setting enabled=false renders no resources, allowing
-# Flux/Helm to deprovision the recovered cluster via a single value
-# override.
-enabled: true
+# Master toggle. Default is `false` because this chart is for one-shot
+# recovery — you install it during an active recovery, not as a
+# steady-state workload. Set to `true` (with `clusterName` populated)
+# to actually emit the four recovery resources.
+enabled: false
 
 # REQUIRED: name of the new (recovered) CNPG Cluster. Becomes the
 # metadata.name of the Cluster CR; CNPG derives the per-instance
