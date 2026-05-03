@@ -17,6 +17,9 @@ metadata:
   namespace: {{ .Values.garageNetworkPolicy.namespace }}
   labels:
     {{- include "pleme-cnpg-cluster.labels" . | nindent 4 }}
+    {{- with .Values.clusterLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
 spec:
   podSelector:
     matchLabels:
