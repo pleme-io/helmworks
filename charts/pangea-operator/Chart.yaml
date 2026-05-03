@@ -28,10 +28,14 @@ description: >-
   PangeaDashboard CRD scope (was rendering Cluster; deployed as
   Namespaced — the kube derive needed the explicit `namespaced`
   flag). All 13 CRDs now render with the scope they were originally
-  applied as; no CRD-scope-immutable conflicts on upgrade.
+  applied as; no CRD-scope-immutable conflicts on upgrade. v0.8.8
+  switches values.schema.json to auto-generated from a typed Rust
+  mirror (`pangea_operator::chart_values::ChartValues` + schemars).
+  Schema-affecting values changes now flow from the struct →
+  `cargo run -- --generate-values-schema` instead of hand-edits.
 type: application
-version: 0.8.7
-appVersion: "0.8.7"
+version: 0.8.8
+appVersion: "0.8.8"
 
 dependencies:
   - name: pleme-lib
