@@ -1,0 +1,37 @@
+apiVersion: v2
+name: pleme-cnpg-restore
+description: |-
+  One-shot recovery chart for a pleme-io CNPG cluster from a barman-cloud
+  S3 (garage) WAL archive. Emits the four resources every fresh-from-S3
+  restore needs: a CNPG Cluster CR with `bootstrap.recovery`, a Role +
+  RoleBinding that lets the per-cluster instance ServiceAccount read the
+  WAL-archive credentials Secret, and an additive NetworkPolicy in the
+  garage's namespace that lets the new cluster's pods reach the S3
+  endpoint on :3900.
+
+  The fleet runbook lives at
+  k8s/clusters/rio/infrastructure/pangea-database/RESTORE-RUNBOOK.md —
+  refer to it before a real recovery (the chart codifies the four
+  resources, the runbook codifies the cutover sequencing).
+
+  This chart is for *recovery only*; the live `pangea-database` cluster's
+  Cluster CR + RBAC + NetPol entry are still authored as raw manifests in
+  k8s/clusters/rio/infrastructure/pangea-database/. Migrating the live
+  cluster to a chart is a separate, state-bearing concern.
+type: application
+version: 0.1.0
+appVersion: "1.0"
+keywords:
+  - cnpg
+  - postgresql
+  - recovery
+  - barman-cloud
+  - garage
+  - lareira
+home: https://github.com/pleme-io/helmworks
+sources:
+  - https://github.com/pleme-io/helmworks
+  - https://cloudnative-pg.io/documentation/current/recovery/
+maintainers:
+  - name: drzzln
+    email: drzzln@protonmail.com

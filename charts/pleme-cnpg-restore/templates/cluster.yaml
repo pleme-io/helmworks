@@ -1,0 +1,81 @@
+{{- if .Values.enabled }}
+{{- include "pleme-cnpg-restore.requireClusterName" . }}
+---
+# Recovery-mode CNPG Cluster. `bootstrap.recovery` instructs CNPG to
+# restore from the externalCluster's barman-cloud archive instead of
+# running initdb against an empty PVC.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ .Values.clusterName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pleme-cnpg-restore.labels" . | nindent 4 }}
+spec:
+  imageName: {{ .Values.imageName | quote }}
+  instances: {{ .Values.instances }}
+
+  enableSuperuserAccess: {{ .Values.enableSuperuserAccess }}
+
+  storage:
+    size: {{ .Values.storage.size }}
+    storageClass: {{ .Values.storage.storageClass }}
+
+  resources:
+    {{- toYaml .Values.resources | nindent 4 }}
+
+  postgresql:
+    parameters:
+      {{- toYaml .Values.postgresql.parameters | nindent 6 }}
+
+  {{- if .Values.monitoring.enabled }}
+  monitoring:
+    enablePodMonitor: true
+  {{- end }}
+
+  {{- if .Values.affinity.enabled }}
+  affinity:
+    enablePodAntiAffinity: true
+    topologyKey: {{ .Values.affinity.topologyKey }}
+    podAntiAffinityType: preferred
+  {{- end }}
+
+  # Inject AWS env so barman-cloud's boto3 generates correct SigV4 signatures
+  # against garage (default region differs from us-east-1; addressing must
+  # be path-style because garage doesn't support virtual-hosted style
+  # without wildcard DNS).
+  env:
+    - name: AWS_DEFAULT_REGION
+      value: {{ .Values.walArchive.region | quote }}
+    - name: AWS_S3_ADDRESSING_STYLE
+      value: {{ .Values.walArchive.addressingStyle | quote }}
+
+  bootstrap:
+    recovery:
+      source: {{ .Values.recovery.source }}
+      {{- with .Values.recovery.recoveryTargetTime }}
+      recoveryTarget:
+        targetTime: {{ . | quote }}
+      {{- end }}
+
+  externalClusters:
+    - name: {{ .Values.recovery.source }}
+      barmanObjectStore:
+        destinationPath: {{ printf "s3://%s/" .Values.walArchive.bucket | quote }}
+        endpointURL: {{ .Values.walArchive.endpointURL | quote }}
+        # serverName == the original cluster's name (the subdir of the
+        # bucket the archive was written to). Defaults to clusterName
+        # but typically overridden because clusterName is the *new*
+        # name and the archive is keyed by the *original* name.
+        serverName: {{ include "pleme-cnpg-restore.serverName" . | quote }}
+        s3Credentials:
+          accessKeyId:
+            name: {{ .Values.walArchive.credentialsSecretName }}
+            key: ACCESS_KEY_ID
+          secretAccessKey:
+            name: {{ .Values.walArchive.credentialsSecretName }}
+            key: SECRET_ACCESS_KEY
+        wal:
+          compression: {{ .Values.walArchive.wal.compression }}
+          maxParallel: {{ .Values.walArchive.wal.maxParallel }}
+{{- end }}

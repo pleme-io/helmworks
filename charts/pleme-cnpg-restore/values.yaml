@@ -1,0 +1,119 @@
+# Master toggle. Setting enabled=false renders no resources, allowing
+# Flux/Helm to deprovision the recovered cluster via a single value
+# override.
+enabled: true
+
+# REQUIRED: name of the new (recovered) CNPG Cluster. Becomes the
+# metadata.name of the Cluster CR; CNPG derives the per-instance
+# ServiceAccount name from it. Must be ≤ ~30 chars to stay under
+# Kubernetes' 63-char label-value cap once CNPG appends pod-template
+# hashes (vmalertmanager-style outage).
+clusterName: ""
+
+# Cluster topology — defaults to the same shape as the live
+# pangea-database cluster. Override per-recovery if you want a
+# differently-sized restore (e.g. 1 instance + smaller PVC for a
+# verification rehearsal).
+instances: 2
+imageName: ghcr.io/cloudnative-pg/postgresql:16.6
+storage:
+  size: 10Gi
+  storageClass: local-path
+
+# Pod resources — keep aligned with live cluster so post-restore
+# behavior matches.
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
+
+# Allow operator break-glass via the cnpg-generated `<cluster>-superuser`
+# Secret. Disable for tighter posture; CNPG still creates the
+# replication user.
+enableSuperuserAccess: true
+
+# postgresql.parameters mirror the live cluster's tuning. Override per
+# environment if needed.
+postgresql:
+  parameters:
+    max_connections: "100"
+    shared_buffers: "256MB"
+    effective_cache_size: "768MB"
+    maintenance_work_mem: "64MB"
+    checkpoint_completion_target: "0.9"
+    wal_buffers: "16MB"
+    default_statistics_target: "100"
+    random_page_cost: "1.1"
+    effective_io_concurrency: "200"
+    work_mem: "8MB"
+    min_wal_size: "1GB"
+    max_wal_size: "4GB"
+
+# Emit a PodMonitor for the cluster (operator-renders into a VMScrape
+# via vm-operator's converter). Match the live cluster.
+monitoring:
+  enabled: true
+
+# Pod anti-affinity. No-op on single-node clusters; kicks in on growth.
+affinity:
+  enabled: true
+  topologyKey: kubernetes.io/hostname
+
+# ── Recovery source ─────────────────────────────────────────────────
+#
+# externalCluster wraps the barman-cloud S3 archive that holds the base
+# backup + WAL chain we're restoring from. `serverName` MUST match the
+# original cluster's name — that's the subdir of the bucket the archive
+# was written to.
+recovery:
+  # The name of the externalClusters[] entry inside the Cluster CR.
+  # Internal to the chart; bump if you ever need two recovery sources.
+  source: pangea-database-archive
+
+  # Original cluster name (== bucket subdir). Defaults to clusterName
+  # WITHOUT the `-restored`/`-recovery` suffix if present, i.e. the
+  # most common case is restoring INTO `pangea-database-restored` FROM
+  # the `pangea-database` archive — set this to "pangea-database".
+  externalServerName: ""
+
+  # Optional point-in-time recovery target. Empty = recover to the
+  # latest available WAL. Set to a specific timestamp to roll back
+  # to a known-good moment (e.g. "2026-05-03 02:00:00+00").
+  recoveryTargetTime: ""
+
+# ── WAL archive backend ─────────────────────────────────────────────
+#
+# Where to find the archive. Defaults match the rio garage layout.
+walArchive:
+  bucket: pangea-wal
+  endpointURL: http://garage-s3.drive.svc.cluster.local:3900
+  region: garage
+  addressingStyle: path
+
+  # Secret with two keys: ACCESS_KEY_ID + SECRET_ACCESS_KEY. The
+  # supporting Role + RoleBinding rendered by this chart grant the
+  # CNPG instance ServiceAccount `get/watch/list` on this Secret.
+  credentialsSecretName: pangea-database-wal-archive
+
+  wal:
+    compression: gzip
+    maxParallel: 8
+
+# ── Garage NetworkPolicy patch ──────────────────────────────────────
+#
+# Adds an ingress allow rule on the garage NetworkPolicy so the
+# new cluster's pods can reach the S3 endpoint. Lives in the garage's
+# own namespace (`drive` by default) and uses the conventional
+# `cnpg.io/cluster=<name>` pod label.
+garageNetworkPolicy:
+  enabled: true
+  namespace: drive
+  port: 3900
+  # Selectors that identify the garage pods to attach the rule to.
+  # Match what helmworks/charts/pleme-garage emits.
+  garagePodLabels:
+    app.kubernetes.io/instance: garage
+    app.kubernetes.io/name: pleme-garage

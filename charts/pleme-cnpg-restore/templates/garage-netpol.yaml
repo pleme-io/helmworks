@@ -1,0 +1,39 @@
+{{- if and .Values.enabled .Values.garageNetworkPolicy.enabled }}
+{{- include "pleme-cnpg-restore.requireClusterName" . }}
+---
+# Additive NetworkPolicy in the garage's namespace allowing the new
+# cluster's pods to reach the S3 endpoint.
+#
+# NetworkPolicy semantics: when multiple NPs select the same pod, the
+# effective allow rules are the UNION across all NPs. This means we
+# can add this policy alongside garage's chart-rendered NetPol without
+# editing the chart — the rule is purely additive. Cleanup =
+# `helm uninstall` removes this NetPol cleanly.
+#
+# Ingress from: pods in the install namespace (.Release.Namespace)
+# carrying the standard CNPG `cnpg.io/cluster=<clusterName>` label.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Values.clusterName }}-allow-garage
+  namespace: {{ .Values.garageNetworkPolicy.namespace }}
+  labels:
+    {{- include "pleme-cnpg-restore.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- toYaml .Values.garageNetworkPolicy.garagePodLabels | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Release.Namespace }}
+          podSelector:
+            matchLabels:
+              cnpg.io/cluster: {{ .Values.clusterName }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.garageNetworkPolicy.port }}
+{{- end }}
