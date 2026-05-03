@@ -1,0 +1,167 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "pangea-operator chart values",
+  "description": "Schema covering the footgun-prone subset of pangea-operator chart values. Validates at helm lint / template / install time so consumers get fail-loud errors on typo'd or required-but-missing fields rather than silent runtime failures. Full Rust-struct→schema generation lives in a follow-up workstream; today's schema covers the OperatorPolicy surface, the embedded-Ruby gem-auth dependency, and the logLevel toggle.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "logLevel": {
+      "type": "string",
+      "description": "tracing-subscriber EnvFilter directive for the operator. Threaded into RUST_LOG by the deployment template. Comma-separated <target>=<level>.",
+      "default": "pangea_operator=info",
+      "examples": [
+        "pangea_operator=info",
+        "pangea_operator=debug",
+        "pangea_operator=info,kube=warn"
+      ]
+    },
+    "useEmbeddedRuby": {
+      "type": "boolean",
+      "description": "When true, operator runs the magnus+CRuby compiler in-process (no sidecar). Requires `gemAuth.tokenSecret.name` to be set. The deployment template enforces the dependency at render time but having the schema validate it lets `helm lint` / `helm template` catch missing values before pod start.",
+      "default": false
+    },
+    "gemAuth": {
+      "type": "object",
+      "description": "Authentication for fetching operator-runtime gems (only used when useEmbeddedRuby=true).",
+      "properties": {
+        "tokenSecret": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Name of the Secret holding the gem-fetch token."
+            },
+            "key": {
+              "type": "string",
+              "default": "token",
+              "description": "Key within the Secret."
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    "operatorPolicy": {
+      "type": "object",
+      "description": "OperatorPolicy/default singleton CR shipped by the chart. Mirrors the Rust spec at src/crd/operator_policy.rs.",
+      "properties": {
+        "create": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to render the CR. Disable to manage the policy externally."
+        },
+        "globalSuspend": {
+          "type": "boolean",
+          "default": false,
+          "description": "Master kill-switch. true = pause everything."
+        },
+        "globalSuspendReason": {
+          "type": "string",
+          "default": "",
+          "description": "Operator-readable reason surfaced in logs + Events when globalSuspend=true."
+        },
+        "controllerSuspend": {
+          "type": "object",
+          "description": "Per-controller suspend. Each field maps to a ControllerKind variant.",
+          "properties": {
+            "template":           { "type": "boolean", "default": false },
+            "namespace":          { "type": "boolean", "default": false },
+            "workspaceCatalog":   { "type": "boolean", "default": false },
+            "architectureGem":    { "type": "boolean", "default": false },
+            "complianceBinding":  { "type": "boolean", "default": false },
+            "complianceSchedule": { "type": "boolean", "default": false },
+            "imagePipeline":      { "type": "boolean", "default": false },
+            "flow":               { "type": "boolean", "default": false },
+            "dashboard":          { "type": "boolean", "default": false },
+            "amiTest":            { "type": "boolean", "default": false },
+            "packerBuild":        { "type": "boolean", "default": false },
+            "synthesizerFormat":  { "type": "boolean", "default": false }
+          },
+          "additionalProperties": false
+        },
+        "workspaceSuspend": {
+          "type": "object",
+          "description": "Per-workspace tri-state pause. Both maps default empty; missing entries inherit from controller/global layers.",
+          "properties": {
+            "templates": {
+              "type": "object",
+              "description": "Per-template overrides keyed `\"<namespace>/<name>\"`.",
+              "additionalProperties": { "$ref": "#/definitions/WorkspaceSuspendEntry" }
+            },
+            "catalogs": {
+              "type": "object",
+              "description": "Per-catalog overrides keyed by WorkspaceCatalog name. Cascades to children unless a child template overrides.",
+              "additionalProperties": { "$ref": "#/definitions/WorkspaceSuspendEntry" }
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    "monitoring": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        }
+      }
+    },
+    "prometheusRules": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        }
+      }
+    }
+  },
+  "definitions": {
+    "WorkspaceSuspendEntry": {
+      "type": "object",
+      "description": "A single per-workspace decision: state + optional reason.",
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": ["inherit", "paused", "active"],
+          "default": "inherit",
+          "description": "Tri-state decision. `inherit` (or omit) falls through; `paused` freezes regardless of more-general state; `active` carves out from a more-general pause."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Optional human-readable note surfaced in skip logs + the policy_skipped_total metric label."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "allOf": [
+    {
+      "description": "When useEmbeddedRuby=true, gemAuth.tokenSecret.name must be set to a non-empty Secret name.",
+      "if": {
+        "properties": { "useEmbeddedRuby": { "const": true } },
+        "required": ["useEmbeddedRuby"]
+      },
+      "then": {
+        "required": ["gemAuth"],
+        "properties": {
+          "gemAuth": {
+            "required": ["tokenSecret"],
+            "properties": {
+              "tokenSecret": {
+                "required": ["name"],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

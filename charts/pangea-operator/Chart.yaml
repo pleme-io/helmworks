@@ -20,9 +20,14 @@ description: >-
   require an env-list edit; `category: pangea` on all 13 CRDs so
   `kubectl get pangea` works fleet-wide; pause-state alerts (info)
   bumped to 1h `for:` so short maintenance windows stay silent.
+  v0.8.6 ships values.schema.json covering the OperatorPolicy
+  surface + the useEmbeddedRuby/gemAuth dependency + the
+  workspaceSuspend.state enum. Helm now fail-louds on typos (e.g.
+  `state: paused-urgently`) and missing required fields (e.g.
+  `useEmbeddedRuby=true` without a gem-auth Secret).
 type: application
-version: 0.8.5
-appVersion: "0.8.5"
+version: 0.8.6
+appVersion: "0.8.6"
 
 dependencies:
   - name: pleme-lib
