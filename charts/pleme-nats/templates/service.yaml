@@ -1,3 +1,4 @@
+{{- if .Values.enabled }}
 {{/*
 Headless Service required for StatefulSet stable identity. Gives each
 pod a DNS name like {fullname}-0.{fullname}.{namespace}.svc, plus the
@@ -31,3 +32,4 @@ spec:
       port: {{ .Values.service.ports.metrics }}
       targetPort: metrics
       protocol: TCP
+{{- end }}

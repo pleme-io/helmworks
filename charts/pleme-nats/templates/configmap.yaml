@@ -1,3 +1,4 @@
+{{- if .Values.enabled }}
 {{/*
 nats.conf — rendered into a ConfigMap and mounted at /etc/nats.
 JetStream block enables the durable on-disk queue layer.
@@ -38,3 +39,4 @@ data:
     # Extra config (auth, leafnodes, TLS, etc.)
     {{ . | nindent 4 }}
     {{- end }}
+{{- end }}

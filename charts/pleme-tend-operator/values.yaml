@@ -1,3 +1,7 @@
+# Master toggle: setting enabled=false renders no resources, allowing
+# Flux/Helm to deprovision the workload via a single value override.
+enabled: true
+
 # pleme-tend-operator — Fleet update controller.
 #
 # Owns four CRDs in fleet.pleme.io/v1alpha1:

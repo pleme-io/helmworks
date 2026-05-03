@@ -1,3 +1,4 @@
+{{- if .Values.enabled }}
 {{- if .Values.prometheusRules.enabled }}
 {{/*
 PrometheusRule = VMRule on rio (the VictoriaMetrics operator converts).
@@ -15,4 +16,5 @@ metadata:
 spec:
   groups:
     {{- toYaml .Values.prometheusRules.groups | nindent 4 }}
+{{- end }}
 {{- end }}

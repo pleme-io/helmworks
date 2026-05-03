@@ -2,7 +2,7 @@ apiVersion: v2
 name: pleme-ocis
 description: OwnCloud Infinite Scale — single-binary Go Drive backed by S3.
 type: application
-version: 0.1.2
+version: "0.2.0"
 appVersion: "7.3.2"
 
 dependencies:

@@ -2,7 +2,7 @@ apiVersion: v2
 name: pleme-tend-throttle
 description: Rate-limited GitHub API consumer for tend. Pulls jobs from NATS JetStream and dispatches at a fixed pace (default ≤8 req/min ≈ 9.6% of GitHub's 5000/hr authenticated limit), respecting X-RateLimit-Remaining for adaptive backoff. The single load-bearing primitive that lets the operator publish freely while keeping fleet-wide GitHub usage at ≤10% of the authenticated quota.
 type: application
-version: 0.3.0
+version: "0.4.0"
 appVersion: "0.2.0"
 
 dependencies:

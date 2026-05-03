@@ -1,3 +1,4 @@
+{{- if .Values.enabled }}
 {{- if .Values.pdb.enabled }}
 apiVersion: policy/v1
 kind: PodDisruptionBudget
@@ -11,4 +12,5 @@ spec:
   selector:
     matchLabels:
       {{- include "pleme-nats.selectorLabels" . | nindent 6 }}
+{{- end }}
 {{- end }}

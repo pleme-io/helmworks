@@ -1,3 +1,7 @@
+# Master toggle: setting enabled=false renders no resources, allowing
+# Flux/Helm to deprovision the workload via a single value override.
+enabled: true
+
 # pleme-tend-throttle — the canonical reference instance of the
 # rate-limited-consumer pattern. Every concern is delegated to a
 # pleme-lib library template; this chart's job is just to set values.

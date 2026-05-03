@@ -1,3 +1,4 @@
+{{- if .Values.enabled }}
 {{/*
 Declare this chart's owned JetStream stream + consumer via the
 shared pleme-lib template. The broker (pleme-nats) is unaware of
@@ -5,3 +6,4 @@ this stream — Cilium-style identity. Removing the chart removes the
 stream.
 */}}
 {{- include "pleme-lib.jetstream" . }}
+{{- end }}

@@ -1,1 +1,3 @@
+{{- if .Values.enabled }}
 {{- include "pleme-lib.rate-limit-worker.networkpolicy" . }}
+{{- end }}

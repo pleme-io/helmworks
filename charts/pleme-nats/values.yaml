@@ -1,3 +1,7 @@
+# Master toggle: setting enabled=false renders no resources, allowing
+# Flux/Helm to deprovision the workload via a single value override.
+enabled: true
+
 # pleme-nats — cluster-local NATS JetStream BROKER.
 #
 # This chart deploys ONLY the broker (StatefulSet + service +

@@ -1,3 +1,7 @@
+# Master toggle: setting enabled=false renders no resources, allowing
+# Flux/Helm to deprovision the workload via a single value override.
+enabled: true
+
 # pleme-ocis default values
 # OwnCloud Infinite Scale — single Go binary, S3-backed personal Drive
 # with native macOS/Windows/Linux desktop sync clients, iOS/Android apps,
