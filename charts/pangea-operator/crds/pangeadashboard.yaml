@@ -15,7 +15,7 @@ spec:
     shortNames:
     - pd
     singular: pangeadashboard
-  scope: Cluster
+  scope: Namespaced
   versions:
   - additionalPrinterColumns:
     - jsonPath: .spec.folder
