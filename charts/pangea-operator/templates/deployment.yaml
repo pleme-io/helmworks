@@ -10,6 +10,7 @@ embedded mode and drop the compiler sidecar from the pod spec.
 {{- $gemAuthSecretName := (((.Values.gemAuth).tokenSecret).name | default "") -}}
 {{- $gemAuthSecretKey := (((.Values.gemAuth).tokenSecret).key | default "token") -}}
 {{- $executorEnv := list
+  (dict "name" "RUST_LOG" "value" (.Values.logLevel | default "pangea_operator=info"))
   (dict "name" "TOFU_BINARY" "value" (.Values.executor.tofu.binary | default "/usr/local/bin/tofu"))
   (dict "name" "PANGEA_TIMEOUT" "value" (printf "%v" (.Values.executor.tofu.timeout | default 600)))
   (dict "name" "PACKER_BINARY" "value" (.Values.executor.packer.binary | default "/usr/local/bin/packer"))

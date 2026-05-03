@@ -12,11 +12,17 @@ description: >-
   Adds `pangea_workspace_active_override` gauge + `target` label on
   `pangea_policy_skipped_total` + 2 new alerts (PangeaWorkspacePaused,
   PangeaActiveOverridesActive) + `WorkspaceOverrides` printer column
-  on OperatorPolicy. Inherits 0.8.3's events RBAC + load-bearing
-  primitive surface from Tier 1/2/3 surgery.
+  on OperatorPolicy. v0.8.5 ships the Q-set operability quick wins:
+  `runbook_url` annotations on all 18 alerts pointing at
+  pangea-operator/docs/RUNBOOKS.md; `helm.sh/resource-policy: keep`
+  on every CRD; pinned compiler-sidecar default tag (no more `:latest`);
+  new `logLevel` value threaded into RUST_LOG so debug toggles don't
+  require an env-list edit; `category: pangea` on all 13 CRDs so
+  `kubectl get pangea` works fleet-wide; pause-state alerts (info)
+  bumped to 1h `for:` so short maintenance windows stay silent.
 type: application
-version: 0.8.4
-appVersion: "0.8.4"
+version: 0.8.5
+appVersion: "0.8.5"
 
 dependencies:
   - name: pleme-lib

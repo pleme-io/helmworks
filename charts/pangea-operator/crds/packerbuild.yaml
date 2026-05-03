@@ -3,108 +3,199 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   name: packerbuilds.pangea.pleme.io
+  annotations:
+    helm.sh/resource-policy: keep
 spec:
   group: pangea.pleme.io
   names:
-    categories: []
+    categories:
+    - pangea
     kind: PackerBuild
     plural: packerbuilds
     shortNames:
-      - pb
+    - pb
     singular: packerbuild
   scope: Namespaced
   versions:
-    - additionalPrinterColumns:
-        - jsonPath: .status.phase
-          name: Phase
-          type: string
-        - jsonPath: .status.amiId
-          name: AMI
-          type: string
-        - jsonPath: .status.buildDuration
-          name: Duration
-          type: string
-        - jsonPath: .metadata.creationTimestamp
-          name: Age
-          type: date
-      name: v1alpha1
-      schema:
-        openAPIV3Schema:
-          description: Auto-generated derived type for PackerBuildSpec via `CustomResource`
-          properties:
-            spec:
-              description: PackerBuild represents a single Packer build execution. The operator compiles the Ruby DSL source to Packer JSON, validates it, runs `packer build`, and extracts the AMI ID from the manifest.
-              properties:
-                manifestPath:
-                  default: packer-manifest.json
-                  description: Path within workspace for the packer-manifest.json output. Defaults to "packer-manifest.json".
-                  type: string
-                onError:
-                  default: cleanup
-                  description: 'Packer on-error behavior: "cleanup" (default) or "abort".'
-                  type: string
-                providerCredentials:
-                  description: Provider credentials (AWS, etc.) mounted as environment variables.
-                  nullable: true
-                  properties:
-                    aws:
-                      description: AWS credentials configuration.
-                      nullable: true
-                      properties:
-                        region:
-                          description: Region to use for AWS operations.
-                          nullable: true
-                          type: string
-                        roleArn:
-                          description: Optional role ARN to assume.
-                          nullable: true
-                          type: string
-                        secretRef:
-                          description: Secret containing AWS credentials.
-                          properties:
-                            name:
-                              description: Name of the Secret.
-                              type: string
-                            namespace:
-                              description: Namespace of the Secret (defaults to same namespace as the resource).
-                              nullable: true
-                              type: string
-                          required:
-                            - name
-                          type: object
-                      required:
-                        - secretRef
-                      type: object
-                    cloudflare:
-                      description: Cloudflare credentials configuration.
-                      nullable: true
-                      properties:
-                        secretRef:
-                          description: Secret containing Cloudflare API token.
-                          properties:
-                            name:
-                              description: Name of the Secret.
-                              type: string
-                            namespace:
-                              description: Namespace of the Secret (defaults to same namespace as the resource).
-                              nullable: true
-                              type: string
-                          required:
-                            - name
-                          type: object
-                      required:
-                        - secretRef
-                      type: object
-                  type: object
-                retainAmi:
-                  default: false
-                  description: If true, the AMI will not be deregistered when the CR is deleted.
-                  type: boolean
-                source:
-                  description: Source of the Packer template (Ruby DSL or pre-compiled JSON).
+  - additionalPrinterColumns:
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .status.amiId
+      name: AMI
+      type: string
+    - jsonPath: .status.buildDuration
+      name: Duration
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Auto-generated derived type for PackerBuildSpec via `CustomResource`
+        properties:
+          spec:
+            description: PackerBuild represents a single Packer build execution. The operator compiles the Ruby DSL source to Packer JSON, validates it, runs `packer build`, and extracts the AMI ID from the manifest.
+            properties:
+              manifestPath:
+                default: packer-manifest.json
+                description: Path within workspace for the packer-manifest.json output. Defaults to "packer-manifest.json".
+                type: string
+              onError:
+                default: cleanup
+                description: 'Packer on-error behavior: "cleanup" (default) or "abort".'
+                type: string
+              providerCredentials:
+                description: Provider credentials (AWS, etc.) mounted as environment variables.
+                nullable: true
+                properties:
+                  aws:
+                    description: AWS credentials configuration.
+                    nullable: true
+                    properties:
+                      region:
+                        description: Region to use for AWS operations.
+                        nullable: true
+                        type: string
+                      roleArn:
+                        description: Optional role ARN to assume.
+                        nullable: true
+                        type: string
+                      secretRef:
+                        description: Secret containing AWS credentials.
+                        properties:
+                          name:
+                            description: Name of the Secret.
+                            type: string
+                          namespace:
+                            description: Namespace of the Secret (defaults to same namespace as the resource).
+                            nullable: true
+                            type: string
+                        required:
+                        - name
+                        type: object
+                    required:
+                    - secretRef
+                    type: object
+                  cloudflare:
+                    description: Cloudflare credentials configuration.
+                    nullable: true
+                    properties:
+                      secretRef:
+                        description: Secret containing Cloudflare API token.
+                        properties:
+                          name:
+                            description: Name of the Secret.
+                            type: string
+                          namespace:
+                            description: Namespace of the Secret (defaults to same namespace as the resource).
+                            nullable: true
+                            type: string
+                        required:
+                        - name
+                        type: object
+                    required:
+                    - secretRef
+                    type: object
+                  github:
+                    description: 'GitHub credentials configuration. Used by templates that declare github_* providers (e.g. pangea-github''s `cloudflare_zero_trust_*` adjacent shapes — repos, runner groups, branch protection). Same shape as the cloudflare credentials block: a secretRef to a Secret containing a PAT.'
+                    nullable: true
+                    properties:
+                      secretRef:
+                        description: Secret containing the GitHub PAT.
+                        properties:
+                          name:
+                            description: Name of the Secret.
+                            type: string
+                          namespace:
+                            description: Namespace of the Secret (defaults to same namespace as the resource).
+                            nullable: true
+                            type: string
+                        required:
+                        - name
+                        type: object
+                    required:
+                    - secretRef
+                    type: object
+                type: object
+              retainAmi:
+                default: false
+                description: If true, the AMI will not be deregistered when the CR is deleted.
+                type: boolean
+              source:
+                description: Source of the Packer template (Ruby DSL or pre-compiled JSON).
+                properties:
+                  configMapRef:
+                    description: Reference to a ConfigMap containing the template.
+                    nullable: true
+                    properties:
+                      key:
+                        description: Key within the ConfigMap containing the template.
+                        type: string
+                      name:
+                        description: Name of the ConfigMap.
+                        type: string
+                      namespace:
+                        description: Namespace of the ConfigMap (defaults to same namespace as the InfrastructureTemplate).
+                        nullable: true
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                  gitRepository:
+                    description: Reference to a Git repository containing the template.
+                    nullable: true
+                    properties:
+                      path:
+                        description: Path to the template file within the repository.
+                        type: string
+                      ref:
+                        default: main
+                        description: Git reference (branch, tag, or commit SHA).
+                        type: string
+                      secretRef:
+                        description: Reference to a Secret containing Git credentials.
+                        nullable: true
+                        properties:
+                          name:
+                            description: Name of the Secret.
+                            type: string
+                          namespace:
+                            description: Namespace of the Secret (defaults to same namespace as the resource).
+                            nullable: true
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      url:
+                        description: Git repository URL.
+                        type: string
+                    required:
+                    - path
+                    - url
+                    type: object
+                  inline:
+                    description: Inline Ruby DSL template content.
+                    nullable: true
+                    type: string
+                type: object
+              suspend:
+                default: false
+                description: Suspend reconciliation.
+                type: boolean
+              timeout:
+                default: 45m
+                description: Build timeout. Defaults to "45m".
+                type: string
+              varFiles:
+                description: References to variable files injected via `-var-file`.
+                items:
+                  description: Source for a variable file (-var-file).
                   properties:
                     configMapRef:
-                      description: Reference to a ConfigMap containing the template.
+                      description: Reference to a ConfigMap key containing the var file.
                       nullable: true
                       properties:
                         key:
@@ -118,194 +209,126 @@ spec:
                           nullable: true
                           type: string
                       required:
-                        - key
-                        - name
-                      type: object
-                    gitRepository:
-                      description: Reference to a Git repository containing the template.
-                      nullable: true
-                      properties:
-                        path:
-                          description: Path to the template file within the repository.
-                          type: string
-                        ref:
-                          default: main
-                          description: Git reference (branch, tag, or commit SHA).
-                          type: string
-                        secretRef:
-                          description: Reference to a Secret containing Git credentials.
-                          nullable: true
-                          properties:
-                            name:
-                              description: Name of the Secret.
-                              type: string
-                            namespace:
-                              description: Namespace of the Secret (defaults to same namespace as the resource).
-                              nullable: true
-                              type: string
-                          required:
-                            - name
-                          type: object
-                        url:
-                          description: Git repository URL.
-                          type: string
-                      required:
-                        - path
-                        - url
+                      - key
+                      - name
                       type: object
                     inline:
-                      description: Inline Ruby DSL template content.
+                      description: Inline JSON content for the var file.
+                      type: object
+                    secretRef:
+                      description: Reference to a Secret key containing the var file.
                       nullable: true
+                      properties:
+                        name:
+                          description: Name of the Secret.
+                          type: string
+                        namespace:
+                          description: Namespace of the Secret (defaults to same namespace as the resource).
+                          nullable: true
+                          type: string
+                      required:
+                      - name
+                      type: object
+                  type: object
+                type: array
+              variables:
+                additionalProperties: true
+                description: Variables injected into `packer build` via `-var key=value`.
+                type: object
+            required:
+            - source
+            type: object
+          status:
+            description: Status of a PackerBuild.
+            nullable: true
+            properties:
+              amiId:
+                description: AMI ID extracted from the packer manifest.
+                nullable: true
+                type: string
+              amiRegion:
+                description: AWS region of the built AMI.
+                nullable: true
+                type: string
+              buildDuration:
+                description: Duration of the packer build phase.
+                nullable: true
+                type: string
+              completedAt:
+                description: Timestamp of build completion.
+                format: date-time
+                nullable: true
+                type: string
+              conditions:
+                description: Kubernetes-style conditions.
+                items:
+                  description: Kubernetes-style condition.
+                  properties:
+                    lastTransitionTime:
+                      description: Last time the condition transitioned.
+                      format: date-time
                       type: string
+                    message:
+                      description: Human-readable message.
+                      type: string
+                    reason:
+                      description: Machine-readable reason for the condition.
+                      type: string
+                    status:
+                      description: Status of the condition (True, False, Unknown).
+                      type: string
+                    type:
+                      description: Type of condition.
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
                   type: object
-                suspend:
-                  default: false
-                  description: Suspend reconciliation.
-                  type: boolean
-                timeout:
-                  default: 45m
-                  description: Build timeout. Defaults to "45m".
-                  type: string
-                varFiles:
-                  description: References to variable files injected via `-var-file`.
-                  items:
-                    description: Source for a variable file (-var-file).
-                    properties:
-                      configMapRef:
-                        description: Reference to a ConfigMap key containing the var file.
-                        nullable: true
-                        properties:
-                          key:
-                            description: Key within the ConfigMap containing the template.
-                            type: string
-                          name:
-                            description: Name of the ConfigMap.
-                            type: string
-                          namespace:
-                            description: Namespace of the ConfigMap (defaults to same namespace as the InfrastructureTemplate).
-                            nullable: true
-                            type: string
-                        required:
-                          - key
-                          - name
-                        type: object
-                      inline:
-                        description: Inline JSON content for the var file.
-                        type: object
-                      secretRef:
-                        description: Reference to a Secret key containing the var file.
-                        nullable: true
-                        properties:
-                          name:
-                            description: Name of the Secret.
-                            type: string
-                          namespace:
-                            description: Namespace of the Secret (defaults to same namespace as the resource).
-                            nullable: true
-                            type: string
-                        required:
-                          - name
-                        type: object
-                    type: object
-                  type: array
-                variables:
-                  additionalProperties: true
-                  description: Variables injected into `packer build` via `-var key=value`.
-                  type: object
-              required:
-                - source
-              type: object
-            status:
-              description: Status of a PackerBuild.
-              nullable: true
-              properties:
-                amiId:
-                  description: AMI ID extracted from the packer manifest.
-                  nullable: true
-                  type: string
-                amiRegion:
-                  description: AWS region of the built AMI.
-                  nullable: true
-                  type: string
-                buildDuration:
-                  description: Duration of the packer build phase.
-                  nullable: true
-                  type: string
-                completedAt:
-                  description: Timestamp of build completion.
-                  format: date-time
-                  nullable: true
-                  type: string
-                conditions:
-                  description: Kubernetes-style conditions.
-                  items:
-                    description: Kubernetes-style condition.
-                    properties:
-                      lastTransitionTime:
-                        description: Last time the condition transitioned.
-                        format: date-time
-                        type: string
-                      message:
-                        description: Human-readable message.
-                        type: string
-                      reason:
-                        description: Machine-readable reason for the condition.
-                        type: string
-                      status:
-                        description: Status of the condition (True, False, Unknown).
-                        type: string
-                      type:
-                        description: Type of condition.
-                        type: string
-                    required:
-                      - lastTransitionTime
-                      - message
-                      - reason
-                      - status
-                      - type
-                    type: object
-                  type: array
-                errorMessage:
-                  description: Last error message if in Failed state.
-                  nullable: true
-                  type: string
-                observedGeneration:
-                  default: 0
-                  description: Last observed generation of the spec.
-                  format: int64
-                  type: integer
-                packerManifest:
-                  description: Raw packer-manifest.json content for debugging.
-                  nullable: true
-                  type: string
-                phase:
-                  description: Current phase of the build lifecycle.
-                  enum:
-                    - Pending
-                    - Compiling
-                    - Validating
-                    - Building
-                    - Extracting
-                    - Ready
-                    - Failed
-                  nullable: true
-                  type: string
-                retryCount:
-                  default: 0
-                  description: Number of consecutive retries.
-                  format: int32
-                  type: integer
-                startedAt:
-                  description: Timestamp of build start.
-                  format: date-time
-                  nullable: true
-                  type: string
-              type: object
-          required:
-            - spec
-          title: PackerBuild
-          type: object
-      served: true
-      storage: true
-      subresources:
-        status: {}
+                type: array
+              errorMessage:
+                description: Last error message if in Failed state.
+                nullable: true
+                type: string
+              observedGeneration:
+                default: 0
+                description: Last observed generation of the spec.
+                format: int64
+                type: integer
+              packerManifest:
+                description: Raw packer-manifest.json content for debugging.
+                nullable: true
+                type: string
+              phase:
+                description: Current phase of the build lifecycle.
+                enum:
+                - Pending
+                - Compiling
+                - Validating
+                - Building
+                - Extracting
+                - Ready
+                - Failed
+                nullable: true
+                type: string
+              retryCount:
+                default: 0
+                description: Number of consecutive retries.
+                format: int32
+                type: integer
+              startedAt:
+                description: Timestamp of build start.
+                format: date-time
+                nullable: true
+                type: string
+            type: object
+        required:
+        - spec
+        title: PackerBuild
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

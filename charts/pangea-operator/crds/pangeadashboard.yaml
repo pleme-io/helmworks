@@ -3,177 +3,177 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   name: pangeadashboards.pangea.pleme.io
+  annotations:
+    helm.sh/resource-policy: keep
 spec:
   group: pangea.pleme.io
   names:
-    categories: []
+    categories:
+    - pangea
     kind: PangeaDashboard
     plural: pangeadashboards
     shortNames:
-      - pd
+    - pd
     singular: pangeadashboard
-  # Scope kept Namespaced to match the existing in-cluster CRD on rio
-  # (one tend-operator PangeaDashboard CR lives at tend-system/
-  # tend-operator). Changing scope is immutable for an installed CRD,
-  # so the chart's regenerated `Cluster` value would block every
-  # `crds: CreateReplace` upgrade. The Rust-side
-  # `crd/pangea_dashboard.rs` should land its `namespaced` annotation
-  # in a separate PR before this can be flipped.
-  scope: Namespaced
+  scope: Cluster
   versions:
-    - additionalPrinterColumns:
-        - jsonPath: .spec.folder
-          name: Folder
-          type: string
-        - jsonPath: .status.phase
-          name: Phase
-          type: string
-        - jsonPath: .status.dashboardUid
-          name: Dashboard
-          type: string
-        - jsonPath: .metadata.creationTimestamp
-          name: Age
-          type: date
-      name: v1alpha1
-      schema:
-        openAPIV3Schema:
-          description: Auto-generated derived type for PangeaDashboardSpec via `CustomResource`
-          properties:
-            spec:
-              description: PangeaDashboard synthesizes a Grafana dashboard from Pangea Ruby DSL.
-              properties:
-                extendModules:
-                  default:
-                    - Pangea::Grafana
-                  description: Ruby modules to extend the synthesizer with before evaluation. Defaults to `["Pangea::Grafana"]` for dashboard builder access.
-                  items:
-                    type: string
-                  type: array
-                folder:
-                  description: Grafana folder to place the dashboard in.
-                  nullable: true
+  - additionalPrinterColumns:
+    - jsonPath: .spec.folder
+      name: Folder
+      type: string
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .status.dashboardUid
+      name: Dashboard
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Auto-generated derived type for PangeaDashboardSpec via `CustomResource`
+        properties:
+          spec:
+            description: PangeaDashboard synthesizes a Grafana dashboard from Pangea Ruby DSL.
+            properties:
+              extendModules:
+                default:
+                - Pangea::Grafana
+                description: Ruby modules to extend the synthesizer with before evaluation. Defaults to `["Pangea::Grafana"]` for dashboard builder access.
+                items:
                   type: string
-                grafanaInstanceSelector:
-                  additionalProperties:
-                    type: string
-                  default: {}
-                  description: 'Label selector for the target Grafana instance. Must match the Grafana CR''s labels (e.g., `dashboards: grafana`).'
-                  type: object
-                message:
-                  description: Commit message for Grafana's built-in version tracking.
-                  nullable: true
+                type: array
+              folder:
+                description: Grafana folder to place the dashboard in.
+                nullable: true
+                type: string
+              grafanaInstanceSelector:
+                additionalProperties:
                   type: string
-                overwrite:
-                  default: true
-                  description: Whether to overwrite an existing dashboard with the same UID.
-                  type: boolean
-                source:
-                  description: Dashboard source — inline Ruby DSL or reference to a ConfigMap.
-                  oneOf:
-                    - required:
-                        - inline
-                    - required:
-                        - configMapRef
-                  properties:
-                    configMapRef:
-                      description: Reference to a ConfigMap containing the Ruby source.
-                      properties:
-                        key:
-                          description: Key within the ConfigMap.
-                          type: string
-                        name:
-                          description: ConfigMap name.
-                          type: string
-                      required:
-                        - key
-                        - name
-                      type: object
-                    inline:
-                      description: Inline Ruby code that returns a Grafana dashboard JSON string.
-                      properties:
-                        ruby:
-                          description: Ruby source code. Must return a JSON string (e.g., via DashboardBuilder.build).
-                          type: string
-                      required:
-                        - ruby
-                      type: object
-                  type: object
-              required:
-                - source
-              type: object
-            status:
-              description: Status of a PangeaDashboard.
-              nullable: true
-              properties:
-                conditions:
-                  description: Kubernetes-style conditions.
-                  items:
-                    description: Kubernetes-style condition.
+                default: {}
+                description: 'Label selector for the target Grafana instance. Must match the Grafana CR''s labels (e.g., `dashboards: grafana`).'
+                type: object
+              message:
+                description: Commit message for Grafana's built-in version tracking.
+                nullable: true
+                type: string
+              overwrite:
+                default: true
+                description: Whether to overwrite an existing dashboard with the same UID.
+                type: boolean
+              source:
+                description: Dashboard source — inline Ruby DSL or reference to a ConfigMap.
+                oneOf:
+                - required:
+                  - inline
+                - required:
+                  - configMapRef
+                properties:
+                  configMapRef:
+                    description: Reference to a ConfigMap containing the Ruby source.
                     properties:
-                      lastTransitionTime:
-                        description: Last time the condition transitioned.
-                        format: date-time
+                      key:
+                        description: Key within the ConfigMap.
                         type: string
-                      message:
-                        description: Human-readable message.
-                        type: string
-                      reason:
-                        description: Machine-readable reason for the condition.
-                        type: string
-                      status:
-                        description: Status of the condition (True, False, Unknown).
-                        type: string
-                      type:
-                        description: Type of condition.
+                      name:
+                        description: ConfigMap name.
                         type: string
                     required:
-                      - lastTransitionTime
-                      - message
-                      - reason
-                      - status
-                      - type
+                    - key
+                    - name
                     type: object
-                  type: array
-                configMapName:
-                  description: Name of the generated ConfigMap containing dashboard JSON.
-                  nullable: true
-                  type: string
-                dashboardUid:
-                  description: UID of the dashboard in Grafana (extracted from synthesized JSON).
-                  nullable: true
-                  type: string
-                error:
-                  description: Error message if phase is Failed.
-                  nullable: true
-                  type: string
-                grafanaDashboardName:
-                  description: Name of the generated GrafanaDashboard CRD.
-                  nullable: true
-                  type: string
-                observedGeneration:
-                  default: 0
-                  description: Last observed generation.
-                  format: int64
-                  type: integer
-                phase:
-                  description: Current lifecycle phase.
-                  enum:
-                    - Pending
-                    - Synthesizing
-                    - Ready
-                    - Failed
-                  nullable: true
-                  type: string
-                sourceHash:
-                  description: SHA-256 hash of the last successfully compiled Ruby source. Used for change detection to avoid unnecessary recompilations.
-                  nullable: true
-                  type: string
-              type: object
-          required:
-            - spec
-          title: PangeaDashboard
-          type: object
-      served: true
-      storage: true
-      subresources:
-        status: {}
+                  inline:
+                    description: Inline Ruby code that returns a Grafana dashboard JSON string.
+                    properties:
+                      ruby:
+                        description: Ruby source code. Must return a JSON string (e.g., via DashboardBuilder.build).
+                        type: string
+                    required:
+                    - ruby
+                    type: object
+                type: object
+              suspend:
+                default: false
+                description: When true, the dashboard controller skips synthesis + Grafana publish entirely. Compose with the cluster-scoped `OperatorPolicy/default` for fleet-wide pause.
+                type: boolean
+            required:
+            - source
+            type: object
+          status:
+            description: Status of a PangeaDashboard.
+            nullable: true
+            properties:
+              conditions:
+                description: Kubernetes-style conditions.
+                items:
+                  description: Kubernetes-style condition.
+                  properties:
+                    lastTransitionTime:
+                      description: Last time the condition transitioned.
+                      format: date-time
+                      type: string
+                    message:
+                      description: Human-readable message.
+                      type: string
+                    reason:
+                      description: Machine-readable reason for the condition.
+                      type: string
+                    status:
+                      description: Status of the condition (True, False, Unknown).
+                      type: string
+                    type:
+                      description: Type of condition.
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              configMapName:
+                description: Name of the generated ConfigMap containing dashboard JSON.
+                nullable: true
+                type: string
+              dashboardUid:
+                description: UID of the dashboard in Grafana (extracted from synthesized JSON).
+                nullable: true
+                type: string
+              error:
+                description: Error message if phase is Failed.
+                nullable: true
+                type: string
+              grafanaDashboardName:
+                description: Name of the generated GrafanaDashboard CRD.
+                nullable: true
+                type: string
+              observedGeneration:
+                default: 0
+                description: Last observed generation.
+                format: int64
+                type: integer
+              phase:
+                description: Current lifecycle phase.
+                enum:
+                - Pending
+                - Synthesizing
+                - Ready
+                - Failed
+                nullable: true
+                type: string
+              sourceHash:
+                description: SHA-256 hash of the last successfully compiled Ruby source. Used for change detection to avoid unnecessary recompilations.
+                nullable: true
+                type: string
+            type: object
+        required:
+        - spec
+        title: PangeaDashboard
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

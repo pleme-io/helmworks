@@ -3,301 +3,304 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   name: infrastructureflows.pangea.pleme.io
+  annotations:
+    helm.sh/resource-policy: keep
 spec:
   group: pangea.pleme.io
   names:
-    categories: []
+    categories:
+    - pangea
     kind: InfrastructureFlow
     plural: infrastructureflows
     shortNames:
-      - flow
+    - flow
     singular: infrastructureflow
   scope: Namespaced
   versions:
-    - additionalPrinterColumns:
-        - jsonPath: .status.phase
-          name: Phase
-          type: string
-        - jsonPath: .status.totalSteps
-          name: Steps
-          type: integer
-        - jsonPath: .status.readySteps
-          name: Ready
-          type: integer
-        - jsonPath: .metadata.creationTimestamp
-          name: Age
-          type: date
-      name: v1alpha1
-      schema:
-        openAPIV3Schema:
-          description: Auto-generated derived type for InfrastructureFlowSpec via `CustomResource`
-          properties:
-            spec:
-              description: InfrastructureFlow orchestrates multiple InfrastructureTemplates as a DAG.
-              properties:
-                destroyOrder:
-                  default: reverse
-                  description: 'How to order destruction. Default: reverse dependency order.'
-                  enum:
-                    - reverse
-                    - parallel
-                    - none
-                  type: string
-                destroyProtection:
-                  default: false
-                  description: Prevent destruction of all templates in this flow.
-                  type: boolean
-                pangeaNamespace:
-                  description: PangeaNamespace for all templates in this flow.
-                  type: string
-                parallelism:
-                  default: 1
-                  description: 'Maximum number of templates to reconcile in parallel. Default: 1.'
-                  format: uint32
-                  minimum: 0.0
-                  type: integer
-                steps:
-                  description: Ordered steps in the flow. Dependencies form a DAG.
-                  items:
-                    description: A single step in an InfrastructureFlow.
-                    properties:
-                      autoApprove:
-                        description: Override auto-approve for this step.
-                        nullable: true
-                        type: boolean
-                      dependsOn:
-                        description: Steps that must complete before this one starts.
-                        items:
+  - additionalPrinterColumns:
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .status.totalSteps
+      name: Steps
+      type: integer
+    - jsonPath: .status.readySteps
+      name: Ready
+      type: integer
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Auto-generated derived type for InfrastructureFlowSpec via `CustomResource`
+        properties:
+          spec:
+            description: InfrastructureFlow orchestrates multiple InfrastructureTemplates as a DAG.
+            properties:
+              destroyOrder:
+                default: reverse
+                description: 'How to order destruction. Default: reverse dependency order.'
+                enum:
+                - reverse
+                - parallel
+                - none
+                type: string
+              destroyProtection:
+                default: false
+                description: Prevent destruction of all templates in this flow.
+                type: boolean
+              pangeaNamespace:
+                description: PangeaNamespace for all templates in this flow.
+                type: string
+              parallelism:
+                default: 1
+                description: 'Maximum number of templates to reconcile in parallel. Default: 1.'
+                format: uint32
+                minimum: 0.0
+                type: integer
+              steps:
+                description: Ordered steps in the flow. Dependencies form a DAG.
+                items:
+                  description: A single step in an InfrastructureFlow.
+                  properties:
+                    autoApprove:
+                      description: Override auto-approve for this step.
+                      nullable: true
+                      type: boolean
+                    dependsOn:
+                      description: Steps that must complete before this one starts.
+                      items:
+                        type: string
+                      type: array
+                    destroyProtection:
+                      description: Override destroy protection for this step.
+                      nullable: true
+                      type: boolean
+                    name:
+                      description: Unique name for this step within the flow.
+                      type: string
+                    refreshInterval:
+                      description: Override refresh interval for drift detection.
+                      nullable: true
+                      type: string
+                    retry:
+                      description: Retry policy for this step.
+                      nullable: true
+                      properties:
+                        backoff:
+                          default: exponential
+                          description: 'Backoff strategy: exponential (default), linear, or constant.'
+                          enum:
+                          - exponential
+                          - linear
+                          - constant
                           type: string
-                        type: array
-                      destroyProtection:
-                        description: Override destroy protection for this step.
-                        nullable: true
-                        type: boolean
-                      name:
-                        description: Unique name for this step within the flow.
-                        type: string
-                      refreshInterval:
-                        description: Override refresh interval for drift detection.
-                        nullable: true
-                        type: string
-                      retry:
-                        description: Retry policy for this step.
-                        nullable: true
-                        properties:
-                          backoff:
-                            default: exponential
-                            description: 'Backoff strategy: exponential (default), linear, or constant.'
-                            enum:
-                              - exponential
-                              - linear
-                              - constant
-                            type: string
-                          initialDelay:
-                            default: 30s
-                            description: 'Initial delay between retries. Default: "30s".'
-                            type: string
-                          maxDelay:
-                            default: 10m
-                            description: 'Maximum delay between retries. Default: "10m".'
-                            type: string
-                          maxRetries:
-                            default: 3
-                            description: 'Maximum retry attempts. Default: 3.'
-                            format: uint32
-                            minimum: 0.0
-                            type: integer
-                        type: object
-                      templateRef:
-                        description: Template to deploy. Either reference an existing template or provide inline source.
-                        properties:
-                          name:
-                            description: Name of an existing InfrastructureTemplate to manage.
-                            nullable: true
-                            type: string
-                          source:
-                            description: Inline template source. The flow controller creates an InfrastructureTemplate from this source, named `{flow}-{step}`.
-                            nullable: true
-                            properties:
-                              configMapRef:
-                                description: Reference to a ConfigMap containing the template.
-                                nullable: true
-                                properties:
-                                  key:
-                                    description: Key within the ConfigMap containing the template.
-                                    type: string
-                                  name:
-                                    description: Name of the ConfigMap.
-                                    type: string
-                                  namespace:
-                                    description: Namespace of the ConfigMap (defaults to same namespace as the InfrastructureTemplate).
-                                    nullable: true
-                                    type: string
-                                required:
-                                  - key
+                        initialDelay:
+                          default: 30s
+                          description: 'Initial delay between retries. Default: "30s".'
+                          type: string
+                        maxDelay:
+                          default: 10m
+                          description: 'Maximum delay between retries. Default: "10m".'
+                          type: string
+                        maxRetries:
+                          default: 3
+                          description: 'Maximum retry attempts. Default: 3.'
+                          format: uint32
+                          minimum: 0.0
+                          type: integer
+                      type: object
+                    templateRef:
+                      description: Template to deploy. Either reference an existing template or provide inline source.
+                      properties:
+                        name:
+                          description: Name of an existing InfrastructureTemplate to manage.
+                          nullable: true
+                          type: string
+                        source:
+                          description: Inline template source. The flow controller creates an InfrastructureTemplate from this source, named `{flow}-{step}`.
+                          nullable: true
+                          properties:
+                            configMapRef:
+                              description: Reference to a ConfigMap containing the template.
+                              nullable: true
+                              properties:
+                                key:
+                                  description: Key within the ConfigMap containing the template.
+                                  type: string
+                                name:
+                                  description: Name of the ConfigMap.
+                                  type: string
+                                namespace:
+                                  description: Namespace of the ConfigMap (defaults to same namespace as the InfrastructureTemplate).
+                                  nullable: true
+                                  type: string
+                              required:
+                              - key
+                              - name
+                              type: object
+                            gitRepository:
+                              description: Reference to a Git repository containing the template.
+                              nullable: true
+                              properties:
+                                path:
+                                  description: Path to the template file within the repository.
+                                  type: string
+                                ref:
+                                  default: main
+                                  description: Git reference (branch, tag, or commit SHA).
+                                  type: string
+                                secretRef:
+                                  description: Reference to a Secret containing Git credentials.
+                                  nullable: true
+                                  properties:
+                                    name:
+                                      description: Name of the Secret.
+                                      type: string
+                                    namespace:
+                                      description: Namespace of the Secret (defaults to same namespace as the resource).
+                                      nullable: true
+                                      type: string
+                                  required:
                                   - name
-                                type: object
-                              gitRepository:
-                                description: Reference to a Git repository containing the template.
-                                nullable: true
-                                properties:
-                                  path:
-                                    description: Path to the template file within the repository.
-                                    type: string
-                                  ref:
-                                    default: main
-                                    description: Git reference (branch, tag, or commit SHA).
-                                    type: string
-                                  secretRef:
-                                    description: Reference to a Secret containing Git credentials.
-                                    nullable: true
-                                    properties:
-                                      name:
-                                        description: Name of the Secret.
-                                        type: string
-                                      namespace:
-                                        description: Namespace of the Secret (defaults to same namespace as the resource).
-                                        nullable: true
-                                        type: string
-                                    required:
-                                      - name
-                                    type: object
-                                  url:
-                                    description: Git repository URL.
-                                    type: string
-                                required:
-                                  - path
-                                  - url
-                                type: object
-                              inline:
-                                description: Inline Ruby DSL template content.
-                                nullable: true
-                                type: string
-                            type: object
-                        type: object
-                      variables:
-                        additionalProperties: true
-                        description: Variables for this step. Values may contain {{ steps.X.outputs.Y }} references.
-                        nullable: true
-                        type: object
-                    required:
-                      - name
-                      - templateRef
-                    type: object
-                  type: array
-                suspend:
-                  default: false
-                  description: Suspend the entire flow.
-                  type: boolean
-              required:
-                - pangeaNamespace
-                - steps
-              type: object
-            status:
-              description: Status of an InfrastructureFlow.
-              nullable: true
-              properties:
-                conditions:
-                  description: Kubernetes-style conditions.
-                  items:
-                    description: Kubernetes-style condition.
-                    properties:
-                      lastTransitionTime:
-                        description: Last time the condition transitioned.
-                        format: date-time
-                        type: string
-                      message:
-                        description: Human-readable message.
-                        type: string
-                      reason:
-                        description: Machine-readable reason for the condition.
-                        type: string
-                      status:
-                        description: Status of the condition (True, False, Unknown).
-                        type: string
-                      type:
-                        description: Type of condition.
-                        type: string
-                    required:
-                      - lastTransitionTime
-                      - message
-                      - reason
-                      - status
-                      - type
-                    type: object
-                  type: array
-                lastError:
-                  description: Last error message.
-                  nullable: true
-                  type: string
-                observedGeneration:
-                  default: 0
-                  description: Last observed generation.
-                  format: int64
-                  type: integer
-                phase:
-                  description: Current phase of the flow.
-                  enum:
-                    - Pending
-                    - Progressing
-                    - Ready
-                    - Failed
-                    - Destroying
-                  nullable: true
-                  type: string
-                readySteps:
-                  default: 0
-                  description: Number of steps in Ready phase.
-                  format: uint32
-                  minimum: 0.0
-                  type: integer
-                steps:
-                  additionalProperties:
-                    description: Status of a single step within a flow.
-                    properties:
-                      dependenciesReady:
-                        default: false
-                        description: Whether dependencies are satisfied.
-                        type: boolean
-                      lastError:
-                        description: Last error for this step.
-                        nullable: true
-                        type: string
-                      outputs:
-                        additionalProperties: true
-                        description: Outputs from the template (available after Ready).
-                        nullable: true
-                        type: object
-                      phase:
-                        description: Phase of the template for this step.
-                        nullable: true
-                        type: string
-                      state:
-                        description: Full terraform state snapshot (from `tofu show -json`). Enables {{ steps.X.state.resource_type.resource_name.attribute }} references. Stored as an opaque JSON object.
-                        type: object
-                      templateName:
-                        description: Name of the managed InfrastructureTemplate.
-                        nullable: true
-                        type: string
-                      warmedUp:
-                        default: false
-                        description: Whether workspace has been pre-initialized (warm-up).
-                        type: boolean
-                    type: object
-                  description: Per-step status.
+                                  type: object
+                                url:
+                                  description: Git repository URL.
+                                  type: string
+                              required:
+                              - path
+                              - url
+                              type: object
+                            inline:
+                              description: Inline Ruby DSL template content.
+                              nullable: true
+                              type: string
+                          type: object
+                      type: object
+                    variables:
+                      additionalProperties: true
+                      description: Variables for this step. Values may contain {{ steps.X.outputs.Y }} references.
+                      nullable: true
+                      type: object
+                  required:
+                  - name
+                  - templateRef
                   type: object
-                totalSteps:
-                  default: 0
-                  description: Total number of steps.
-                  format: uint32
-                  minimum: 0.0
-                  type: integer
-              type: object
-          required:
-            - spec
-          title: InfrastructureFlow
-          type: object
-      served: true
-      storage: true
-      subresources:
-        status: {}
+                type: array
+              suspend:
+                default: false
+                description: Suspend the entire flow.
+                type: boolean
+            required:
+            - pangeaNamespace
+            - steps
+            type: object
+          status:
+            description: Status of an InfrastructureFlow.
+            nullable: true
+            properties:
+              conditions:
+                description: Kubernetes-style conditions.
+                items:
+                  description: Kubernetes-style condition.
+                  properties:
+                    lastTransitionTime:
+                      description: Last time the condition transitioned.
+                      format: date-time
+                      type: string
+                    message:
+                      description: Human-readable message.
+                      type: string
+                    reason:
+                      description: Machine-readable reason for the condition.
+                      type: string
+                    status:
+                      description: Status of the condition (True, False, Unknown).
+                      type: string
+                    type:
+                      description: Type of condition.
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              lastError:
+                description: Last error message.
+                nullable: true
+                type: string
+              observedGeneration:
+                default: 0
+                description: Last observed generation.
+                format: int64
+                type: integer
+              phase:
+                description: Current phase of the flow.
+                enum:
+                - Pending
+                - Progressing
+                - Ready
+                - Failed
+                - Destroying
+                nullable: true
+                type: string
+              readySteps:
+                default: 0
+                description: Number of steps in Ready phase.
+                format: uint32
+                minimum: 0.0
+                type: integer
+              steps:
+                additionalProperties:
+                  description: Status of a single step within a flow.
+                  properties:
+                    dependenciesReady:
+                      default: false
+                      description: Whether dependencies are satisfied.
+                      type: boolean
+                    lastError:
+                      description: Last error for this step.
+                      nullable: true
+                      type: string
+                    outputs:
+                      additionalProperties: true
+                      description: Outputs from the template (available after Ready).
+                      nullable: true
+                      type: object
+                    phase:
+                      description: Phase of the template for this step.
+                      nullable: true
+                      type: string
+                    state:
+                      description: Full terraform state snapshot (from `tofu show -json`). Enables {{ steps.X.state.resource_type.resource_name.attribute }} references. Stored as an opaque JSON object.
+                      type: object
+                    templateName:
+                      description: Name of the managed InfrastructureTemplate.
+                      nullable: true
+                      type: string
+                    warmedUp:
+                      default: false
+                      description: Whether workspace has been pre-initialized (warm-up).
+                      type: boolean
+                  type: object
+                description: Per-step status.
+                type: object
+              totalSteps:
+                default: 0
+                description: Total number of steps.
+                format: uint32
+                minimum: 0.0
+                type: integer
+            type: object
+        required:
+        - spec
+        title: InfrastructureFlow
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

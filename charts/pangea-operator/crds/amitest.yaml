@@ -3,303 +3,326 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   name: amitests.pangea.pleme.io
+  annotations:
+    helm.sh/resource-policy: keep
 spec:
   group: pangea.pleme.io
   names:
-    categories: []
+    categories:
+    - pangea
     kind: AmiTest
     plural: amitests
     shortNames:
-      - at
+    - at
     singular: amitest
   scope: Namespaced
   versions:
-    - additionalPrinterColumns:
-        - jsonPath: .status.phase
-          name: Phase
-          type: string
-        - jsonPath: .status.amiId
-          name: AMI
-          type: string
-        - jsonPath: .status.suiteSummary
-          name: Suites
-          type: string
-        - jsonPath: .metadata.creationTimestamp
-          name: Age
-          type: date
-      name: v1alpha1
-      schema:
-        openAPIV3Schema:
-          description: Auto-generated derived type for AmiTestSpec via `CustomResource`
-          properties:
-            spec:
-              description: AmiTest validates an AMI through a DAG of test suites.
-              properties:
-                amiSource:
-                  description: Source of the AMI to test — reference a PackerBuild CR or specify inline.
-                  oneOf:
-                    - required:
-                        - packerBuildRef
-                    - required:
-                        - inline
-                  properties:
-                    inline:
-                      description: Inline AMI specification.
-                      properties:
-                        ami_id:
-                          description: AMI ID (e.g., "ami-0abc123def456").
-                          type: string
-                        region:
-                          description: AWS region of the AMI.
-                          type: string
-                      required:
-                        - ami_id
-                        - region
-                      type: object
-                    packerBuildRef:
-                      description: Reference to a PackerBuild CR in the same namespace.
-                      properties:
-                        name:
-                          description: Name of the PackerBuild CR.
-                          type: string
-                      required:
+  - additionalPrinterColumns:
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .status.amiId
+      name: AMI
+      type: string
+    - jsonPath: .status.suiteSummary
+      name: Suites
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Auto-generated derived type for AmiTestSpec via `CustomResource`
+        properties:
+          spec:
+            description: AmiTest validates an AMI through a DAG of test suites.
+            properties:
+              amiSource:
+                description: Source of the AMI to test — reference a PackerBuild CR or specify inline.
+                oneOf:
+                - required:
+                  - packerBuildRef
+                - required:
+                  - inline
+                properties:
+                  inline:
+                    description: Inline AMI specification.
+                    properties:
+                      ami_id:
+                        description: AMI ID (e.g., "ami-0abc123def456").
+                        type: string
+                      region:
+                        description: AWS region of the AMI.
+                        type: string
+                    required:
+                    - ami_id
+                    - region
+                    type: object
+                  packerBuildRef:
+                    description: Reference to a PackerBuild CR in the same namespace.
+                    properties:
+                      name:
+                        description: Name of the PackerBuild CR.
+                        type: string
+                    required:
+                    - name
+                    type: object
+                type: object
+              failurePolicy:
+                default:
+                  cleanupSnapshots: false
+                  deregisterAmi: false
+                description: What to do when a suite fails.
+                properties:
+                  cleanupSnapshots:
+                    default: false
+                    description: Delete orphaned EBS snapshots on AMI deregistration.
+                    type: boolean
+                  deregisterAmi:
+                    default: false
+                    description: Deregister the AMI on test failure.
+                    type: boolean
+                type: object
+              providerCredentials:
+                description: Provider credentials (AWS) for test infrastructure.
+                nullable: true
+                properties:
+                  aws:
+                    description: AWS credentials configuration.
+                    nullable: true
+                    properties:
+                      region:
+                        description: Region to use for AWS operations.
+                        nullable: true
+                        type: string
+                      roleArn:
+                        description: Optional role ARN to assume.
+                        nullable: true
+                        type: string
+                      secretRef:
+                        description: Secret containing AWS credentials.
+                        properties:
+                          name:
+                            description: Name of the Secret.
+                            type: string
+                          namespace:
+                            description: Namespace of the Secret (defaults to same namespace as the resource).
+                            nullable: true
+                            type: string
+                        required:
                         - name
-                      type: object
-                  type: object
-                failurePolicy:
-                  default:
-                    cleanupSnapshots: false
-                    deregisterAmi: false
-                  description: What to do when a suite fails.
-                  properties:
-                    cleanupSnapshots:
-                      default: false
-                      description: Delete orphaned EBS snapshots on AMI deregistration.
-                      type: boolean
-                    deregisterAmi:
-                      default: false
-                      description: Deregister the AMI on test failure.
-                      type: boolean
-                  type: object
-                providerCredentials:
-                  description: Provider credentials (AWS) for test infrastructure.
-                  nullable: true
-                  properties:
-                    aws:
-                      description: AWS credentials configuration.
-                      nullable: true
-                      properties:
-                        region:
-                          description: Region to use for AWS operations.
-                          nullable: true
-                          type: string
-                        roleArn:
-                          description: Optional role ARN to assume.
-                          nullable: true
-                          type: string
-                        secretRef:
-                          description: Secret containing AWS credentials.
-                          properties:
-                            name:
-                              description: Name of the Secret.
-                              type: string
-                            namespace:
-                              description: Namespace of the Secret (defaults to same namespace as the resource).
-                              nullable: true
-                              type: string
-                          required:
-                            - name
-                          type: object
-                      required:
-                        - secretRef
-                      type: object
-                    cloudflare:
-                      description: Cloudflare credentials configuration.
-                      nullable: true
-                      properties:
-                        secretRef:
-                          description: Secret containing Cloudflare API token.
-                          properties:
-                            name:
-                              description: Name of the Secret.
-                              type: string
-                            namespace:
-                              description: Namespace of the Secret (defaults to same namespace as the resource).
-                              nullable: true
-                              type: string
-                          required:
-                            - name
-                          type: object
-                      required:
-                        - secretRef
-                      type: object
-                  type: object
-                suites:
-                  description: Test suites forming a DAG. Each suite can declare dependencies.
-                  items:
-                    description: A single test suite within the DAG.
-                    properties:
-                      config:
-                        description: Type-specific configuration (JSON value interpreted per suite_type).
                         type: object
-                      dependsOn:
-                        description: Suite names that must complete successfully before this suite runs.
-                        items:
-                          type: string
-                        type: array
-                      name:
-                        description: Unique name for this suite within the AmiTest.
-                        type: string
-                      suiteType:
-                        description: Type of test to run.
-                        enum:
-                          - packerTest
-                          - clusterTest
-                          - inSpec
-                          - script
-                        type: string
-                      timeout:
-                        default: 15m
-                        description: Timeout for this suite. Defaults to "15m".
-                        type: string
                     required:
-                      - name
-                      - suiteType
+                    - secretRef
                     type: object
-                  type: array
-                suspend:
-                  default: false
-                  description: Suspend reconciliation.
-                  type: boolean
-                testRunnerImage:
-                  description: Container image to use for test Jobs (must contain ami-forge).
-                  nullable: true
-                  type: string
-              required:
-                - amiSource
-                - suites
-              type: object
-            status:
-              description: Status of an AmiTest.
-              nullable: true
-              properties:
-                amiId:
-                  description: Resolved AMI ID being tested.
-                  nullable: true
-                  type: string
-                amiRegion:
-                  description: AWS region of the AMI.
-                  nullable: true
-                  type: string
-                completedAt:
-                  description: Timestamp when testing completed.
-                  format: date-time
-                  nullable: true
-                  type: string
-                conditions:
-                  description: Kubernetes-style conditions.
-                  items:
-                    description: Kubernetes-style condition.
+                  cloudflare:
+                    description: Cloudflare credentials configuration.
+                    nullable: true
                     properties:
-                      lastTransitionTime:
-                        description: Last time the condition transitioned.
-                        format: date-time
-                        type: string
-                      message:
-                        description: Human-readable message.
-                        type: string
-                      reason:
-                        description: Machine-readable reason for the condition.
-                        type: string
-                      status:
-                        description: Status of the condition (True, False, Unknown).
-                        type: string
-                      type:
-                        description: Type of condition.
-                        type: string
+                      secretRef:
+                        description: Secret containing Cloudflare API token.
+                        properties:
+                          name:
+                            description: Name of the Secret.
+                            type: string
+                          namespace:
+                            description: Namespace of the Secret (defaults to same namespace as the resource).
+                            nullable: true
+                            type: string
+                        required:
+                        - name
+                        type: object
                     required:
-                      - lastTransitionTime
-                      - message
-                      - reason
-                      - status
-                      - type
+                    - secretRef
                     type: object
-                  type: array
-                observedGeneration:
-                  default: 0
-                  description: Last observed generation of the spec.
-                  format: int64
-                  type: integer
-                phase:
-                  description: Current phase of the test lifecycle.
-                  enum:
-                    - Pending
-                    - Resolving
-                    - Running
-                    - Passed
-                    - Failed
-                    - Cleaning
-                  nullable: true
-                  type: string
-                startedAt:
-                  description: Timestamp when testing started.
-                  format: date-time
-                  nullable: true
-                  type: string
-                suiteSummary:
-                  description: Human-readable summary (e.g., "3/3 passed").
-                  nullable: true
-                  type: string
-                suites:
-                  description: Per-suite results.
-                  items:
-                    description: Result of a single test suite execution.
+                  github:
+                    description: 'GitHub credentials configuration. Used by templates that declare github_* providers (e.g. pangea-github''s `cloudflare_zero_trust_*` adjacent shapes — repos, runner groups, branch protection). Same shape as the cloudflare credentials block: a secretRef to a Secret containing a PAT.'
+                    nullable: true
                     properties:
-                      completedAt:
-                        description: Timestamp when the suite completed.
-                        format: date-time
-                        nullable: true
-                        type: string
-                      duration:
-                        description: Execution duration.
-                        nullable: true
-                        type: string
-                      jobName:
-                        description: Name of the K8s Job executing this suite.
-                        nullable: true
-                        type: string
-                      message:
-                        description: Human-readable result message.
-                        nullable: true
-                        type: string
-                      name:
-                        description: Suite name (matches TestSuite.name).
-                        type: string
-                      phase:
-                        description: Current phase of this suite.
-                        enum:
-                          - Pending
-                          - Running
-                          - Succeeded
-                          - Failed
-                          - Skipped
-                        type: string
-                      startedAt:
-                        description: Timestamp when the suite started.
-                        format: date-time
-                        nullable: true
-                        type: string
+                      secretRef:
+                        description: Secret containing the GitHub PAT.
+                        properties:
+                          name:
+                            description: Name of the Secret.
+                            type: string
+                          namespace:
+                            description: Namespace of the Secret (defaults to same namespace as the resource).
+                            nullable: true
+                            type: string
+                        required:
+                        - name
+                        type: object
                     required:
-                      - name
-                      - phase
+                    - secretRef
                     type: object
-                  type: array
-              type: object
-          required:
-            - spec
-          title: AmiTest
-          type: object
-      served: true
-      storage: true
-      subresources:
-        status: {}
+                type: object
+              suites:
+                description: Test suites forming a DAG. Each suite can declare dependencies.
+                items:
+                  description: A single test suite within the DAG.
+                  properties:
+                    config:
+                      description: Type-specific configuration (JSON value interpreted per suite_type).
+                      type: object
+                    dependsOn:
+                      description: Suite names that must complete successfully before this suite runs.
+                      items:
+                        type: string
+                      type: array
+                    name:
+                      description: Unique name for this suite within the AmiTest.
+                      type: string
+                    suiteType:
+                      description: Type of test to run.
+                      enum:
+                      - packerTest
+                      - clusterTest
+                      - inSpec
+                      - script
+                      type: string
+                    timeout:
+                      default: 15m
+                      description: Timeout for this suite. Defaults to "15m".
+                      type: string
+                  required:
+                  - name
+                  - suiteType
+                  type: object
+                type: array
+              suspend:
+                default: false
+                description: Suspend reconciliation.
+                type: boolean
+              testRunnerImage:
+                description: Container image to use for test Jobs (must contain ami-forge).
+                nullable: true
+                type: string
+            required:
+            - amiSource
+            - suites
+            type: object
+          status:
+            description: Status of an AmiTest.
+            nullable: true
+            properties:
+              amiId:
+                description: Resolved AMI ID being tested.
+                nullable: true
+                type: string
+              amiRegion:
+                description: AWS region of the AMI.
+                nullable: true
+                type: string
+              completedAt:
+                description: Timestamp when testing completed.
+                format: date-time
+                nullable: true
+                type: string
+              conditions:
+                description: Kubernetes-style conditions.
+                items:
+                  description: Kubernetes-style condition.
+                  properties:
+                    lastTransitionTime:
+                      description: Last time the condition transitioned.
+                      format: date-time
+                      type: string
+                    message:
+                      description: Human-readable message.
+                      type: string
+                    reason:
+                      description: Machine-readable reason for the condition.
+                      type: string
+                    status:
+                      description: Status of the condition (True, False, Unknown).
+                      type: string
+                    type:
+                      description: Type of condition.
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              observedGeneration:
+                default: 0
+                description: Last observed generation of the spec.
+                format: int64
+                type: integer
+              phase:
+                description: Current phase of the test lifecycle.
+                enum:
+                - Pending
+                - Resolving
+                - Running
+                - Passed
+                - Failed
+                - Cleaning
+                nullable: true
+                type: string
+              startedAt:
+                description: Timestamp when testing started.
+                format: date-time
+                nullable: true
+                type: string
+              suiteSummary:
+                description: Human-readable summary (e.g., "3/3 passed").
+                nullable: true
+                type: string
+              suites:
+                description: Per-suite results.
+                items:
+                  description: Result of a single test suite execution.
+                  properties:
+                    completedAt:
+                      description: Timestamp when the suite completed.
+                      format: date-time
+                      nullable: true
+                      type: string
+                    duration:
+                      description: Execution duration.
+                      nullable: true
+                      type: string
+                    jobName:
+                      description: Name of the K8s Job executing this suite.
+                      nullable: true
+                      type: string
+                    message:
+                      description: Human-readable result message.
+                      nullable: true
+                      type: string
+                    name:
+                      description: Suite name (matches TestSuite.name).
+                      type: string
+                    phase:
+                      description: Current phase of this suite.
+                      enum:
+                      - Pending
+                      - Running
+                      - Succeeded
+                      - Failed
+                      - Skipped
+                      type: string
+                    startedAt:
+                      description: Timestamp when the suite started.
+                      format: date-time
+                      nullable: true
+                      type: string
+                  required:
+                  - name
+                  - phase
+                  type: object
+                type: array
+            type: object
+        required:
+        - spec
+        title: AmiTest
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

@@ -3,10 +3,13 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   name: infrastructuretemplates.pangea.pleme.io
+  annotations:
+    helm.sh/resource-policy: keep
 spec:
   group: pangea.pleme.io
   names:
-    categories: []
+    categories:
+    - pangea
     kind: InfrastructureTemplate
     plural: infrastructuretemplates
     shortNames:
@@ -52,17 +55,14 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: Auto-generated derived type for InfrastructureTemplateSpec via
-          `CustomResource`
+        description: Auto-generated derived type for InfrastructureTemplateSpec via `CustomResource`
         properties:
           spec:
-            description: InfrastructureTemplate represents a Pangea infrastructure
-              template to be compiled, planned, and applied by the operator.
+            description: InfrastructureTemplate represents a Pangea infrastructure template to be compiled, planned, and applied by the operator.
             properties:
               autoApprove:
                 default: false
-                description: Whether to automatically apply changes without manual
-                  approval.
+                description: Whether to automatically apply changes without manual approval.
                 type: boolean
               complianceProfiles:
                 description: InSpec compliance profiles to run after apply.
@@ -70,14 +70,10 @@ spec:
                   type: string
                 type: array
               defaultDecision:
-                description: "Decision applied to changes that match no rule in `policies`.\
-                  \ If unset, defaults to `autoApply` \u2014 the operator aggressively\
-                  \ settles drift on every change at every risk level. Set this to\
-                  \ `refuse` to make the policy list strictly opt-in (only changes\
-                  \ explicitly allowed by a rule may be applied), or to `requireApproval`\
-                  \ to gate everything not explicitly auto-applied.\n\n`spec.autoApprove`\
-                  \ is no longer consulted by this engine; it remains in the schema\
-                  \ for legacy compatibility but does not override `defaultDecision`."
+                description: |-
+                  Decision applied to changes that match no rule in `policies`. If unset, defaults to `autoApply` — the operator aggressively settles drift on every change at every risk level. Set this to `refuse` to make the policy list strictly opt-in (only changes explicitly allowed by a rule may be applied), or to `requireApproval` to gate everything not explicitly auto-applied.
+
+                  `spec.autoApprove` is no longer consulted by this engine; it remains in the schema for legacy compatibility but does not override `defaultDecision`.
                 enum:
                 - autoApply
                 - requireApproval
@@ -86,149 +82,98 @@ spec:
                 type: string
               destroyProtection:
                 default: false
-                description: "Prevent destruction of the managed infrastructure.\n\
-                  \nWhen enabled, the operator will refuse to run `tofu destroy` even\
-                  \ if the CR is deleted. Plan and apply continue to work normally\
-                  \ for drift correction. This is critical for self-managed bootstrap\
-                  \ infrastructure \u2014 the cluster, database, and network that\
-                  \ the operator itself runs on.\n\nTo actually destroy protected\
-                  \ infrastructure, first set this to false, then delete the CR."
+                description: |-
+                  Prevent destruction of the managed infrastructure.
+
+                  When enabled, the operator will refuse to run `tofu destroy` even if the CR is deleted. Plan and apply continue to work normally for drift correction. This is critical for self-managed bootstrap infrastructure — the cluster, database, and network that the operator itself runs on.
+
+                  To actually destroy protected infrastructure, first set this to false, then delete the CR.
                 type: boolean
               importHints:
                 additionalProperties:
                   type: string
-                description: "Hints used by the operator to import out-of-band cloud\
-                  \ resources into tofu state instead of creating duplicates.\n\n\
-                  Keys are tofu resource addresses (e.g. `cloudflare_dns_record.foo`),\
-                  \ values are import IDs (the provider-specific shape, e.g. `<zone_id>/<record_id>`\
-                  \ for cloudflare DNS, role name for `aws_iam_role`, etc.). Values\
-                  \ support `{{ .varName }}` substitution from `spec.variables` \u2014\
-                  \ e.g. `\"{{ .cloudflare_zone_id }}/foo\"` resolves `varName` against\
-                  \ `spec.variables` (string-coerced) before passing to `tofu import`.\n\
-                  \nOperator behavior: before each `tofu apply`, for every plan action\
-                  \ with `action: create` whose resource address matches a key here,\
-                  \ the operator runs `tofu import <addr> <substituted-id>`. After\
-                  \ import the resource is in state, the apply becomes a no-op or\
-                  \ update, and the cycle receipt records the resource as `Outcome::Imported`\
-                  \ instead of `Outcome::Created`. This is the typed answer to \"\
-                  auto-import any state\".\n\nEmpty map (default) = no imports \u2014\
-                  \ every `create` action goes straight to the apply and creates a\
-                  \ fresh resource as before. Hint values that fail substitution are\
-                  \ skipped with a Warning event; hint imports that fail (e.g. ID\
-                  \ doesn't match) leave the resource for the apply to handle."
+                description: |-
+                  Hints used by the operator to import out-of-band cloud resources into tofu state instead of creating duplicates.
+
+                  Keys are tofu resource addresses (e.g. `cloudflare_dns_record.foo`), values are import IDs (the provider-specific shape, e.g. `<zone_id>/<record_id>` for cloudflare DNS, role name for `aws_iam_role`, etc.). Values support `{{ .varName }}` substitution from `spec.variables` — e.g. `"{{ .cloudflare_zone_id }}/foo"` resolves `varName` against `spec.variables` (string-coerced) before passing to `tofu import`.
+
+                  Operator behavior: before each `tofu apply`, for every plan action with `action: create` whose resource address matches a key here, the operator runs `tofu import <addr> <substituted-id>`. After import the resource is in state, the apply becomes a no-op or update, and the cycle receipt records the resource as `Outcome::Imported` instead of `Outcome::Created`. This is the typed answer to "auto-import any state".
+
+                  Empty map (default) = no imports — every `create` action goes straight to the apply and creates a fresh resource as before. Hint values that fail substitution are skipped with a Warning event; hint imports that fail (e.g. ID doesn't match) leave the resource for the apply to handle.
                 type: object
               importPolicy:
-                description: "Automatic-import policy \u2014 when set with `autoOnConflict:\
-                  \ true`, the operator runs `tofu import` for EVERY plan `create`-action\
-                  \ whose resource-type has a natural-ID rule (declared in `naturalIds`,\
-                  \ fallback to operator-bundled defaults), substituting against the\
-                  \ planned attribute values from `tofu show -json plan`. Resources\
-                  \ that already exist in the cloud provider get adopted into state\
-                  \ instead of failing the apply with \"already exists\".\n\nThis\
-                  \ is the typed answer to \"fully consume existing infrastructure\
-                  \ into pangea-operator.\" `importHints` (per-address) takes precedence;\
-                  \ `importPolicy.naturalIds` (per-resource-type) is the fallback;\
-                  \ operator-bundled defaults (in `controller/import.rs::bundled_natural_ids`)\
-                  \ fill the rest. Three layers \u2014 author-explicit, then per-template\
-                  \ type-rules, then sensible cluster-wide defaults.\n\nDefault: unset\
-                  \ (no auto-import; existing `importHints` behaviour preserved)."
+                description: |-
+                  Automatic-import policy — when set with `autoOnConflict: true`, the operator runs `tofu import` for EVERY plan `create`-action whose resource-type has a natural-ID rule (declared in `naturalIds`, fallback to operator-bundled defaults), substituting against the planned attribute values from `tofu show -json plan`. Resources that already exist in the cloud provider get adopted into state instead of failing the apply with "already exists".
+
+                  This is the typed answer to "fully consume existing infrastructure into pangea-operator." `importHints` (per-address) takes precedence; `importPolicy.naturalIds` (per-resource-type) is the fallback; operator-bundled defaults (in `controller/import.rs::bundled_natural_ids`) fill the rest. Three layers — author-explicit, then per-template type-rules, then sensible cluster-wide defaults.
+
+                  Default: unset (no auto-import; existing `importHints` behaviour preserved).
                 nullable: true
                 properties:
                   autoOnConflict:
                     default: false
-                    description: "Master switch. When `false` (default), no auto-import\
-                      \ fires regardless of `naturalIds` or bundled defaults \u2014\
-                      \ you stay on today's per-address `importHints`-only behaviour.\
-                      \ When `true`, every `create`-action is a candidate for auto-import."
+                    description: Master switch. When `false` (default), no auto-import fires regardless of `naturalIds` or bundled defaults — you stay on today's per-address `importHints`-only behaviour. When `true`, every `create`-action is a candidate for auto-import.
                     type: boolean
                   naturalIds:
                     additionalProperties:
                       type: string
-                    description: 'Per-resource-type natural-ID extraction templates.
-                      Keys are terraform resource types (`github_repository`, `aws_iam_role`,
-                      etc.); values are substitution templates like `{{ .planned.name
-                      }}` or `{{ .planned.zone_id }}/{{ .planned.id }}`.
+                    description: |-
+                      Per-resource-type natural-ID extraction templates. Keys are terraform resource types (`github_repository`, `aws_iam_role`, etc.); values are substitution templates like `{{ .planned.name }}` or `{{ .planned.zone_id }}/{{ .planned.id }}`.
 
-
-                      Empty map = fall through to operator-bundled defaults.'
+                      Empty map = fall through to operator-bundled defaults.
                     type: object
                 type: object
               pangeaNamespace:
-                description: Pangea namespace for state isolation. This determines
-                  the PostgreSQL schema used for state storage.
+                description: Pangea namespace for state isolation. This determines the PostgreSQL schema used for state storage.
                 type: string
               policies:
-                description: "Per-resource policy rules controlling what the operator\
-                  \ may do without human approval. Evaluated top-to-bottom against\
-                  \ each resource change in a plan; the FIRST matching rule's `decision`\
-                  \ applies. Changes that match no rule fall back to `defaultDecision`\
-                  \ (or to `autoApprove` if `defaultDecision` is unset).\n\nAggregation\
-                  \ across all changes: - any `refuse`          \u2192 operator marks\
-                  \ plan Failed, won't apply - else any `requireApproval` \u2192 operator\
-                  \ waits for `approvedPlanHash` - else                  \u2192 operator\
-                  \ applies immediately\n\nEmpty list = behave exactly as before (`autoApprove`\
-                  \ controls everything). Use this to express things like \"auto-apply\
-                  \ low-risk DNS creates, require approval for any `cloudflare_dns_record`\
-                  \ delete, refuse any `cloudflare_zone` destroy\"."
+                description: |-
+                  Per-resource policy rules controlling what the operator may do without human approval. Evaluated top-to-bottom against each resource change in a plan; the FIRST matching rule's `decision` applies. Changes that match no rule fall back to `defaultDecision` (or to `autoApprove` if `defaultDecision` is unset).
+
+                  Aggregation across all changes: - any `refuse`          → operator marks plan Failed, won't apply - else any `requireApproval` → operator waits for `approvedPlanHash` - else                  → operator applies immediately
+
+                  Empty list = behave exactly as before (`autoApprove` controls everything). Use this to express things like "auto-apply low-risk DNS creates, require approval for any `cloudflare_dns_record` delete, refuse any `cloudflare_zone` destroy".
                 items:
-                  description: One policy rule. Match clauses use AND semantics (all
-                    set fields must match the change); within a clause, list entries
-                    use OR semantics (any list entry that matches counts). Empty /
-                    omitted clauses are wildcards.
+                  description: One policy rule. Match clauses use AND semantics (all set fields must match the change); within a clause, list entries use OR semantics (any list entry that matches counts). Empty / omitted clauses are wildcards.
                   properties:
                     decision:
-                      description: What the controller may do for changes this rule
-                        matches.
+                      description: What the controller may do for changes this rule matches.
                       enum:
                       - autoApply
                       - requireApproval
                       - refuse
                       type: string
                     match:
-                      description: Match criteria. All set fields must match (AND);
-                        within each list, any entry counts (OR).
+                      description: Match criteria. All set fields must match (AND); within each list, any entry counts (OR).
                       properties:
                         actions:
-                          description: 'Restrict to specific actions. Empty = any
-                            action. Valid values: `create`, `update`, `delete`, `replace`.'
+                          description: 'Restrict to specific actions. Empty = any action. Valid values: `create`, `update`, `delete`, `replace`.'
                           items:
                             type: string
                           type: array
                         addressPatterns:
-                          description: "Regular expressions matched against the full\
-                            \ resource address (e.g. `^cloudflare_dns_record\\\\.rio-.*$`).\
-                            \ Invalid regexes are rejected at evaluation time and\
-                            \ logged \u2014 they never silently match nothing."
+                          description: Regular expressions matched against the full resource address (e.g. `^cloudflare_dns_record\\.rio-.*$`). Invalid regexes are rejected at evaluation time and logged — they never silently match nothing.
                           items:
                             type: string
                           type: array
                         attributes:
-                          description: Glob patterns against the changed-attribute
-                            names. Matches if ANY of the change's attributes matches
-                            ANY of these patterns. Useful for "require approval if
-                            `ttl` or any `secret*` field changes".
+                          description: Glob patterns against the changed-attribute names. Matches if ANY of the change's attributes matches ANY of these patterns. Useful for "require approval if `ttl` or any `secret*` field changes".
                           items:
                             type: string
                           type: array
                         resourceTypes:
-                          description: "Glob patterns against the terraform resource\
-                            \ type (e.g. `cloudflare_dns_record`, `cloudflare_*`,\
-                            \ `aws_iam_*`). Only `*` (zero-or-more chars) is supported\
-                            \ \u2014 keeps matching trivial and predictable."
+                          description: Glob patterns against the terraform resource type (e.g. `cloudflare_dns_record`, `cloudflare_*`, `aws_iam_*`). Only `*` (zero-or-more chars) is supported — keeps matching trivial and predictable.
                           items:
                             type: string
                           type: array
                         riskLevels:
-                          description: 'Restrict to specific risk levels. Empty =
-                            any risk. Valid values: `none`, `low`, `medium`, `high`.'
+                          description: 'Restrict to specific risk levels. Empty = any risk. Valid values: `none`, `low`, `medium`, `high`.'
                           items:
                             type: string
                           type: array
                       type: object
                     name:
-                      description: Human-readable label. Surfaced in `status.driftDetails[].matchedPolicy`
-                        and in the per-rule planSummary, so a quick `kubectl describe`
-                        shows which rule triggered which decision.
+                      description: Human-readable label. Surfaced in `status.driftDetails[].matchedPolicy` and in the per-rule planSummary, so a quick `kubectl describe` shows which rule triggered which decision.
                       type: string
                   required:
                   - decision
@@ -259,8 +204,7 @@ spec:
                             description: Name of the Secret.
                             type: string
                           namespace:
-                            description: Namespace of the Secret (defaults to same
-                              namespace as the resource).
+                            description: Namespace of the Secret (defaults to same namespace as the resource).
                             nullable: true
                             type: string
                         required:
@@ -280,8 +224,7 @@ spec:
                             description: Name of the Secret.
                             type: string
                           namespace:
-                            description: Namespace of the Secret (defaults to same
-                              namespace as the resource).
+                            description: Namespace of the Secret (defaults to same namespace as the resource).
                             nullable: true
                             type: string
                         required:
@@ -291,11 +234,7 @@ spec:
                     - secretRef
                     type: object
                   github:
-                    description: "GitHub credentials configuration. Used by templates\
-                      \ that declare github_* providers (e.g. pangea-github's `cloudflare_zero_trust_*`\
-                      \ adjacent shapes \u2014 repos, runner groups, branch protection).\
-                      \ Same shape as the cloudflare credentials block: a secretRef\
-                      \ to a Secret containing a PAT."
+                    description: 'GitHub credentials configuration. Used by templates that declare github_* providers (e.g. pangea-github''s `cloudflare_zero_trust_*` adjacent shapes — repos, runner groups, branch protection). Same shape as the cloudflare credentials block: a secretRef to a Secret containing a PAT.'
                     nullable: true
                     properties:
                       secretRef:
@@ -305,8 +244,7 @@ spec:
                             description: Name of the Secret.
                             type: string
                           namespace:
-                            description: Namespace of the Secret (defaults to same
-                              namespace as the resource).
+                            description: Namespace of the Secret (defaults to same namespace as the resource).
                             nullable: true
                             type: string
                         required:
@@ -317,19 +255,11 @@ spec:
                     type: object
                 type: object
               reactivePolicy:
-                description: "Reactive policy \u2014 declarative responses to \"things\
-                  \ didn't go to a good state\". Innermost level of the cascade (gem\
-                  \ \u2192 workspace \u2192 template). When unset at every cascade\
-                  \ level, the operator applies sensible defaults: 5 consecutive failures\
-                  \ \u2192 Alert, phase timeouts of 5m / 10m / 30m for Compiling /\
-                  \ Planning / Applying \u2192 Alert, Verified=False for 10m \u2192\
-                  \ Alert. See the `ReactivePolicy` type in the shared `architecture_gem`\
-                  \ module."
+                description: 'Reactive policy — declarative responses to "things didn''t go to a good state". Innermost level of the cascade (gem → workspace → template). When unset at every cascade level, the operator applies sensible defaults: 5 consecutive failures → Alert, phase timeouts of 5m / 10m / 30m for Compiling / Planning / Applying → Alert, Verified=False for 10m → Alert. See the `ReactivePolicy` type in the shared `architecture_gem` module.'
                 nullable: true
                 properties:
                   failureEscalation:
-                    description: What to do when consecutive Failed reconciles exceed
-                      threshold.
+                    description: What to do when consecutive Failed reconciles exceed threshold.
                     nullable: true
                     properties:
                       maxConsecutiveFailures:
@@ -351,25 +281,21 @@ spec:
                         nullable: true
                         properties:
                           githubIssueTemplate:
-                            description: GitHub issue template name. Operator opens
-                              an issue in the workspace's source repo.
+                            description: GitHub issue template name. Operator opens an issue in the workspace's source repo.
                             nullable: true
                             type: string
                           ntfyTopic:
-                            description: "ntfy topic name (homelab convention \u2014\
-                              \ see pleme-io alertmanager-ntfy module)."
+                            description: ntfy topic name (homelab convention — see pleme-io alertmanager-ntfy module).
                             nullable: true
                             type: string
                           slackChannel:
-                            description: "Slack channel (SaaS convention \u2014 Datadog/Splunk-paired\
-                              \ clusters)."
+                            description: Slack channel (SaaS convention — Datadog/Splunk-paired clusters).
                             nullable: true
                             type: string
                         type: object
                     type: object
                   phaseTimeout:
-                    description: What to do when stuck in a non-terminal phase too
-                      long.
+                    description: What to do when stuck in a non-terminal phase too long.
                     nullable: true
                     properties:
                       applying:
@@ -378,9 +304,7 @@ spec:
                         type: string
                       compiling:
                         default: 5m
-                        description: How long can `Compiling` last before escalating.
-                          Format same as refreshInterval (`5m`, `30s`, `1h`). Default
-                          `5m`.
+                        description: How long can `Compiling` last before escalating. Format same as refreshInterval (`5m`, `30s`, `1h`). Default `5m`.
                         type: string
                       onTimeout:
                         default: alert
@@ -399,18 +323,15 @@ spec:
                         nullable: true
                         properties:
                           githubIssueTemplate:
-                            description: GitHub issue template name. Operator opens
-                              an issue in the workspace's source repo.
+                            description: GitHub issue template name. Operator opens an issue in the workspace's source repo.
                             nullable: true
                             type: string
                           ntfyTopic:
-                            description: "ntfy topic name (homelab convention \u2014\
-                              \ see pleme-io alertmanager-ntfy module)."
+                            description: ntfy topic name (homelab convention — see pleme-io alertmanager-ntfy module).
                             nullable: true
                             type: string
                           slackChannel:
-                            description: "Slack channel (SaaS convention \u2014 Datadog/Splunk-paired\
-                              \ clusters)."
+                            description: Slack channel (SaaS convention — Datadog/Splunk-paired clusters).
                             nullable: true
                             type: string
                         type: object
@@ -432,32 +353,27 @@ spec:
                         nullable: true
                         properties:
                           githubIssueTemplate:
-                            description: GitHub issue template name. Operator opens
-                              an issue in the workspace's source repo.
+                            description: GitHub issue template name. Operator opens an issue in the workspace's source repo.
                             nullable: true
                             type: string
                           ntfyTopic:
-                            description: "ntfy topic name (homelab convention \u2014\
-                              \ see pleme-io alertmanager-ntfy module)."
+                            description: ntfy topic name (homelab convention — see pleme-io alertmanager-ntfy module).
                             nullable: true
                             type: string
                           slackChannel:
-                            description: "Slack channel (SaaS convention \u2014 Datadog/Splunk-paired\
-                              \ clusters)."
+                            description: Slack channel (SaaS convention — Datadog/Splunk-paired clusters).
                             nullable: true
                             type: string
                         type: object
                       timeout:
                         default: 10m
-                        description: How long can `Verified=False` persist. Default
-                          `10m`.
+                        description: How long can `Verified=False` persist. Default `10m`.
                         type: string
                     type: object
                 type: object
               refreshInterval:
                 default: 5m
-                description: Interval for drift detection checks. Defaults to "5m"
-                  (5 minutes).
+                description: Interval for drift detection checks. Defaults to "5m" (5 minutes).
                 type: string
               retryPolicy:
                 description: Retry policy for failed operations.
@@ -477,32 +393,21 @@ spec:
                     type: integer
                 type: object
               settlingPolicy:
-                description: "Bounds on how long the operator may keep cycling through\
-                  \ drift\u2192apply\u2192drift loops before declaring the template\
-                  \ stuck. State settling is the operator's primary success metric\
-                  \ \u2014 when it can't reach a settled state after the configured\
-                  \ number of cycles, this is escalated loudly via a `Settled=False`\
-                  \ condition + Warning event.\n\nDefaults: 5 cycles, then `fail`\
-                  \ (transition to Failed, surface the address list of resources that\
-                  \ keep re-drifting)."
+                description: |-
+                  Bounds on how long the operator may keep cycling through drift→apply→drift loops before declaring the template stuck. State settling is the operator's primary success metric — when it can't reach a settled state after the configured number of cycles, this is escalated loudly via a `Settled=False` condition + Warning event.
+
+                  Defaults: 5 cycles, then `fail` (transition to Failed, surface the address list of resources that keep re-drifting).
                 nullable: true
                 properties:
                   maxConsecutiveDriftCycles:
                     default: 5
-                    description: "Maximum allowed consecutive drift cycles before\
-                      \ escalation. A \"cycle\" is one Ready\u2192Drifted\u2192(plan\u2192\
-                      apply)\u2192Ready transition where the post-apply drift check\
-                      \ still reports changes. Defaults to 5."
+                    description: Maximum allowed consecutive drift cycles before escalation. A "cycle" is one Ready→Drifted→(plan→apply)→Ready transition where the post-apply drift check still reports changes. Defaults to 5.
                     format: uint32
                     minimum: 0.0
                     type: integer
                   onExhaustion:
                     default: fail
-                    description: "What to do when `maxConsecutiveDriftCycles` is exceeded.\
-                      \ Defaults to `fail` \u2014 the loudest signal: phase Failed,\
-                      \ error message naming the stuck resources, Warning event, condition\
-                      \ `Settled=False reason=StuckInDriftLoop`. The point is to make\
-                      \ it impossible to ignore a system that can't reach steady state."
+                    description: 'What to do when `maxConsecutiveDriftCycles` is exceeded. Defaults to `fail` — the loudest signal: phase Failed, error message naming the stuck resources, Warning event, condition `Settled=False reason=StuckInDriftLoop`. The point is to make it impossible to ignore a system that can''t reach steady state.'
                     enum:
                     - fail
                     - alert
@@ -523,8 +428,7 @@ spec:
                         description: Name of the ConfigMap.
                         type: string
                       namespace:
-                        description: Namespace of the ConfigMap (defaults to same
-                          namespace as the InfrastructureTemplate).
+                        description: Namespace of the ConfigMap (defaults to same namespace as the InfrastructureTemplate).
                         nullable: true
                         type: string
                     required:
@@ -550,8 +454,7 @@ spec:
                             description: Name of the Secret.
                             type: string
                           namespace:
-                            description: Namespace of the Secret (defaults to same
-                              namespace as the resource).
+                            description: Namespace of the Secret (defaults to same namespace as the resource).
                             nullable: true
                             type: string
                         required:
@@ -574,18 +477,15 @@ spec:
                 description: Suspend reconciliation for this template.
                 type: boolean
               templateName:
-                description: Optional specific template name to deploy if the source
-                  file contains multiple templates.
+                description: Optional specific template name to deploy if the source file contains multiple templates.
                 nullable: true
                 type: string
               variableRefs:
                 additionalProperties:
-                  description: Cross-template variable reference. Fetches an output
-                    from another template.
+                  description: Cross-template variable reference. Fetches an output from another template.
                   properties:
                     outputKey:
-                      description: Key in the source template's status.outputs to
-                        read.
+                      description: Key in the source template's status.outputs to read.
                       type: string
                     templateRef:
                       description: Reference to the source template.
@@ -594,8 +494,7 @@ spec:
                           description: Name of the InfrastructureTemplate.
                           type: string
                         namespace:
-                          description: Namespace (defaults to same namespace as the
-                            referencing template).
+                          description: Namespace (defaults to same namespace as the referencing template).
                           nullable: true
                           type: string
                       required:
@@ -605,12 +504,10 @@ spec:
                   - outputKey
                   - templateRef
                   type: object
-                description: 'Cross-template variable references. Resolved before
-                  compilation by fetching the referenced template''s outputs.
+                description: |-
+                  Cross-template variable references. Resolved before compilation by fetching the referenced template's outputs.
 
-
-                  Example: ```yaml variableRefs: vpc_id: templateRef: { name: vpc-template
-                  } outputKey: vpc_id ```'
+                  Example: ```yaml variableRefs: vpc_id: templateRef: { name: vpc-template } outputKey: vpc_id ```
                 nullable: true
                 type: object
               variables:
@@ -627,18 +524,12 @@ spec:
             nullable: true
             properties:
               approvedPlanHash:
-                description: Hash of the approved plan. Set by the user to approve
-                  a pending plan. When this matches `pendingPlanHash`, the operator
-                  proceeds to apply.
+                description: Hash of the approved plan. Set by the user to approve a pending plan. When this matches `pendingPlanHash`, the operator proceeds to apply.
                 nullable: true
                 type: string
               autoSuspended:
                 default: false
-                description: Set to true by a ReactivePolicy `Suspend` action. The
-                  operator halts reconcile for this template until cleared. Cleared
-                  manually via `kubectl patch ... --subresource status -p '{"status":{"autoSuspended":false}}'`
-                  (or by deleting the CR and recreating it). See `lastEscalationReason`
-                  for why the auto-suspend triggered.
+                description: Set to true by a ReactivePolicy `Suspend` action. The operator halts reconcile for this template until cleared. Cleared manually via `kubectl patch ... --subresource status -p '{"status":{"autoSuspended":false}}'` (or by deleting the CR and recreating it). See `lastEscalationReason` for why the auto-suspend triggered.
                 type: boolean
               compliance:
                 description: Compliance check results.
@@ -733,70 +624,56 @@ spec:
                   - type
                   type: object
                 type: array
+              consecutiveCompileFailures:
+                default: 0
+                description: |-
+                  Number of consecutive Compiling-phase failures observed before any successful compile. Resets to zero on the first successful compile. Drives the same `SettlingPolicy.maxConsecutiveDrift Cycles` escalation as drift cycles — so a template that can't compile (missing gem, syntax error, broken DSL) eventually transitions to `phase=Failed` instead of looping in `phase=Compiling, cycleCount=0` forever.
+
+                  Why a separate counter: pre-2026-05, compile failures didn't increment `consecutive_drift_cycles` (because no cycle ever completes — cycle_count stays at 0), so settling policy never fired. Templates like `pleme-io-opensource` sat in Compiling for hours with `cannot load such file -- pangea-github`. This counter closes that gap by escalating compile failures independently of the drift-cycle path.
+                format: uint32
+                minimum: 0.0
+                type: integer
               consecutiveDriftCycles:
                 default: 0
-                description: "State-settling counter. Counts consecutive drift cycles\
-                  \ where applying a plan does NOT result in a clean drift check.\
-                  \ Reset to zero when a Ready\u2192Ready transition sees no drift.\
-                  \ Drives `SettlingPolicy` escalation."
+                description: State-settling counter. Counts consecutive drift cycles where applying a plan does NOT result in a clean drift check. Reset to zero when a Ready→Ready transition sees no drift. Drives `SettlingPolicy` escalation.
                 format: uint32
                 minimum: 0.0
                 type: integer
               cycleCount:
                 default: 0
-                description: "Monotonic cycle counter \u2014 bumped once per completed\
-                  \ reconcile (every plan\u2192apply pair, or every plan-only when\
-                  \ no changes). Lets observers detect the operator's heartbeat without\
-                  \ polling timestamps."
+                description: Monotonic cycle counter — bumped once per completed reconcile (every plan→apply pair, or every plan-only when no changes). Lets observers detect the operator's heartbeat without polling timestamps.
                 format: uint64
                 minimum: 0.0
                 type: integer
               driftDetails:
                 default: []
-                description: "Per-resource drift / change detail from the last plan.\
-                  \ Populated whenever a plan reports `has_changes`. Lets external\
-                  \ observers see WHICH resources changed and HOW without parsing\
-                  \ raw tofu output. Capped to 50 entries (full list available via\
-                  \ the operator's GraphQL API for large plans).\n\nAlways serialized\
-                  \ (no skip-if-empty) so an explicit empty array clears the field\
-                  \ via JSON Merge Patch \u2014 otherwise stale drift would survive\
-                  \ a clean settle."
+                description: |-
+                  Per-resource drift / change detail from the last plan. Populated whenever a plan reports `has_changes`. Lets external observers see WHICH resources changed and HOW without parsing raw tofu output. Capped to 50 entries (full list available via the operator's GraphQL API for large plans).
+
+                  Always serialized (no skip-if-empty) so an explicit empty array clears the field via JSON Merge Patch — otherwise stale drift would survive a clean settle.
                 items:
-                  description: "Per-resource drift / change detail from a plan.\n\n\
-                    One entry per resource the plan would touch. Action is the terraform\
-                    \ action category; risk is a heuristic so observers can quickly\
-                    \ triage (a `delete` on a destroy-protected resource is `high`,\
-                    \ a no-op refresh is `none`, a single-attribute update is `low`).\
-                    \ `attributes` lists the field names that differ \u2014 values\
-                    \ are intentionally elided so secrets don't leak into the K8s\
-                    \ API."
+                  description: |-
+                    Per-resource drift / change detail from a plan.
+
+                    One entry per resource the plan would touch. Action is the terraform action category; risk is a heuristic so observers can quickly triage (a `delete` on a destroy-protected resource is `high`, a no-op refresh is `none`, a single-attribute update is `low`). `attributes` lists the field names that differ — values are intentionally elided so secrets don't leak into the K8s API.
                   properties:
                     action:
-                      description: 'Action category: create | update | delete | replace
-                        | noop.'
+                      description: 'Action category: create | update | delete | replace | noop.'
                       type: string
                     address:
                       description: Terraform resource address (e.g. `cloudflare_dns_record.foo`).
                       type: string
                     attributes:
-                      description: Attribute names that differ between current and
-                        desired state. Empty for create / delete (no per-attr diff
-                        applies).
+                      description: Attribute names that differ between current and desired state. Empty for create / delete (no per-attr diff applies).
                       items:
                         type: string
                       type: array
                     matchedPolicy:
-                      description: Name of the `PolicyRule` that matched this change,
-                        or `<default>` if no rule matched and the default decision
-                        was applied. Absent means policy evaluation didn't run.
+                      description: Name of the `PolicyRule` that matched this change, or `<default>` if no rule matched and the default decision was applied. Absent means policy evaluation didn't run.
                       nullable: true
                       type: string
                     policyDecision:
-                      description: 'Resolved policy decision for this specific change.
-                        Set when `spec.policies` is non-empty or `spec.defaultDecision`
-                        is non-null. Values: `autoApply` | `requireApproval` | `refuse`.
-                        Absent means policy evaluation didn''t run (legacy `autoApprove`-only
-                        mode).'
+                      description: 'Resolved policy decision for this specific change. Set when `spec.policies` is non-empty or `spec.defaultDecision` is non-null. Values: `autoApply` | `requireApproval` | `refuse`. Absent means policy evaluation didn''t run (legacy `autoApprove`-only mode).'
                       nullable: true
                       type: string
                     risk:
@@ -820,15 +697,11 @@ spec:
                 nullable: true
                 type: string
               lastAppliedRevision:
-                description: Last successfully applied revision (content hash or git
-                  commit).
+                description: Last successfully applied revision (content hash or git commit).
                 nullable: true
                 type: string
               lastCycle:
-                description: 'Receipt for the most recent reconcile cycle: per-resource
-                  outcomes (Matched / Updated / Created / Destroyed / Imported / Drifted
-                  / Failed) plus aggregate counts. The shape the user reads to answer
-                  "what did the operator just do, and to what?"'
+                description: 'Receipt for the most recent reconcile cycle: per-resource outcomes (Matched / Updated / Created / Destroyed / Imported / Drifted / Failed) plus aggregate counts. The shape the user reads to answer "what did the operator just do, and to what?"'
                 nullable: true
                 properties:
                   completedAt:
@@ -836,38 +709,27 @@ spec:
                     format: date-time
                     type: string
                   cycle:
-                    description: Monotonic cycle number (mirrors `status.cycleCount`
-                      at the moment this cycle was emitted; redundant but lets observers
-                      snapshot the receipt with its cycle number atomically).
+                    description: Monotonic cycle number (mirrors `status.cycleCount` at the moment this cycle was emitted; redundant but lets observers snapshot the receipt with its cycle number atomically).
                     format: uint64
                     minimum: 0.0
                     type: integer
                   outcomes:
-                    description: "Per-resource outcomes for resources the cycle TOUCHED\
-                      \ \u2014 i.e. resources that the plan reported a change on (Created\
-                      \ / Updated / Destroyed) or that the apply failed on (Failed)\
-                      \ or that policy gated (Drifted).\n\nResources that had no planned\
-                      \ change are NOT individually listed here (they're rolled up\
-                      \ into `summary.matched`); listing every untouched resource\
-                      \ per cycle would balloon status payloads unbounded. Capped\
-                      \ at 100 entries."
+                    description: |-
+                      Per-resource outcomes for resources the cycle TOUCHED — i.e. resources that the plan reported a change on (Created / Updated / Destroyed) or that the apply failed on (Failed) or that policy gated (Drifted).
+
+                      Resources that had no planned change are NOT individually listed here (they're rolled up into `summary.matched`); listing every untouched resource per cycle would balloon status payloads unbounded. Capped at 100 entries.
                     items:
-                      description: Per-resource cycle outcome. The typed answer to
-                        "what happened to THIS resource this cycle?".
+                      description: Per-resource cycle outcome. The typed answer to "what happened to THIS resource this cycle?".
                       properties:
                         action:
-                          description: Original tofu action category (`create`, `update`,
-                            `delete`, `replace`, `noop`) when known. Lets observers
-                            see the raw terraform shape behind the typed Outcome.
+                          description: Original tofu action category (`create`, `update`, `delete`, `replace`, `noop`) when known. Lets observers see the raw terraform shape behind the typed Outcome.
                           nullable: true
                           type: string
                         address:
                           description: Terraform resource address (e.g. `cloudflare_dns_record.foo`).
                           type: string
                         message:
-                          description: "Optional context \u2014 for `Drifted` outcomes,\
-                            \ the policy decision that gated the change; for `Failed`,\
-                            \ the tofu error excerpt."
+                          description: Optional context — for `Drifted` outcomes, the policy decision that gated the change; for `Failed`, the tofu error excerpt.
                           nullable: true
                           type: string
                         outcome:
@@ -887,22 +749,15 @@ spec:
                       type: object
                     type: array
                   planSummary:
-                    description: 'Human-readable plan summary, mirroring tofu''s `Plan:
-                      +X ~Y -Z` shape. Same string as top-level `status.planSummary`
-                      at the moment this cycle ran.'
+                    description: 'Human-readable plan summary, mirroring tofu''s `Plan: +X ~Y -Z` shape. Same string as top-level `status.planSummary` at the moment this cycle ran.'
                     nullable: true
                     type: string
                   sourceRevision:
-                    description: "Source revision the cycle reconciled against \u2014\
-                      \ git commit SHA for git-sourced templates, content hash for\
-                      \ inline / configmap. Mirrors `status.lastAppliedRevision` for\
-                      \ the cycle that just landed; lets observers correlate cycles\
-                      \ to source changes."
+                    description: Source revision the cycle reconciled against — git commit SHA for git-sourced templates, content hash for inline / configmap. Mirrors `status.lastAppliedRevision` for the cycle that just landed; lets observers correlate cycles to source changes.
                     nullable: true
                     type: string
                   startedAt:
-                    description: When the cycle started (immediately after Verified
-                      gate).
+                    description: When the cycle started (immediately after Verified gate).
                     format: date-time
                     type: string
                   summary:
@@ -914,9 +769,7 @@ spec:
                       imported: 0
                       matched: 0
                       updated: 0
-                    description: Aggregate outcome counts for the cycle. `matched`
-                      = total managed resources minus everything that planned a change.
-                      Other counts are per-Outcome variant.
+                    description: Aggregate outcome counts for the cycle. `matched` = total managed resources minus everything that planned a change. Other counts are per-Outcome variant.
                     properties:
                       created:
                         default: 0
@@ -932,8 +785,7 @@ spec:
                         type: integer
                       driftedUncorrected:
                         default: 0
-                        description: Resources where drift was detected but NOT corrected
-                          (policy = requireApproval / refuse, or apply was skipped).
+                        description: Resources where drift was detected but NOT corrected (policy = requireApproval / refuse, or apply was skipped).
                         format: uint32
                         minimum: 0.0
                         type: integer
@@ -945,23 +797,19 @@ spec:
                         type: integer
                       imported:
                         default: 0
-                        description: "Resources adopted into state by `tofu import`\
-                          \ (reserved \u2014 set to 0 until the import path lands\
-                          \ in a follow-up)."
+                        description: Resources adopted into state by `tofu import` (reserved — set to 0 until the import path lands in a follow-up).
                         format: uint32
                         minimum: 0.0
                         type: integer
                       matched:
                         default: 0
-                        description: "Resources whose declared state matched actual\
-                          \ state \u2014 no plan action (`no-op`)."
+                        description: Resources whose declared state matched actual state — no plan action (`no-op`).
                         format: uint32
                         minimum: 0.0
                         type: integer
                       updated:
                         default: 0
-                        description: Resources updated to declared state by this cycle's
-                          apply.
+                        description: Resources updated to declared state by this cycle's apply.
                         format: uint32
                         minimum: 0.0
                         type: integer
@@ -981,18 +829,12 @@ spec:
                 nullable: true
                 type: string
               lastEscalatedAt:
-                description: "When the operator last emitted an escalation event for\
-                  \ this template. Debounce signal \u2014 escalation actions don't\
-                  \ re-fire every reconcile while the bad state persists; they fire\
-                  \ once per entry into the bad state and then stay quiet until the\
-                  \ state clears + re-enters."
+                description: When the operator last emitted an escalation event for this template. Debounce signal — escalation actions don't re-fire every reconcile while the bad state persists; they fire once per entry into the bad state and then stay quiet until the state clears + re-enters.
                 format: date-time
                 nullable: true
                 type: string
               lastEscalationReason:
-                description: Machine-readable reason for the last escalation. One
-                  of `FailureEscalation`, `PhaseTimeout:<phase>`, `VerifiedBlocked`.
-                  Empty when no escalation has fired.
+                description: Machine-readable reason for the last escalation. One of `FailureEscalation`, `PhaseTimeout:<phase>`, `VerifiedBlocked`. Empty when no escalation has fired.
                 nullable: true
                 type: string
               lastPlannedAt:
@@ -1011,9 +853,7 @@ spec:
                 nullable: true
                 type: object
               pendingPlanHash:
-                description: Hash of the pending plan awaiting approval. Set by the
-                  operator after planning. Users approve by copying this value to
-                  `approvedPlanHash` via kubectl patch or GraphQL mutation.
+                description: Hash of the pending plan awaiting approval. Set by the operator after planning. Users approve by copying this value to `approvedPlanHash` via kubectl patch or GraphQL mutation.
                 nullable: true
                 type: string
               phase:
@@ -1033,9 +873,7 @@ spec:
                 nullable: true
                 type: string
               phaseEnteredAt:
-                description: When the current `phase` was entered. Reset on every
-                  phase transition. Used by ReactivePolicy.phaseTimeout to detect
-                  templates stuck in a non-terminal phase.
+                description: When the current `phase` was entered. Reset on every phase transition. Used by ReactivePolicy.phaseTimeout to detect templates stuck in a non-terminal phase.
                 format: date-time
                 nullable: true
                 type: string
@@ -1044,15 +882,11 @@ spec:
                 nullable: true
                 type: string
               policyEvaluation:
-                description: "Aggregate result of evaluating `spec.policies` against\
-                  \ the last plan's drift details. Drives the plan\u2192apply gate.\
-                  \ Absent when the template uses legacy `autoApprove`-only mode (no\
-                  \ `policies` and no `defaultDecision`)."
+                description: Aggregate result of evaluating `spec.policies` against the last plan's drift details. Drives the plan→apply gate. Absent when the template uses legacy `autoApprove`-only mode (no `policies` and no `defaultDecision`).
                 nullable: true
                 properties:
                   aggregate:
-                    description: "Worst decision across all changes. Drives the plan\u2192\
-                      apply transition."
+                    description: Worst decision across all changes. Drives the plan→apply transition.
                     type: string
                   autoApplyCount:
                     default: 0
@@ -1062,14 +896,12 @@ spec:
                     type: integer
                   refuseCount:
                     default: 0
-                    description: Number of changes that resolved to `refuse`. Non-zero
-                      means `aggregate == refuse` and the plan is blocked.
+                    description: Number of changes that resolved to `refuse`. Non-zero means `aggregate == refuse` and the plan is blocked.
                     format: uint32
                     minimum: 0.0
                     type: integer
                   refusedAddresses:
-                    description: Sample of refused resource addresses (capped at 10)
-                      to give quick triage signal in `kubectl describe`.
+                    description: Sample of refused resource addresses (capped at 10) to give quick triage signal in `kubectl describe`.
                     items:
                       type: string
                     type: array
@@ -1117,21 +949,15 @@ spec:
                 type: string
               stuckResources:
                 default: []
-                description: "Resource addresses that keep showing up in successive\
-                  \ drift cycles \u2014 the \"stuck\" set. Computed as the intersection\
-                  \ of drift-detail addresses across the last N cycles. Capped at\
-                  \ 20 for status hygiene; full set available via the operator's GraphQL\
-                  \ API. Empty when `consecutiveDriftCycles == 0`.\n\nAlways serialized\
-                  \ (no skip-if-empty) so explicit clearing on a settle propagates\
-                  \ via JSON Merge Patch."
+                description: |-
+                  Resource addresses that keep showing up in successive drift cycles — the "stuck" set. Computed as the intersection of drift-detail addresses across the last N cycles. Capped at 20 for status hygiene; full set available via the operator's GraphQL API. Empty when `consecutiveDriftCycles == 0`.
+
+                  Always serialized (no skip-if-empty) so explicit clearing on a settle propagates via JSON Merge Patch.
                 items:
                   type: string
                 type: array
               verifiedBlockedSince:
-                description: First time the `Verified` condition flipped to False.
-                  Used by ReactivePolicy.verifiedBlocked to detect templates whose
-                  gate has been blocked too long. Cleared when Verified flips back
-                  to True.
+                description: First time the `Verified` condition flipped to False. Used by ReactivePolicy.verifiedBlocked to detect templates whose gate has been blocked too long. Cleared when Verified flips back to True.
                 format: date-time
                 nullable: true
                 type: string

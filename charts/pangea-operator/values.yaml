@@ -149,10 +149,18 @@ executor:
   # -- Enable verbose executor logging
   verbose: false
 
-# -- Environment variables (executor config is auto-generated, add extras here)
+# -- Log level + filter for the operator's tracing-subscriber. Comma-
+# separated `<target>=<level>` directives per
+# https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html.
+# Default scope is the operator crate at info; flip to `pangea_operator=debug`
+# when chasing a live issue. The chart threads this into RUST_LOG so a
+# `helm upgrade --set logLevel=...` debugs without editing the env list.
+logLevel: pangea_operator=info
+
+# -- Environment variables (executor config is auto-generated, add extras here).
+# RUST_LOG is rendered from .Values.logLevel ABOVE; if you set it again here
+# the deployment template's later entry wins per pleme-lib's dedup rule.
 env:
-  - name: RUST_LOG
-    value: pangea_operator=info
   - name: POD_NAME
     valueFrom:
       fieldRef:
@@ -181,7 +189,12 @@ useEmbeddedRuby: false
 # Set to [] to disable the compiler (only pre-compiled JSON templates will work).
 sidecars:
   - name: compiler
-    image: ghcr.io/pleme-io/pangea-compiler:latest
+    # Pinned to a specific tag rather than `:latest` so existing pods
+    # don't drift when the registry tag is rebuilt. Override per cluster
+    # if you need a different sidecar version. Use SHA-pinned tags
+    # (`amd64-<sha>`) for fully deterministic kubelet caching — see
+    # rio's HelmRelease for the canonical pattern.
+    image: ghcr.io/pleme-io/pangea-compiler:amd64-c73d5a9
     imagePullPolicy: IfNotPresent
     ports:
       - name: compiler
@@ -470,6 +483,7 @@ prometheusRules:
       annotations:
         summary: "Infrastructure drift detected in {{ $labels.namespace }}/{{ $labels.name }}"
         description: "Pangea operator detected infrastructure drift that may require attention."
+        runbook_url: "https://github.com/pleme-io/pangea-operator/blob/main/docs/RUNBOOKS.md#pangeadriftdetected"
     - alert: PangeaReconciliationFailing
       expr: increase(pangea_reconciliation_errors_total[15m]) > 5
       for: 5m
@@ -478,6 +492,7 @@ prometheusRules:
       annotations:
         summary: "Pangea reconciliation failing repeatedly"
         description: "More than 5 reconciliation errors in the last 15 minutes."
+        runbook_url: "https://github.com/pleme-io/pangea-operator/blob/main/docs/RUNBOOKS.md#pangeareconciliationfailing"
     - alert: PangeaTemplateStuck
       expr: pangea_templates_by_phase{phase="Failed"} > 0
       for: 30m
@@ -486,6 +501,7 @@ prometheusRules:
       annotations:
         summary: "Pangea template stuck in Failed phase"
         description: "One or more templates have been in Failed phase for over 30 minutes."
+        runbook_url: "https://github.com/pleme-io/pangea-operator/blob/main/docs/RUNBOOKS.md#pangeatemplatestuck"
     # ── State-settling + policy engine alerts (chart 0.4.0) ──
     # The whole point of the settling tracker is that "stuck" should
     # never go silent. These rules surface every flavor of stuck.
@@ -497,6 +513,7 @@ prometheusRules:
       annotations:
         summary: "Template {{ $labels.namespace }}/{{ $labels.template }} has not settled"
         description: "Settled gauge has been 0 for >15min — drift is reappearing on every drift check."
+        runbook_url: "https://github.com/pleme-io/pangea-operator/blob/main/docs/RUNBOOKS.md#pangeatemplatenotsettled"
     - alert: PangeaSettlingEscalation
       expr: increase(pangea_settling_failures_total[5m]) > 0
       for: 0m
@@ -505,6 +522,7 @@ prometheusRules:
       annotations:
         summary: "Settling escalated for {{ $labels.namespace }}/{{ $labels.template }} ({{ $labels.reason }})"
         description: "State-settling tracker fired ({{ $labels.reason }}) — investigate stuckResources status field. Auto-apply will not converge."
+        runbook_url: "https://github.com/pleme-io/pangea-operator/blob/main/docs/RUNBOOKS.md#pangeasettlingescalation"
     - alert: PangeaPolicyRefuseFiring
       expr: increase(pangea_policy_decisions_total{decision="refuse"}[15m]) > 0
       for: 0m
@@ -513,6 +531,7 @@ prometheusRules:
       annotations:
         summary: "Policy refuse rule blocked changes in {{ $labels.namespace }}/{{ $labels.template }}"
         description: "A spec.policies rule with decision=refuse matched {{ $value }} change(s) — plan was not applied."
+        runbook_url: "https://github.com/pleme-io/pangea-operator/blob/main/docs/RUNBOOKS.md#pangeapolicyrefusefiring"
     - alert: PangeaHighRiskPending
       expr: pangea_template_drift_detail{action=~"delete|replace",risk="high"} > 0
       for: 5m
@@ -521,6 +540,7 @@ prometheusRules:
       annotations:
         summary: "High-risk {{ $labels.action }} pending in {{ $labels.namespace }}/{{ $labels.template }}"
         description: "{{ $value }} resource(s) with high-risk {{ $labels.action }} action sitting in pending state."
+        runbook_url: "https://github.com/pleme-io/pangea-operator/blob/main/docs/RUNBOOKS.md#pangeahighriskpending"
     # ── Image Pipeline alerts ──
     - alert: PackerBuildFailed
       expr: pangea_packer_builds_by_phase{phase="Failed"} > 0
@@ -530,6 +550,7 @@ prometheusRules:
       annotations:
         summary: "Packer build {{ $labels.name }} failed in {{ $labels.namespace }}"
         description: "A PackerBuild CR has been in Failed phase for over 5 minutes."
+        runbook_url: "https://github.com/pleme-io/pangea-operator/blob/main/docs/RUNBOOKS.md#packerbuildfailed--imagepipelinestuck--amitestfailed"
     - alert: ImagePipelineStuck
       expr: pangea_image_pipelines_by_phase{phase!~"Completed|Pending|Failed"} > 0
       for: 60m
@@ -538,6 +559,7 @@ prometheusRules:
       annotations:
         summary: "Image pipeline {{ $labels.name }} stuck in {{ $labels.phase }}"
         description: "An ImagePipeline has been in a non-terminal phase for over 60 minutes."
+        runbook_url: "https://github.com/pleme-io/pangea-operator/blob/main/docs/RUNBOOKS.md#packerbuildfailed--imagepipelinestuck--amitestfailed"
     - alert: AmiTestFailed
       expr: pangea_ami_tests_by_phase{phase="Failed"} > 0
       for: 5m
@@ -546,6 +568,7 @@ prometheusRules:
       annotations:
         summary: "AMI test {{ $labels.name }} failed in {{ $labels.namespace }}"
         description: "An AmiTest CR has test suites in Failed phase."
+        runbook_url: "https://github.com/pleme-io/pangea-operator/blob/main/docs/RUNBOOKS.md#packerbuildfailed--imagepipelinestuck--amitestfailed"
     # ── Compliance alerts ──
     - alert: ComplianceNonCompliant
       expr: pangea_compliance_schedules_by_phase{phase="NonCompliant"} > 0
@@ -555,6 +578,7 @@ prometheusRules:
       annotations:
         summary: "Compliance schedule {{ $labels.name }} is non-compliant"
         description: "Infrastructure compliance checks failed. Bound targets may be gated."
+        runbook_url: "https://github.com/pleme-io/pangea-operator/blob/main/docs/RUNBOOKS.md#compliancenoncompliant--compliancebindinggating"
     - alert: ComplianceBindingGating
       expr: pangea_compliance_bindings_gated_targets > 0
       for: 5m
@@ -563,6 +587,7 @@ prometheusRules:
       annotations:
         summary: "{{ $value }} targets gated by compliance binding {{ $labels.name }}"
         description: "Infrastructure targets are suspended due to compliance failure."
+        runbook_url: "https://github.com/pleme-io/pangea-operator/blob/main/docs/RUNBOOKS.md#compliancenoncompliant--compliancebindinggating"
     # ── 0.8.x — Item J workqueue forensics alerts ────────────────
     - alert: PangeaTemplateStuckCompiling
       expr: pangea_template_consecutive_compile_failures >= 3
@@ -578,56 +603,76 @@ prometheusRules:
           settlingPolicy.maxConsecutiveDriftCycles (default 5), the operator
           escalates to phase=Failed. Check `kubectl describe infra` for the
           exact compile error message.
+        runbook_url: "https://github.com/pleme-io/pangea-operator/blob/main/docs/RUNBOOKS.md#pangeatemplatestuckcompiling"
+    # ── Pause-state alerts ───────────────────────────────────────
+    # The four alerts below all reflect intentional operator-pause
+    # state (globalSuspend, controllerSuspend, workspaceSuspend,
+    # workspaceSuspend.state=active). Severity is `info` so they
+    # don't page on-call; long `for:` durations keep them out of
+    # short-pause noise (a 30-min maintenance pause shouldn't fire,
+    # but a multi-day forgotten pause should). Adjust thresholds
+    # if your fleet's pause cadence differs.
     - alert: PangeaOperatorPaused
-      expr: increase(pangea_policy_skipped_total{source="global"}[5m]) > 10
-      for: 1m
+      # Fires only after the global pause has been continuously
+      # generating skips for 1h — short maintenance windows stay
+      # silent; a forgotten pause surfaces at the 1h mark.
+      expr: increase(pangea_policy_skipped_total{source="global"}[1h]) > 100
+      for: 1h
       labels:
         severity: info
       annotations:
-        summary: "Operator globally paused — {{ $value }} reconciles skipped in 5m"
+        summary: "Operator globally paused for ≥1h — {{ $value }} reconciles skipped"
         description: |
-          OperatorPolicy/default has spec.globalSuspend=true. This is INFO
-          severity because the pause is intentional (operator rewrite,
-          maintenance window, etc.); fires to provide visibility, not to
-          alarm. Resume by patching globalSuspend=false on the HelmRelease
-          values or directly on the OperatorPolicy/default CR.
+          OperatorPolicy/default has spec.globalSuspend=true and the gate
+          has been firing continuously for over an hour. INFO severity
+          because pause is intentional; threshold is high so short
+          maintenance windows stay silent. Resume by patching
+          globalSuspend=false on the HelmRelease values or directly on
+          the OperatorPolicy/default CR.
+        runbook_url: "https://github.com/pleme-io/pangea-operator/blob/main/docs/RUNBOOKS.md#pangeaoperatorpaused"
     - alert: PangeaControllerSuspended
-      expr: increase(pangea_policy_skipped_total{source="controller"}[15m]) > 5
-      for: 5m
+      expr: increase(pangea_policy_skipped_total{source="controller"}[1h]) > 50
+      for: 1h
       labels:
         severity: info
       annotations:
-        summary: "Controller {{ $labels.controller }} suspended via OperatorPolicy"
+        summary: "Controller {{ $labels.controller }} suspended for ≥1h"
         description: |
-          A specific controller has been paused via spec.controllerSuspend.{{ $labels.controller }}=true.
-          Surface this as an info-level alert so the dashboard reflects the partial pause state.
+          A specific controller has been paused via spec.controllerSuspend.{{ $labels.controller }}=true
+          for over an hour. INFO severity so it doesn't page; surfaces
+          on the dashboard so the partial pause is visible.
+        runbook_url: "https://github.com/pleme-io/pangea-operator/blob/main/docs/RUNBOOKS.md#pangeacontrollersuspended--pangeaworkspacepaused--pangeaactiveoverridesactive"
     - alert: PangeaWorkspacePaused
-      expr: increase(pangea_policy_skipped_total{source=~"workspace|catalog"}[15m]) > 5
-      for: 5m
+      expr: increase(pangea_policy_skipped_total{source=~"workspace|catalog"}[1h]) > 50
+      for: 1h
       labels:
         severity: info
       annotations:
-        summary: "Workspace {{ $labels.target }} paused via OperatorPolicy ({{ $labels.source }})"
+        summary: "Workspace {{ $labels.target }} paused for ≥1h ({{ $labels.source }})"
         description: |
-          A specific workspace ({{ $labels.target }}) is paused via
+          Workspace {{ $labels.target }} is paused via
           spec.workspaceSuspend.{{ $labels.source }}s — direct entry
-          (workspace) or cascade from parent catalog (catalog). INFO
-          severity: pause is intentional. Resolve by editing the
+          (workspace) or cascade from parent catalog (catalog).
+          INFO severity: pause is intentional. Resolve by editing the
           OperatorPolicy/default workspaceSuspend map.
+        runbook_url: "https://github.com/pleme-io/pangea-operator/blob/main/docs/RUNBOOKS.md#pangeacontrollersuspended--pangeaworkspacepaused--pangeaactiveoverridesactive"
     - alert: PangeaActiveOverridesActive
+      # for: 1h to avoid alerting on transient Active states during a
+      # planned cluster recovery; a long-lived Active carve-out
+      # surfaces at the 1h mark.
       expr: pangea_workspace_active_override > 0
-      for: 0m
+      for: 1h
       labels:
         severity: info
       annotations:
-        summary: "{{ $labels.kind }}/{{ $labels.name }} carved out via workspaceSuspend.state=active"
+        summary: "{{ $labels.kind }}/{{ $labels.name }} carved out via workspaceSuspend.state=active for ≥1h"
         description: |
           A workspace has an explicit `Active` carve-out — it keeps
           reconciling even when global/catalog/controller-level pauses
-          would otherwise stop it. INFO severity; dashboards show
-          which surgical exemptions are in effect during a fleet
-          pause. Source: {{ $labels.source }}, namespace:
-          {{ $labels.namespace }}.
+          would otherwise stop it. INFO severity; dashboards show which
+          surgical exemptions are in effect during a fleet pause.
+          Source: {{ $labels.source }}, namespace: {{ $labels.namespace }}.
+        runbook_url: "https://github.com/pleme-io/pangea-operator/blob/main/docs/RUNBOOKS.md#pangeacontrollersuspended--pangeaworkspacepaused--pangeaactiveoverridesactive"
 
 # ────────────────────────────────────────────────────────────────────
 # OperatorPolicy — fleet-wide kill-switch primitive
