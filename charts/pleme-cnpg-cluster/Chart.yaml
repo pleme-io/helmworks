@@ -1,0 +1,39 @@
+apiVersion: v2
+name: pleme-cnpg-cluster
+description: |-
+  Steady-state CNPG cluster for the pleme-io fleet. Sibling of
+  `pleme-cnpg-restore` — same four-resource recipe (Cluster +
+  ScheduledBackup + Role+RoleBinding for instance SA Secret-read +
+  additive NetworkPolicy for the garage WAL-archive endpoint), but
+  bootstrapped with `initdb` rather than recovery from S3.
+
+  This chart owns the live `pangea-database` cluster on rio (and any
+  future pleme-io CNPG cluster that ships its own DB). For one-shot
+  recovery from a barman-cloud archive, use `pleme-cnpg-restore`.
+
+  The two charts intentionally do NOT share a library — they're each
+  small enough that duplication is cheaper than the abstraction. If a
+  third CNPG-cluster shape lands (e.g. external bootstrap from a
+  pg_dump), promoting the shared bits into a `pleme-cnpg-base` library
+  becomes worth it.
+
+  Default `enabled: true` because this is a steady-state workload —
+  toggle to `false` to deprovision the cluster (which CNPG cascades
+  into pod + PVC deletion; PVCs are reclaimable as long as the storage
+  class supports it).
+type: application
+version: 0.1.0
+appVersion: "1.0"
+keywords:
+  - cnpg
+  - postgresql
+  - barman-cloud
+  - garage
+  - lareira
+home: https://github.com/pleme-io/helmworks
+sources:
+  - https://github.com/pleme-io/helmworks
+  - https://cloudnative-pg.io/documentation/current/bootstrap/
+maintainers:
+  - name: drzzln
+    email: drzzln@protonmail.com

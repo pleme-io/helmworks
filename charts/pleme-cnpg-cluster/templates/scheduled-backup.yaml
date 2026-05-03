@@ -1,0 +1,31 @@
+{{- if and .Values.enabled .Values.walArchive.enabled .Values.scheduledBackup.enabled }}
+{{- include "pleme-cnpg-cluster.requireClusterName" . }}
+---
+# Daily ScheduledBackup — anchors the WAL retentionPolicy. Without a
+# base backup, CNPG's WAL archive grows unbounded because there's no
+# reference point for "drop everything older than <retention>".
+#
+# The cron runs at the configured time (default 02:13 UTC daily —
+# quiet hour for the homelab, offset minute 13 to avoid colliding
+# with cron storms at :00). The backup itself is non-blocking
+# (target=prefer-standby), so primary-side query latency is
+# unaffected.
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: {{ .Values.clusterName }}-daily
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pleme-cnpg-cluster.labels" . | nindent 4 }}
+    {{- with .Values.clusterLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  cluster:
+    name: {{ .Values.clusterName }}
+  schedule: {{ .Values.scheduledBackup.schedule | quote }}
+  backupOwnerReference: self
+  immediate: {{ .Values.scheduledBackup.immediate }}
+  target: {{ .Values.scheduledBackup.target }}
+  method: barmanObjectStore
+{{- end }}

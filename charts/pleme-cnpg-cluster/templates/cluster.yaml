@@ -1,0 +1,92 @@
+{{- if .Values.enabled }}
+{{- include "pleme-cnpg-cluster.requireClusterName" . }}
+{{- include "pleme-cnpg-cluster.requireBootstrap" . }}
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ .Values.clusterName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pleme-cnpg-cluster.labels" . | nindent 4 }}
+    {{- with .Values.clusterLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  imageName: {{ .Values.imageName | quote }}
+  instances: {{ .Values.instances }}
+
+  enableSuperuserAccess: {{ .Values.enableSuperuserAccess }}
+
+  storage:
+    size: {{ .Values.storage.size }}
+    storageClass: {{ .Values.storage.storageClass }}
+
+  resources:
+    {{- toYaml .Values.resources | nindent 4 }}
+
+  postgresql:
+    parameters:
+      {{- toYaml .Values.postgresql.parameters | nindent 6 }}
+
+  {{- if .Values.monitoring.enabled }}
+  monitoring:
+    enablePodMonitor: true
+  {{- end }}
+
+  {{- if .Values.affinity.enabled }}
+  affinity:
+    enablePodAntiAffinity: true
+    topologyKey: {{ .Values.affinity.topologyKey }}
+    podAntiAffinityType: preferred
+  {{- end }}
+
+  {{- if .Values.walArchive.enabled }}
+  # Inject AWS env so barman-cloud's boto3 generates correct SigV4 signatures
+  # against garage (default region differs from us-east-1; addressing must
+  # be path-style because garage doesn't support virtual-hosted style
+  # without wildcard DNS).
+  env:
+    - name: AWS_DEFAULT_REGION
+      value: {{ .Values.walArchive.region | quote }}
+    - name: AWS_S3_ADDRESSING_STYLE
+      value: {{ .Values.walArchive.addressingStyle | quote }}
+  {{- end }}
+
+  bootstrap:
+    initdb:
+      database: {{ .Values.bootstrap.database }}
+      owner: {{ .Values.bootstrap.owner }}
+      secret:
+        name: {{ .Values.bootstrap.secretName }}
+      {{- with .Values.bootstrap.postInitSQL }}
+      postInitSQL:
+        {{- range . }}
+        - {{ . | replace "__OWNER__" $.Values.bootstrap.owner | quote }}
+        {{- end }}
+      {{- end }}
+      {{- with .Values.bootstrap.postInitTemplateSQL }}
+      postInitTemplateSQL:
+        {{- range . }}
+        - {{ . | replace "__OWNER__" $.Values.bootstrap.owner | quote }}
+        {{- end }}
+      {{- end }}
+
+  {{- if .Values.walArchive.enabled }}
+  backup:
+    barmanObjectStore:
+      destinationPath: {{ printf "s3://%s/" .Values.walArchive.bucket | quote }}
+      endpointURL: {{ .Values.walArchive.endpointURL | quote }}
+      s3Credentials:
+        accessKeyId:
+          name: {{ .Values.walArchive.credentialsSecretName }}
+          key: ACCESS_KEY_ID
+        secretAccessKey:
+          name: {{ .Values.walArchive.credentialsSecretName }}
+          key: SECRET_ACCESS_KEY
+      wal:
+        compression: {{ .Values.walArchive.wal.compression }}
+        maxParallel: {{ .Values.walArchive.wal.maxParallel }}
+    retentionPolicy: {{ .Values.walArchive.retentionPolicy | quote }}
+  {{- end }}
+{{- end }}

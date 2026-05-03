@@ -123,6 +123,7 @@
             { name = "pangea-operator"; chartDir = ./charts/pangea-operator; }
             { name = "pleme-garage"; chartDir = ./charts/pleme-garage; }
             { name = "pleme-ocis"; chartDir = ./charts/pleme-ocis; }
+            { name = "pleme-cnpg-cluster"; chartDir = ./charts/pleme-cnpg-cluster; }
             { name = "pleme-cnpg-restore"; chartDir = ./charts/pleme-cnpg-restore; }
             { name = "lareira-authentik"; chartDir = ./charts/lareira-authentik; }
             # ── openclaw skill-store ecosystem ──
