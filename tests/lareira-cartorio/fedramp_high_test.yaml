@@ -1,4 +1,4 @@
-suite: lareira-openclaw-artifact-registry — fedramp-high invariants
+suite: lareira-cartorio — fedramp-high invariants
 templates:
   - templates/compliancepolicy.yaml
   - templates/signaturegate.yaml

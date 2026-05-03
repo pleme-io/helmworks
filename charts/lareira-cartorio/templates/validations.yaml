@@ -1,0 +1,2 @@
+{{- include "lareira-cartorio.validate.digest" . -}}
+{{- include "lareira-cartorio.validate.attestation" . -}}

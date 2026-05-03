@@ -3,7 +3,7 @@ name: lareira-openclaw
 description: |
   openclaw artifact registry — universal artifact registry with
   cryptographic attestation (tameshi-backed) and compliance gating.
-  Wraps https://github.com/pleme-io/openclaw-artifact-registry as a
+  Wraps https://github.com/pleme-io/cartorio as a
   K8s service. GraphQL + gRPC + REST endpoints, BLAKE3 addressing.
   Default-OFF.
 type: application

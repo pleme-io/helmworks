@@ -3,7 +3,7 @@
 enabled: false
 
 image:
-  repository: ghcr.io/pleme-io/openclaw-artifact-registry
+  repository: ghcr.io/pleme-io/cartorio
   tag: ""                  # falls back to appVersion
   pullPolicy: IfNotPresent
 

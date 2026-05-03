@@ -130,7 +130,7 @@
             # ── openclaw skill-store ecosystem ──
             { name = "lareira-openclaw"; chartDir = ./charts/lareira-openclaw; }
             { name = "lareira-openclaw-pki"; chartDir = ./charts/lareira-openclaw-pki; }
-            { name = "lareira-openclaw-artifact-registry"; chartDir = ./charts/lareira-openclaw-artifact-registry; }
+            { name = "lareira-cartorio"; chartDir = ./charts/lareira-cartorio; }
             { name = "lareira-openclaw-store"; chartDir = ./charts/lareira-openclaw-store; }
             { name = "lareira-openclaw-scanner"; chartDir = ./charts/lareira-openclaw-scanner; }
             { name = "lareira-openclaw-stack"; chartDir = ./charts/lareira-openclaw-stack; }

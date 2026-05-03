@@ -2,10 +2,10 @@
 apiVersion: sekiban.pleme.io/v1alpha1
 kind: CompliancePolicy
 metadata:
-  name: {{ include "lareira-openclaw-artifact-registry.fullname" . }}
+  name: {{ include "lareira-cartorio.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "lareira-openclaw-artifact-registry.labels" . | nindent 4 }}
+    {{- include "lareira-cartorio.labels" . | nindent 4 }}
 spec:
   framework: {{ .Values.sekiban.framework | quote }}
   baseline: {{ .Values.sekiban.baseline | quote }}

@@ -1,10 +1,10 @@
 apiVersion: v2
-name: lareira-openclaw-artifact-registry
+name: lareira-cartorio
 description: |
-  openclaw-artifact-registry — the central merkle ledger for OCI images,
+  cartorio — the central merkle ledger for OCI images,
   helm charts, and skills. Admits artifacts only with valid tameshi
   attestation chains; tampering anywhere breaks a hash and the artifact
-  is rejected. Wraps https://github.com/pleme-io/openclaw-artifact-registry
+  is rejected. Wraps https://github.com/pleme-io/cartorio
   on top of pleme-microservice with the fedramp-high compliance overlay.
 type: application
 version: 0.2.0

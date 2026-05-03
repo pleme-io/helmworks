@@ -1,4 +1,4 @@
-suite: lareira-openclaw-artifact-registry — negative invariants
+suite: lareira-cartorio — negative invariants
 templates:
   - templates/validations.yaml
 release:

@@ -1,4 +1,4 @@
-# lareira-openclaw-artifact-registry
+# lareira-cartorio
 
 The **central merkle ledger** for the openclaw ecosystem. Admits OCI
 images, helm charts, and skills only with valid tameshi attestation
@@ -67,7 +67,7 @@ and verify the same way.
 ## Usage
 
 ```bash
-helm install openclaw-registry oci://ghcr.io/pleme-io/charts/lareira-openclaw-artifact-registry \
+helm install openclaw-registry oci://ghcr.io/pleme-io/charts/lareira-cartorio \
   --namespace openclaw \
   --set "pleme-microservice.image.tag=sha256:<digest>" \
   --set "pleme-microservice.attestation.signature=blake3:..." \
@@ -81,4 +81,4 @@ CI substitutes the real values; placeholder zeros fail() at template render.
 
 - [`lareira-openclaw-stack/docs/ARCHITECTURE.md`](../lareira-openclaw-stack/docs/ARCHITECTURE.md) — the full openclaw stack architecture
 - [`lareira-openclaw-stack/docs/RELEASE-FLOW.md`](../lareira-openclaw-stack/docs/RELEASE-FLOW.md) — how artifacts get admitted (the source side of this registry)
-- `pleme-io/openclaw-artifact-registry` — the source repo
+- `pleme-io/cartorio` — the source repo

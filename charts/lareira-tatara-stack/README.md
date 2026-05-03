@@ -86,7 +86,7 @@ The chart references images that need to be built + published to
 |---|---|---|
 | `ghcr.io/pleme-io/wasm-operator:0.1.0` | [wasm-platform](https://github.com/pleme-io/wasm-platform) | add `image` attribute to its flake |
 | `ghcr.io/pleme-io/wasm-engine:0.1.0`   | [wasm-platform](https://github.com/pleme-io/wasm-platform) | add `image` attribute to its flake |
-| `ghcr.io/pleme-io/openclaw-artifact-registry:0.1.0` | [openclaw-artifact-registry](https://github.com/pleme-io/openclaw-artifact-registry) | add `image` attribute to its flake (optional) |
+| `ghcr.io/pleme-io/cartorio:0.1.0` | [cartorio](https://github.com/pleme-io/cartorio) | add `image` attribute to its flake (optional) |
 | `ghcr.io/pleme-io/tatara-lisp-script:0.1.0` | [tatara-lisp](https://github.com/pleme-io/tatara-lisp) | add `image` attribute to its flake (optional) |
 
 ## See also
@@ -94,4 +94,4 @@ The chart references images that need to be built + published to
 - [theory/WASM-STACK.md](../../../theory/WASM-STACK.md) — the runtime design (4 shapes, capabilities, breathability)
 - [theory/SCRIPTING.md](../../../theory/SCRIPTING.md) — tatara-lisp as authoring layer
 - [theory/BREATHABILITY.md](../../../theory/BREATHABILITY.md) — fleet-wide use-causes-spin-up
-- Upstream: [`wasm-platform`](https://github.com/pleme-io/wasm-platform), [`tatara-lisp`](https://github.com/pleme-io/tatara-lisp), [`openclaw-artifact-registry`](https://github.com/pleme-io/openclaw-artifact-registry)
+- Upstream: [`wasm-platform`](https://github.com/pleme-io/wasm-platform), [`tatara-lisp`](https://github.com/pleme-io/tatara-lisp), [`cartorio`](https://github.com/pleme-io/cartorio)
