@@ -7,8 +7,8 @@ description: |
   is rejected. Wraps https://github.com/pleme-io/openclaw-artifact-registry
   on top of pleme-microservice with the fedramp-high compliance overlay.
 type: application
-version: 0.1.0
-appVersion: "0.1.0"
+version: 0.2.0
+appVersion: "0.2.0"
 
 keywords: [openclaw, registry, artifacts, merkle, attestation, fedramp-high, lareira]
 maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]
