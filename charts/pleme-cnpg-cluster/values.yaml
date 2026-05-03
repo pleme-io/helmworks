@@ -1,9 +1,11 @@
-# Master toggle. Setting `enabled: false` deprovisions the entire
-# cluster (Cluster CR + ScheduledBackup + RBAC + NetPol patch). CNPG
-# cascades the Cluster deletion into pod + PVC removal — irreversible
-# unless your storage class supports volume reclamation. Pause the
-# operator FIRST, drain the WAL archive THEN flip this to false.
-enabled: true
+# Master toggle. Default `false` because the chart requires several
+# fields (clusterName, bootstrap.{database,owner,secretName}) that
+# can't have meaningful defaults — consumers explicitly set both
+# `enabled: true` AND those required values together. Flipping back
+# to `false` deprovisions the cluster (CNPG cascades Cluster deletion
+# into pod + PVC removal — pause the operator + drain WAL archive
+# FIRST).
+enabled: false
 
 # REQUIRED: name of the CNPG Cluster. Becomes metadata.name; CNPG
 # derives the per-instance ServiceAccount name from it.
