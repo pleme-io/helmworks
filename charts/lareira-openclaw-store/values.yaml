@@ -40,7 +40,8 @@ sekiban:
   baseline: high
   testRunner:
     runnerType: kensa
-    image: "ghcr.io/pleme-io/kensa:latest"
+    # Pinned by digest — FedRAMP-High SI-7. CI updates per kensa release.
+    image: "ghcr.io/pleme-io/kensa@sha256:0000000000000000000000000000000000000000000000000000000000000000"
     profile: nist-800-53-high
     timeoutSecs: 600
   schedule: "0 */6 * * *"

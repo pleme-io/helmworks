@@ -7,11 +7,35 @@ image:
   tag: ""                  # falls back to appVersion
   pullPolicy: IfNotPresent
 
-replicaCount: 1            # scale-to-1 via KEDA HTTP add-on (opt-in)
+replicaCount: 2            # FedRAMP-High CP-2 minimum; raise via HPA / KEDA HTTP
 
 resources:
   requests: { cpu: 100m, memory: 256Mi }
   limits:   { cpu: 1000m, memory: 1Gi }
+
+# FedRAMP-High posture for the standalone cartorio deployment. Mirrors
+# the compliance overlay subcharts get from pleme-microservice; declared
+# explicitly here since this chart wraps pleme-lib directly.
+compliance:
+  overlays: [fedramp-high]
+  enforce: true
+
+# CA-7 (continuous monitoring) — liveness/readiness probes.
+health:
+  path: /health
+  readyPath: /api/v1/merkle/root
+  port: rest
+
+# SC-7 (boundary protection) — NetworkPolicy default-deny + scoped allows.
+networkPolicy:
+  enabled: true
+  ingress:
+    fromNamespaces: [openclaw, lareira-openclaw-store, lareira-openclaw-scanner]
+
+# SC-7 — PodDisruptionBudget for graceful eviction.
+pdb:
+  enabled: true
+  minAvailable: 1
 
 # Database backend.
 #   - sqlite:    embedded; PVC-backed; suitable for home-edge clusters.
