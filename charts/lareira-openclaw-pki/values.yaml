@@ -39,7 +39,9 @@ sekiban:
   baseline: high
   testRunner:
     runnerType: kensa
-    image: "ghcr.io/pleme-io/kensa:latest"
+    # Pinned by digest — FedRAMP-High SI-7 forbids `:latest` in any
+    # production reference. CI updates this on each kensa release.
+    image: "ghcr.io/pleme-io/kensa@sha256:0000000000000000000000000000000000000000000000000000000000000000"
     profile: nist-800-53-high
     timeoutSecs: 600
   # Re-verify every 6 hours.
