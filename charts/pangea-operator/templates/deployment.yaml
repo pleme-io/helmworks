@@ -19,6 +19,7 @@ embedded mode and drop the compiler sidecar from the pod spec.
   (dict "name" "COMPILER_ENDPOINT" "value" (.Values.compilerEndpoint | default "http://localhost:8082"))
   (dict "name" "PANGEA_COMPILER_BACKEND" "value" $compilerBackend)
   (dict "name" "PANGEA_GEM_CACHE_DIR" "value" (.Values.gemCacheDir | default "/var/pangea/gems"))
+  (dict "name" "PANGEA_RUBY_WORKERS" "value" (printf "%v" (.Values.executor.rubyWorkers | default 1)))
 -}}
 {{- if .Values.executor.verbose }}
 {{- $executorEnv = append $executorEnv (dict "name" "PANGEA_VERBOSE" "value" "true") }}

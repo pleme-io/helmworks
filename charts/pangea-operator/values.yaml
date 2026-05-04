@@ -160,6 +160,14 @@ executor:
   workspaceBase: /var/pangea/workspaces
   # -- Enable verbose executor logging
   verbose: false
+  # -- Number of magnus ruby owner threads in the embedded compile pool.
+  # Each worker is a CRuby VM (single-VM-per-thread is a CRuby
+  # constraint), so this knob trades RAM + CPU for parallel compile
+  # throughput. Default 1 = single-owner shape (today's behavior, no
+  # parallelism). Bumped to 4 on rio in S3 of the scale-out plan to
+  # actually engage the round-robin dispatcher. Clamped to [1, 32]
+  # by the operator. Only consulted when useEmbeddedRuby=true.
+  rubyWorkers: 1
 
 # -- Log level + filter for the operator's tracing-subscriber. Comma-
 # separated `<target>=<level>` directives per

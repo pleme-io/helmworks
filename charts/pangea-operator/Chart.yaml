@@ -42,9 +42,14 @@ description: >-
   bypasses OperatorPolicy.globalSuspend so fleet visibility stays
   live during a pause. New ClusterRole rules: pangeafleetstatuses
   (with create) + pangeadashboards. Pairs with operator @acb4e1a.
+  v0.8.10 surfaces executor.rubyWorkers in helm values (threaded into
+  PANGEA_RUBY_WORKERS env). Default 1 = today's single-owner shape;
+  consumers bump to N≥2 to engage the magnus thread pool. Pairs with
+  operator @65d89d5+ which provides the RubyPool round-robin
+  dispatcher.
 type: application
-version: 0.8.9
-appVersion: "0.8.9"
+version: 0.8.10
+appVersion: "0.8.10"
 
 dependencies:
   - name: pleme-lib
