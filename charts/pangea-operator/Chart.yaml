@@ -65,9 +65,20 @@ description: >-
   get/list/watch/create/update/patch (was get/list/watch). New
   metric `pangea_output_bindings_published_total{template, namespace,
   result}` (result ∈ published|output_missing|errored).
+  v0.8.13 regenerates the InfrastructureTemplate CRD bundle so the
+  X2 `spec.outputBindings[]` field actually surfaces in the
+  apiserver schema. 0.8.12 shipped only the operator-side hookup +
+  the RBAC widen; the chart's `crds/infrastructuretemplate.yaml`
+  was hand-authored upstream of the operator's `--generate-crds`
+  output and didn't pick up the new field, so on rio the chart-
+  controller deploy succeeded but `kubectl explain
+  infrastructuretemplate.spec.outputBindings` returned empty. 0.8.13
+  swaps in the regenerated bundle (still preserving the
+  `helm.sh/resource-policy: keep` annotation that the generator
+  doesn't yet emit).
 type: application
-version: 0.8.12
-appVersion: "0.8.12"
+version: 0.8.13
+appVersion: "0.8.13"
 
 dependencies:
   - name: pleme-lib
