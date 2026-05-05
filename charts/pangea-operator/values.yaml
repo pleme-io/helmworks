@@ -104,8 +104,16 @@ rbac:
       resources: ["events"]
       verbs: ["create", "patch", "update"]
     - apiGroups: [""]
-      resources: ["configmaps", "secrets"]
+      resources: ["configmaps"]
       verbs: ["get", "list", "watch"]
+    # ── Secrets: read for provider creds + write for outputBindings ──
+    # 0.8.12 (X2): output bindings publish tofu outputs to user-named
+    # Secrets in arbitrary namespaces. Server-side-apply requires patch
+    # in addition to create/update; get/list/watch retained for the
+    # existing provider-creds read path.
+    - apiGroups: [""]
+      resources: ["secrets"]
+      verbs: ["get", "list", "watch", "create", "update", "patch"]
     - apiGroups: ["coordination.k8s.io"]
       resources: ["leases"]
       verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
