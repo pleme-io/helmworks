@@ -47,9 +47,17 @@ description: >-
   consumers bump to N≥2 to engage the magnus thread pool. Pairs with
   operator @65d89d5+ which provides the RubyPool round-robin
   dispatcher.
+  v0.8.11 wires the OpenTelemetry OTLP-gRPC exporter (X1 of the
+  Crossplane-absorb plan). New observability.otel.{endpoint,serviceName}
+  values surface as OTEL_EXPORTER_OTLP_ENDPOINT + OTEL_SERVICE_NAME
+  env. When endpoint is empty (default), operator emits no traces
+  (logs unchanged); when set, per-phase reconcile spans
+  (handle_pending, handle_compiling, handle_planning, handle_applying,
+  …) export to a Tempo / VictoriaTraces / Jaeger backend the consumer
+  configures separately.
 type: application
-version: 0.8.10
-appVersion: "0.8.10"
+version: 0.8.11
+appVersion: "0.8.11"
 
 dependencies:
   - name: pleme-lib

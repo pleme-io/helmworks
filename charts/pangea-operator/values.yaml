@@ -377,6 +377,19 @@ monitoring:
   path: /metrics
   port: metrics
 
+# -- Observability — OpenTelemetry export (X1 of the Crossplane-absorb plan).
+# When `otel.endpoint` is non-empty, the operator wires an OTLP-gRPC
+# exporter and emits per-phase reconcile spans (handle_pending,
+# handle_compiling, handle_planning, handle_applying, …). When unset
+# (default), no traces are exported — log output is unchanged. Set
+# `serviceName` to override the default `pangea-operator` resource
+# attribute. A Tempo / VictoriaTraces / Jaeger sink is *not* shipped
+# by this chart; consumers point at their existing trace backend.
+observability:
+  otel:
+    endpoint: ""
+    serviceName: ""
+
 # -- Grafana dashboard (loaded by kube-prometheus-stack grafana sidecar
 # via the `grafana_dashboard: "1"` ConfigMap label). Renders per-template
 # settling state, drift cycles, policy decisions, pending high-risk

@@ -21,6 +21,16 @@ embedded mode and drop the compiler sidecar from the pod spec.
   (dict "name" "PANGEA_GEM_CACHE_DIR" "value" (.Values.gemCacheDir | default "/var/pangea/gems"))
   (dict "name" "PANGEA_RUBY_WORKERS" "value" (printf "%v" (.Values.executor.rubyWorkers | default 1)))
 -}}
+{{/* X1: OTLP exporter env. Operator boots with no exporter when
+     endpoint is empty; logs are unchanged. */}}
+{{- $otelEndpoint := (((.Values.observability).otel).endpoint | default "") -}}
+{{- if ne $otelEndpoint "" }}
+{{- $executorEnv = append $executorEnv (dict "name" "OTEL_EXPORTER_OTLP_ENDPOINT" "value" $otelEndpoint) }}
+{{- $otelServiceName := (((.Values.observability).otel).serviceName | default "") -}}
+{{- if ne $otelServiceName "" }}
+{{- $executorEnv = append $executorEnv (dict "name" "OTEL_SERVICE_NAME" "value" $otelServiceName) }}
+{{- end }}
+{{- end }}
 {{- if .Values.executor.verbose }}
 {{- $executorEnv = append $executorEnv (dict "name" "PANGEA_VERBOSE" "value" "true") }}
 {{- end }}
