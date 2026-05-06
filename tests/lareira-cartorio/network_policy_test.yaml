@@ -1,0 +1,72 @@
+suite: lareira-cartorio — network policy allowlists
+templates:
+  - charts/pleme-microservice/templates/networkpolicy.yaml
+release:
+  name: openclaw-registry
+  namespace: openclaw
+defaults: &defaults
+  pleme-microservice.image.tag: "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+  pleme-microservice.attestation.signature: "blake3:test-sig-aaaaaaaaaaaaaaaa"
+  pleme-microservice.attestation.certificationHash: "blake3:test-cert-bbbbbbbbbbbb"
+  pleme-microservice.attestation.complianceHash: "blake3:test-comp-cccccccccccc"
+tests:
+  - it: emits the fedramp-high default-deny baseline
+    set:
+      <<: *defaults
+    documentSelector:
+      path: metadata.name
+      value: openclaw-registry-cartorio-compliance-deny-all
+    asserts:
+      - equal:
+          path: kind
+          value: NetworkPolicy
+
+  - it: allow-from-zot lets the backing registry reach cartorio:8082
+    set:
+      <<: *defaults
+    documentSelector:
+      path: metadata.name
+      value: openclaw-registry-cartorio-allow-from-zot
+    asserts:
+      - equal:
+          path: spec.ingress[0].from[0].podSelector.matchLabels["app.kubernetes.io/name"]
+          value: zot
+      - equal:
+          path: spec.ingress[0].ports[0].port
+          value: 8082
+
+  - it: allow-from-scanner lets the re-attestation scanner reach cartorio:8082
+    set:
+      <<: *defaults
+    documentSelector:
+      path: metadata.name
+      value: openclaw-registry-cartorio-allow-from-scanner
+    asserts:
+      - equal:
+          path: spec.ingress[0].from[0].podSelector.matchLabels["app.kubernetes.io/name"]
+          value: openclaw-scanner
+
+  - it: allow-from-kyverno lets the verifyImages controller query
+    set:
+      <<: *defaults
+    documentSelector:
+      path: metadata.name
+      value: openclaw-registry-cartorio-allow-from-kyverno
+    asserts:
+      - equal:
+          path: spec.ingress[0].from[0].namespaceSelector.matchLabels["kubernetes.io/metadata.name"]
+          value: kyverno-system
+
+  - it: allow-to-pki lets cartorio fetch the publisher CRL
+    set:
+      <<: *defaults
+    documentSelector:
+      path: metadata.name
+      value: openclaw-registry-cartorio-allow-to-pki
+    asserts:
+      - equal:
+          path: spec.egress[0].to[0].podSelector.matchLabels["app.kubernetes.io/name"]
+          value: openclaw-publisher-pki
+      - equal:
+          path: spec.egress[0].ports[0].port
+          value: 8090

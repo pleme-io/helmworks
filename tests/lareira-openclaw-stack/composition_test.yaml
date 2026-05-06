@@ -2,8 +2,8 @@ suite: lareira-openclaw-stack — umbrella composition
 #
 # Each sub-chart's compliance proof is tested in its own suite. This
 # umbrella suite covers composition: that values flow correctly through
-# the dependency aliases (pki/store/scanner) when the sub-charts are
-# enabled.
+# the dependency aliases (pki/registry/gate/store/scanner/backingRegistry)
+# when the sub-charts are enabled.
 #
 # The `condition: <field>` semantic in dependencies is enforced by
 # Helm itself; testing the disabled case here would require rendering
@@ -12,6 +12,10 @@ templates:
   - charts/pki/templates/compliancepolicy.yaml
   - charts/pki/templates/signaturegate.yaml
   - charts/pki/templates/externalsecret.yaml
+  - charts/registry/templates/compliancepolicy.yaml
+  - charts/registry/templates/signaturegate.yaml
+  - charts/gate/templates/compliancepolicy.yaml
+  - charts/gate/templates/signaturegate.yaml
   - charts/store/templates/compliancepolicy.yaml
   - charts/store/templates/signaturegate.yaml
   - charts/scanner/templates/compliancepolicy.yaml
@@ -21,9 +25,12 @@ release:
   namespace: openclaw
 defaults: &defaults
   pki.pleme-microservice.image.tag: "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+  registry.pleme-microservice.image.tag: "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+  gate.pleme-microservice.image.tag: "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
   store.pleme-microservice.image.tag: "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
   scanner.pleme-microservice.image.tag: "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
 tests:
+  # ── pki ──
   - it: pki sub-chart emits its CompliancePolicy bound to NIST 800-53 high
     template: charts/pki/templates/compliancepolicy.yaml
     set:
@@ -32,24 +39,6 @@ tests:
       - equal:
           path: spec.framework
           value: NIST_800_53
-      - equal:
-          path: spec.baseline
-          value: high
-
-  - it: store sub-chart SignatureGate covers data-plane layer
-    template: charts/store/templates/signaturegate.yaml
-    set:
-      <<: *defaults
-    asserts:
-      - contains:
-          path: spec.layers
-          content: data-plane
-
-  - it: scanner sub-chart CompliancePolicy bound to NIST 800-53 high
-    template: charts/scanner/templates/compliancepolicy.yaml
-    set:
-      <<: *defaults
-    asserts:
       - equal:
           path: spec.baseline
           value: high
@@ -65,3 +54,90 @@ tests:
       - equal:
           path: spec.target.template.metadata.labels["pleme.io/secret-class"]
           value: ca-root-key
+
+  # ── registry (cartorio) ──
+  - it: registry sub-chart emits a CompliancePolicy at fedramp-high
+    template: charts/registry/templates/compliancepolicy.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - equal:
+          path: spec.baseline
+          value: high
+
+  - it: registry SignatureGate covers data-plane (the merkle ledger itself)
+    template: charts/registry/templates/signaturegate.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - contains:
+          path: spec.layers
+          content: data-plane
+
+  # ── gate (lacre) ──
+  - it: gate sub-chart emits a CompliancePolicy at fedramp-high
+    template: charts/gate/templates/compliancepolicy.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - equal:
+          path: spec.framework
+          value: NIST_800_53
+      - equal:
+          path: spec.baseline
+          value: high
+
+  - it: gate SignatureGate covers data-plane (wire-level OCI gate)
+    template: charts/gate/templates/signaturegate.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - contains:
+          path: spec.layers
+          content: data-plane
+
+  # ── store ──
+  - it: store sub-chart SignatureGate covers data-plane layer
+    template: charts/store/templates/signaturegate.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - contains:
+          path: spec.layers
+          content: data-plane
+
+  # ── scanner ──
+  - it: scanner sub-chart CompliancePolicy bound to NIST 800-53 high
+    template: charts/scanner/templates/compliancepolicy.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - equal:
+          path: spec.baseline
+          value: high
+
+  # ── cross-sub-chart fedramp-high invariant ──
+  - it: every sub-chart's framework/baseline matches across the stack
+    set:
+      <<: *defaults
+    asserts:
+      - template: charts/pki/templates/compliancepolicy.yaml
+        equal:
+          path: spec.framework
+          value: NIST_800_53
+      - template: charts/registry/templates/compliancepolicy.yaml
+        equal:
+          path: spec.framework
+          value: NIST_800_53
+      - template: charts/gate/templates/compliancepolicy.yaml
+        equal:
+          path: spec.framework
+          value: NIST_800_53
+      - template: charts/store/templates/compliancepolicy.yaml
+        equal:
+          path: spec.framework
+          value: NIST_800_53
+      - template: charts/scanner/templates/compliancepolicy.yaml
+        equal:
+          path: spec.framework
+          value: NIST_800_53

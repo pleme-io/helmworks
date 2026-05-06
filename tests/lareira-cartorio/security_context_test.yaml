@@ -1,0 +1,70 @@
+suite: lareira-cartorio — security context hardening
+templates:
+  - charts/pleme-microservice/templates/deployment.yaml
+release:
+  name: openclaw-registry
+  namespace: openclaw
+defaults: &defaults
+  pleme-microservice.image.tag: "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+  pleme-microservice.attestation.signature: "blake3:test-sig-aaaaaaaaaaaaaaaa"
+  pleme-microservice.attestation.certificationHash: "blake3:test-cert-bbbbbbbbbbbb"
+  pleme-microservice.attestation.complianceHash: "blake3:test-comp-cccccccccccc"
+tests:
+  - it: pod runs as non-root
+    set:
+      <<: *defaults
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+
+  - it: container drops ALL capabilities
+    set:
+      <<: *defaults
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+
+  - it: container has read-only root filesystem
+    set:
+      <<: *defaults
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+
+  - it: replicaCount >= 2 satisfies CP-2 (HPA disabled path)
+    set:
+      <<: *defaults
+      pleme-microservice.autoscaling.enabled: false
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+
+  - it: container exposes only the API port
+    set:
+      <<: *defaults
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8082
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].name
+          value: http
+
+  - it: REGISTRY_ORG + REGISTRY_PKI_URL present in env
+    set:
+      <<: *defaults
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REGISTRY_ORG
+            value: "pleme-io"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REGISTRY_PKI_URL
+            value: "http://openclaw-pki-lareira-openclaw-pki:8090"

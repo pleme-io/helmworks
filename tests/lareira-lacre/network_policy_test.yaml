@@ -1,0 +1,75 @@
+suite: lareira-lacre — network policy allowlists
+templates:
+  - charts/pleme-microservice/templates/networkpolicy.yaml
+release:
+  name: openclaw-gate
+  namespace: openclaw
+defaults: &defaults
+  pleme-microservice.image.tag: "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+  pleme-microservice.attestation.signature: "blake3:test-sig-aaaaaaaaaaaaaaaa"
+  pleme-microservice.attestation.certificationHash: "blake3:test-cert-bbbbbbbbbbbb"
+  pleme-microservice.attestation.complianceHash: "blake3:test-comp-cccccccccccc"
+tests:
+  - it: emits the fedramp-high default-deny baseline
+    set:
+      <<: *defaults
+    documentSelector:
+      path: metadata.name
+      value: openclaw-gate-lacre-compliance-deny-all
+    asserts:
+      - equal:
+          path: kind
+          value: NetworkPolicy
+
+  - it: allow-from-ingress lets the cluster ingress controller reach lacre:8083
+    set:
+      <<: *defaults
+    documentSelector:
+      path: metadata.name
+      value: openclaw-gate-lacre-allow-from-ingress
+    asserts:
+      - equal:
+          path: spec.ingress[0].from[0].namespaceSelector.matchLabels["kubernetes.io/metadata.name"]
+          value: ingress-nginx
+      - equal:
+          path: spec.ingress[0].ports[0].port
+          value: 8083
+
+  - it: allow-to-cartorio egress lets lacre dial cartorio:8082
+    set:
+      <<: *defaults
+    documentSelector:
+      path: metadata.name
+      value: openclaw-gate-lacre-allow-to-cartorio
+    asserts:
+      - equal:
+          path: spec.egress[0].to[0].podSelector.matchLabels["app.kubernetes.io/name"]
+          value: cartorio
+      - equal:
+          path: spec.egress[0].ports[0].port
+          value: 8082
+
+  - it: allow-to-backend-registry egress lets lacre dial Zot:5000
+    set:
+      <<: *defaults
+    documentSelector:
+      path: metadata.name
+      value: openclaw-gate-lacre-allow-to-backend-registry
+    asserts:
+      - equal:
+          path: spec.egress[0].to[0].podSelector.matchLabels["app.kubernetes.io/name"]
+          value: zot
+      - equal:
+          path: spec.egress[0].ports[0].port
+          value: 5000
+
+  - it: TLS egress allowed (cartorio + backing registry use HTTPS in prod)
+    set:
+      <<: *defaults
+    documentSelector:
+      path: metadata.name
+      value: openclaw-gate-lacre-compliance-allow-tls-egress
+    asserts:
+      - equal:
+          path: kind
+          value: NetworkPolicy
