@@ -16,12 +16,10 @@
 #              restart. Default for back-compat with v0.4.x.
 # - postgres — multi-replica durable. Connection string sourced from a
 #              secret (External Secrets Operator wires this from
-#              akeyless / SOPS).
-# - sqlite   — single-replica durable. Requires a PVC mount; needs
-#              pleme-microservice volume hooks shipping in helmworks
-#              v0.7 (tracked as cartorio-helm sqlite plumbing). Until
-#              then, sqlite-backed deploys use a hand-rolled Deployment
-#              outside this chart.
+#              akeyless / SOPS). See examples/values-postgres.yaml.
+# - sqlite   — single-replica durable. Emits a PVC mounted at the
+#              configured path; the cartorio binary writes its
+#              merkle ledger there (matches openclaw-store's pattern).
 persistence:
   backend: memory  # memory | postgres | sqlite
 
@@ -33,13 +31,16 @@ persistence:
     existingSecret: ""
     existingSecretKey: database-url
 
-  # SQLite stub — values present so consumers can declare intent;
-  # actual PVC + volumeMounts plumbing pending pleme-microservice
-  # extraVolumes hook.
   sqlite:
-    storageClassName: encrypted-default
+    enabled: true        # honored only when backend == "sqlite"
+    storageClass: encrypted-default
     size: 10Gi
     mountPath: /var/lib/cartorio
+    fileName: state.db
+    # When backend=sqlite, the chart's PVC template emits a PVC named
+    # `<release>-cartorio-data` and pleme-microservice mounts it.
+    # Restic / sops-secrets / etc. side-cars live outside this chart
+    # — keep cartorio's persistence surface minimal.
 
 # Audit-consistency loop cadence (seconds). 0 disables. Default 900
 # matches the cartorio binary default; lower it during incident

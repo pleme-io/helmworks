@@ -1,0 +1,15 @@
+{{- if and (eq .Values.persistence.backend "sqlite") .Values.persistence.sqlite.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "lareira-cartorio.fullname" . }}-data
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "lareira-cartorio.labels" . | nindent 4 }}
+spec:
+  storageClassName: {{ .Values.persistence.sqlite.storageClass | quote }}
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: {{ .Values.persistence.sqlite.size }}
+{{- end }}

@@ -1,0 +1,68 @@
+# lareira-cartorio — SQLite-backed durable single-replica deploy.
+#
+# Layered on top of the chart's defaults to wire cartorio v0.5.0+ to
+# a PVC. The PVC's storage class must support ReadWriteOnce.
+#
+# WARNING: SQLite is single-writer (replicaCount=1). FedRAMP High's
+# CP-2 (Contingency Plan) requires replicaCount >= 2, so this overlay
+# necessarily lowers the compliance baseline to fedramp-moderate. For
+# multi-replica HA at fedramp-high posture, use examples/values-postgres.yaml
+# instead.
+#
+# A real-cluster deploy:
+#   helm upgrade --install cartorio . \
+#     -f examples/values-sqlite.yaml \
+#     --set pleme-microservice.image.tag=sha256:<real-digest>
+#     ...
+
+persistence:
+  backend: sqlite
+  sqlite:
+    enabled: true
+    storageClass: encrypted-default
+    size: 10Gi
+    mountPath: /var/lib/cartorio
+    fileName: state.db
+
+pleme-microservice:
+  # SQLite is single-writer; CP-2 requires >=2 replicas at fedramp-high
+  # so we lower one tier. memory + postgres backends keep fedramp-high.
+  compliance:
+    overlays: [fedramp-moderate]
+    enforce: true
+
+  # Single-replica.
+  replicaCount: 1
+  autoscaling:
+    enabled: false
+  pdb:
+    enabled: false
+
+  # REGISTRY_DB_URL points at the PVC's mountPath + fileName; rwc
+  # creates the file on first start.
+  env:
+    - name: REGISTRY_ORG
+      value: "pleme-io"
+    - name: REGISTRY_PKI_URL
+      value: "http://openclaw-pki-lareira-openclaw-pki:8090"
+    - name: REGISTRY_BACKEND
+      value: "sqlite"
+    - name: REGISTRY_DB_URL
+      value: "sqlite:///var/lib/cartorio/state.db?mode=rwc"
+    - name: REGISTRY_AUDIT_INTERVAL_SECS
+      value: "900"
+    - name: RUST_LOG
+      value: "info,cartorio=debug"
+
+  # PVC mount + volume — pleme-lib's deployment template reads these
+  # verbatim into the Pod spec.
+  volumes:
+    - name: data
+      persistentVolumeClaim:
+        # NOTE: must match the PVC name `<release>-<chart>-data`
+        # rendered by templates/pvc.yaml. For release name `cartorio`
+        # this is `cartorio-lareira-cartorio-data`.
+        claimName: cartorio-lareira-cartorio-data
+  volumeMounts:
+    - name: data
+      mountPath: /var/lib/cartorio

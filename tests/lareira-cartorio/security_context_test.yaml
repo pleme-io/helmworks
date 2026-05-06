@@ -143,3 +143,42 @@ tests:
               secretKeyRef:
                 name: cartorio-postgres
                 key: database-url
+
+  - it: sqlite-overlay path emits a PVC + mounted PV + REGISTRY_DB_URL pointing at it
+    set:
+      <<: *defaults
+      pleme-microservice.compliance.overlays: [fedramp-moderate]
+      pleme-microservice.replicaCount: 1
+      pleme-microservice.autoscaling.enabled: false
+      pleme-microservice.pdb.enabled: false
+      persistence.backend: sqlite
+      persistence.sqlite.enabled: true
+      pleme-microservice.env:
+        - name: REGISTRY_BACKEND
+          value: "sqlite"
+        - name: REGISTRY_DB_URL
+          value: "sqlite:///var/lib/cartorio/state.db?mode=rwc"
+      pleme-microservice.volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: openclaw-registry-lareira-cartorio-data
+      pleme-microservice.volumeMounts:
+        - name: data
+          mountPath: /var/lib/cartorio
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REGISTRY_BACKEND
+            value: "sqlite"
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /var/lib/cartorio
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: openclaw-registry-lareira-cartorio-data

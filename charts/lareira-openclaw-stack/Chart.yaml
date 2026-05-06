@@ -9,8 +9,8 @@ description: |
   overlay; sub-charts can be enabled/disabled independently via
   top-level toggles.
 type: application
-version: 0.2.0
-appVersion: "0.2.0"
+version: 0.3.0
+appVersion: "0.3.0"
 
 keywords: [openclaw, fedramp-high, attestation, lareira, umbrella]
 maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]
@@ -23,7 +23,7 @@ dependencies:
     condition: pki.enabled
   - name: lareira-cartorio
     alias: registry
-    version: "~0.3.0"
+    version: "~0.4.0"
     repository: "file://../lareira-cartorio"
     condition: registry.enabled
   - name: lareira-lacre

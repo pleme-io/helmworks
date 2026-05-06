@@ -1,0 +1,72 @@
+suite: lareira-cartorio — sqlite PVC emission
+templates:
+  - templates/pvc.yaml
+release:
+  name: openclaw-registry
+  namespace: openclaw
+defaults: &defaults
+  pleme-microservice.image.tag: "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+  pleme-microservice.attestation.signature: "blake3:test-sig"
+  pleme-microservice.attestation.certificationHash: "blake3:test-cert"
+  pleme-microservice.attestation.complianceHash: "blake3:test-comp"
+tests:
+  - it: no PVC emitted when backend=memory
+    set:
+      <<: *defaults
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: no PVC emitted when backend=postgres
+    set:
+      <<: *defaults
+      persistence.backend: postgres
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: PVC emitted when backend=sqlite + sqlite.enabled=true
+    set:
+      <<: *defaults
+      persistence.backend: sqlite
+      persistence.sqlite.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: kind
+          value: PersistentVolumeClaim
+      - equal:
+          path: spec.storageClassName
+          value: "encrypted-default"
+      - equal:
+          path: spec.resources.requests.storage
+          value: 10Gi
+      - equal:
+          path: spec.accessModes[0]
+          value: ReadWriteOnce
+
+  - it: PVC name includes the release name (multi-tenancy)
+    set:
+      <<: *defaults
+      persistence.backend: sqlite
+      persistence.sqlite.enabled: true
+    asserts:
+      - matchRegex:
+          path: metadata.name
+          pattern: "^openclaw-registry-.*-data$"
+
+  - it: storageClass + size flow from values
+    set:
+      <<: *defaults
+      persistence.backend: sqlite
+      persistence.sqlite.enabled: true
+      persistence.sqlite.storageClass: ssd-encrypted
+      persistence.sqlite.size: 50Gi
+    asserts:
+      - equal:
+          path: spec.storageClassName
+          value: "ssd-encrypted"
+      - equal:
+          path: spec.resources.requests.storage
+          value: 50Gi
