@@ -1,0 +1,52 @@
+# lareira-cartorio — Postgres-backed durable deploy.
+#
+# Layered on top of the chart's defaults to wire cartorio v0.5.0+ to
+# a CNPG cluster (or any K8s-managed Postgres). Set
+# `persistence.postgres.existingSecret` to a Secret whose
+# `database-url` key carries the full
+# `postgres://user:pass@host:port/db?sslmode=require`.
+#
+# Wired via External Secrets Operator from akeyless / SOPS in the
+# canonical pleme-io shape:
+#
+#   apiVersion: external-secrets.io/v1
+#   kind: ExternalSecret
+#   metadata:
+#     name: cartorio-postgres
+#   spec:
+#     target: { name: cartorio-postgres, creationPolicy: Owner }
+#     data:
+#       - secretKey: database-url
+#         remoteRef: { key: shared/cartorio/postgres-url }
+
+persistence:
+  backend: postgres
+  postgres:
+    existingSecret: cartorio-postgres
+    existingSecretKey: database-url
+
+# Override the env array to flip backend mode + inject the connection
+# string. We replace the parent's array (Helm merges arrays by
+# replacement, not append) so the full set must be redeclared.
+pleme-microservice:
+  env:
+    - name: REGISTRY_ORG
+      value: "pleme-io"
+    - name: REGISTRY_PKI_URL
+      value: "http://openclaw-pki-lareira-openclaw-pki:8090"
+    - name: REGISTRY_BACKEND
+      value: "postgres"
+    - name: REGISTRY_DB_URL
+      valueFrom:
+        secretKeyRef:
+          name: cartorio-postgres
+          key: database-url
+    - name: REGISTRY_AUDIT_INTERVAL_SECS
+      value: "900"
+    - name: RUST_LOG
+      value: "info,cartorio=debug"
+
+  # Postgres backend supports horizontal scaling. Keep the default
+  # 3 replicas + advisory-lock-coordinated admission via cartorio's
+  # PostgresBackend.
+  replicaCount: 3

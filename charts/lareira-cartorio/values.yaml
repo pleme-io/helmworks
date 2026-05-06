@@ -10,6 +10,42 @@
 # cartorio specific values
 # ─────────────────────────────────────────────────────────────────────
 
+# Storage backend selection (cartorio v0.5.0+).
+#
+# - memory   — ephemeral in-process BTreeMap. Loses state on Pod
+#              restart. Default for back-compat with v0.4.x.
+# - postgres — multi-replica durable. Connection string sourced from a
+#              secret (External Secrets Operator wires this from
+#              akeyless / SOPS).
+# - sqlite   — single-replica durable. Requires a PVC mount; needs
+#              pleme-microservice volume hooks shipping in helmworks
+#              v0.7 (tracked as cartorio-helm sqlite plumbing). Until
+#              then, sqlite-backed deploys use a hand-rolled Deployment
+#              outside this chart.
+persistence:
+  backend: memory  # memory | postgres | sqlite
+
+  postgres:
+    # Existing K8s Secret holding the connection URL. Recommended
+    # shape: External Secrets Operator pulling from akeyless. Key
+    # default `database-url` carries a full
+    # postgres://user:pass@host:port/db?sslmode=require.
+    existingSecret: ""
+    existingSecretKey: database-url
+
+  # SQLite stub — values present so consumers can declare intent;
+  # actual PVC + volumeMounts plumbing pending pleme-microservice
+  # extraVolumes hook.
+  sqlite:
+    storageClassName: encrypted-default
+    size: 10Gi
+    mountPath: /var/lib/cartorio
+
+# Audit-consistency loop cadence (seconds). 0 disables. Default 900
+# matches the cartorio binary default; lower it during incident
+# response to surface drift faster.
+auditIntervalSecs: 900
+
 # Reference to the publisher PKI service for org-root pinning + CRL
 # lookups during admission.
 pki:
@@ -113,6 +149,10 @@ pleme-microservice:
       value: "pleme-io"
     - name: REGISTRY_PKI_URL
       value: "http://openclaw-pki-lareira-openclaw-pki:8090"
+    - name: REGISTRY_BACKEND
+      value: "memory"      # overridden via tpl in the chart when persistence.backend != memory
+    - name: REGISTRY_AUDIT_INTERVAL_SECS
+      value: "900"
     - name: RUST_LOG
       value: "info,cartorio=debug"
 

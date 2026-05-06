@@ -4,6 +4,29 @@ The **central merkle ledger** for the openclaw ecosystem. Admits OCI
 images, helm charts, and skills only with valid tameshi attestation
 chains.
 
+## v0.3.0 — durable storage (cartorio v0.5.0+)
+
+Backends:
+
+- **memory** (default) — ephemeral; loses state on Pod restart. Matches
+  v0.2.x chart behavior.
+- **postgres** — multi-replica durable. See `examples/values-postgres.yaml`
+  for the canonical CNPG / akeyless External Secrets wiring.
+- **sqlite** — single-replica durable; pending pleme-microservice
+  `extraVolumes` hook (helmworks v0.7). Today's sqlite-backed deploys
+  use a hand-rolled Deployment outside this chart.
+
+Quick switch to Postgres:
+
+```bash
+helm upgrade --install cartorio . \
+  --values examples/values-postgres.yaml \
+  --set persistence.postgres.existingSecret=cartorio-postgres
+```
+
+Audit-consistency loop cadence is configurable via
+`auditIntervalSecs` (default 900s). Set to 0 to disable.
+
 This is the load-bearing piece every other gate references:
 
 - **Zot pre-push webhook** asks: "is this digest in the ledger?"
