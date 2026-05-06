@@ -1,0 +1,80 @@
+{{- if .Values.observability.prometheusRule.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "lareira-lacre.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "lareira-lacre.labels" . | nindent 4 }}
+    role: alert-rules
+spec:
+  groups:
+    - name: lacre.availability
+      interval: 30s
+      rules:
+        - alert: LacreDown
+          expr: |
+            absent(kube_deployment_status_replicas_available{deployment=~".*lacre.*"})
+            or (kube_deployment_status_replicas_available{deployment=~".*lacre.*"} == 0)
+          for: 5m
+          labels:
+            severity: critical
+            component: lacre
+            pleme_io_part_of: openclaw
+          annotations:
+            summary: "lacre is down — every OCI push to the gated registry is blocked"
+            description: |
+              The OCI gate is unreachable. Every `docker push` through the
+              compliant registry path is failing. Cartorio admissions still
+              work directly, but the wire-level enforcement of "non-compliant
+              artifacts cannot enter the registry" is gone. Check pod logs,
+              the configured cartorio URL, and the backing-registry URL.
+
+        - alert: LacreReplicasBelowMinimum
+          expr: |
+            kube_deployment_status_replicas_available{deployment=~".*lacre.*"} < 2
+          for: 10m
+          labels:
+            severity: warning
+            component: lacre
+            pleme_io_part_of: openclaw
+          annotations:
+            summary: "lacre availability degraded — fewer than 2 replicas Ready"
+
+    - name: lacre.gating
+      interval: 60s
+      rules:
+        - alert: LacreCartorioUnreachable
+          expr: |
+            increase(lacre_cartorio_query_errors_total[5m]) > 5
+          for: 5m
+          labels:
+            severity: critical
+            component: lacre
+            pleme_io_part_of: openclaw
+          annotations:
+            summary: "lacre cannot reach cartorio — gate is failing open"
+            description: |
+              The gate's source-of-truth is unreachable. Check cartorio's pod
+              status; in fail-closed configurations every push will 503
+              until restored.
+
+        - alert: LacreRejectionRateHigh
+          expr: |
+            (
+              sum(rate(lacre_pushes_rejected_total[10m]))
+              / clamp_min(sum(rate(lacre_pushes_total[10m])), 0.01)
+            ) > {{ div .Values.observability.prometheusRule.alerts.rejectionRatePct 100 }}
+          for: 10m
+          labels:
+            severity: warning
+            component: lacre
+            pleme_io_part_of: openclaw
+          annotations:
+            summary: "lacre rejecting >{{ .Values.observability.prometheusRule.alerts.rejectionRatePct }}% of pushes — investigate"
+            description: |
+              Either an attack is in progress (welcome news for the gate) or
+              a publisher's CI is misconfigured (their attestation chain
+              isn't reaching cartorio admit). Cross-check cartorio's
+              admission events around the alert timestamp.
+{{- end }}

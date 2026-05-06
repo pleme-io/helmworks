@@ -1,0 +1,20 @@
+{{- if .Values.sekiban.enabled }}
+apiVersion: sekiban.pleme.io/v1alpha1
+kind: CompliancePolicy
+metadata:
+  name: {{ include "lareira-lacre.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "lareira-lacre.labels" . | nindent 4 }}
+spec:
+  framework: {{ .Values.sekiban.framework | quote }}
+  baseline: {{ .Values.sekiban.baseline | quote }}
+  testRunner:
+    runnerType: {{ .Values.sekiban.testRunner.runnerType | quote }}
+    image: {{ .Values.sekiban.testRunner.image | quote }}
+    profile: {{ .Values.sekiban.testRunner.profile | quote }}
+    timeoutSecs: {{ .Values.sekiban.testRunner.timeoutSecs | int }}
+  {{- with .Values.sekiban.schedule }}
+  schedule: {{ . | quote }}
+  {{- end }}
+{{- end }}

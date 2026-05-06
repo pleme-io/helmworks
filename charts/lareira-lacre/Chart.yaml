@@ -1,0 +1,24 @@
+apiVersion: v2
+name: lareira-lacre
+description: |
+  lacre — compliant OCI registry seal. Reverse proxy that gates `PUT
+  /v2/{name}/manifests/{ref}` through cartorio. Sits in front of any
+  backing registry that speaks the OCI Distribution Spec.
+
+  The gate is content-addressed: lacre hashes the actual manifest body
+  and asks cartorio about that digest, never trusting the URL reference.
+  Tag-spoofing attacks are rejected because the body's hash never
+  matches the claimed digest. Wraps https://github.com/pleme-io/lacre
+  on top of pleme-microservice with the fedramp-high compliance overlay.
+
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+
+keywords: [openclaw, oci, registry, gate, fedramp-high, lareira]
+maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]
+
+dependencies:
+  - name: pleme-microservice
+    version: "~0.1.0"
+    repository: "file://../pleme-microservice"

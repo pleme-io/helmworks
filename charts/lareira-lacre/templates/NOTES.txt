@@ -1,0 +1,30 @@
+{{- /*
+NOTES.txt — printed after `helm install` / `helm upgrade`.
+Operator-facing summary + first-step verification.
+*/ -}}
+lacre v{{ .Chart.AppVersion }} deployed to namespace {{ .Release.Namespace }}.
+
+Ports:
+  http: 8083  (OCI proxy + /health + /metrics)
+
+Wired to:
+  cartorio: {{ .Values.cartorio.serviceHost }}:{{ .Values.cartorio.port }}
+  backing:  {{ .Values.backend.url }}
+
+Smoke check (port-forward + curl):
+
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "lareira-lacre.fullname" . }}-lacre 8083:8083 &
+  curl -fsS http://localhost:8083/health
+  curl -fsS http://localhost:8083/metrics | grep lacre_
+
+Push a known-bad image to confirm the gate rejects:
+
+  docker push localhost:8083/myorg/evil:latest
+  # → 403 if cartorio has no record of the resulting digest
+
+Cluster-side verification:
+
+  kubectl -n {{ .Release.Namespace }} get signaturegate {{ include "lareira-lacre.fullname" . }} \
+    -o jsonpath='{.status.phase}'   # → Verified
+  kubectl -n {{ .Release.Namespace }} get compliancepolicy {{ include "lareira-lacre.fullname" . }} \
+    -o jsonpath='{.status.phase}'   # → Compliant

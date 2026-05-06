@@ -1,0 +1,199 @@
+# lareira-lacre — the OCI gate.
+#
+# Every artifact push goes through here first. Lacre hashes the
+# request body, asks cartorio whether that digest is admitted +
+# Active under the configured org, and either forwards to the backing
+# registry or 403s. Inherits the fedramp-high compliance overlay via
+# pleme-microservice; all hardening (digest-pinned image, runAsNonRoot,
+# default-deny network, PDB + topology spread, ServiceMonitor,
+# attestation gating) is mechanical.
+
+# ─────────────────────────────────────────────────────────────────────
+# lacre-specific values
+# ─────────────────────────────────────────────────────────────────────
+
+# Cartorio service that lacre asks "is this digest Active?". Defaults
+# to the canonical in-cluster name from lareira-openclaw-stack.
+cartorio:
+  serviceHost: openclaw-registry-lareira-cartorio-cartorio
+  port: 8082
+
+# Backing OCI registry that lacre forwards to once cartorio admits.
+# When the umbrella stack bundles `pleme-zot`, this points at it;
+# otherwise the operator overrides for ECR / GHCR mirror / etc.
+backend:
+  url: "http://openclaw-zot:5000"
+
+# Organization slug — every admission must declare this org. Mismatch
+# is a 403 from lacre even before cartorio is consulted.
+org: "pleme-io"
+
+# sekiban gating — bind the deployment to a CompliancePolicy +
+# SignatureGate so lacre's own deployment is gated by tameshi.
+sekiban:
+  enabled: true
+  framework: NIST_800_53
+  baseline: high
+  testRunner:
+    runnerType: kensa
+    image: "ghcr.io/pleme-io/kensa:latest"
+    profile: nist-800-53-high
+    timeoutSecs: 600
+  schedule: "0 */6 * * *"
+  signatureGate:
+    layers: ["image", "config", "rbac", "network", "data-plane"]
+    signatureOverride: ""
+    verificationIntervalSecs: 3600
+
+# Observability extension — PrometheusRule with lacre-specific alerts.
+observability:
+  prometheusRule:
+    enabled: true
+    alerts:
+      # Trigger LacreRejectionRateHigh when 4xx ratio crosses this fraction
+      # of total pushes over a 10-minute window.
+      rejectionRatePct: 30
+
+# ─────────────────────────────────────────────────────────────────────
+# pleme-microservice subchart values
+# ─────────────────────────────────────────────────────────────────────
+
+pleme-microservice:
+  nameOverride: lacre
+
+  compliance:
+    overlays: [fedramp-high]
+    enforce: true
+    audit:
+      logLevel: info
+      retentionDays: 365
+    authn:
+      oidc:
+        provider: authentik
+    authz:
+      role:
+        rules: []
+
+  image:
+    repository: ghcr.io/pleme-io/lacre
+    tag: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    pullPolicy: Always
+
+  # 3 replicas — lacre is on the hot path of every push. Both replicas
+  # talk to the same cartorio backend; admission is idempotent so
+  # there's no split-brain concern.
+  replicaCount: 3
+
+  resources:
+    requests: { cpu: 100m, memory: 64Mi }
+    limits:   { cpu: 1000m, memory: 256Mi }
+
+  ports:
+    - name: http
+      containerPort: 8083
+      protocol: TCP
+
+  service:
+    type: ClusterIP
+    ports:
+      - name: http
+        port: 8083
+        targetPort: http
+        protocol: TCP
+
+  health:
+    path: /health
+    readyPath: /health
+    port: http
+
+  args:
+    - --listen=0.0.0.0:8083
+
+  env:
+    - name: LACRE_ORG
+      value: "pleme-io"
+    - name: LACRE_CARTORIO_URL
+      value: "http://openclaw-registry-lareira-cartorio-cartorio:8082"
+    - name: LACRE_BACKEND_URL
+      value: "http://openclaw-zot:5000"
+    - name: RUST_LOG
+      value: "info,lacre=debug"
+
+  monitoring:
+    enabled: true
+    port: http
+    path: /metrics
+    interval: 30s
+
+  # Lacre is the front door — it accepts pushes from outside the
+  # cluster (Ingress) and dials cartorio + the backing registry inside.
+  networkPolicy:
+    enabled: true
+    additionalIngress:
+      # Inbound `docker push` from any client the gateway routes to us.
+      # The gateway (Ingress controller) is the only legit caller; in
+      # a fedramp-high deploy the Ingress namespace is allowlisted.
+      - name: allow-from-ingress
+        rules:
+          - from:
+              - namespaceSelector:
+                  matchLabels:
+                    kubernetes.io/metadata.name: ingress-nginx
+            ports:
+              - port: 8083
+                protocol: TCP
+    additionalEgress:
+      - name: allow-to-cartorio
+        rules:
+          - to:
+              - podSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: cartorio
+            ports:
+              - port: 8082
+                protocol: TCP
+      - name: allow-to-backend-registry
+        rules:
+          - to:
+              - podSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: zot
+            ports:
+              - port: 5000
+                protocol: TCP
+
+  pdb:
+    enabled: true
+    minAvailable: 2
+
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
+      labelSelector:
+        matchLabels:
+          app.kubernetes.io/name: lacre
+    - maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+      labelSelector:
+        matchLabels:
+          app.kubernetes.io/name: lacre
+
+  # Attestation hashes injected by forge at release time. Empty values
+  # cause fail() at template render under fedramp-high.
+  attestation:
+    enabled: true
+    signature: ""
+    certificationHash: ""
+    complianceHash: ""
+    changesetHash: ""
+
+  additionalLabels:
+    pleme.io/part-of: openclaw

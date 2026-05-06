@@ -1,14 +1,28 @@
-# lareira-openclaw-stack — umbrella for the three openclaw services.
+# lareira-openclaw-stack — umbrella for the openclaw proof chain.
 #
-# Each sub-chart is independently toggleable. The default posture is
-# all-on at fedramp-high; flip any of these to false to deploy a
-# subset (e.g. only the store + scanner if you already operate a
-# central PKI elsewhere).
+# Default posture deploys the full chain at fedramp-high:
+#
+#   ┌─ pki              (publisher PKI — issues + revokes signing certs)
+#   ├─ registry         (cartorio — the merkle ledger / source of truth)
+#   ├─ gate             (lacre — the wire-level OCI gate; asks cartorio)
+#   ├─ backingRegistry  (Zot — what lacre forwards to once cartorio admits)
+#   ├─ store            (skill-store API; reads from cartorio)
+#   └─ scanner          (re-attestation; quarantines drifted artifacts)
+#
+# Flip any of these to false to deploy a subset (e.g. only registry +
+# gate + backingRegistry for a minimal demo, or only pki + registry +
+# store + scanner if you already operate Zot + lacre elsewhere).
 
 pki:
   enabled: true
 registry:
   enabled: true
+gate:
+  enabled: true
+backingRegistry:
+  enabled: true   # bundles `pleme-zot` for self-contained demos.
+                  # Set to false when you have an external OCI
+                  # registry; then override gate.backend.url to it.
 store:
   enabled: true
 scanner:
@@ -25,6 +39,20 @@ scanner:
 # This shape is identical to installing each sub-chart standalone;
 # the umbrella adds composition + a single release lifecycle, not new
 # values structure.
+
+# Cross-service wiring — these defaults assume the canonical service
+# names emitted by the bundled sub-charts. Override only when running
+# against external services (e.g. a shared PKI in another namespace).
+gate:
+  enabled: true
+  cartorio:
+    serviceHost: openclaw-stack-registry-cartorio
+    port: 8082
+  backend:
+    # Default backing registry is the bundled Zot. When
+    # `backingRegistry.enabled=false`, override this to your external
+    # OCI registry URL.
+    url: "http://openclaw-stack-backing-registry-pleme-zot:5000"
 
 # Image tags are NOT defaulted here — at fedramp-high every workload
 # must be digest-pinned, and the pinning is the responsibility of CI

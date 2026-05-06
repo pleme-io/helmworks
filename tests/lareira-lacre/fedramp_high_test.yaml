@@ -1,0 +1,82 @@
+suite: lareira-lacre — fedramp-high invariants
+templates:
+  - templates/compliancepolicy.yaml
+  - templates/signaturegate.yaml
+  - templates/prometheusrule.yaml
+release:
+  name: openclaw-gate
+  namespace: openclaw
+defaults: &defaults
+  pleme-microservice.image.tag: "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+  pleme-microservice.attestation.signature: "blake3:test-sig-aaaaaaaaaaaaaaaa"
+  pleme-microservice.attestation.certificationHash: "blake3:test-cert-bbbbbbbbbbbb"
+  pleme-microservice.attestation.complianceHash: "blake3:test-comp-cccccccccccc"
+tests:
+  - it: emits a NIST_800_53 high CompliancePolicy
+    template: templates/compliancepolicy.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - equal:
+          path: spec.framework
+          value: NIST_800_53
+      - equal:
+          path: spec.baseline
+          value: high
+
+  - it: SignatureGate covers data-plane (lacre is the wire-level gate)
+    template: templates/signaturegate.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - contains:
+          path: spec.layers
+          content: data-plane
+
+  - it: SignatureGate.expectedSignature derives from attestation.signature
+    template: templates/signaturegate.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - equal:
+          path: spec.expectedSignature
+          value: "blake3:test-sig-aaaaaaaaaaaaaaaa"
+
+  - it: signatureOverride wins when explicitly set (emergency manual pin)
+    template: templates/signaturegate.yaml
+    set:
+      <<: *defaults
+      sekiban.signatureGate.signatureOverride: "blake3:emergency-pin"
+    asserts:
+      - equal:
+          path: spec.expectedSignature
+          value: "blake3:emergency-pin"
+
+  - it: sekiban CRDs disappear when sekiban.enabled=false
+    template: templates/compliancepolicy.yaml
+    set:
+      <<: *defaults
+      sekiban.enabled: false
+      pleme-microservice.compliance.enforce: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: PrometheusRule emits an alert when the gate is failing open
+    template: templates/prometheusrule.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - matchRegex:
+          path: spec.groups[1].rules[0].alert
+          pattern: "LacreCartorioUnreachable"
+
+  - it: PrometheusRule rejection-rate threshold flows from values.yaml
+    template: templates/prometheusrule.yaml
+    set:
+      <<: *defaults
+      observability.prometheusRule.alerts.rejectionRatePct: 12
+    asserts:
+      - matchRegex:
+          path: spec.groups[1].rules[1].annotations.summary
+          pattern: ">12% of pushes"

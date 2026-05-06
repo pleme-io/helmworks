@@ -1,0 +1,2 @@
+{{- include "lareira-lacre.validate.digest" . -}}
+{{- include "lareira-lacre.validate.attestation" . -}}

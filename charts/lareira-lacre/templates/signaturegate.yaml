@@ -1,0 +1,26 @@
+{{- if .Values.sekiban.enabled }}
+apiVersion: sekiban.pleme.io/v1alpha1
+kind: SignatureGate
+metadata:
+  name: {{ include "lareira-lacre.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "lareira-lacre.labels" . | nindent 4 }}
+spec:
+  layers:
+    {{- range .Values.sekiban.signatureGate.layers }}
+    - {{ . | quote }}
+    {{- end }}
+  {{- $sub := index .Values "pleme-microservice" -}}
+  {{- $sig := default "" (dig "attestation" "signature" "" $sub) }}
+  expectedSignature: {{ default $sig .Values.sekiban.signatureGate.signatureOverride | quote }}
+  targetResources:
+    - group: apps
+      kind: Deployment
+      operations: [CREATE, UPDATE]
+    - group: ""
+      kind: Service
+      operations: [CREATE, UPDATE]
+  compliancePolicy: {{ include "lareira-lacre.fullname" . | quote }}
+  verificationIntervalSecs: {{ .Values.sekiban.signatureGate.verificationIntervalSecs | int }}
+{{- end }}
