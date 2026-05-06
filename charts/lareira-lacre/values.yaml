@@ -11,22 +11,13 @@
 # ─────────────────────────────────────────────────────────────────────
 # lacre-specific values
 # ─────────────────────────────────────────────────────────────────────
-
-# Cartorio service that lacre asks "is this digest Active?". Defaults
-# to the canonical in-cluster name from lareira-openclaw-stack.
-cartorio:
-  serviceHost: openclaw-registry-lareira-cartorio-cartorio
-  port: 8082
-
-# Backing OCI registry that lacre forwards to once cartorio admits.
-# When the umbrella stack bundles `pleme-zot`, this points at it;
-# otherwise the operator overrides for ECR / GHCR mirror / etc.
-backend:
-  url: "http://openclaw-zot:5000"
-
-# Organization slug — every admission must declare this org. Mismatch
-# is a 403 from lacre even before cartorio is consulted.
-org: "pleme-io"
+#
+# Cross-service wiring (cartorio URL, backing-registry URL, org) lives
+# in `pleme-microservice.env` below — see the env block. Those env
+# entries are the SINGLE SOURCE OF TRUTH; if you need to retarget the
+# cartorio service or point at a different backing registry, override
+# `pleme-microservice.env[N].value` directly. Same pattern every
+# other lareira-openclaw-* chart uses.
 
 # sekiban gating — bind the deployment to a CompliancePolicy +
 # SignatureGate so lacre's own deployment is gated by tameshi.

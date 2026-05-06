@@ -40,19 +40,28 @@ scanner:
 # the umbrella adds composition + a single release lifecycle, not new
 # values structure.
 
-# Cross-service wiring — these defaults assume the canonical service
-# names emitted by the bundled sub-charts. Override only when running
-# against external services (e.g. a shared PKI in another namespace).
+# Cross-service wiring — overrides the gate sub-chart's env block to
+# point at the umbrella's actual service names. Each sub-chart's
+# default values assume standalone install; the umbrella patches in
+# the cross-sub-chart names here. Operators using external services
+# (e.g. a shared cartorio in another namespace) override this block.
 gate:
   enabled: true
-  cartorio:
-    serviceHost: openclaw-stack-registry-cartorio
-    port: 8082
-  backend:
-    # Default backing registry is the bundled Zot. When
-    # `backingRegistry.enabled=false`, override this to your external
-    # OCI registry URL.
-    url: "http://openclaw-stack-backing-registry-pleme-zot:5000"
+  pleme-microservice:
+    env:
+      - name: LACRE_ORG
+        value: "pleme-io"
+      - name: LACRE_CARTORIO_URL
+        # nameOverride=cartorio in the registry sub-chart → service is `<release>-cartorio`.
+        # Helm subchart aliases don't change Service names; only the
+        # release-name prefix and the `nameOverride` are used.
+        value: "http://stack-cartorio:8082"
+      - name: LACRE_BACKEND_URL
+        # pleme-zot uses the dependency alias `backingRegistry` → service
+        # is `<release>-backingRegistry`. (Yes, camelCase preserved by Helm.)
+        value: "http://stack-backingRegistry:5000"
+      - name: RUST_LOG
+        value: "info,lacre=debug"
 
 # Image tags are NOT defaulted here — at fedramp-high every workload
 # must be digest-pinned, and the pinning is the responsibility of CI

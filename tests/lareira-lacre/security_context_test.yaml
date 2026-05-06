@@ -54,7 +54,7 @@ tests:
           path: spec.template.spec.containers[0].ports[0].name
           value: http
 
-  - it: REGISTRY env wires lacre to cartorio + backing registry
+  - it: REGISTRY env wires lacre to cartorio + backing registry (default values)
     set:
       <<: *defaults
     asserts:
@@ -68,3 +68,37 @@ tests:
           content:
             name: LACRE_BACKEND_URL
             value: "http://openclaw-zot:5000"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: LACRE_ORG
+            value: "pleme-io"
+
+  - it: env override retargets cartorio cleanly (umbrella-wiring path)
+    set:
+      <<: *defaults
+      pleme-microservice.env:
+        - name: LACRE_ORG
+          value: "stack-org"
+        - name: LACRE_CARTORIO_URL
+          value: "http://stack-registry-lareira-cartorio-cartorio:8082"
+        - name: LACRE_BACKEND_URL
+          value: "http://stack-backing-registry-pleme-zot:5000"
+        - name: RUST_LOG
+          value: "info"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: LACRE_CARTORIO_URL
+            value: "http://stack-registry-lareira-cartorio-cartorio:8082"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: LACRE_BACKEND_URL
+            value: "http://stack-backing-registry-pleme-zot:5000"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: LACRE_ORG
+            value: "stack-org"

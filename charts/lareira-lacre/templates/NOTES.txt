@@ -7,9 +7,11 @@ lacre v{{ .Chart.AppVersion }} deployed to namespace {{ .Release.Namespace }}.
 Ports:
   http: 8083  (OCI proxy + /health + /metrics)
 
-Wired to:
-  cartorio: {{ .Values.cartorio.serviceHost }}:{{ .Values.cartorio.port }}
-  backing:  {{ .Values.backend.url }}
+Cross-service wiring (single source of truth — pleme-microservice.env):
+  LACRE_CARTORIO_URL — set in values.yaml, override per-deploy if the
+                       cartorio service name differs in your cluster.
+  LACRE_BACKEND_URL  — backing OCI registry lacre forwards to.
+  LACRE_ORG          — organization slug; admission's `org` field must match.
 
 Smoke check (port-forward + curl):
 

@@ -54,7 +54,7 @@ tests:
           path: spec.template.spec.containers[0].ports[0].name
           value: http
 
-  - it: REGISTRY_ORG + REGISTRY_PKI_URL present in env
+  - it: REGISTRY_ORG + REGISTRY_PKI_URL present in env (default values)
     set:
       <<: *defaults
     asserts:
@@ -68,3 +68,78 @@ tests:
           content:
             name: REGISTRY_PKI_URL
             value: "http://openclaw-pki-lareira-openclaw-pki:8090"
+
+  - it: REGISTRY_BACKEND defaults to memory; audit cadence flows from values
+    set:
+      <<: *defaults
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REGISTRY_BACKEND
+            value: "memory"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REGISTRY_AUDIT_INTERVAL_SECS
+            value: "900"
+
+  - it: env override retargets cartorio's PKI cleanly (umbrella-wiring path)
+    set:
+      <<: *defaults
+      pleme-microservice.env:
+        - name: REGISTRY_ORG
+          value: "stack-org"
+        - name: REGISTRY_PKI_URL
+          value: "http://stack-pki-lareira-openclaw-pki:8090"
+        - name: REGISTRY_BACKEND
+          value: "memory"
+        - name: REGISTRY_AUDIT_INTERVAL_SECS
+          value: "300"
+        - name: RUST_LOG
+          value: "info,cartorio=debug"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REGISTRY_PKI_URL
+            value: "http://stack-pki-lareira-openclaw-pki:8090"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REGISTRY_AUDIT_INTERVAL_SECS
+            value: "300"
+
+  - it: postgres-overlay path emits REGISTRY_DB_URL via secretKeyRef
+    set:
+      <<: *defaults
+      pleme-microservice.env:
+        - name: REGISTRY_ORG
+          value: "pleme-io"
+        - name: REGISTRY_PKI_URL
+          value: "http://openclaw-pki-lareira-openclaw-pki:8090"
+        - name: REGISTRY_BACKEND
+          value: "postgres"
+        - name: REGISTRY_DB_URL
+          valueFrom:
+            secretKeyRef:
+              name: cartorio-postgres
+              key: database-url
+        - name: REGISTRY_AUDIT_INTERVAL_SECS
+          value: "900"
+        - name: RUST_LOG
+          value: "info,cartorio=debug"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REGISTRY_BACKEND
+            value: "postgres"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REGISTRY_DB_URL
+            valueFrom:
+              secretKeyRef:
+                name: cartorio-postgres
+                key: database-url

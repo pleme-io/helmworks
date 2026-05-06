@@ -14,8 +14,10 @@ templates:
   - charts/pki/templates/externalsecret.yaml
   - charts/registry/templates/compliancepolicy.yaml
   - charts/registry/templates/signaturegate.yaml
+  - charts/registry/charts/pleme-microservice/templates/service.yaml
   - charts/gate/templates/compliancepolicy.yaml
   - charts/gate/templates/signaturegate.yaml
+  - charts/gate/charts/pleme-microservice/templates/deployment.yaml
   - charts/store/templates/compliancepolicy.yaml
   - charts/store/templates/signaturegate.yaml
   - charts/scanner/templates/compliancepolicy.yaml
@@ -141,3 +143,33 @@ tests:
         equal:
           path: spec.framework
           value: NIST_800_53
+
+  # ── cross-sub-chart wiring: gate → registry ──
+  # The umbrella overrides gate.pleme-microservice.env to retarget lacre
+  # at the registry sub-chart's actual Service name. If anyone renames
+  # `pleme-microservice.nameOverride` in the registry sub-chart, the
+  # name in lacre's env stops matching the rendered cartorio Service —
+  # this test catches that drift before it bites in cluster.
+
+  - it: gate's LACRE_CARTORIO_URL points at the registry sub-chart's Service name
+    template: charts/gate/charts/pleme-microservice/templates/deployment.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: LACRE_CARTORIO_URL
+            value: "http://stack-cartorio:8082"
+
+  - it: registry sub-chart actually emits a Service named stack-cartorio (lacre's URL target)
+    template: charts/registry/charts/pleme-microservice/templates/service.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - equal:
+          path: metadata.name
+          value: stack-cartorio
+      - equal:
+          path: spec.ports[0].port
+          value: 8082

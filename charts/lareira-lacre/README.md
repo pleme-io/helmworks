@@ -49,8 +49,23 @@ This chart additionally emits:
 
 ## Wiring inside the umbrella stack
 
-When deployed via `lareira-openclaw-stack`, the umbrella's NOTES.txt
-documents the canonical defaults; this chart's `cartorio.serviceHost`,
-`backend.url`, and `org` values are pre-wired to the stack's other
-sub-chart names so a single `helm install lareira-openclaw-stack` boots
-a complete proof chain.
+When deployed via `lareira-openclaw-stack`, the umbrella overrides
+`gate.pleme-microservice.env` to point lacre at the stack's
+sub-chart service names. The cross-service env vars (`LACRE_CARTORIO_URL`,
+`LACRE_BACKEND_URL`, `LACRE_ORG`) are the single source of truth — same
+pattern every `lareira-openclaw-*` chart uses for cross-service wiring.
+
+```yaml
+# Override pattern (already wired into lareira-openclaw-stack):
+gate:
+  pleme-microservice:
+    env:
+      - name: LACRE_ORG
+        value: "pleme-io"
+      - name: LACRE_CARTORIO_URL
+        value: "http://my-cartorio.openclaw.svc:8082"
+      - name: LACRE_BACKEND_URL
+        value: "http://my-zot.openclaw.svc:5000"
+      - name: RUST_LOG
+        value: "info,lacre=debug"
+```
