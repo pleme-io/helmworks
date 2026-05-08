@@ -14,6 +14,32 @@ imagePullSecrets: []
 runtimeConfig:
   cartorioUrl: "https://cartorio.dev.use1.quero.cloud"
 
+# Hanabi server config (mounted at /etc/hanabi/config.yaml).
+# Static-only — no BFF / no GraphQL / no auth / no DB.
+hanabiConfig: |
+  environment: production
+  security:
+    csp:
+      api_domains: []
+      ws_domains: []
+      additional_connect_src:
+        - https://cartorio.dev.use1.quero.cloud
+  server:
+    listen_address: "0.0.0.0"
+    port: 80
+    health_port: 8080
+    worker_threads: 0
+    service_name: openclaw-web
+  static:
+    root: /app/static
+    spa_fallback: true
+    spa_fallback_path: index.html
+  features:
+    enable_bff: false
+    enable_metrics: true
+    enable_detailed_health_checks: true
+    enable_bug_reports: false
+
 service:
   type: ClusterIP
   port: 80

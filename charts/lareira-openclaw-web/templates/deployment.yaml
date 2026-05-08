@@ -39,10 +39,15 @@ spec:
             initialDelaySeconds: 5
             periodSeconds: 10
           volumeMounts:
-            # Mounts /config.js into nginx's docroot.
+            # /config.js into hanabi's static root (loaded by index.html).
             - name: runtime-config
-              mountPath: /usr/share/nginx/html/config.js
+              mountPath: /app/static/config.js
               subPath: config.js
+              readOnly: true
+            # Hanabi's own config (server, port, static root, spa fallback).
+            - name: hanabi-config
+              mountPath: /etc/hanabi/config.yaml
+              subPath: config.yaml
               readOnly: true
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
@@ -53,3 +58,9 @@ spec:
             items:
               - key: config.js
                 path: config.js
+        - name: hanabi-config
+          configMap:
+            name: {{ include "openclaw-web.fullname" . }}-hanabi
+            items:
+              - key: config.yaml
+                path: config.yaml

@@ -10,3 +10,14 @@ data:
   # window.__OPENCLAW_RUNTIME_CONFIG__ which shared/config.ts reads.
   config.js: |
     window.__OPENCLAW_RUNTIME_CONFIG__ = {{ toJson .Values.runtimeConfig }};
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "openclaw-web.fullname" . }}-hanabi
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "openclaw-web.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+{{ .Values.hanabiConfig | indent 4 }}
