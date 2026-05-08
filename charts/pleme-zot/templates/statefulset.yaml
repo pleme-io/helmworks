@@ -62,9 +62,16 @@ spec:
             - name: logs
               mountPath: /var/log/zot
             {{- if eq .Values.auth.backend "htpasswd" }}
+            # Mount the htpasswd Secret to its OWN path, not subPath'd
+            # into /etc/zot/. The combo of (a) /etc/zot mounted as a
+            # configmap volume + (b) htpasswd subPath'd onto /etc/zot/htpasswd
+            # trips a runc "not a directory" bug on K3s/containerd
+            # (the subPath bind-mount can't lay a file overlay onto
+            # the configmap mount target). Mounting to /etc/zot-auth
+            # avoids the overlap; the configmap's `auth.htpasswd.path`
+            # is updated to match.
             - name: htpasswd
-              mountPath: /etc/zot/htpasswd
-              subPath: htpasswd
+              mountPath: /etc/zot-auth
               readOnly: true
             {{- end }}
             {{- if eq .Values.mode "pull" }}

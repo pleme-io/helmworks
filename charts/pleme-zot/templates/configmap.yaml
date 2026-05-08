@@ -28,7 +28,7 @@ data:
         "port": "5000"{{ if eq .Values.auth.backend "htpasswd" }},
         "auth": {
           "htpasswd": {
-            "path": "/etc/zot/htpasswd"
+            "path": "/etc/zot-auth/htpasswd"
           }
         }{{ else if eq .Values.auth.backend "oidc" }},
         "auth": {

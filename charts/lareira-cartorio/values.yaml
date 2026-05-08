@@ -171,6 +171,20 @@ pleme-microservice:
   networkPolicy:
     enabled: true
     additionalIngress:
+      # lacre is the wire-level OCI gate — every manifest PUT triggers
+      # a `GET /api/v1/artifacts/by-digest/{d}` against cartorio. Without
+      # this allowlist the gate can't function (lacre→cartorio is denied
+      # by the `compliance-deny-all` baseline). Listed first because it
+      # is the load-bearing path for the proof chain.
+      - name: allow-from-lacre
+        rules:
+          - from:
+              - podSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: lacre
+            ports:
+              - port: 8082
+                protocol: TCP
       - name: allow-from-zot
         rules:
           - from:

@@ -2,16 +2,16 @@
 #
 # Default posture deploys the full chain at fedramp-high:
 #
-#   ┌─ pki              (publisher PKI — issues + revokes signing certs)
-#   ├─ registry         (cartorio — the merkle ledger / source of truth)
-#   ├─ gate             (lacre — the wire-level OCI gate; asks cartorio)
-#   ├─ backingRegistry  (Zot — what lacre forwards to once cartorio admits)
-#   ├─ store            (skill-store API; reads from cartorio)
-#   └─ scanner          (re-attestation; quarantines drifted artifacts)
+#   ┌─ pki               (publisher PKI — issues + revokes signing certs)
+#   ├─ registry          (cartorio — the merkle ledger / source of truth)
+#   ├─ gate              (lacre — the wire-level OCI gate; asks cartorio)
+#   ├─ backing-registry  (Zot — what lacre forwards to once cartorio admits)
+#   ├─ store             (skill-store API; reads from cartorio)
+#   └─ scanner           (re-attestation; quarantines drifted artifacts)
 #
 # Flip any of these to false to deploy a subset (e.g. only registry +
-# gate + backingRegistry for a minimal demo, or only pki + registry +
-# store + scanner if you already operate Zot + lacre elsewhere).
+# gate + backing-registry for a minimal demo, or only pki + registry
+# + store + scanner if you already operate Zot + lacre elsewhere).
 
 pki:
   enabled: true
@@ -19,7 +19,11 @@ registry:
   enabled: true
 gate:
   enabled: true
-backingRegistry:
+# Renamed in 0.4.0 from `backingRegistry` (camelCase). Helm propagates
+# the dep alias bytes into `pleme-lib.fullname`, so a camelCase alias
+# emits RFC-1123-violating Service / NetworkPolicy names. Consumers
+# upgrading from 0.3.x must rename their values key.
+backing-registry:
   enabled: true   # bundles `pleme-zot` for self-contained demos.
                   # Set to false when you have an external OCI
                   # registry; then override gate.backend.url to it.
@@ -57,9 +61,10 @@ gate:
         # release-name prefix and the `nameOverride` are used.
         value: "http://stack-cartorio:8082"
       - name: LACRE_BACKEND_URL
-        # pleme-zot uses the dependency alias `backingRegistry` → service
-        # is `<release>-backingRegistry`. (Yes, camelCase preserved by Helm.)
-        value: "http://stack-backingRegistry:5000"
+        # pleme-zot uses the dependency alias `backing-registry` →
+        # service is `<release>-backing-registry`. The alias is RFC-1123
+        # compliant in 0.4.0; older releases used camelCase.
+        value: "http://stack-backing-registry:5000"
       - name: RUST_LOG
         value: "info,lacre=debug"
 

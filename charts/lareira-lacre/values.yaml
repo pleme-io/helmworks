@@ -92,9 +92,14 @@ pleme-microservice:
         targetPort: http
         protocol: TCP
 
+  # lacre's binary serves /healthz (and /health since lacre@afb70dd
+  # added an alias). The substrate convention is /healthz everywhere
+  # — every other lareira-* chart uses it, and pleme-microservice's
+  # default helper is /healthz too. Aligning the default removes a
+  # per-cluster override that every consumer was carrying.
   health:
-    path: /health
-    readyPath: /health
+    path: /healthz
+    readyPath: /healthz
     port: http
 
   args:
