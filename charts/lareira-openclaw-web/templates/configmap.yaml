@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "openclaw-web.fullname" . }}-runtime
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "openclaw-web.labels" . | nindent 4 }}
+data:
+  # Loaded as /config.js by index.html before main.tsx; sets
+  # window.__OPENCLAW_RUNTIME_CONFIG__ which shared/config.ts reads.
+  config.js: |
+    window.__OPENCLAW_RUNTIME_CONFIG__ = {{ toJson .Values.runtimeConfig }};

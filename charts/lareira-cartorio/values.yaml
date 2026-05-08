@@ -258,3 +258,24 @@ pleme-microservice:
 
   additionalLabels:
     pleme.io/part-of: openclaw
+
+# ─────────────────────────────────────────────────────────────────────
+# Public Ingress (opt-in, off by default).
+# ─────────────────────────────────────────────────────────────────────
+#
+# Cartorio's REST surface (/api/v1/{merkle/root,artifacts,...}) is
+# read-only on GET; mutating endpoints stay protected by the bearer
+# token. Operators that want to expose cartorio to a browser-side
+# verifier (e.g. openclaw-web) flip this on AND set
+# pleme-microservice.cors_allowed_origins to permit the consumer.
+ingress:
+  enabled: false
+  className: nginx
+  host: "cartorio.dev.use1.quero.cloud"
+  # When true, a TLS section is emitted; secret auto-derives from
+  # `<release>-cartorio-tls` unless `tls.secretName` is set.
+  tls:
+    enabled: true
+    issuer: letsencrypt-prod
+    secretName: ""
+  annotations: {}

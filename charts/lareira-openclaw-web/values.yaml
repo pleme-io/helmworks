@@ -1,0 +1,37 @@
+# lareira-openclaw-web — minimal nginx-served SPA chart.
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/pleme-io/openclaw-web
+  tag: amd64-latest
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# Runtime configuration injected as /config.js (loaded before main.tsx).
+# Fed to window.__OPENCLAW_RUNTIME_CONFIG__.
+runtimeConfig:
+  cartorioUrl: "https://cartorio.dev.use1.quero.cloud"
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  className: nginx
+  host: "openclaw.dev.use1.quero.cloud"
+  tls:
+    enabled: true
+    issuer: letsencrypt-prod
+    secretName: ""
+  annotations: {}
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi

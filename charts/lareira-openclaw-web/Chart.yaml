@@ -1,0 +1,15 @@
+apiVersion: v2
+name: lareira-openclaw-web
+description: |
+  openclaw-web — public read-only browser view of the openclaw proof
+  chain. Renders cartorio's merkle ledger + bundle expansion + a
+  drag-drop verifier that re-derives sha256 client-side. Demo-shaped:
+  no auth, no compliance overlay (the value claim is
+  read-only-on-the-public-internet); production deploys would front it
+  with saguão.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+
+keywords: [openclaw, proof-chain, lareira, web, demo]
+maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]

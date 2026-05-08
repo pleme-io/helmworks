@@ -31,6 +31,10 @@ store:
   enabled: true
 scanner:
   enabled: true
+# Public read-only browser view (opt-in). Off by default — fleet
+# clusters that already operate their own UI front-end don't need it.
+web:
+  enabled: false
 
 # Sub-chart overrides flow through the alias names declared in
 # Chart.yaml dependencies. Example: bump store image digest.

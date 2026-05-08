@@ -4,7 +4,7 @@ dependencies:
   version: 0.1.0
 - name: lareira-cartorio
   repository: file://../lareira-cartorio
-  version: 0.4.1
+  version: 0.5.0
 - name: lareira-lacre
   repository: file://../lareira-lacre
   version: 0.1.2
@@ -17,5 +17,8 @@ dependencies:
 - name: pleme-zot
   repository: file://../pleme-zot
   version: 0.1.2
-digest: sha256:68919115f387ef3f8f37157e9181c8b09b43732fe590cd707b8956465a067a7f
-generated: "2026-05-07T22:38:30.792012-04:00"
+- name: lareira-openclaw-web
+  repository: file://../lareira-openclaw-web
+  version: 0.1.0
+digest: sha256:e99c865ee124aad72928303336972881b3d300c545dfc7330fb8e13da1766179
+generated: "2026-05-08T00:40:48.610939-04:00"

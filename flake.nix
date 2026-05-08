@@ -135,6 +135,7 @@
             { name = "lareira-openclaw-store"; chartDir = ./charts/lareira-openclaw-store; }
             { name = "lareira-openclaw-scanner"; chartDir = ./charts/lareira-openclaw-scanner; }
             { name = "lareira-openclaw-stack"; chartDir = ./charts/lareira-openclaw-stack; }
+            { name = "lareira-openclaw-web"; chartDir = ./charts/lareira-openclaw-web; }
           ];
 
           # Use substrate's mkHelmAllApps for all chart lifecycle apps
