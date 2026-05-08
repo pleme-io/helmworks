@@ -279,26 +279,41 @@
 
             "mesh:e2e" = mkApp "mesh-e2e" ''
               # Real-cluster mesh smoke. Spins up an ephemeral k3d
-              # cluster, installs SPIRE + cert-manager, then the three
-              # lareira-* mesh charts, then a tiny test mesh of two
-              # workloads that talk to each other through aresta. Asserts
-              # aresta connection counters advance — proves the data
-              # plane is carrying mTLS.
+              # (or kind) cluster, installs SPIRE + cert-manager, then
+              # the three lareira-* mesh charts, then a tiny test mesh
+              # of two workloads that talk to each other through
+              # aresta. Asserts aresta connection counters advance —
+              # proves the data plane is carrying mTLS.
               set -euo pipefail
               CLUSTER="mesh-e2e-$$"
+              # Prefer k3d (lighter); fall back to kind for parity with
+              # stack:e2e on hosts where only one is installed.
               if command -v k3d >/dev/null 2>&1; then
+                FLAVOR=k3d
                 cleanup() { k3d cluster delete "$CLUSTER" 2>/dev/null || true; }
+              elif command -v kind >/dev/null 2>&1; then
+                FLAVOR=kind
+                cleanup() { kind delete cluster --name "$CLUSTER" 2>/dev/null || true; }
               else
-                echo "mesh:e2e requires k3d on PATH"
+                echo "mesh:e2e requires k3d or kind on PATH"
                 exit 1
               fi
               trap cleanup EXIT
-              echo "==> spinning up k3d cluster '$CLUSTER'"
-              k3d cluster create "$CLUSTER" --wait --timeout 180s
-              export KUBECONFIG="$(k3d kubeconfig write "$CLUSTER")"
+              echo "==> spinning up $FLAVOR cluster '$CLUSTER'"
+              if [ "$FLAVOR" = "k3d" ]; then
+                k3d cluster create "$CLUSTER" --wait --timeout 180s
+                export KUBECONFIG="$(k3d kubeconfig write "$CLUSTER")"
+              else
+                kind create cluster --name "$CLUSTER" --wait 180s
+                export KUBECONFIG="$(mktemp)"
+                kind get kubeconfig --name "$CLUSTER" > "$KUBECONFIG"
+              fi
 
-              echo "==> installing cert-manager (CRDs first)"
-              kubectl apply -f https://github.com/cert-manager/cert-manager/releases/latest/download/cert-manager.yaml
+              # Pin cert-manager to a known-good version. Bumping is
+              # an explicit step, not silently-on-every-CI-run.
+              CERT_MANAGER_VERSION="v1.17.0"
+              echo "==> installing cert-manager $CERT_MANAGER_VERSION (CRDs included)"
+              kubectl apply -f "https://github.com/cert-manager/cert-manager/releases/download/$CERT_MANAGER_VERSION/cert-manager.yaml"
               kubectl -n cert-manager wait --for=condition=Available deployment --all --timeout=180s
 
               echo "==> installing SPIRE (helm-charts-hardened)"

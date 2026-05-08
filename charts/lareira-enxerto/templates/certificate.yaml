@@ -1,10 +1,14 @@
 {{- if .Values.webhook.certManager.enabled }}
-{{- /* Self-signed Issuer (created when no externalIssuer is configured). */}}
+{{- $svc := include "pleme-lib.fullname" . }}
+{{- $selfsignedIssuerName := printf "%s-selfsigned" $svc }}
+{{- /* Self-signed Issuer — only emitted when the operator hasn't
+       referenced an existing Issuer/ClusterIssuer via
+       webhook.certManager.issuerName. */}}
 {{- if not .Values.webhook.certManager.issuerName }}
 apiVersion: cert-manager.io/v1
 kind: Issuer
 metadata:
-  name: enxerto-selfsigned
+  name: {{ $selfsignedIssuerName }}
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "pleme-lib.labels" . | nindent 4 }}
@@ -19,7 +23,7 @@ spec:
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: enxerto-webhook
+  name: {{ $svc }}-webhook
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "pleme-lib.labels" . | nindent 4 }}
@@ -28,9 +32,9 @@ spec:
   duration: 8760h    # 1 year
   renewBefore: 720h  # 30 days
   dnsNames:
-    - enxerto.{{ .Release.Namespace }}.svc
-    - enxerto.{{ .Release.Namespace }}.svc.cluster.local
+    - {{ $svc }}.{{ .Release.Namespace }}.svc
+    - {{ $svc }}.{{ .Release.Namespace }}.svc.cluster.local
   issuerRef:
     kind: {{ .Values.webhook.certManager.issuerKind | default "Issuer" }}
-    name: {{ .Values.webhook.certManager.issuerName | default "enxerto-selfsigned" }}
+    name: {{ .Values.webhook.certManager.issuerName | default $selfsignedIssuerName }}
 {{- end }}

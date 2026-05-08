@@ -9,7 +9,7 @@ metadata:
     # cert-manager auto-rotates the caBundle in this MWC's webhooks[*]
     # whenever the underlying Certificate renews. Without this
     # annotation the caBundle would go stale at every renewal.
-    cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/enxerto-webhook
+    cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/{{ include "pleme-lib.fullname" . }}-webhook
   {{- end }}
 webhooks:
   - name: enxerto.mesh.pleme.io
