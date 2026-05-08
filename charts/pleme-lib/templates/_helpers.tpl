@@ -35,13 +35,33 @@ Create chart name and version as used by the chart label.
 {{- end }}
 
 {{/*
+Render a K8s-label-safe image version. K8s labels are constrained
+to ≤63 chars, must start+end with alphanumeric, and may contain
+`-`, `_`, `.`. SHA digests (e.g. `sha256:73c2…488158`) are 71 chars
+and contain a `:`, so feeding `image.tag` straight into
+`app.kubernetes.io/version` rejects every digest-pinned chart at
+admission. Sanitize: prefer image.digest (substrate-canonical),
+trim a `sha256:` prefix, truncate to 63.
+*/}}
+{{- define "pleme-lib.versionLabel" -}}
+{{- $img := .Values.image | default dict -}}
+{{- $raw := $img.digest | default "" | toString -}}
+{{- if eq $raw "" -}}
+  {{- $raw = $img.tag | default .Chart.AppVersion | toString -}}
+{{- end -}}
+{{- $stripped := trimPrefix "sha256:" $raw -}}
+{{- if eq $stripped "" -}}{{- $stripped = "unknown" -}}{{- end -}}
+{{- $stripped | trunc 63 | trimSuffix "-" -}}
+{{- end }}
+
+{{/*
 Common labels
 */}}
 {{- define "pleme-lib.labels" -}}
 helm.sh/chart: {{ include "pleme-lib.chart" . }}
 {{ include "pleme-lib.selectorLabels" . }}
 app: {{ include "pleme-lib.fullname" . }}
-app.kubernetes.io/version: {{ .Values.image.tag | default .Chart.AppVersion | quote }}
+app.kubernetes.io/version: {{ include "pleme-lib.versionLabel" . | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 app.kubernetes.io/part-of: nexus-platform
 {{- $cl := include "pleme-lib.compliance.labels" . | trim }}

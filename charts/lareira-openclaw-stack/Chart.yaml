@@ -9,8 +9,8 @@ description: |
   overlay; sub-charts can be enabled/disabled independently via
   top-level toggles.
 type: application
-version: 0.4.0
-appVersion: "0.4.0"
+version: 0.4.1
+appVersion: "0.4.1"
 
 keywords: [openclaw, fedramp-high, attestation, lareira, umbrella]
 maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]
@@ -49,6 +49,6 @@ dependencies:
   # in YAML need quoting OR hyphenated; we pick the canonical form.)
   - name: pleme-zot
     alias: backing-registry
-    version: "~0.1.1"
+    version: "~0.1.2"
     repository: "file://../pleme-zot"
     condition: backing-registry.enabled

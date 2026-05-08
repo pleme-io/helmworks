@@ -16,6 +16,6 @@ dependencies:
   version: 0.1.0
 - name: pleme-zot
   repository: file://../pleme-zot
-  version: 0.1.1
-digest: sha256:0f83cd7f22dcdc58b014e887b7bb886dcfda9d0b2d447d84ff1b667c0bfaa61d
-generated: "2026-05-07T21:55:12.243435-04:00"
+  version: 0.1.2
+digest: sha256:205db054c3e0224e93c5bcb450533fec4f5137e857d43d50eaec5c79633ded5f
+generated: "2026-05-07T22:15:23.436234-04:00"
