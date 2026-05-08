@@ -1,0 +1,9 @@
+# lareira-aresta-defaults — cluster-singleton aresta prerequisites.
+#
+# Today: just the resolver ClusterRole. Future: cluster-wide
+# ServiceMonitor for aresta sidecars (port 9090), default
+# RegistryConfig template helpers consumed by lareira-mesh-spec.
+
+# The ClusterRole name. Stable so multiple lareira-mesh-spec
+# HelmReleases can bind against the same role.
+clusterRoleName: aresta-resolver

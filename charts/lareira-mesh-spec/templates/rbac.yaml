@@ -1,0 +1,29 @@
+{{- /*
+   Build the unique list of namespaces that need a resolver
+   ClusterRoleBinding — home ns + every participant ns.
+*/ -}}
+{{- $namespaces := list .Values.mesh.namespace -}}
+{{- range .Values.participants -}}
+{{- $namespaces = append $namespaces .namespace -}}
+{{- end -}}
+{{- $namespaces = $namespaces | uniq -}}
+
+{{- range $ns := $namespaces }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $.Values.mesh.name }}-resolver-{{ $ns }}
+  labels:
+    {{- include "pleme-lib.labels" $ | nindent 4 }}
+    mesh.pleme.io/spec: {{ $.Values.mesh.name }}
+    mesh.pleme.io/component: aresta-resolver
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $.Values.resolverClusterRole }}
+subjects:
+  - kind: Group
+    name: system:serviceaccounts:{{ $ns }}
+    apiGroup: rbac.authorization.k8s.io
+{{- end }}

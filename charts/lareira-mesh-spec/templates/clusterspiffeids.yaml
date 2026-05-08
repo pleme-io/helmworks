@@ -1,0 +1,41 @@
+# One ClusterSPIFFEID per Servico in the home namespace.
+{{- range .Values.servicos }}
+---
+apiVersion: spire.spiffe.io/v1alpha1
+kind: ClusterSPIFFEID
+metadata:
+  name: {{ $.Values.mesh.name }}-{{ .name }}
+  labels:
+    {{- include "pleme-lib.labels" $ | nindent 4 }}
+    mesh.pleme.io/spec: {{ $.Values.mesh.name }}
+spec:
+  className: {{ $.Values.spire.className }}
+  namespaceSelector:
+    matchLabels:
+      kubernetes.io/metadata.name: {{ $.Values.mesh.namespace }}
+  podSelector:
+    matchLabels:
+      {{- toYaml .podSelector | nindent 6 }}
+  spiffeIDTemplate: {{ include "lareira-mesh-spec.spiffeIdTemplate" $ | quote }}
+{{- end }}
+
+# One ClusterSPIFFEID per cross-namespace participant.
+{{- range .Values.participants }}
+---
+apiVersion: spire.spiffe.io/v1alpha1
+kind: ClusterSPIFFEID
+metadata:
+  name: {{ $.Values.mesh.name }}-{{ .name }}
+  labels:
+    {{- include "pleme-lib.labels" $ | nindent 4 }}
+    mesh.pleme.io/spec: {{ $.Values.mesh.name }}
+spec:
+  className: {{ $.Values.spire.className }}
+  namespaceSelector:
+    matchLabels:
+      kubernetes.io/metadata.name: {{ .namespace }}
+  podSelector:
+    matchLabels:
+      {{- toYaml .podSelector | nindent 6 }}
+  spiffeIDTemplate: {{ include "lareira-mesh-spec.spiffeIdTemplate" $ | quote }}
+{{- end }}

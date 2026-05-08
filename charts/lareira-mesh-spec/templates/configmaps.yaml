@@ -1,0 +1,28 @@
+# Shared aresta config CM in the home namespace.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.mesh.name }}-aresta-config
+  namespace: {{ .Values.mesh.namespace }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+    mesh.pleme.io/spec: {{ .Values.mesh.name }}
+data:
+  config.yaml: |
+    {{- include "lareira-mesh-spec.arestaConfigYaml" . | nindent 4 }}
+
+# Per-participant CM copies — each participant ns mounts its own.
+{{- range .Values.participants }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $.Values.mesh.name }}-aresta-config
+  namespace: {{ .namespace }}
+  labels:
+    {{- include "pleme-lib.labels" $ | nindent 4 }}
+    mesh.pleme.io/spec: {{ $.Values.mesh.name }}
+data:
+  config.yaml: |
+    {{- include "lareira-mesh-spec.arestaConfigYaml" $ | nindent 4 }}
+{{- end }}

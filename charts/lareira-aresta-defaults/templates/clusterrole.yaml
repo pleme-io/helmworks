@@ -1,0 +1,17 @@
+# Cluster-singleton ClusterRole. Per-mesh ClusterRoleBindings live in
+# lareira-mesh-spec, each binding the namespace's
+# `system:serviceaccounts:<ns>` Group to this Role.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ .Values.clusterRoleName }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+    mesh.pleme.io/component: aresta-resolver
+rules:
+  - apiGroups: [""]
+    resources: [services]
+    verbs: [list, watch]
+  - apiGroups: [discovery.k8s.io]
+    resources: [endpointslices]
+    verbs: [list, watch]

@@ -1,0 +1,35 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+webhooks:
+  - name: enxerto.mesh.pleme.io
+    clientConfig:
+      service:
+        namespace: {{ .Values.namespace.name }}
+        name: {{ include "pleme-lib.fullname" . }}
+        path: /mutate
+        port: {{ .Values.webhook.port }}
+      caBundle: {{ .Values.webhook.caBundle | quote }}
+    rules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE"]
+        resources: ["pods"]
+    objectSelector:
+      matchLabels:
+        mesh.pleme.io/inject: "true"
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values:
+            {{- range .Values.webhook.excludeNamespaces }}
+            - {{ . | quote }}
+            {{- end }}
+    sideEffects: None
+    admissionReviewVersions: ["v1"]
+    failurePolicy: {{ .Values.webhook.failurePolicy }}
+    timeoutSeconds: {{ .Values.webhook.timeoutSeconds }}

@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}
+  namespace: {{ .Values.namespace.name }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "pleme-lib.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "pleme-lib.selectorLabels" . | nindent 8 }}
+        # NEVER inject the mesh sidecar into the webhook itself —
+        # would chicken-and-egg pod admission.
+        mesh.pleme.io/inject: "false"
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: enxerto
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.ports }}
+          ports:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            - name: MESH_OUTBOUND_CIDRS
+              value: {{ join "," .Values.meshOutboundCidrs | quote }}
+            - name: ARESTA_IMAGE
+              value: {{ .Values.arestaImage | quote }}
+          {{- with .Values.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.volumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

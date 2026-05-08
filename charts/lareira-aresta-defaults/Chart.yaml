@@ -1,0 +1,24 @@
+apiVersion: v2
+name: lareira-aresta-defaults
+description: |
+  Cluster-singleton prerequisites for the aresta sidecar — currently
+  the `aresta-resolver` ClusterRole that lets each meshed pod's
+  Workload-API ServiceAccount list+watch Services + EndpointSlices
+  for the SO_ORIGINAL_DST → pod-IP resolver.
+
+  Wraps https://github.com/pleme-io/aresta. Install ONCE per cluster.
+  Each consuming `lareira-mesh-spec` HelmRelease will create its own
+  ClusterRoleBinding against this ClusterRole — bindings are
+  per-mesh, the role itself is shared.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+
+keywords: [mesh, sidecar, spiffe, mtls, aresta, lareira, rbac]
+maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]
+home: https://github.com/pleme-io/aresta
+
+dependencies:
+  - name: pleme-lib
+    version: "~0.13.0"
+    repository: "file://../pleme-lib"
