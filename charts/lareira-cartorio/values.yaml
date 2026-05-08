@@ -271,7 +271,7 @@ pleme-microservice:
 ingress:
   enabled: false
   className: nginx
-  host: "cartorio.dev.use1.quero.cloud"
+  host: "cartorio-dev.quero.cloud"
   # When true, a TLS section is emitted; secret auto-derives from
   # `<release>-cartorio-tls` unless `tls.secretName` is set.
   tls:

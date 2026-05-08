@@ -9,8 +9,8 @@ description: |
   overlay; sub-charts can be enabled/disabled independently via
   top-level toggles.
 type: application
-version: 0.6.3
-appVersion: "0.6.3"
+version: 0.6.4
+appVersion: "0.6.4"
 
 keywords: [openclaw, fedramp-high, attestation, lareira, umbrella]
 maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]
@@ -57,6 +57,6 @@ dependencies:
   # own UI front don't).
   - name: lareira-openclaw-web
     alias: web
-    version: "~0.2.3"
+    version: "~0.2.4"
     repository: "file://../lareira-openclaw-web"
     condition: web.enabled

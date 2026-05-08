@@ -12,7 +12,7 @@ imagePullSecrets: []
 # Runtime configuration injected as /env.js (lilitu pattern; loaded
 # before main.tsx). Fed to window.__OPENCLAW_RUNTIME_CONFIG__.
 runtimeConfig:
-  cartorioUrl: "https://cartorio.dev.use1.quero.cloud"
+  cartorioUrl: "https://cartorio-dev.quero.cloud"
 
 # Hanabi server config (mounted at /etc/hanabi/config.yaml).
 # Static-only — features.enable_bff: false + bff.mode: disabled keep
@@ -27,7 +27,7 @@ hanabiConfig: |
       api_domains: []
       ws_domains: []
       additional_connect_src:
-        - https://cartorio.dev.use1.quero.cloud
+        - https://cartorio-dev.quero.cloud
     cors:
       allowed_origins: []
       allow_credentials: false
@@ -84,7 +84,7 @@ service:
 ingress:
   enabled: true
   className: nginx
-  host: "openclaw.dev.use1.quero.cloud"
+  host: "openclaw-dev.quero.cloud"
   tls:
     enabled: true
     issuer: letsencrypt-prod
