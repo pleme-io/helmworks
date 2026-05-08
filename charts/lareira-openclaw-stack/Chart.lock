@@ -19,6 +19,6 @@ dependencies:
   version: 0.1.2
 - name: lareira-openclaw-web
   repository: file://../lareira-openclaw-web
-  version: 0.2.1
-digest: sha256:907f134ab4f7cfcb8657e23adc4ac73c0ad2be52cfa986548437276c4fb93e5c
-generated: "2026-05-08T02:57:44.132531-04:00"
+  version: 0.2.2
+digest: sha256:bad41bf2681abde3c7f64f06dd1774dfb75dff30e0fffcef308f6ed3b10e5f45
+generated: "2026-05-08T03:08:57.081557-04:00"

@@ -40,6 +40,12 @@ hanabiConfig: |
       x_frame_options: "DENY"
       referrer_policy: "strict-origin-when-cross-origin"
       permissions_policy: "geolocation=(), microphone=(), camera=(), payment=()"
+  preflight:
+    critical_files:
+      - index.html
+      - config.js
+    verify_react_bundle: true
+    index_html_path: index.html
   api:
     graphql_url: /graphql
     ws_url: /graphql
