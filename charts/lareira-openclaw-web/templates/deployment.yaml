@@ -39,12 +39,14 @@ spec:
             initialDelaySeconds: 5
             periodSeconds: 10
           volumeMounts:
-            # /config.js into hanabi's static root (loaded by index.html).
-            - name: runtime-config
-              mountPath: /app/static/config.js
-              subPath: config.js
+            # Lilitu pattern — env.js mounted into hanabi's static root.
+            # Hanabi's preflight check uses 'env.js' as a critical_files
+            # default; matching that name avoids any preflight override.
+            - name: env-config
+              mountPath: /app/static/env.js
+              subPath: env.js
               readOnly: true
-            # Hanabi's own config (server, port, static root, spa fallback).
+            # Hanabi's own config (server, ports, static_dir, etc.).
             - name: hanabi-config
               mountPath: /etc/hanabi/config.yaml
               subPath: config.yaml
@@ -52,12 +54,12 @@ spec:
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
       volumes:
-        - name: runtime-config
+        - name: env-config
           configMap:
-            name: {{ include "openclaw-web.fullname" . }}-runtime
+            name: {{ include "openclaw-web.fullname" . }}-env
             items:
-              - key: config.js
-                path: config.js
+              - key: env.js
+                path: env.js
         - name: hanabi-config
           configMap:
             name: {{ include "openclaw-web.fullname" . }}-hanabi

@@ -1,14 +1,15 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "openclaw-web.fullname" . }}-runtime
+  name: {{ include "openclaw-web.fullname" . }}-env
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "openclaw-web.labels" . | nindent 4 }}
 data:
-  # Loaded as /config.js by index.html before main.tsx; sets
+  # Lilitu pattern: hanabi preflight checks for /app/static/env.js by
+  # default. Loaded as /env.js by index.html before main.tsx; sets
   # window.__OPENCLAW_RUNTIME_CONFIG__ which shared/config.ts reads.
-  config.js: |
+  env.js: |
     window.__OPENCLAW_RUNTIME_CONFIG__ = {{ toJson .Values.runtimeConfig }};
 ---
 apiVersion: v1
