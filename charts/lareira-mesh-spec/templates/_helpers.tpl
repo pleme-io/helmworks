@@ -3,16 +3,6 @@ lareira-mesh-spec — helpers for the per-mesh declaration.
 */}}
 
 {{/*
-SPIFFE-ID for a given (namespace, serviceAccount).
-*/}}
-{{- define "lareira-mesh-spec.spiffeId" -}}
-{{- $td := index . 0 -}}
-{{- $ns := index . 1 -}}
-{{- $sa := index . 2 -}}
-spiffe://{{ $td }}/ns/{{ $ns }}/sa/{{ $sa }}
-{{- end }}
-
-{{/*
 Aggregate the full peer+upstream allowlist:
    trust-domain → mesh.namespace × all servicos[].sa
                  + each participant.namespace × participant.sa
@@ -69,4 +59,20 @@ to render them.
 */}}
 {{- define "lareira-mesh-spec.spiffeIdTemplate" -}}
 {{- printf "%s" "spiffe://{{ .TrustDomain }}/ns/{{ .PodMeta.Namespace }}/sa/{{ .PodSpec.ServiceAccountName }}" -}}
+{{- end }}
+
+{{/*
+Deduplicated list of every namespace participating in the mesh:
+the home namespace plus every cross-namespace participant. Used to
+fan out per-namespace ClusterRoleBindings + NetworkPolicies.
+
+Returns a JSON array (toJson + fromJsonArray round-trip) so callers
+can `range` over it without re-computing.
+*/}}
+{{- define "lareira-mesh-spec.allNamespaces" -}}
+{{- $ns := list .Values.mesh.namespace -}}
+{{- range .Values.participants -}}
+{{- $ns = append $ns .namespace -}}
+{{- end -}}
+{{- $ns | uniq | toJson -}}
 {{- end }}

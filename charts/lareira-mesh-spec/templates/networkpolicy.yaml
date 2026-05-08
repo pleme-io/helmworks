@@ -1,14 +1,12 @@
 {{- if .Values.networkPolicy.enabled }}
-# Mesh-wide ingress allowance. mTLS via SPIFFE-ID URI-SAN +
-# peer_allowlist is the trust boundary; the L4 NetworkPolicy is
-# permissive by design — without it, chart-default deny-all
-# policies on co-located workloads would block mesh-port traffic
-# (15001) and the workload-port direct dials.
-{{- $namespaces := list .Values.mesh.namespace }}
-{{- range .Values.participants -}}
-{{- $namespaces = append $namespaces .namespace -}}
-{{- end }}
-{{- range $ns := ($namespaces | uniq) }}
+{{- /*
+  Mesh-wide ingress allowance. mTLS via SPIFFE-ID URI-SAN +
+  peer_allowlist is the trust boundary; the L4 NetworkPolicy is
+  permissive by design — without it, chart-default deny-all
+  policies on co-located workloads would block mesh-port traffic
+  (15001) and the workload-port direct dials.
+*/ -}}
+{{- range $ns := fromJsonArray (include "lareira-mesh-spec.allNamespaces" $) }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

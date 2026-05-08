@@ -1,14 +1,9 @@
 {{- /*
-   Build the unique list of namespaces that need a resolver
-   ClusterRoleBinding — home ns + every participant ns.
+  One ClusterRoleBinding per participating namespace, binding the
+  ns's `system:serviceaccounts:<ns>` Group to the cluster-singleton
+  resolver ClusterRole shipped by lareira-aresta-defaults.
 */ -}}
-{{- $namespaces := list .Values.mesh.namespace -}}
-{{- range .Values.participants -}}
-{{- $namespaces = append $namespaces .namespace -}}
-{{- end -}}
-{{- $namespaces = $namespaces | uniq -}}
-
-{{- range $ns := $namespaces }}
+{{- range $ns := fromJsonArray (include "lareira-mesh-spec.allNamespaces" $) }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
