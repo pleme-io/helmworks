@@ -15,7 +15,11 @@ runtimeConfig:
   cartorioUrl: "https://cartorio.dev.use1.quero.cloud"
 
 # Hanabi server config (mounted at /etc/hanabi/config.yaml).
-# Static-only — no BFF / no GraphQL / no auth / no DB.
+# Static-only — features.enable_bff: false + bff.mode: disabled keep
+# hanabi from spinning up GraphQL / federation / WebSocket subsystems.
+# Field names match hanabi/src/config/server.rs (http_port, static_dir,
+# bind_address) — `port`/`listen_address`/`static.root` are NOT the
+# real keys and serde defaults silently produce port 0 → fatal at boot.
 hanabiConfig: |
   environment: production
   security:
@@ -24,19 +28,52 @@ hanabiConfig: |
       ws_domains: []
       additional_connect_src:
         - https://cartorio.dev.use1.quero.cloud
+    cors:
+      allowed_origins: []
+      allow_credentials: false
+      max_age_secs: 3600
+    hsts:
+      max_age: 31536000
+      include_subdomains: true
+      preload: false
+    headers:
+      x_frame_options: "DENY"
+      referrer_policy: "strict-origin-when-cross-origin"
+      permissions_policy: "geolocation=(), microphone=(), camera=(), payment=()"
+  api:
+    graphql_url: /graphql
+    ws_url: /graphql
+  bff:
+    mode: disabled
   server:
-    listen_address: "0.0.0.0"
-    port: 80
+    static_dir: /app/static
+    http_port: 80
     health_port: 8080
-    worker_threads: 0
+    bind_address: "0.0.0.0"
     service_name: openclaw-web
-  static:
-    root: /app/static
-    spa_fallback: true
-    spa_fallback_path: index.html
+    service_version: "0.2.0"
+    worker_threads: 0
+  compression:
+    enable_brotli: true
+    enable_gzip: true
+    min_compress_size: 1024
+  cache:
+    enable_cache_headers: true
+    static_max_age: 31536000
+    html_max_age: 3600
+  health:
+    disk_warn_threshold: 10.0
+    disk_critical_threshold: 5.0
+    memory_warn_threshold: 10.0
+    memory_critical_threshold: 5.0
+  metrics:
+    enabled: false
+  logging:
+    format: json
+    level: info
   features:
     enable_bff: false
-    enable_metrics: true
+    enable_metrics: false
     enable_detailed_health_checks: true
     enable_bug_reports: false
 

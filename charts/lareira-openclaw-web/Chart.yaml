@@ -8,8 +8,8 @@ description: |
   read-only-on-the-public-internet); production deploys would front it
   with saguão.
 type: application
-version: 0.2.0
-appVersion: "0.2.0"
+version: 0.2.1
+appVersion: "0.2.1"
 
 keywords: [openclaw, proof-chain, lareira, web, demo]
 maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]
