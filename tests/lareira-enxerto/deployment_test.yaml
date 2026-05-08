@@ -37,26 +37,27 @@ tests:
             name: ARESTA_IMAGE
             value: "ghcr.io/pleme-io/aresta:amd64-6a8a463"
 
-  - it: env can be overridden at HelmRelease level
+  - it: meshOutboundCidrs override propagates to env
     set:
-      env:
-        - name: MESH_OUTBOUND_CIDRS
-          value: "192.168.0.0/16"
-        - name: ARESTA_IMAGE
-          value: ghcr.io/pleme-io/aresta:amd64-OVERRIDE
-        - name: RUST_LOG
-          value: "debug"
+      meshOutboundCidrs:
+        - "192.168.0.0/16"
+        - "172.16.0.0/12"
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
           content:
             name: MESH_OUTBOUND_CIDRS
-            value: "192.168.0.0/16"
+            value: "192.168.0.0/16,172.16.0.0/12"
+
+  - it: arestaImage override propagates to env
+    set:
+      arestaImage: ghcr.io/pleme-io/aresta:amd64-OVERRIDE
+    asserts:
       - contains:
           path: spec.template.spec.containers[0].env
           content:
-            name: RUST_LOG
-            value: "debug"
+            name: ARESTA_IMAGE
+            value: "ghcr.io/pleme-io/aresta:amd64-OVERRIDE"
 
   - it: exposes the webhook port
     asserts:
@@ -103,10 +104,8 @@ tests:
           path: spec.replicas
           value: 1
 
-  - it: never injects mesh sidecar into itself (chicken-and-egg)
-    documentSelector:
-      path: kind
-      value: Deployment
+  - it: explicitly opts out of mesh injection (chicken-and-egg)
     asserts:
-      - notExists:
+      - equal:
           path: spec.template.metadata.labels["mesh.pleme.io/inject"]
+          value: "false"
