@@ -76,9 +76,19 @@ description: >-
   swaps in the regenerated bundle (still preserving the
   `helm.sh/resource-policy: keep` annotation that the generator
   doesn't yet emit).
+  v0.8.14 ships a defense-in-depth alert family for the bug class
+  that hit rio on 2026-05-07 — status-write feedback loops in
+  `template_controller` (~123 PATCH/sec) and
+  `operator_policy_controller` (~76 reconciles/sec). New values
+  block `prometheusRules.reconcileRateAnomaly` (default OFF) ships
+  three alerts: PangeaControllerReconcileRateHigh (warning, >1/sec
+  1m), PangeaControllerReconcileRateCritical (critical, >10/sec
+  5m), PangeaOperatorErrorRateHigh (warning, >0.5 err/sec 10m).
+  Flip `enabled: true` per cluster after baselining the steady-
+  state reconcile rate.
 type: application
-version: 0.8.13
-appVersion: "0.8.13"
+version: 0.8.14
+appVersion: "0.8.14"
 
 dependencies:
   - name: pleme-lib

@@ -19,4 +19,14 @@ spec:
     - name: {{ include "pleme-lib.fullname" . }}.rules
       rules:
         {{- toYaml .Values.prometheusRules.rules | nindent 8 }}
+        {{- if (.Values.prometheusRules.reconcileRateAnomaly).enabled }}
+        {{- /*
+          Defense-in-depth alert family for the bug class that hit rio
+          on 2026-05-07 (template_controller and operator_policy_controller
+          self-trigger watch loops). Code-complete in 0.8.14 but flagged
+          off by default — flip prometheusRules.reconcileRateAnomaly.enabled
+          to true once you've baselined your fleet's normal reconcile rate.
+        */}}
+        {{- toYaml .Values.prometheusRules.reconcileRateAnomaly.rules | nindent 8 }}
+        {{- end }}
 {{- end }}
