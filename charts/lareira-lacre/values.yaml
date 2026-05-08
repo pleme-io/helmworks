@@ -150,10 +150,17 @@ pleme-microservice:
                 protocol: TCP
       - name: allow-to-backend-registry
         rules:
+          # Match either the standalone pleme-zot deploy
+          # (`app.kubernetes.io/name: zot`) OR the lareira-openclaw-stack
+          # umbrella alias (`backing-registry`). pleme-lib.selectorLabels
+          # propagates the dep alias, so a chart consumer alias drift
+          # would otherwise silently break this egress.
           - to:
               - podSelector:
-                  matchLabels:
-                    app.kubernetes.io/name: zot
+                  matchExpressions:
+                    - key: app.kubernetes.io/name
+                      operator: In
+                      values: [zot, backing-registry]
             ports:
               - port: 5000
                 protocol: TCP

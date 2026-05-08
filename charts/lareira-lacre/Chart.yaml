@@ -12,7 +12,7 @@ description: |
   on top of pleme-microservice with the fedramp-high compliance overlay.
 
 type: application
-version: 0.1.1
+version: 0.1.2
 appVersion: "0.1.0"
 
 keywords: [openclaw, oci, registry, gate, fedramp-high, lareira]

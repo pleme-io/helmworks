@@ -7,7 +7,7 @@ dependencies:
   version: 0.4.1
 - name: lareira-lacre
   repository: file://../lareira-lacre
-  version: 0.1.1
+  version: 0.1.2
 - name: lareira-openclaw-store
   repository: file://../lareira-openclaw-store
   version: 0.1.0
@@ -17,5 +17,5 @@ dependencies:
 - name: pleme-zot
   repository: file://../pleme-zot
   version: 0.1.2
-digest: sha256:205db054c3e0224e93c5bcb450533fec4f5137e857d43d50eaec5c79633ded5f
-generated: "2026-05-07T22:15:23.436234-04:00"
+digest: sha256:68919115f387ef3f8f37157e9181c8b09b43732fe590cd707b8956465a067a7f
+generated: "2026-05-07T22:38:30.792012-04:00"
