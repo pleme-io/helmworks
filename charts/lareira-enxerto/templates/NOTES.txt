@@ -1,0 +1,48 @@
+{{ .Chart.Name }}@{{ .Chart.Version }} installed in {{ .Release.Namespace }}
+
+NEXT STEPS
+
+1. Provide the webhook TLS Secret + matching CA bundle:
+
+   {{- if .Values.webhook.certManager.enabled }}
+   ✓ cert-manager mode is enabled. The Secret + CA bundle are
+     auto-managed via the Certificate `enxerto-webhook` in
+     {{ .Release.Namespace }}. Verify rotation:
+
+     kubectl get certificate -n {{ .Release.Namespace }} enxerto-webhook
+     kubectl get mutatingwebhookconfiguration enxerto -o jsonpath='{.webhooks[0].clientConfig.caBundle}' | head -c 50
+   {{- else }}
+   ⚠ Operator-managed mode. Materialize:
+
+     kubectl create secret tls enxerto-webhook-tls \
+       --cert=tls.crt --key=tls.key -n {{ .Release.Namespace }}
+
+   And set webhook.caBundle to the base64-encoded CA cert:
+
+     helm upgrade {{ .Release.Name }} ... \
+       --set-string webhook.caBundle="$(base64 < ca.crt)"
+   {{- end }}
+
+2. Install the cluster-singleton resolver ClusterRole:
+
+     helm install aresta-defaults oci://ghcr.io/pleme-io/charts/lareira-aresta-defaults \
+       --version "*" -n {{ .Release.Namespace }}
+
+3. Install at least one per-Aplicacao mesh:
+
+     helm install <mesh-name> oci://ghcr.io/pleme-io/charts/lareira-mesh-spec \
+       --version "*" -n {{ .Release.Namespace }} \
+       -f my-mesh-values.yaml
+
+4. Watch a workload pod gain the aresta sidecar by labeling its
+   pod template:
+
+     mesh.pleme.io/inject: "true"
+
+VERIFY THE WEBHOOK IS HEALTHY
+
+   kubectl rollout status deployment/enxerto -n {{ .Release.Namespace }}
+   kubectl logs -n {{ .Release.Namespace }} deployment/enxerto --tail=20
+
+   The first injected pod will show:
+     {"message":"injecting mesh sidecar","ops":N}

@@ -1,9 +1,60 @@
 # lareira-aresta-defaults — cluster-singleton aresta prerequisites.
 #
-# Today: just the resolver ClusterRole. Future: cluster-wide
-# ServiceMonitor for aresta sidecars (port 9090), default
-# RegistryConfig template helpers consumed by lareira-mesh-spec.
+# Today: resolver ClusterRole + cluster-wide PodMonitor + per-mesh
+# PrometheusRule template helpers.
 
 # The ClusterRole name. Stable so multiple lareira-mesh-spec
 # HelmReleases can bind against the same role.
 clusterRoleName: aresta-resolver
+
+# Cluster-wide PodMonitor scrape every meshed pod's :9090 (mesh-metrics).
+# Disabled when the cluster doesn't have prometheus-operator CRDs.
+podMonitor:
+  enabled: true
+  # Where the PodMonitor object lives. Most prometheus-operator
+  # installs watch a single namespace; default to the chart's release
+  # namespace (mesh-system).
+  namespace: ""
+  interval: 30s
+  scrapeTimeout: 10s
+
+# Cluster-wide PrometheusRule with mesh-health alerts.
+prometheusRule:
+  enabled: true
+  namespace: ""
+  # Minimum-burn alerts. Operators tune thresholds per cluster.
+  alerts:
+    - alert: ArestaTLSFailuresHigh
+      expr: |
+        rate(aresta_outbound_tls_failures_total[5m]) > 0.1
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: aresta is failing TLS handshakes outbound
+        description: |
+          {{`{{ $labels.pod }}`}} in {{`{{ $labels.namespace }}`}} has
+          a sustained outbound TLS failure rate. Check peer SPIFFE-ID
+          allowlist + SPIRE entry presence.
+    - alert: ArestaCircuitBreakerOpen
+      expr: |
+        increase(aresta_outbound_circuit_breaker_open_total[5m]) > 0
+      for: 1m
+      labels:
+        severity: warning
+      annotations:
+        summary: aresta circuit-breaker tripped on outbound peer
+        description: |
+          The breaker on {{`{{ $labels.pod }}`}} opened — too many
+          consecutive failures dialing a peer aresta-in.
+    - alert: ArestaConnectFailuresHigh
+      expr: |
+        rate(aresta_outbound_connect_failures_total[5m]) > 0.5
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: aresta is failing TCP connect to peers
+        description: |
+          High rate of connect failures outbound. Possible causes:
+          stale resolver, NetworkPolicy block, peer pod restart.

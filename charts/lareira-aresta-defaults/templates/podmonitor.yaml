@@ -1,0 +1,30 @@
+{{- if .Values.podMonitor.enabled }}
+# PodMonitor — scrapes the `mesh-metrics` port (default 9090) of
+# every meshed pod across the cluster. PodMonitor is the right
+# shape because aresta is a sidecar on workload pods, not a
+# standalone Service. The `mesh.pleme.io/inject=true` label is the
+# canonical mesh-membership marker (set by every consuming chart's
+# pod template).
+#
+# Cluster-singleton — install once via lareira-aresta-defaults.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: aresta-sidecars
+  namespace: {{ .Values.podMonitor.namespace | default .Release.Namespace }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+    mesh.pleme.io/component: aresta-podmonitor
+spec:
+  selector:
+    matchLabels:
+      mesh.pleme.io/inject: "true"
+  namespaceSelector:
+    any: true
+  podMetricsEndpoints:
+    - port: mesh-metrics
+      path: /metrics
+      interval: {{ .Values.podMonitor.interval | default "30s" }}
+      scrapeTimeout: {{ .Values.podMonitor.scrapeTimeout | default "10s" }}
+      honorLabels: true
+{{- end }}

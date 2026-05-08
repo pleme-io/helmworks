@@ -1,0 +1,15 @@
+{{- if .Values.prometheusRule.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: aresta-mesh
+  namespace: {{ .Values.prometheusRule.namespace | default .Release.Namespace }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+    mesh.pleme.io/component: aresta-prometheusrule
+spec:
+  groups:
+    - name: aresta.mesh
+      rules:
+        {{- toYaml .Values.prometheusRule.alerts | nindent 8 }}
+{{- end }}

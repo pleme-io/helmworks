@@ -1,0 +1,36 @@
+{{- if .Values.webhook.certManager.enabled }}
+{{- /* Self-signed Issuer (created when no externalIssuer is configured). */}}
+{{- if not .Values.webhook.certManager.issuerName }}
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: enxerto-selfsigned
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+spec:
+  selfSigned: {}
+---
+{{- end }}
+# Certificate for the webhook Service. cert-manager populates the
+# Secret named `tls.secretName`; the MWC's caBundle is auto-injected
+# via the cert-manager.io/inject-ca-from annotation on the
+# MutatingWebhookConfiguration.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: enxerto-webhook
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+spec:
+  secretName: {{ .Values.tls.secretName }}
+  duration: 8760h    # 1 year
+  renewBefore: 720h  # 30 days
+  dnsNames:
+    - enxerto.{{ .Release.Namespace }}.svc
+    - enxerto.{{ .Release.Namespace }}.svc.cluster.local
+  issuerRef:
+    kind: {{ .Values.webhook.certManager.issuerKind | default "Issuer" }}
+    name: {{ .Values.webhook.certManager.issuerName | default "enxerto-selfsigned" }}
+{{- end }}

@@ -1,0 +1,60 @@
+suite: lareira-aresta-defaults ClusterRole
+templates:
+  - templates/clusterrole.yaml
+release:
+  namespace: mesh-system
+tests:
+  - it: renders a ClusterRole named aresta-resolver
+    asserts:
+      - isKind:
+          of: ClusterRole
+      - equal:
+          path: metadata.name
+          value: aresta-resolver
+
+  - it: name is configurable via values
+    set:
+      clusterRoleName: my-resolver
+    asserts:
+      - equal:
+          path: metadata.name
+          value: my-resolver
+
+  - it: grants list+watch on services
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: [services]
+            verbs: [list, watch]
+
+  - it: grants list+watch on endpointslices
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups: [discovery.k8s.io]
+            resources: [endpointslices]
+            verbs: [list, watch]
+
+  - it: grants no write verbs
+    documentSelector:
+      path: kind
+      value: ClusterRole
+    asserts:
+      - notContains:
+          path: rules[0].verbs
+          content: create
+      - notContains:
+          path: rules[0].verbs
+          content: update
+      - notContains:
+          path: rules[0].verbs
+          content: delete
+
+  - it: carries the aresta-resolver component label
+    asserts:
+      - equal:
+          path: metadata.labels["mesh.pleme.io/component"]
+          value: aresta-resolver

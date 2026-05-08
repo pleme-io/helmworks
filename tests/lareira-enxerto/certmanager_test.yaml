@@ -1,0 +1,67 @@
+suite: lareira-enxerto cert-manager mode
+templates:
+  - templates/certificate.yaml
+release:
+  namespace: mesh-system
+tests:
+  - it: renders nothing when cert-manager mode disabled (default)
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: emits a self-signed Issuer + Certificate when enabled
+    set:
+      webhook.certManager.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 2
+      - documentIndex: 0
+        isKind:
+          of: Issuer
+      - documentIndex: 0
+        equal:
+          path: metadata.name
+          value: enxerto-selfsigned
+      - documentIndex: 1
+        isKind:
+          of: Certificate
+
+  - it: skips Issuer when an existing Issuer is referenced
+    set:
+      webhook.certManager.enabled: true
+      webhook.certManager.issuerName: cluster-ca
+      webhook.certManager.issuerKind: ClusterIssuer
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Certificate
+      - equal:
+          path: spec.issuerRef.name
+          value: cluster-ca
+      - equal:
+          path: spec.issuerRef.kind
+          value: ClusterIssuer
+
+  - it: Certificate covers the in-cluster service DNS names
+    set:
+      webhook.certManager.enabled: true
+    asserts:
+      - documentIndex: 1
+        contains:
+          path: spec.dnsNames
+          content: "enxerto.mesh-system.svc"
+      - documentIndex: 1
+        contains:
+          path: spec.dnsNames
+          content: "enxerto.mesh-system.svc.cluster.local"
+
+  - it: Certificate writes to the configured TLS Secret name
+    set:
+      webhook.certManager.enabled: true
+      tls.secretName: custom-webhook-tls
+    asserts:
+      - documentIndex: 1
+        equal:
+          path: spec.secretName
+          value: custom-webhook-tls

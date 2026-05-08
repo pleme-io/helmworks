@@ -1,0 +1,84 @@
+suite: lareira-aresta-defaults observability
+templates:
+  - templates/podmonitor.yaml
+  - templates/prometheusrule.yaml
+release:
+  namespace: mesh-system
+tests:
+  - it: PodMonitor selects mesh.pleme.io/inject=true pods cluster-wide
+    template: templates/podmonitor.yaml
+    asserts:
+      - isKind:
+          of: PodMonitor
+      - equal:
+          path: spec.selector.matchLabels["mesh.pleme.io/inject"]
+          value: "true"
+      - equal:
+          path: spec.namespaceSelector.any
+          value: true
+
+  - it: PodMonitor scrapes the mesh-metrics port
+    template: templates/podmonitor.yaml
+    asserts:
+      - equal:
+          path: spec.podMetricsEndpoints[0].port
+          value: mesh-metrics
+      - equal:
+          path: spec.podMetricsEndpoints[0].path
+          value: /metrics
+
+  - it: PodMonitor disable toggle works
+    set:
+      podMonitor.enabled: false
+    template: templates/podmonitor.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: PrometheusRule emits the configured alerts
+    template: templates/prometheusrule.yaml
+    asserts:
+      - isKind:
+          of: PrometheusRule
+      - contains:
+          path: spec.groups[0].rules
+          any: true
+          content:
+            alert: ArestaTLSFailuresHigh
+      - contains:
+          path: spec.groups[0].rules
+          any: true
+          content:
+            alert: ArestaCircuitBreakerOpen
+      - contains:
+          path: spec.groups[0].rules
+          any: true
+          content:
+            alert: ArestaConnectFailuresHigh
+
+  - it: PrometheusRule disable toggle works
+    set:
+      prometheusRule.enabled: false
+    template: templates/prometheusrule.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: alert thresholds are operator-tunable
+    set:
+      prometheusRule.alerts:
+        - alert: CustomAlert
+          expr: vector(1) > 0
+          for: 1m
+          labels:
+            severity: page
+          annotations:
+            summary: testing
+    template: templates/prometheusrule.yaml
+    asserts:
+      - equal:
+          path: spec.groups[0].rules[0].alert
+          value: CustomAlert
+      - equal:
+          path: spec.groups[0].rules[0].labels.severity
+          value: page

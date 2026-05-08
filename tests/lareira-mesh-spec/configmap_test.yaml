@@ -1,0 +1,119 @@
+suite: lareira-mesh-spec aresta ConfigMap
+templates:
+  - templates/configmaps.yaml
+release:
+  namespace: mesh-system
+tests:
+  - it: renders one home-ns CM + one per participant
+    asserts:
+      - hasDocuments:
+          count: 2  # openclaw + cloudflared
+
+  - it: home-ns CM lives in mesh.namespace
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.namespace
+          value: openclaw
+      - equal:
+          path: metadata.name
+          value: openclaw-mesh-aresta-config
+
+  - it: participant CM lives in the participant namespace with same name
+    documentIndex: 1
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: cloudflared
+      - equal:
+          path: metadata.name
+          value: openclaw-mesh-aresta-config
+
+  - it: config.yaml carries each Servico's SPIFFE-ID in peer_allowlist
+    documentIndex: 0
+    asserts:
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: 'spiffe://pleme\.io/ns/openclaw/sa/openclaw-stack-cartorio'
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: 'spiffe://pleme\.io/ns/openclaw/sa/openclaw-stack-lacre'
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: 'spiffe://pleme\.io/ns/openclaw/sa/openclaw-stack-backing-registry'
+
+  - it: config.yaml carries cross-namespace participants in peer_allowlist
+    documentIndex: 0
+    asserts:
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: 'spiffe://pleme\.io/ns/cloudflared/sa/cloudflared'
+
+  - it: config.yaml emits both peer_allowlist AND upstream_allowlist
+    documentIndex: 0
+    asserts:
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: 'peer_allowlist:'
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: 'upstream_allowlist:'
+
+  - it: config.yaml contains the M3 outbound + probe addresses
+    documentIndex: 0
+    asserts:
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: 'outbound_addr: "0\.0\.0\.0:15006"'
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: 'probe_addr: "0\.0\.0\.0:4191"'
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: 'inbound_addr: "0\.0\.0\.0:15001"'
+
+  - it: minimal mesh emits only the home-ns CM
+    set:
+      servicos:
+        - name: solo
+          serviceAccount: solo
+          podSelector:
+            app: solo
+      participants: []
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.namespace
+          value: openclaw  # default mesh.namespace
+
+  - it: trust domain is plumbed through
+    set:
+      mesh.trustDomain: example.org
+      servicos:
+        - name: foo
+          serviceAccount: foo
+          podSelector: { app: foo }
+      participants: []
+    asserts:
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: 'spiffe://example\.org/ns/openclaw/sa/foo'
+
+  - it: outbound_addr toggle propagates
+    set:
+      arestaConfig.outboundAddr: "0.0.0.0:18006"
+    asserts:
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: 'outbound_addr: "0\.0\.0\.0:18006"'
+
+  - it: probe_addr toggle propagates
+    set:
+      arestaConfig.probeAddr: "0.0.0.0:14191"
+    asserts:
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: 'probe_addr: "0\.0\.0\.0:14191"'

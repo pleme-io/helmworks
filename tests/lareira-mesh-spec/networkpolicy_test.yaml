@@ -1,0 +1,63 @@
+suite: lareira-mesh-spec NetworkPolicy
+templates:
+  - templates/networkpolicy.yaml
+release:
+  namespace: mesh-system
+tests:
+  - it: emits one NetworkPolicy per participating namespace
+    asserts:
+      - hasDocuments:
+          count: 2  # openclaw + cloudflared
+
+  - it: NetworkPolicy selects on mesh.pleme.io/inject=true
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - equal:
+          path: spec.podSelector.matchLabels["mesh.pleme.io/inject"]
+          value: "true"
+
+  - it: ingress is open (mesh trust boundary at SPIFFE-ID layer)
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.ingress[0]
+          value: {}
+
+  - it: home-ns NetworkPolicy lives in mesh.namespace
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: openclaw
+
+  - it: participant NetworkPolicy lives in participant namespace
+    documentIndex: 1
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: cloudflared
+
+  - it: NetworkPolicy disable toggle works
+    set:
+      networkPolicy.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: deduplicates when home ns is also a participant ns
+    set:
+      mesh.namespace: openclaw
+      servicos:
+        - name: foo
+          serviceAccount: foo
+          podSelector: { app: foo }
+      participants:
+        - name: bar
+          namespace: openclaw  # same as home ns
+          serviceAccount: bar
+          podSelector: { app: bar }
+    asserts:
+      - hasDocuments:
+          count: 1

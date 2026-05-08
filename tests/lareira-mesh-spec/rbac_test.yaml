@@ -1,0 +1,76 @@
+suite: lareira-mesh-spec resolver RBAC bindings
+templates:
+  - templates/rbac.yaml
+release:
+  namespace: mesh-system
+tests:
+  - it: emits one ClusterRoleBinding per participating namespace
+    asserts:
+      - hasDocuments:
+          count: 2  # openclaw + cloudflared
+
+  - it: home-ns binding binds Group=system:serviceaccounts:<home-ns>
+    documentSelector:
+      path: metadata.name
+      value: openclaw-mesh-resolver-openclaw
+    asserts:
+      - isKind:
+          of: ClusterRoleBinding
+      - equal:
+          path: subjects[0].kind
+          value: Group
+      - equal:
+          path: subjects[0].name
+          value: system:serviceaccounts:openclaw
+
+  - it: participant binding binds the participant Group
+    documentSelector:
+      path: metadata.name
+      value: openclaw-mesh-resolver-cloudflared
+    asserts:
+      - equal:
+          path: subjects[0].name
+          value: system:serviceaccounts:cloudflared
+
+  - it: bindings reference the resolverClusterRole from values
+    set:
+      resolverClusterRole: my-resolver-role
+      servicos:
+        - name: foo
+          serviceAccount: foo
+          podSelector: { app: foo }
+      participants: []
+    asserts:
+      - equal:
+          path: roleRef.name
+          value: my-resolver-role
+      - equal:
+          path: roleRef.kind
+          value: ClusterRole
+
+  - it: deduplicates when home ns appears as participant ns
+    set:
+      mesh.namespace: openclaw
+      servicos:
+        - name: foo
+          serviceAccount: foo
+          podSelector: { app: foo }
+      participants:
+        - name: bar
+          namespace: openclaw  # same as home ns
+          serviceAccount: bar
+          podSelector: { app: bar }
+    asserts:
+      - hasDocuments:
+          count: 1  # deduped to 1 binding for openclaw
+
+  - it: minimal mesh emits one binding (home ns only)
+    set:
+      servicos:
+        - name: foo
+          serviceAccount: foo
+          podSelector: { app: foo }
+      participants: []
+    asserts:
+      - hasDocuments:
+          count: 1

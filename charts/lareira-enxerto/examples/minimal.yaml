@@ -1,0 +1,12 @@
+# lareira-enxerto — minimal pleme-dev deployment.
+#
+# Operator manages the TLS Secret (enxerto-webhook-tls) directly,
+# CA bundle is hardcoded at install time.
+#
+# helm install enxerto oci://ghcr.io/pleme-io/charts/lareira-enxerto \
+#   --version "*" -n mesh-system --create-namespace \
+#   -f examples/minimal.yaml \
+#   --set-string webhook.caBundle="$(base64 < ca.crt)"
+
+webhook:
+  failurePolicy: Ignore  # cluster boots even if enxerto is mid-rollout

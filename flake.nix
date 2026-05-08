@@ -238,6 +238,192 @@
               echo "==> unittest OK"
             '';
 
+            "mesh:render" = mkApp "mesh-render" ''
+              echo "==> rendering mesh charts (no cluster)"
+              for chart in lareira-aresta-defaults lareira-enxerto lareira-mesh-spec; do
+                echo "── $chart ──"
+                ( cd charts/$chart && helm dep update >/dev/null 2>&1 )
+                ( cd charts/$chart && helm template smoke . -n mesh-system >/tmp/mesh-render-$chart.yaml )
+                echo "  $(grep -c "^kind:" /tmp/mesh-render-$chart.yaml) resources"
+                grep "^kind:" /tmp/mesh-render-$chart.yaml | sort | uniq -c
+                echo ""
+              done
+
+              echo "==> mesh-spec example renders"
+              ( cd charts/lareira-mesh-spec && helm template openclaw-mesh . \
+                  -n mesh-system \
+                  -f examples/openclaw-mesh.yaml \
+                  >/tmp/mesh-openclaw.yaml )
+              echo "  $(grep -c "^kind:" /tmp/mesh-openclaw.yaml) resources"
+              grep "^kind:" /tmp/mesh-openclaw.yaml | sort | uniq -c
+              echo ""
+              echo "==> mesh:render OK"
+            '';
+
+            "mesh:unittest" = mkApp "mesh-unittest" ''
+              echo "==> running helm-unittest across every mesh chart"
+              for chart in lareira-enxerto lareira-aresta-defaults lareira-mesh-spec; do
+                echo ""
+                echo "── $chart ──"
+                if [ -d tests/$chart ]; then
+                  ( cd charts/$chart && helm dep update >/dev/null 2>&1 || true )
+                  ( cd charts/$chart && helm unittest -f "../../tests/$chart/*_test.yaml" . )
+                else
+                  echo "  ✗ tests/$chart missing"
+                  exit 1
+                fi
+              done
+              echo ""
+              echo "==> mesh:unittest OK"
+            '';
+
+            "mesh:e2e" = mkApp "mesh-e2e" ''
+              # Real-cluster mesh smoke. Spins up an ephemeral k3d
+              # cluster, installs SPIRE + cert-manager, then the three
+              # lareira-* mesh charts, then a tiny test mesh of two
+              # workloads that talk to each other through aresta. Asserts
+              # aresta connection counters advance — proves the data
+              # plane is carrying mTLS.
+              set -euo pipefail
+              CLUSTER="mesh-e2e-$$"
+              if command -v k3d >/dev/null 2>&1; then
+                cleanup() { k3d cluster delete "$CLUSTER" 2>/dev/null || true; }
+              else
+                echo "mesh:e2e requires k3d on PATH"
+                exit 1
+              fi
+              trap cleanup EXIT
+              echo "==> spinning up k3d cluster '$CLUSTER'"
+              k3d cluster create "$CLUSTER" --wait --timeout 180s
+              export KUBECONFIG="$(k3d kubeconfig write "$CLUSTER")"
+
+              echo "==> installing cert-manager (CRDs first)"
+              kubectl apply -f https://github.com/cert-manager/cert-manager/releases/latest/download/cert-manager.yaml
+              kubectl -n cert-manager wait --for=condition=Available deployment --all --timeout=180s
+
+              echo "==> installing SPIRE (helm-charts-hardened)"
+              kubectl create namespace spire-system
+              helm repo add spiffe https://spiffe.github.io/helm-charts-hardened/ >/dev/null 2>&1
+              helm repo update >/dev/null
+              helm install spire spiffe/spire-crds --namespace spire-system --wait
+              helm install spire-server spiffe/spire \
+                --namespace spire-system \
+                --set global.spire.trustDomain=pleme.io \
+                --wait --timeout 300s
+
+              echo "==> installing lareira-aresta-defaults"
+              kubectl create namespace mesh-system
+              ( cd charts/lareira-aresta-defaults && helm dep update >/dev/null )
+              helm install aresta-defaults charts/lareira-aresta-defaults \
+                --namespace mesh-system \
+                --set podMonitor.enabled=false \
+                --set prometheusRule.enabled=false \
+                --wait
+
+              echo "==> installing lareira-enxerto (cert-manager mode)"
+              ( cd charts/lareira-enxerto && helm dep update >/dev/null )
+              helm install enxerto charts/lareira-enxerto \
+                --namespace mesh-system \
+                --set webhook.certManager.enabled=true \
+                --wait --timeout 180s
+
+              echo "==> installing minimal mesh-spec"
+              ( cd charts/lareira-mesh-spec && helm dep update >/dev/null )
+              cat > /tmp/mesh-e2e-values.yaml <<EOF
+              mesh:
+                name: e2e-mesh
+                trustDomain: pleme.io
+                namespace: e2e
+              spire:
+                className: spire
+              servicos:
+                - name: server
+                  serviceAccount: server
+                  createServiceAccount: true
+                  podSelector: { app: server }
+                - name: client
+                  serviceAccount: client
+                  createServiceAccount: true
+                  podSelector: { app: client }
+              participants: []
+              EOF
+              kubectl create namespace e2e
+              helm install e2e-mesh charts/lareira-mesh-spec \
+                --namespace mesh-system \
+                -f /tmp/mesh-e2e-values.yaml \
+                --wait
+
+              echo "==> deploying test workloads (server + client)"
+              kubectl -n e2e apply -f - <<EOF
+              ---
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata: { name: server }
+              spec:
+                replicas: 1
+                selector: { matchLabels: { app: server } }
+                template:
+                  metadata:
+                    labels: { app: server, mesh.pleme.io/inject: "true" }
+                  spec:
+                    serviceAccountName: server
+                    containers:
+                      - name: app
+                        image: nginxinc/nginx-unprivileged:alpine
+                        ports: [ { containerPort: 8080 } ]
+              ---
+              apiVersion: v1
+              kind: Service
+              metadata: { name: server }
+              spec:
+                selector: { app: server }
+                ports: [ { port: 80, targetPort: 8080 } ]
+              EOF
+              kubectl -n e2e wait --for=condition=Ready pod -l app=server --timeout=120s
+              echo "==> server pod ready (with aresta sidecar)"
+
+              echo "==> exercising mesh: client -> server.e2e.svc"
+              kubectl -n e2e apply -f - <<EOF
+              ---
+              apiVersion: batch/v1
+              kind: Job
+              metadata: { name: client }
+              spec:
+                template:
+                  metadata:
+                    labels: { app: client, mesh.pleme.io/inject: "true" }
+                  spec:
+                    serviceAccountName: client
+                    restartPolicy: Never
+                    containers:
+                      - name: probe
+                        image: curlimages/curl:latest
+                        command: ["/bin/sh", "-c"]
+                        args:
+                          - |
+                            for i in \$(seq 1 30); do
+                              curl -sS -o /dev/null -w "%{http_code} " http://server.e2e.svc:80/
+                            done
+                            echo
+              EOF
+              kubectl -n e2e wait --for=condition=Complete job/client --timeout=120s
+              kubectl -n e2e logs job/client | head -1
+
+              echo "==> verifying aresta connection counters"
+              SERVER_POD=$(kubectl -n e2e get pod -l app=server -o name | head -1)
+              kubectl -n e2e port-forward "$SERVER_POD" 19090:9090 >/dev/null 2>&1 &
+              sleep 2
+              IN=$(curl -fsS http://127.0.0.1:19090/metrics | grep '^aresta_inbound_connections_total ' | awk '{print $2}' | tr -d 'e+0' || echo 0)
+              echo "  aresta_inbound_connections_total = $IN"
+              if [ "$IN" -lt 1 ] 2>/dev/null; then
+                echo "  ✗ FAIL: server aresta-in didn't accept any mTLS connections"
+                exit 1
+              fi
+              echo "  ✓ mesh data plane carried real mTLS traffic"
+              echo ""
+              echo "==> mesh:e2e OK"
+            '';
+
             "stack:e2e" = mkApp "stack-e2e" ''
               # Detect k3d or kind on PATH; prefer k3d (lighter), fall
               # back to kind (more universally available).

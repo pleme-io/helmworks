@@ -1,0 +1,37 @@
+{{ .Chart.Name }}@{{ .Chart.Version }} installed in {{ .Release.Namespace }}
+
+WHAT'S RUNNING — mesh: {{ .Values.mesh.name }} ({{ .Values.mesh.trustDomain }})
+
+  ✓ {{ len .Values.servicos }} Servicos in {{ .Values.mesh.namespace }}
+  ✓ {{ len .Values.participants }} cross-namespace participants
+  ✓ {{ add (len .Values.servicos) (len .Values.participants) }} ClusterSPIFFEIDs
+  ✓ Aresta config CM in {{ .Values.mesh.namespace }}{{ range .Values.participants }}, {{ .namespace }}{{ end }}
+  {{- if .Values.networkPolicy.enabled }}
+  ✓ Open-ingress NetworkPolicy on every meshed pod
+  {{- end }}
+
+NEXT STEPS
+
+1. Each Servico in {{ .Values.mesh.namespace }} must label its pod
+   template:
+
+     mesh.pleme.io/inject: "true"
+
+2. enxerto's admission webhook will graft the aresta sidecar +
+   iptables-init + spiffe-csi volume on the next pod restart.
+
+3. Verify SPIRE issued the SVIDs:
+
+     kubectl exec -n spire-system spire-server-0 -c spire-server \
+       -- /opt/spire/bin/spire-server entry show \
+       | grep "{{ .Values.mesh.trustDomain }}" | sort -u
+
+   Expect {{ add (len .Values.servicos) (len .Values.participants) }} entries.
+
+4. Tail aresta logs on a meshed pod to confirm identity acquisition
+   + resolver poll success:
+
+     POD=$(kubectl -n {{ .Values.mesh.namespace }} get pods -l mesh.pleme.io/inject=true -o name | head -1)
+     kubectl -n {{ .Values.mesh.namespace }} logs $POD -c aresta --tail=10
+
+   Expect "aresta identity acquired" + "resolver: services polled".

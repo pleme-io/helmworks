@@ -1,0 +1,95 @@
+suite: lareira-mesh-spec ClusterSPIFFEIDs
+templates:
+  - templates/clusterspiffeids.yaml
+release:
+  namespace: mesh-system
+tests:
+  - it: emits one ClusterSPIFFEID per Servico (default openclaw values = 7)
+    asserts:
+      - hasDocuments:
+          count: 8  # 7 servicos + 1 cloudflared participant
+
+  - it: SPIFFE-IDs use the trust domain template that spire-controller-manager evaluates
+    asserts:
+      - matchRegex:
+          path: spec.spiffeIDTemplate
+          pattern: '^spiffe://\{\{ \.TrustDomain \}\}/ns/\{\{ \.PodMeta\.Namespace \}\}/sa/\{\{ \.PodSpec\.ServiceAccountName \}\}$'
+
+  - it: ClusterSPIFFEID names are prefixed with mesh.name (first doc)
+    documentIndex: 0
+    asserts:
+      - matchRegex:
+          path: metadata.name
+          pattern: '^openclaw-mesh-'
+
+  - it: ClusterSPIFFEID names are prefixed with mesh.name (last doc — cloudflared participant)
+    documentIndex: 7
+    asserts:
+      - matchRegex:
+          path: metadata.name
+          pattern: '^openclaw-mesh-'
+
+  - it: Servico-pod ClusterSPIFFEIDs scope to the mesh home namespace
+    set:
+      mesh.namespace: openclaw
+      mesh.name: my-mesh
+      participants: []
+      servicos:
+        - name: foo
+          serviceAccount: foo
+          podSelector:
+            app: foo
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: spec.namespaceSelector.matchLabels["kubernetes.io/metadata.name"]
+          value: openclaw
+
+  - it: participant ClusterSPIFFEID scopes to the participant namespace
+    set:
+      servicos: []
+      participants:
+        - name: cloudflared
+          namespace: cloudflared
+          serviceAccount: cloudflared
+          podSelector:
+            app: cloudflared
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: spec.namespaceSelector.matchLabels["kubernetes.io/metadata.name"]
+          value: cloudflared
+
+  - it: SPIRE className is operator-tunable
+    set:
+      spire.className: my-spire
+      servicos:
+        - name: foo
+          serviceAccount: foo
+          podSelector:
+            app: foo
+      participants: []
+    asserts:
+      - equal:
+          path: spec.className
+          value: my-spire
+
+  - it: pod selector is verbatim from values
+    set:
+      servicos:
+        - name: foo
+          serviceAccount: foo
+          podSelector:
+            app.kubernetes.io/instance: my-stack
+            app.kubernetes.io/name: my-foo
+            tier: backend
+      participants: []
+    asserts:
+      - equal:
+          path: spec.podSelector.matchLabels["app.kubernetes.io/instance"]
+          value: my-stack
+      - equal:
+          path: spec.podSelector.matchLabels.tier
+          value: backend

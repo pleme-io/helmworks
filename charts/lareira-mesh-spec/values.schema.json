@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["mesh", "spire", "servicos"],
+  "properties": {
+    "mesh": {
+      "type": "object",
+      "required": ["name", "trustDomain", "namespace"],
+      "properties": {
+        "name": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+        "trustDomain": { "type": "string", "pattern": "^[a-z0-9.-]+$" },
+        "namespace": { "type": "string", "pattern": "^[a-z0-9-]+$" }
+      }
+    },
+    "spire": {
+      "type": "object",
+      "required": ["className"],
+      "properties": {
+        "className": { "type": "string" }
+      }
+    },
+    "resolverClusterRole": { "type": "string" },
+    "servicos": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "serviceAccount", "podSelector"],
+        "properties": {
+          "name": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+          "serviceAccount": { "type": "string" },
+          "createServiceAccount": { "type": "boolean" },
+          "podSelector": {
+            "type": "object",
+            "minProperties": 1
+          }
+        }
+      }
+    },
+    "participants": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "namespace", "serviceAccount", "podSelector"],
+        "properties": {
+          "name": { "type": "string" },
+          "namespace": { "type": "string" },
+          "serviceAccount": { "type": "string" },
+          "createServiceAccount": { "type": "boolean" },
+          "podSelector": { "type": "object" }
+        }
+      }
+    },
+    "arestaConfig": {
+      "type": "object",
+      "properties": {
+        "inboundAddr": { "type": "string" },
+        "outboundAddr": { "type": "string" },
+        "probeAddr": { "type": "string" },
+        "fallbackUpstreamAddr": { "type": "string" },
+        "observability": { "type": "object" },
+        "policy": { "type": "object" }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "properties": { "enabled": { "type": "boolean" } }
+    }
+  }
+}

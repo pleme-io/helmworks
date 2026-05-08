@@ -1,0 +1,112 @@
+suite: lareira-enxerto deployment
+templates:
+  - templates/deployment.yaml
+release:
+  namespace: mesh-system
+tests:
+  - it: renders a Deployment named enxerto
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: enxerto
+      - equal:
+          path: metadata.namespace
+          value: mesh-system
+
+  - it: pins the SHA-tagged image
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].image
+          pattern: ^ghcr\.io/pleme-io/enxerto:amd64-[0-9a-f]{7,}$
+
+  - it: configures MESH_OUTBOUND_CIDRS env (default values)
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MESH_OUTBOUND_CIDRS
+            value: "10.42.0.0/16,10.43.0.0/16"
+
+  - it: configures ARESTA_IMAGE env (default values)
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ARESTA_IMAGE
+            value: "ghcr.io/pleme-io/aresta:amd64-6a8a463"
+
+  - it: env can be overridden at HelmRelease level
+    set:
+      env:
+        - name: MESH_OUTBOUND_CIDRS
+          value: "192.168.0.0/16"
+        - name: ARESTA_IMAGE
+          value: ghcr.io/pleme-io/aresta:amd64-OVERRIDE
+        - name: RUST_LOG
+          value: "debug"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MESH_OUTBOUND_CIDRS
+            value: "192.168.0.0/16"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: RUST_LOG
+            value: "debug"
+
+  - it: exposes the webhook port
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: webhook
+            containerPort: 8443
+            protocol: TCP
+
+  - it: mounts the TLS Secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: tls
+            mountPath: /etc/enxerto/tls
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: tls
+            secret:
+              secretName: enxerto-webhook-tls
+
+  - it: uses a custom TLS Secret name when overridden
+    set:
+      tls.secretName: custom-tls
+      volumes:
+        - name: tls
+          secret:
+            secretName: custom-tls
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: tls
+            secret:
+              secretName: custom-tls
+
+  - it: single replica by default (cluster-singleton webhook)
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: never injects mesh sidecar into itself (chicken-and-egg)
+    documentSelector:
+      path: kind
+      value: Deployment
+    asserts:
+      - notExists:
+          path: spec.template.metadata.labels["mesh.pleme.io/inject"]

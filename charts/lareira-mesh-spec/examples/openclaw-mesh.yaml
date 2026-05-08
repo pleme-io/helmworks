@@ -1,0 +1,65 @@
+# lareira-mesh-spec — pleme-dev openclaw mesh.
+#
+# 7 Servicos in `openclaw` ns + 1 cross-namespace participant
+# (cloudflared). Renders 8 ClusterSPIFFEIDs, 2 ConfigMaps (one per
+# ns), 2 ClusterRoleBindings, 2 NetworkPolicies, 2 fallback
+# ServiceAccounts (openclaw-stack-openclaw-web + cloudflared).
+
+mesh:
+  name: openclaw-mesh
+  trustDomain: pleme.io
+  namespace: openclaw
+
+spire:
+  className: spire-system-spire
+
+resolverClusterRole: aresta-resolver
+
+servicos:
+  - name: cartorio
+    serviceAccount: openclaw-stack-cartorio
+    podSelector:
+      app.kubernetes.io/instance: openclaw-stack
+      app.kubernetes.io/name: cartorio
+  - name: lacre
+    serviceAccount: openclaw-stack-lacre
+    podSelector:
+      app.kubernetes.io/instance: openclaw-stack
+      app.kubernetes.io/name: lacre
+  - name: openclaw-publisher-pki
+    serviceAccount: openclaw-stack-openclaw-publisher-pki
+    podSelector:
+      app.kubernetes.io/instance: openclaw-stack
+      app.kubernetes.io/name: openclaw-publisher-pki
+  - name: openclaw-scanner
+    serviceAccount: openclaw-stack-openclaw-scanner
+    podSelector:
+      app.kubernetes.io/instance: openclaw-stack
+      app.kubernetes.io/name: openclaw-scanner
+  - name: openclaw-skill-store
+    serviceAccount: openclaw-stack-openclaw-skill-store
+    podSelector:
+      app.kubernetes.io/instance: openclaw-stack
+      app.kubernetes.io/name: openclaw-skill-store
+  - name: openclaw-web
+    serviceAccount: openclaw-stack-openclaw-web
+    createServiceAccount: true  # chart doesn't emit one
+    podSelector:
+      app.kubernetes.io/instance: openclaw-stack
+      app.kubernetes.io/name: openclaw-web
+  - name: backing-registry
+    serviceAccount: openclaw-stack-backing-registry
+    podSelector:
+      app.kubernetes.io/instance: openclaw-stack
+      app.kubernetes.io/name: backing-registry
+
+participants:
+  - name: cloudflared
+    namespace: cloudflared
+    serviceAccount: cloudflared
+    createServiceAccount: true
+    podSelector:
+      app: cloudflared
+
+networkPolicy:
+  enabled: true

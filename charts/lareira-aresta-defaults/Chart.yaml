@@ -11,7 +11,7 @@ description: |
   ClusterRoleBinding against this ClusterRole — bindings are
   per-mesh, the role itself is shared.
 type: application
-version: 0.1.0
+version: 0.2.0
 appVersion: "0.1.0"
 
 keywords: [mesh, sidecar, spiffe, mtls, aresta, lareira, rbac]

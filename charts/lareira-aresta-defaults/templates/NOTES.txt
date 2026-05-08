@@ -1,0 +1,29 @@
+{{ .Chart.Name }}@{{ .Chart.Version }} installed in {{ .Release.Namespace }}
+
+WHAT'S RUNNING
+
+  ✓ ClusterRole {{ .Values.clusterRoleName }} (services + endpointslices read)
+  {{- if .Values.podMonitor.enabled }}
+  ✓ PodMonitor aresta-sidecars (cluster-wide scrape on mesh-metrics:9090)
+  {{- else }}
+  ⚠ PodMonitor disabled — operators must scrape :9090 manually
+  {{- end }}
+  {{- if .Values.prometheusRule.enabled }}
+  ✓ PrometheusRule aresta-mesh ({{ len .Values.prometheusRule.alerts }} alerts)
+  {{- else }}
+  ⚠ PrometheusRule disabled — no mesh-health alerts
+  {{- end }}
+
+NEXT STEPS
+
+   helm install <mesh-name> oci://ghcr.io/pleme-io/charts/lareira-mesh-spec \
+     --version "*" -n {{ .Release.Namespace }} \
+     -f my-mesh-values.yaml
+
+   The mesh-spec chart binds your mesh's namespaces to the resolver
+   ClusterRole and renders the per-Servico ClusterSPIFFEIDs.
+
+VERIFY METRICS PIPE
+
+   kubectl get podmonitor -n {{ .Release.Namespace }} aresta-sidecars
+   kubectl --context <ctx> get prometheusrule -n {{ .Release.Namespace }} aresta-mesh

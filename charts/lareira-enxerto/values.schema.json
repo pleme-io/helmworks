@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["image", "webhook", "tls"],
+  "properties": {
+    "fullnameOverride": { "type": "string" },
+    "image": {
+      "type": "object",
+      "required": ["repository", "tag"],
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "tag": { "type": "string", "minLength": 1 },
+        "pullPolicy": { "enum": ["Always", "IfNotPresent", "Never"] }
+      }
+    },
+    "imagePullSecrets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "properties": { "name": { "type": "string" } }
+      }
+    },
+    "replicaCount": { "type": "integer", "minimum": 1, "maximum": 5 },
+    "arestaImage": {
+      "type": "string",
+      "pattern": "^[a-z0-9.\\-/]+:[A-Za-z0-9._-]+$"
+    },
+    "meshOutboundCidrs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[0-9.]+/[0-9]+$"
+      }
+    },
+    "webhook": {
+      "type": "object",
+      "properties": {
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "failurePolicy": { "enum": ["Ignore", "Fail"] },
+        "timeoutSeconds": { "type": "integer", "minimum": 1, "maximum": 30 },
+        "caBundle": { "type": "string" },
+        "excludeNamespaces": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "certManager": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "issuerKind": { "enum": ["Issuer", "ClusterIssuer"] },
+            "issuerName": { "type": "string" }
+          }
+        }
+      }
+    },
+    "tls": {
+      "type": "object",
+      "required": ["secretName"],
+      "properties": {
+        "secretName": { "type": "string", "minLength": 1 }
+      }
+    },
+    "namespace": {
+      "type": "object",
+      "properties": {
+        "create": { "type": "boolean" },
+        "name": { "type": "string" }
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "properties": {
+        "create": { "type": "boolean" },
+        "name": { "type": "string" }
+      }
+    },
+    "rbac": {
+      "type": "object",
+      "properties": { "create": { "type": "boolean" } }
+    },
+    "compliance": {
+      "type": "object",
+      "properties": {
+        "overlays": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

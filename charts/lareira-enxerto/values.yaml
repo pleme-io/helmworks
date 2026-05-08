@@ -3,10 +3,10 @@
 # ONCE per cluster and let every mesh-spec consumer grant ingress
 # label-selector against `mesh.pleme.io/inject=true`.
 
-# Naming. Pinned to `enxerto` so the webhook Service name +
-# TLS cert CN + caBundle stay valid across reinstalls. The
-# matching webhook-tls Secret + caBundle live cluster-side
-# (sops-encrypted) and are signed against `enxerto.<namespace>.svc`.
+# Naming. Pinned to `enxerto` so the webhook Service name + TLS cert
+# CN + caBundle stay valid across reinstalls. The matching webhook-
+# tls Secret + caBundle live cluster-side (sops-encrypted) and are
+# signed against `enxerto.<namespace>.svc`.
 fullnameOverride: enxerto
 
 image:
@@ -16,13 +16,12 @@ image:
   tag: amd64-92750c5
   pullPolicy: IfNotPresent
 
-# Pulls the enxerto image from ghcr.
 imagePullSecrets:
   - name: ghcr-pull-secret
 
 # enxerto is the cluster-singleton admission gate. Any non-Ready
 # replicas means new pod admissions block — keep this 1, scale via
-# HA-aware deployment patterns when fleet runs >1 cluster.
+# HA-aware deployment patterns when the fleet runs >1 cluster.
 replicaCount: 1
 
 # Aresta image override — the default in the enxerto binary is
@@ -31,10 +30,9 @@ replicaCount: 1
 arestaImage: ghcr.io/pleme-io/aresta:amd64-6a8a463
 
 # Outbound REDIRECT scope. Only these CIDRs hit aresta-out for
-# transparent mTLS upgrade. Empty list = catch-all redirect (every
-# outbound TCP from a meshed pod). For K3s default fleet defaults
-# pod CIDR (10.42/16) + service CIDR (10.43/16); other clusters
-# override per their CNI allocation.
+# transparent mTLS upgrade. K3s default fleet defaults pod CIDR
+# (10.42/16) + service CIDR (10.43/16); other clusters override
+# per their CNI allocation.
 meshOutboundCidrs:
   - "10.42.0.0/16"
   - "10.43.0.0/16"
@@ -42,15 +40,16 @@ meshOutboundCidrs:
 # TLS: webhook serves over HTTPS. The Secret + matching CA bundle
 # are managed out-of-chart (cluster repo, sops-encrypted) — set
 # `webhook.caBundle` to the base64 CA + provide `tls.secretName`.
-# A future iteration wires cert-manager.io/inject-ca-from for
-# automatic bundle propagation.
+# When `webhook.certManager.enabled=true`, the chart instead emits
+# a Certificate + Issuer and lets cert-manager auto-rotate the
+# bundle via `cert-manager.io/inject-ca-from`.
 webhook:
   port: 8443
   failurePolicy: Ignore  # `Ignore` lets cluster boot if enxerto is
                          # mid-rollout; flip to `Fail` once stable.
   timeoutSeconds: 5
   # Base64 CA bundle. Override at HelmRelease level — see
-  # cluster-side k8s/clusters/<cluster>/apps/enxerto/values.yaml.
+  # cluster-side k8s/clusters/<cluster>/apps/mesh/helmrelease-enxerto.yaml.
   caBundle: ""
   # Excluded namespaces — kube-system, flux, spire are infrastructure
   # we don't mesh.
@@ -58,16 +57,41 @@ webhook:
     - kube-system
     - flux-system
     - spire-system
+  # Optional cert-manager mode. When enabled, the chart emits a
+  # self-signed Issuer + Certificate and the MWC carries the
+  # cert-manager.io/inject-ca-from annotation so cert-manager
+  # auto-rotates the caBundle.
+  certManager:
+    enabled: false
+    # Issuer kind: ClusterIssuer or Issuer. Default Issuer (namespaced).
+    issuerKind: Issuer
+    # Existing Issuer name to use. If empty, the chart creates a
+    # self-signed Issuer in this namespace.
+    issuerName: ""
 
+# TLS Secret reference. The Deployment mounts this Secret at
+# /etc/enxerto/tls/{tls.crt,tls.key}. When `webhook.certManager.enabled`,
+# cert-manager owns the Secret lifecycle. Otherwise the operator
+# materializes it (sops-encrypted in cluster repo).
 tls:
-  # Operator-managed Secret: tls.crt + tls.key.
   secretName: enxerto-webhook-tls
 
+# Workload-port for kubelet probes. Aresta self-probes on this port.
+# The port is named so probes can use the named-port reference.
 ports:
   - name: webhook
     containerPort: 8443
     protocol: TCP
 
+# Container env — populated dynamically below by the HelmRelease.
+env:
+  - name: MESH_OUTBOUND_CIDRS
+    value: "10.42.0.0/16,10.43.0.0/16"
+  - name: ARESTA_IMAGE
+    value: "ghcr.io/pleme-io/aresta:amd64-6a8a463"
+
+# pleme-lib.deployment-driven container probes. /healthz is plain
+# HTTPS over the same port; the cert is the webhook's own.
 readinessProbe:
   httpGet:
     path: /healthz
@@ -99,14 +123,6 @@ volumeMounts:
 # operators turn on `dod-il5` etc on production fleet clusters.
 compliance:
   overlays: []
-
-# Resolver ClusterRole binding — when this chart installs alongside
-# `lareira-aresta-defaults`, the binding is created automatically
-# for the namespaces listed below. Override per-fleet — pleme-dev
-# only meshes openclaw + cloudflared.
-resolverBindings:
-  - openclaw
-  - cloudflared
 
 namespace:
   create: true

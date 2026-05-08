@@ -1,0 +1,94 @@
+suite: lareira-enxerto MutatingWebhookConfiguration
+templates:
+  - templates/mutating-webhook.yaml
+release:
+  namespace: mesh-system
+tests:
+  - it: renders a MutatingWebhookConfiguration named enxerto
+    asserts:
+      - isKind:
+          of: MutatingWebhookConfiguration
+      - equal:
+          path: metadata.name
+          value: enxerto
+
+  - it: targets pods with mesh.pleme.io/inject=true
+    asserts:
+      - equal:
+          path: webhooks[0].objectSelector.matchLabels["mesh.pleme.io/inject"]
+          value: "true"
+
+  - it: excludes infrastructure namespaces
+    asserts:
+      - contains:
+          path: webhooks[0].namespaceSelector.matchExpressions[0].values
+          content: "kube-system"
+      - contains:
+          path: webhooks[0].namespaceSelector.matchExpressions[0].values
+          content: "flux-system"
+      - contains:
+          path: webhooks[0].namespaceSelector.matchExpressions[0].values
+          content: "spire-system"
+
+  - it: uses operator-provided caBundle by default
+    set:
+      webhook.caBundle: TESTCA
+    asserts:
+      - equal:
+          path: webhooks[0].clientConfig.caBundle
+          value: TESTCA
+      - notExists:
+          path: metadata.annotations["cert-manager.io/inject-ca-from"]
+
+  - it: defers caBundle to cert-manager when enabled
+    set:
+      webhook.certManager.enabled: true
+    asserts:
+      - notExists:
+          path: webhooks[0].clientConfig.caBundle
+      - equal:
+          path: metadata.annotations["cert-manager.io/inject-ca-from"]
+          value: "mesh-system/enxerto-webhook"
+
+  - it: failurePolicy honors values
+    set:
+      webhook.failurePolicy: Fail
+    asserts:
+      - equal:
+          path: webhooks[0].failurePolicy
+          value: Fail
+
+  - it: timeoutSeconds honors values
+    set:
+      webhook.timeoutSeconds: 10
+    asserts:
+      - equal:
+          path: webhooks[0].timeoutSeconds
+          value: 10
+
+  - it: targets pods/v1 only
+    asserts:
+      - equal:
+          path: webhooks[0].rules[0].apiGroups[0]
+          value: ""
+      - equal:
+          path: webhooks[0].rules[0].apiVersions[0]
+          value: v1
+      - equal:
+          path: webhooks[0].rules[0].resources[0]
+          value: pods
+
+  - it: clientConfig points at the in-cluster Service on the webhook port
+    asserts:
+      - equal:
+          path: webhooks[0].clientConfig.service.name
+          value: enxerto
+      - equal:
+          path: webhooks[0].clientConfig.service.namespace
+          value: mesh-system
+      - equal:
+          path: webhooks[0].clientConfig.service.path
+          value: /mutate
+      - equal:
+          path: webhooks[0].clientConfig.service.port
+          value: 8443

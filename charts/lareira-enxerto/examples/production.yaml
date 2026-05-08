@@ -1,0 +1,21 @@
+# lareira-enxerto — production posture for fleet clusters.
+#
+# - cert-manager auto-rotates the webhook CA bundle
+# - failurePolicy: Fail (no admission silently bypassed once a
+#   workload labels itself for mesh injection)
+# - 2 replicas for HA (requires sufficient cluster capacity)
+# - pleme-lib FedRAMP-High overlay applied (seccomp, audit annotations,
+#   image-digest enforcement, automount=false except SA token)
+
+webhook:
+  failurePolicy: Fail
+  certManager:
+    enabled: true
+    issuerKind: ClusterIssuer
+    issuerName: cluster-ca
+
+replicaCount: 2
+
+compliance:
+  overlays:
+    - fedramp-high
