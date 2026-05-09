@@ -1,0 +1,24 @@
+apiVersion: v2
+name: lareira-openclaw-agent
+description: |
+  openclaw agent — the actual openclaw AI assistant gateway, running
+  in our infra as the demonstration artifact for cartorio's proof
+  chain. Wraps the upstream `openclaw/openclaw` image (rewrapped with
+  the OCI annotations FedRAMP-High requires) on top of pleme-microservice
+  with the fedramp-high compliance overlay.
+
+  Image is admitted to cartorio (with a real provas pack_hash) and
+  pulled through lacre's gate from backing-registry. Daemon starts in
+  `--allow-unconfigured` mode so no LLM provider key is required for
+  the demo; authenticated chat requires further config.
+type: application
+version: 0.1.1
+appVersion: "1.0.0-fedramp-rewrap"
+
+keywords: [openclaw, agent, fedramp-high, attestation, lareira]
+maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]
+
+dependencies:
+  - name: pleme-microservice
+    version: "~0.1.0"
+    repository: "file://../pleme-microservice"
