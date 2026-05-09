@@ -17,8 +17,9 @@ pki:
   enabled: true
 registry:
   enabled: true
-gate:
-  enabled: true
+# `gate:` configured in the cross-service-wiring block below (line ~56);
+# defining it twice produces a YAML parse error and trips the helm-content
+# compliance pack.
 # Renamed in 0.4.0 from `backingRegistry` (camelCase). Helm propagates
 # the dep alias bytes into `pleme-lib.fullname`, so a camelCase alias
 # emits RFC-1123-violating Service / NetworkPolicy names. Consumers
