@@ -1,0 +1,16 @@
+{{- if and .Values.pdb.enabled (gt (.Values.replicaCount | int) 1) -}}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "openclaw-web.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "openclaw-web.labels" . | nindent 4 }}
+# Phase E1 — graceful eviction during voluntary disruption (node
+# drain, cluster autoscaler scale-in). NIST 800-53 CP-2.
+spec:
+  minAvailable: {{ .Values.pdb.minAvailable | default 1 }}
+  selector:
+    matchLabels:
+      {{- include "openclaw-web.selectorLabels" . | nindent 6 }}
+{{- end }}

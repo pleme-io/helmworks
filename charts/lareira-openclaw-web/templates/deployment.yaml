@@ -18,6 +18,18 @@ spec:
         # Roll the deployment when runtime config changes.
         checksum/runtime-config: {{ toJson .Values.runtimeConfig | sha256sum }}
     spec:
+      # Phase E1 — full PSS Restricted hardening (audit gap closure).
+      # Runtime is hanabi (Rust BFF, /nix/store/.../bin/hanabi) serving
+      # HTTP directly — NO nginx, no auxiliary processes. Image's USER
+      # directive is `web` (numeric uid baked in by the substrate
+      # rust-service flake builder); we don't override it, but
+      # runAsNonRoot=true is asserted at admission time.
+      serviceAccountName: {{ include "openclaw-web.fullname" . }}
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -26,9 +38,20 @@ spec:
         - name: openclaw-web
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: RuntimeDefault
           ports:
             - name: http
-              containerPort: 80
+              containerPort: 8081
+              protocol: TCP
+            - name: health
+              containerPort: 8082
               protocol: TCP
           readinessProbe:
             httpGet: { path: /, port: http }
@@ -39,6 +62,11 @@ spec:
             initialDelaySeconds: 5
             periodSeconds: 10
           volumeMounts:
+            # Hanabi uses tracing-subscriber; an emptyDir tmp keeps the
+            # rest of the rootfs read-only without breaking ephemeral
+            # writes (e.g. tokio runtime tempfiles).
+            - name: tmp
+              mountPath: /tmp
             # Lilitu pattern — env.js mounted into hanabi's static root.
             # Hanabi's preflight check uses 'env.js' as a critical_files
             # default; matching that name avoids any preflight override.
@@ -54,6 +82,8 @@ spec:
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
       volumes:
+        - name: tmp
+          emptyDir: { sizeLimit: 64Mi }
         - name: env-config
           configMap:
             name: {{ include "openclaw-web.fullname" . }}-env

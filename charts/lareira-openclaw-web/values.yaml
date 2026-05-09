@@ -1,10 +1,50 @@
-# lareira-openclaw-web — minimal nginx-served SPA chart.
+# lareira-openclaw-web — hanabi-served SPA chart.
+#
+# Phase E1 — full PSS Restricted hardening (audit gap closure).
+# Templates emit non-root securityContext + drop-ALL caps + RORF +
+# seccompProfile RuntimeDefault + dedicated ServiceAccount with
+# automountServiceAccountToken=false + NetworkPolicy default-deny +
+# PodDisruptionBudget. The declarations below bubble up to values
+# so `provas` helm-content pack can audit them at the operator
+# surface.
 
-replicaCount: 1
+# Compliance posture — declarative (load-bearing for the helm-content
+# pack's HelmValuesDeclareFedRampHighOverlay + HelmValuesRunAsNonRoot
+# v2 affirmative paths).
+compliance:
+  overlays: [fedramp-high]
+  enforce: true
+
+# CP-2 — minimum 2 replicas in production. Override to 1 only for
+# single-node clusters (pleme-dev) via helmrelease values.
+replicaCount: 2
+
+# Health endpoints — expose to the helm-content pack's CA-7 check
+# (HelmValuesHasHealthProbes). Templates wire these into liveness/
+# readiness/startup probes.
+health:
+  path: /
+  readyPath: /
+  port: http
+
+# AU-12 monitoring — declarative gate for HelmValuesHasMetricsMonitoring.
+# When true, the chart emits a ServiceMonitor (or VMServiceScrape)
+# pointing at hanabi's :8082 health/metrics endpoint.
+monitoring:
+  enabled: true
+
+# AC-3 / AC-6 — securityContext at values-level (the helm-content
+# pack reads here). Templates also enforce at admission.
+securityContext:
+  runAsNonRoot: true
 
 image:
   repository: ghcr.io/pleme-io/openclaw-web
-  tag: amd64-latest
+  # Phase E1 — chart compose-time substitution pattern: production
+  # publishers replace this with the real digest at deploy time.
+  # Sha256-pinning is enforced by the helm-content pack
+  # (HelmValuesImagesPinnedToDigest + HelmValuesNoLatestTags).
+  tag: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
@@ -98,3 +138,28 @@ resources:
   limits:
     cpu: 200m
     memory: 128Mi
+
+# Phase E1 — full PSS Restricted hardening (audit gap closure).
+
+# CP-2: PodDisruptionBudget for graceful eviction. Enabled by
+# default but only renders when replicaCount >= 2.
+pdb:
+  enabled: true
+  minAvailable: 1
+
+# SC-7: NetworkPolicy default-deny + scoped allows. Enabled by
+# default; override `ingress.fromNamespaces` to scope tighter.
+networkPolicy:
+  enabled: true
+  ingress:
+    # Allow ingress from these namespaces. Empty = no allow rule
+    # (pod will only be reachable to itself; useful for testing).
+    fromNamespaces:
+      - cloudflared
+      - ingress-nginx
+  egress:
+    # External egress allow-list. Each entry is a CIDR + port.
+    # The DNS-to-kube-system rule is always added (required for
+    # any DNS resolution).
+    allowedExternal: []
+

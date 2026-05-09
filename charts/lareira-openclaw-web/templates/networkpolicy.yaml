@@ -1,0 +1,52 @@
+{{- if .Values.networkPolicy.enabled -}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "openclaw-web.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "openclaw-web.labels" . | nindent 4 }}
+# Phase E1 — default-deny + scoped allow per NIST 800-53 SC-7
+# (boundary protection). NSA/CISA Kubernetes Hardening Guide
+# requires every pod-bearing chart emit at least one NetworkPolicy.
+spec:
+  policyTypes: [Ingress, Egress]
+  podSelector:
+    matchLabels:
+      {{- include "openclaw-web.selectorLabels" . | nindent 6 }}
+  ingress:
+    # Allow from ingress-nginx + cloudflared (the public-facing
+    # routes that front this chart). Override `from` to scope tighter.
+    - from:
+        {{- range .Values.networkPolicy.ingress.fromNamespaces }}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ . | quote }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: 80
+  egress:
+    # SC-7 compliant: only DNS + HTTPS to declared upstreams. No
+    # default permit-all.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    {{- range .Values.networkPolicy.egress.allowedExternal }}
+    - to:
+        - ipBlock:
+            cidr: {{ .cidr | quote }}
+      ports:
+        - protocol: TCP
+          port: {{ .port | default 443 }}
+    {{- end }}
+{{- end }}
