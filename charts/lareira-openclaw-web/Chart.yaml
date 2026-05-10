@@ -8,8 +8,11 @@ description: |
   read-only-on-the-public-internet); production deploys would front it
   with saguão.
 type: application
-version: 0.2.4
-appVersion: "0.2.4"
+version: 0.2.5
+appVersion: "0.2.5"
+# v0.2.5: sanitize image.tag for the K8s `app.kubernetes.io/version`
+# label so sha256 digest values (which contain `:` and exceed 63 chars)
+# render as a 12-char prefix instead of breaking helm upgrade.
 
 keywords: [openclaw, proof-chain, lareira, web, demo]
 maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]
