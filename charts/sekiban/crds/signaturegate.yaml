@@ -67,6 +67,31 @@ spec:
                   type: integer
                   format: int64
                   description: Re-verification interval in seconds.
+                # ── Phase D / sekiban v0.2.0 — cartorio-native verify path ──
+                # When `cartorioUrl` is set, gate verification stops doing
+                # string-equality on `expectedSignature` and instead queries
+                # cartorio for the image's ArtifactState by digest, fetches
+                # the publisher's SignedRoot, and cryptographically verifies
+                # it via tameshi against `trustedPublisherPubkeys`.
+                cartorioUrl:
+                  type: string
+                  description: Cartorio base URL (e.g. http://openclaw-stack-cartorio:8082). Setting this enables cryptographic verify.
+                trustedPublisherPubkeys:
+                  type: array
+                  items:
+                    type: string
+                  description: Allow-list of Ed25519 publisher public keys (each 64-hex-char). At least one must verify the SignedRoot. Empty + cartorioUrl set = permissive shape-only.
+                requiredComplianceProfile:
+                  type: string
+                  description: Required compliance profile string (e.g. "fedramp-high-openclaw-image@3"). Matched against attestation.compliance.profile.
+                requiredArtifactStatus:
+                  type: string
+                  enum:
+                    - Active
+                    - Quarantined
+                    - Revoked
+                    - Superseded
+                  description: Required artifact status (default Active).
             status:
               type: object
               properties:
