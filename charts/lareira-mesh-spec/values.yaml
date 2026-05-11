@@ -94,6 +94,17 @@ arestaConfig:
   outboundAddr: "0.0.0.0:15006"
   probeAddr: "0.0.0.0:4191"
   fallbackUpstreamAddr: "127.0.0.1:8080"
+  # SVID lifecycle. `oneshot` (default) is the v0 behaviour — fetch
+  # once at startup, never refresh; causes the daily cert-expiry
+  # restart cycle when SPIRE rotates SVIDs (~24h). `streaming`
+  # subscribes to the SPIFFE Workload API stream + hot-swaps the
+  # in-memory TLS contexts on every rotation update; no restart
+  # ever needed.
+  #
+  # Default stays `oneshot` while the streaming path soaks in
+  # staging; flip per-cluster once observed-good for at least one
+  # full rotation cycle.
+  svidRotation: oneshot
   observability:
     logFormat: json
     metricsAddr: "0.0.0.0:9090"

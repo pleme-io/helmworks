@@ -37,6 +37,11 @@ identity:
     - {{ . | quote }}
     {{- end }}
   workload_api_socket: null
+  # SVID lifecycle. `oneshot` (default) fetches once at startup;
+  # `streaming` subscribes to the SPIFFE Workload API stream and
+  # hot-swaps the TLS contexts on every rotation update from the
+  # agent, eliminating the daily cert-expiry restart cycle.
+  rotation: {{ .Values.arestaConfig.svidRotation | default "oneshot" | quote }}
 inbound_addr: {{ .Values.arestaConfig.inboundAddr | quote }}
 outbound_addr: {{ .Values.arestaConfig.outboundAddr | quote }}
 probe_addr: {{ .Values.arestaConfig.probeAddr | quote }}
