@@ -136,6 +136,11 @@
             { name = "lareira-openclaw-scanner"; chartDir = ./charts/lareira-openclaw-scanner; }
             { name = "lareira-openclaw-stack"; chartDir = ./charts/lareira-openclaw-stack; }
             { name = "lareira-openclaw-web"; chartDir = ./charts/lareira-openclaw-web; }
+            { name = "lareira-openclaw-agent"; chartDir = ./charts/lareira-openclaw-agent; }
+            # ── mesh-system charts ──
+            { name = "lareira-aresta-defaults"; chartDir = ./charts/lareira-aresta-defaults; }
+            { name = "lareira-enxerto"; chartDir = ./charts/lareira-enxerto; }
+            { name = "lareira-mesh-spec"; chartDir = ./charts/lareira-mesh-spec; }
           ];
 
           # Use substrate's mkHelmAllApps for all chart lifecycle apps
