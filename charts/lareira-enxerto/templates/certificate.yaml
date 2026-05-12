@@ -1,4 +1,4 @@
-{{- if .Values.webhook.certManager.enabled }}
+{{- if and .Values.enabled .Values.webhook.certManager.enabled }}
 {{- $svc := include "pleme-lib.fullname" . }}
 {{- $selfsignedIssuerName := printf "%s-selfsigned" $svc }}
 {{- /* Self-signed Issuer — only emitted when the operator hasn't

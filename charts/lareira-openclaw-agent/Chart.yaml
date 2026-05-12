@@ -12,7 +12,7 @@ description: |
   `--allow-unconfigured` mode so no LLM provider key is required for
   the demo; authenticated chat requires further config.
 type: application
-version: 0.1.1
+version: 0.1.2
 appVersion: "1.0.0-fedramp-rewrap"
 
 keywords: [openclaw, agent, fedramp-high, attestation, lareira]
@@ -22,3 +22,4 @@ dependencies:
   - name: pleme-microservice
     version: "~0.1.0"
     repository: "file://../pleme-microservice"
+    condition: enabled

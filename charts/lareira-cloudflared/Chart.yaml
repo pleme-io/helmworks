@@ -1,0 +1,24 @@
+apiVersion: v2
+name: lareira-cloudflared
+description: |
+  cloudflared tunnel agent — pleme-io wrapper for Cloudflare's
+  cloudflared connector. Registers with a Tunnel created via the
+  pangea cloudflare_tunnel template and forwards public traffic from
+  Cloudflare's edge into in-cluster Services.
+
+  Mesh-aware: pods carry mesh.pleme.io/inject="true" so enxerto
+  injects the aresta sidecar. The enxerto.mesh.pleme.io/skip-inbound-
+  ports annotation excludes cloudflared's :2000 metrics endpoint from
+  PREROUTING REDIRECT so kubelet's plaintext probe still works.
+type: application
+version: 0.1.0
+appVersion: "2026.3.0"
+
+keywords: [cloudflared, cloudflare, tunnel, mesh, lareira]
+maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]
+home: https://github.com/pleme-io/helmworks
+
+dependencies:
+  - name: pleme-lib
+    version: "~0.14.0"
+    repository: "file://../pleme-lib"

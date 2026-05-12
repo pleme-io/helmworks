@@ -1,4 +1,4 @@
-{{- if .Values.podMonitor.enabled }}
+{{- if and .Values.enabled .Values.podMonitor.enabled }}
 # PodMonitor — scrapes the `mesh-metrics` port (default 9090) of
 # every meshed pod across the cluster. PodMonitor is the right
 # shape because aresta is a sidecar on workload pods, not a

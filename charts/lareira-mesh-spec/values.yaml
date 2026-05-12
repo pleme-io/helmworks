@@ -3,6 +3,12 @@
 # Authoring shape: one HelmRelease per mesh, values describe the
 # typed `(defmesh …)` participants.
 
+# Master enable/disable knob. Flip to false in the HelmRelease values
+# to render NOTHING — supports "bring this workload down" without
+# deleting the HelmRelease / GitOps source. Disabling tears down the
+# mesh's RBAC, ClusterSPIFFEIDs, and NetworkPolicies in lockstep.
+enabled: true
+
 mesh:
   # Logical mesh name. Used for CR names and the shared aresta-config
   # ConfigMap (`<name>-aresta-config`).

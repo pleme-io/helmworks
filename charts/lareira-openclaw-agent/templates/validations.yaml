@@ -1,3 +1,5 @@
 {{- /* Defense-in-depth gates. Render to empty on success. */ -}}
+{{- if .Values.enabled -}}
 {{- include "lareira-openclaw-agent.validate.digest" . -}}
 {{- include "lareira-openclaw-agent.validate.attestation" . -}}
+{{- end -}}

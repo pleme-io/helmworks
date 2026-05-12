@@ -1,3 +1,4 @@
+{{- if .Values.enabled }}
 {{- /*
   One ClusterRoleBinding per participating namespace, binding the
   ns's `system:serviceaccounts:<ns>` Group to the cluster-singleton
@@ -21,4 +22,5 @@ subjects:
   - kind: Group
     name: system:serviceaccounts:{{ $ns }}
     apiGroup: rbac.authorization.k8s.io
+{{- end }}
 {{- end }}

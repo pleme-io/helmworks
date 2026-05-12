@@ -141,6 +141,8 @@
             { name = "lareira-aresta-defaults"; chartDir = ./charts/lareira-aresta-defaults; }
             { name = "lareira-enxerto"; chartDir = ./charts/lareira-enxerto; }
             { name = "lareira-mesh-spec"; chartDir = ./charts/lareira-mesh-spec; }
+            # ── connector charts ──
+            { name = "lareira-cloudflared"; chartDir = ./charts/lareira-cloudflared; }
           ];
 
           # Use substrate's mkHelmAllApps for all chart lifecycle apps

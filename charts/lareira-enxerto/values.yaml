@@ -3,6 +3,12 @@
 # ONCE per cluster and let every mesh-spec consumer grant ingress
 # label-selector against `mesh.pleme.io/inject=true`.
 
+# Master enable/disable knob. Flip to false in the HelmRelease values
+# to render NOTHING — supports "bring this workload down" without
+# deleting the HelmRelease / GitOps source. NB: disabling will leave
+# pods that depended on the webhook un-mutated on next admission.
+enabled: true
+
 # Naming. Pinned to `enxerto` so the webhook Service name + TLS cert
 # CN + caBundle stay valid across reinstalls. The matching webhook-
 # tls Secret + caBundle live cluster-side (sops-encrypted) and are

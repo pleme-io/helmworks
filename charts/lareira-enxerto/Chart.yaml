@@ -11,7 +11,7 @@ description: |
   declarations (ClusterSPIFFEIDs, peer allowlists, NetworkPolicy)
   live in `lareira-mesh-spec`.
 type: application
-version: 0.2.1
+version: 0.2.2
 appVersion: "0.1.0"
 
 keywords: [mesh, sidecar, admission-webhook, spiffe, mtls, lareira]
@@ -20,5 +20,5 @@ home: https://github.com/pleme-io/enxerto
 
 dependencies:
   - name: pleme-lib
-    version: "~0.13.0"
+    version: "~0.14.0"
     repository: "file://../pleme-lib"

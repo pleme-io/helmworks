@@ -1,0 +1,89 @@
+{{- if .Values.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "pleme-lib.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "pleme-lib.selectorLabels" . | nindent 8 }}
+        {{- if .Values.mesh.inject }}
+        mesh.pleme.io/inject: "true"
+        {{- end }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        {{- if .Values.mesh.skipInboundPorts }}
+        enxerto.mesh.pleme.io/skip-inbound-ports: {{ .Values.mesh.skipInboundPorts | quote }}
+        {{- end }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      containers:
+        - name: cloudflared
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: TUNNEL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.tunnel.tokenSecretName }}
+                  key: {{ .Values.tunnel.tokenSecretKey }}
+            - name: TUNNEL_METRICS
+              value: {{ .Values.tunnel.metricsAddress | quote }}
+            {{- if .Values.tunnel.transportProtocol }}
+            - name: TUNNEL_TRANSPORT_PROTOCOL
+              value: {{ .Values.tunnel.transportProtocol | quote }}
+            {{- end }}
+          args:
+            - tunnel
+            {{- range .Values.tunnel.extraArgs }}
+            - {{ . }}
+            {{- end }}
+            - run
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.metrics.port }}
+              protocol: TCP
+          {{- if .Values.livenessProbe.enabled }}
+          livenessProbe:
+            httpGet:
+              path: /ready
+              port: metrics
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+          {{- end }}
+          {{- if .Values.readinessProbe.enabled }}
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: metrics
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

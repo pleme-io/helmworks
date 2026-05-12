@@ -21,7 +21,7 @@ description: |
   Pairs with `lareira-enxerto` (cluster-singleton webhook) and
   `lareira-aresta-defaults` (cluster-singleton resolver ClusterRole).
 type: application
-version: 0.3.0
+version: 0.3.1
 appVersion: "0.3.0"
 
 keywords: [mesh, spiffe, mtls, aresta, openclaw, lareira]

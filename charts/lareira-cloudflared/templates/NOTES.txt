@@ -1,0 +1,19 @@
+{{- if .Values.enabled }}
+cloudflared tunnel agent installed:
+
+  release: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+  transport: {{ .Values.tunnel.transportProtocol }}
+  mesh-injected: {{ .Values.mesh.inject }}
+
+Verify:
+  kubectl -n {{ .Release.Namespace }} get pods -l app.kubernetes.io/name={{ include "pleme-lib.name" . }}
+  kubectl -n {{ .Release.Namespace }} logs -l app.kubernetes.io/name={{ include "pleme-lib.name" . }} -c cloudflared --tail=20
+
+To bring this workload down without removing the HelmRelease:
+  values.enabled: false   # in the HelmRelease's spec.values
+{{- else }}
+cloudflared is DISABLED (.Values.enabled = false). No resources rendered.
+Flip values.enabled to true in the HelmRelease to bring it back up.
+{{- end }}

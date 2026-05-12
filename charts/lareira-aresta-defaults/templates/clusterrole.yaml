@@ -1,3 +1,4 @@
+{{- if .Values.enabled }}
 # Cluster-singleton ClusterRole. Per-mesh ClusterRoleBindings live in
 # lareira-mesh-spec, each binding the namespace's
 # `system:serviceaccounts:<ns>` Group to this Role.
@@ -15,3 +16,4 @@ rules:
   - apiGroups: [discovery.k8s.io]
     resources: [endpointslices]
     verbs: [list, watch]
+{{- end }}

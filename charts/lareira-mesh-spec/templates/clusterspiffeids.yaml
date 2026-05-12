@@ -1,3 +1,4 @@
+{{- if .Values.enabled }}
 # One ClusterSPIFFEID per Servico in the home namespace.
 {{- range .Values.servicos }}
 ---
@@ -38,4 +39,5 @@ spec:
     matchLabels:
       {{- toYaml .podSelector | nindent 6 }}
   spiffeIDTemplate: {{ include "lareira-mesh-spec.spiffeIdTemplate" $ | quote }}
+{{- end }}
 {{- end }}

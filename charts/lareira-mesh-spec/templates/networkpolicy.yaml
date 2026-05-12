@@ -1,4 +1,4 @@
-{{- if .Values.networkPolicy.enabled }}
+{{- if and .Values.enabled .Values.networkPolicy.enabled }}
 {{- /*
   Mesh-wide ingress allowance. mTLS via SPIFFE-ID URI-SAN +
   peer_allowlist is the trust boundary; the L4 NetworkPolicy is

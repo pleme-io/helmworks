@@ -9,6 +9,13 @@
 # source, revision, version, SLSA provenance). Real digest, real
 # admission to cartorio, real pull through lacre.
 
+# Master enable/disable knob. Flip to false in the HelmRelease values
+# to render NOTHING — supports "bring this workload down" without
+# deleting the HelmRelease / GitOps source. Gates both the pleme-
+# microservice subchart (via Chart.yaml condition) and the local
+# digest/attestation validation templates.
+enabled: true
+
 # sekiban gating — bind the deployment to a CompliancePolicy +
 # SignatureGate so admission requires NIST 800-53 high pass + valid
 # tameshi composite signature.

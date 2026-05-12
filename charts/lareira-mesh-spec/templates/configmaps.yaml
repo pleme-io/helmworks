@@ -1,3 +1,4 @@
+{{- if .Values.enabled }}
 # Shared aresta config CM in the home namespace.
 apiVersion: v1
 kind: ConfigMap
@@ -25,4 +26,5 @@ metadata:
 data:
   config.yaml: |
     {{- include "lareira-mesh-spec.arestaConfigYaml" $ | nindent 4 }}
+{{- end }}
 {{- end }}

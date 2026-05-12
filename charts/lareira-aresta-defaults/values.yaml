@@ -3,6 +3,11 @@
 # Today: resolver ClusterRole + cluster-wide PodMonitor + per-mesh
 # PrometheusRule template helpers.
 
+# Master enable/disable knob. Flip to false in the HelmRelease values
+# to render NOTHING — supports "bring this workload down" without
+# deleting the HelmRelease / GitOps source.
+enabled: true
+
 # The ClusterRole name. Stable so multiple lareira-mesh-spec
 # HelmReleases can bind against the same role.
 clusterRoleName: aresta-resolver
