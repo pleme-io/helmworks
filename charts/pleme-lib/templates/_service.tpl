@@ -1,8 +1,23 @@
 {{/*
 pleme-lib: service named template
+
+Renders nothing when:
+  - service.enabled is explicitly false (set this for headless workloads
+    like one-shot jobs / bootstrap deployments / sidecar-only pods)
+  - service.ports is empty (no exposable ports → no Service object)
+
+Default behaviour (when neither is set) emits a Service with all the
+declared ports.
 */}}
 
 {{- define "pleme-lib.service" -}}
+{{- $svc := .Values.service | default dict -}}
+{{- $enabled := $svc.enabled -}}
+{{- if and (hasKey $svc "enabled") (not $enabled) -}}
+{{- /* service.enabled: false → emit nothing */ -}}
+{{- else if not $svc.ports -}}
+{{- /* no ports declared → emit nothing */ -}}
+{{- else -}}
 apiVersion: v1
 kind: Service
 metadata:
@@ -16,9 +31,9 @@ metadata:
     {{- $resAnnotations | nindent 4 }}
   {{- end }}
 spec:
-  type: {{ (.Values.service).type | default "ClusterIP" }}
+  type: {{ $svc.type | default "ClusterIP" }}
   ports:
-    {{- range (.Values.service).ports }}
+    {{- range $svc.ports }}
     - name: {{ .name }}
       port: {{ .port }}
       targetPort: {{ .targetPort }}
@@ -26,4 +41,5 @@ spec:
     {{- end }}
   selector:
     {{- include "pleme-lib.selectorLabels" . | nindent 4 }}
+{{- end -}}
 {{- end }}
