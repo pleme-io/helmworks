@@ -1,0 +1,28 @@
+{{/* PVC for magma-stream JsonLinesSink — persistent BLAKE3 audit
+     chain across operator pod restarts. Skipped when
+     .Values.audit.enabled is false. */}}
+{{- if .Values.audit.enabled }}
+{{- $rec := (index .Values "pleme-reconciler" | default dict) -}}
+{{- $kind := ((index $rec "reconciler" | default dict) | get "kind") | default "magma" -}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ printf "%s-magma-audit" $kind }}
+  labels:
+    app.kubernetes.io/name:       {{ .Chart.Name | quote }}
+    app.kubernetes.io/component:  magma-audit-chain
+    app.kubernetes.io/managed-by: {{ .Release.Service | quote }}
+    magma.pleme.io/reconciler:    {{ $kind | quote }}
+    magma.pleme.io/audit-shape:   "blake3-jsonlines-v1"
+spec:
+  accessModes:
+{{- range .Values.audit.persistentVolumeClaim.accessModes }}
+    - {{ . | quote }}
+{{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.audit.persistentVolumeClaim.size | quote }}
+{{- with .Values.audit.persistentVolumeClaim.storageClassName }}
+  storageClassName: {{ . | quote }}
+{{- end }}
+{{- end }}

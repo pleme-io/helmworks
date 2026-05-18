@@ -1,0 +1,8 @@
+{{/* Render K8s Events sink RBAC via the pleme-reconciler library. */}}
+{{- $ctx := dict
+    "Chart"   .Chart
+    "Release" .Release
+    "Values"  (index .Values "pleme-reconciler" | default dict) -}}
+{{- if $ctx.Values -}}
+{{- include "pleme-reconciler.k8sEventsSink" $ctx }}
+{{- end }}

@@ -1,0 +1,12 @@
+dependencies:
+- name: pangea-operator
+  repository: file://../pangea-operator
+  version: 0.8.15
+- name: pleme-reconciler
+  repository: file://../pleme-reconciler
+  version: 0.1.0
+- name: pleme-lib
+  repository: file://../pleme-lib
+  version: 0.14.0
+digest: sha256:b85bc507a65975c49d1d8c50d2ed850cc30ab3b05faa9f57ec0ece229bfae794
+generated: "2026-05-18T15:59:37.346025-07:00"

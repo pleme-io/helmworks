@@ -1,0 +1,47 @@
+apiVersion: v2
+name: lareira-magma
+description: >-
+  Umbrella consumer chart deploying the magma convergence substrate
+  in one helm release. Composes:
+
+  * pangea-operator (with `executor.magma.enabled=true` defaulted on
+    so the operator routes per-CR through MagmaExecutor instead of
+    forking tofu)
+  * pleme-reconciler library fragment (DriftPolicy ConfigMap,
+    ServiceMonitor, PrometheusRule, attestation labels, K8s Events
+    sink RBAC) for each kind the operator manages
+  * optional audit-chain PVC for magma-stream's JsonLinesSink to
+    persist BLAKE3 chains across pod restarts
+
+  Per theory/MAGMA-OPERATOR-BACKEND.md + theory/CONVERGENCE-SUBSTRATE.md.
+  Pattern mirrors the existing lareira-* umbrella charts in helmworks
+  (lareira-authentik, lareira-cert-manager, lareira-keda) — one chart
+  per opinionated cluster-deployment of a substrate primitive, with
+  the breathability + observability + attestation defaults baked in.
+type: application
+version: 0.1.0
+appVersion: "0.8.15"
+home: https://github.com/pleme-io/helmworks/tree/main/charts/lareira-magma
+maintainers:
+  - name: pleme-io
+keywords:
+  - magma
+  - convergence
+  - reconciler
+  - pangea-operator
+  - lareira
+
+dependencies:
+  # The operator with magma feature surface (v0.8.15+).
+  - name: pangea-operator
+    version: ">=0.8.15,<0.9.0"
+    repository: "file://../pangea-operator"
+  # Reusable library fragment for every reconciler kind. Required
+  # so the umbrella renders the DriftPolicy + ServiceMonitor +
+  # PrometheusRule on behalf of every kind the operator runs.
+  - name: pleme-reconciler
+    version: ">=0.1.0,<0.2.0"
+    repository: "file://../pleme-reconciler"
+  - name: pleme-lib
+    version: ">=0.10.0,<1.0.0"
+    repository: "file://../pleme-lib"

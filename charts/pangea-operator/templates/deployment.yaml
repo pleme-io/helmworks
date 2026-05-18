@@ -34,6 +34,21 @@ embedded mode and drop the compiler sidecar from the pod spec.
 {{- if .Values.executor.verbose }}
 {{- $executorEnv = append $executorEnv (dict "name" "PANGEA_VERBOSE" "value" "true") }}
 {{- end }}
+{{/* Magma backend wiring — per theory/MAGMA-OPERATOR-BACKEND.md §VI.
+     When `executor.magma.enabled` is true, PANGEA_EXECUTOR=magma
+     becomes the operator-wide default backend. Per-CR override via
+     `Pangea.spec.executor: magma|tofu` still wins. Requires the
+     operator image to be built with the `executor_magma` cargo
+     feature; pleme-io's release images flip this on by default
+     once the burn-in phase completes (M0.15). */}}
+{{- if (((.Values.executor).magma).enabled | default false) }}
+{{- $executorEnv = append $executorEnv (dict "name" "PANGEA_EXECUTOR" "value" "magma") }}
+{{- $magmaShape := (((.Values.executor).magma).shape | default "magma") }}
+{{- $executorEnv = append $executorEnv (dict "name" "PANGEA_MAGMA_SHAPE" "value" $magmaShape) }}
+{{- if hasKey ((.Values.executor).magma) "planCheckpoint" }}
+{{- $executorEnv = append $executorEnv (dict "name" "PANGEA_MAGMA_PLAN_CHECKPOINT" "value" (printf "%v" .Values.executor.magma.planCheckpoint)) }}
+{{- end }}
+{{- end }}
 {{- if and $useEmbedded (ne $gemAuthSecretName "") }}
 {{- $executorEnv = append $executorEnv (dict
     "name" "PANGEA_GEM_AUTH_TOKEN"

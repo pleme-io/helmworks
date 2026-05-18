@@ -1,0 +1,81 @@
+## lareira-magma — umbrella for the magma convergence substrate.
+## Values delegated to subcharts via the dependency import-values
+## machinery; here we set the conventional defaults that match
+## theory/MAGMA-OPERATOR-BACKEND.md §VI (canonical dual-backend
+## selection model).
+
+## ── pangea-operator subchart overrides ─────────────────────────
+## Pre-flip the magma backend on. Per-CR `spec.executor` still wins
+## but the cluster default routes through MagmaExecutor.
+pangea-operator:
+  executor:
+    magma:
+      enabled: true
+      shape: magma          # magma-only fleet; flip to `tofu` for
+                            # mixed-executor burn-in
+      planCheckpoint: true  # restart-safe plan/apply handoff
+
+  ## Inherit OTLP from the umbrella's observability block if set.
+  observability:
+    otel:
+      endpoint: ""
+      serviceName: pangea-operator
+
+## ── pleme-reconciler subchart values ───────────────────────────
+## The umbrella declares one reconciler kind. Multi-kind fleets
+## render this chart once per kind under different release names.
+pleme-reconciler:
+  reconciler:
+    # Override per release: which kind this lareira-magma release
+    # is wrapping. Defaults to `terraform` since that's the
+    # historical primary kind.
+    kind: terraform
+    workload: pangea-operator
+
+    driftPolicy:
+      enabled: true
+      ## Conservative default policy (mirrors magma_drift's built-in).
+      rules:
+        - name: auto-fix-cosmetic
+          severity: cosmetic
+          decision: auto_correct
+        - name: alert-on-functional
+          severity: functional
+          decision: auto_correct_with_alert
+        - name: approval-required-for-critical
+          severity: critical
+          decision: require_approval
+      fallback: require_approval
+
+    serviceMonitor:
+      enabled: true
+      portName: metrics
+      interval: 30s
+      path: /metrics
+
+    prometheusRule:
+      enabled: true
+
+    ## Attestation labels off by default; CI fills these at
+    ## release-time when magma-bundle attestation lands per-cluster.
+    attestation:
+      enabled: false
+
+    ## Enable when downstream consumers want magma-stream events
+    ## surfaced as K8s Events (one extra ServiceAccount).
+    k8sEventsSink:
+      enabled: false
+
+## ── Audit chain persistence ────────────────────────────────────
+## When enabled, an emptyDir or PersistentVolumeClaim is rendered
+## for the magma-stream JsonLinesSink to write its BLAKE3 chain.
+## Off by default; consumers wanting compliance-grade audit storage
+## point this at a real PVC class.
+audit:
+  enabled: false
+  persistentVolumeClaim:
+    storageClassName: ""
+    accessModes: [ReadWriteOnce]
+    size: 5Gi
+  ## Path inside the operator container the JsonLinesSink writes to.
+  mountPath: /var/pangea/magma-audit

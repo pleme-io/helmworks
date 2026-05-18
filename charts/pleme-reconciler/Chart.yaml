@@ -1,0 +1,45 @@
+apiVersion: v2
+name: pleme-reconciler
+description: >-
+  Library chart fragment for any workload that participates in the
+  magma convergence substrate. Provides reusable named templates
+  any consumer chart pulls in via `{{- include "pleme-reconciler.X" . }}`:
+
+  * `pleme-reconciler.driftPolicyConfigMap` — typed DriftPolicy
+    declared in values.yaml, rendered as a ConfigMap the operator's
+    magma-drift consumer reads. Mirrors `magma_drift::DriftPolicy`
+    on-disk shape (rules + fallback).
+
+  * `pleme-reconciler.serviceMonitor` — ServiceMonitor selecting
+    reconciler pods that expose `/metrics`. Per-kind label so the
+    Grafana dashboard can shard by reconciler kind.
+
+  * `pleme-reconciler.prometheusRule` — drift-severity alert rules.
+    Critical drift → page (drift-critical); Functional drift →
+    ticket (drift-functional); Cosmetic drift → log-only. Each
+    consumer can override severity → routing via values.
+
+  * `pleme-reconciler.attestationLabels` — magma-bundle attestation
+    labels (bundle_id, plan_id, kind) that ValidatingAdmissionWebhook
+    consumers verify before allowing apply.
+
+  * `pleme-reconciler.k8sEventsSink` — RBAC + ServiceAccount needed
+    for the magma-stream K8sEventSink to write Events into the
+    cluster (the JsonLinesSink + TracingSink are pod-local).
+
+  Per theory/CONVERGENCE-SUBSTRATE.md §III + theory/MAGMA-OPERATOR-BACKEND.md
+  §VI. Every Reconciler-aware chart in the fleet consumes this library —
+  same shape across Terraform, GitHub, DNS, Helm, Vault, and any future
+  kind.
+type: library
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/pleme-io/helmworks/tree/main/charts/pleme-reconciler
+maintainers:
+  - name: pleme-io
+keywords:
+  - magma
+  - convergence
+  - reconciler
+  - drift
+  - audit

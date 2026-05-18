@@ -1,0 +1,8 @@
+{{/* Render the DriftPolicy ConfigMap via the pleme-reconciler library. */}}
+{{- $ctx := dict
+    "Chart"   .Chart
+    "Release" .Release
+    "Values"  (index .Values "pleme-reconciler" | default dict) -}}
+{{- if $ctx.Values -}}
+{{- include "pleme-reconciler.driftPolicyConfigMap" $ctx }}
+{{- end }}

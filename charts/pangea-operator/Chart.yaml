@@ -86,9 +86,21 @@ description: >-
   5m), PangeaOperatorErrorRateHigh (warning, >0.5 err/sec 10m).
   Flip `enabled: true` per cluster after baselining the steady-
   state reconcile rate.
+  v0.8.15 surfaces the M0.10–M0.12 magma backend (in-process IaC
+  executor) under `executor.magma.{enabled, shape, planCheckpoint}`.
+  When `enabled: true`, the deployment renders three new env vars
+  (PANGEA_EXECUTOR, PANGEA_MAGMA_SHAPE, PANGEA_MAGMA_PLAN_CHECKPOINT)
+  that wire the operator-wide default to MagmaExecutor. Per-CR
+  override via `Pangea.spec.executor: magma|tofu` still wins. The
+  operator image must be built with the `executor_magma` cargo
+  feature for the flag to take effect — image builds remain on
+  the existing release-train, so `enabled: false` (default) keeps
+  every deployment on TofuExecutor regardless of feature bits.
+  Per theory/MAGMA-OPERATOR-BACKEND.md §VI (canonical dual-backend
+  selection model).
 type: application
-version: 0.8.14
-appVersion: "0.8.14"
+version: 0.8.15
+appVersion: "0.8.15"
 
 dependencies:
   - name: pleme-lib

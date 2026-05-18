@@ -1,0 +1,85 @@
+## pleme-reconciler — library chart values (default-only; consumers override)
+## All values are NAMESPACED under `reconciler:` so callers including this
+## library don't collide with their own top-level values.
+
+reconciler:
+  # The Reconciler kind the consumer represents. Used in metric labels,
+  # ConfigMap names, and ServiceMonitor selectors. MUST match
+  # `Reconciler::kind()` on the Rust side.
+  kind: ""
+
+  # Workload name backing this reconciler kind (typically the operator
+  # pod name or controller deployment name). Used to label-select
+  # metrics + events.
+  workload: ""
+
+  # ── DriftPolicy ────────────────────────────────────────────────
+  driftPolicy:
+    # When false, no ConfigMap is rendered. Consumers running with
+    # operator-side defaults can opt out.
+    enabled: true
+    # Name override. Default: `<kind>-drift-policy`.
+    name: ""
+    # Typed DriftPolicy mirror — see `magma_drift::DriftPolicy`.
+    rules:
+      - name: auto-fix-cosmetic
+        severity: cosmetic
+        decision: auto_correct
+      - name: alert-on-functional
+        severity: functional
+        decision: auto_correct_with_alert
+      - name: approval-required-for-critical
+        severity: critical
+        decision: require_approval
+    fallback: require_approval
+
+  # ── ServiceMonitor ─────────────────────────────────────────────
+  serviceMonitor:
+    enabled: true
+    # Endpoint port name on the consumer's Service. Convention: `metrics`.
+    portName: metrics
+    # Scrape interval (10–60s typical).
+    interval: 30s
+    # Path the consumer exposes Prometheus metrics on.
+    path: /metrics
+    # Additional labels merged onto the ServiceMonitor metadata.
+    labels: {}
+
+  # ── PrometheusRule ─────────────────────────────────────────────
+  prometheusRule:
+    enabled: true
+    # Per-severity routing. Pager / ticket / log-only.
+    severityRouting:
+      critical: page         # routes via `severity: critical` label
+      functional: ticket     # routes via `severity: warning`
+      cosmetic: log          # routes via `severity: info`
+
+    # For-clause durations: how long the condition must hold before
+    # firing. Short for Critical (sub-minute drift = real risk);
+    # longer for Functional (intermittent flapping ok); long for
+    # Cosmetic (always informational).
+    durations:
+      critical: 1m
+      functional: 10m
+      cosmetic: 1h
+
+  # ── Attestation labels (magma-bundle) ──────────────────────────
+  attestation:
+    # When enabled, consumer's Deployment / Service / ConfigMap
+    # receive `magma.pleme.io/bundle_id`, `magma.pleme.io/plan_id`,
+    # `magma.pleme.io/kind` labels. Defaults below are
+    # placeholders; CI fills them at release-time.
+    enabled: false
+    bundleId: ""
+    planId: ""
+    # Inherited from `reconciler.kind` when blank.
+    kind: ""
+
+  # ── K8s Events sink ────────────────────────────────────────────
+  k8sEventsSink:
+    # When true, render a ServiceAccount + RoleBinding that lets
+    # the consumer's pod write Events into its namespace. The
+    # consumer's pod template must mount this ServiceAccount.
+    enabled: false
+    # ServiceAccount name. Default: `<kind>-events-writer`.
+    name: ""

@@ -177,6 +177,29 @@ executor:
   # by the operator. Only consulted when useEmbeddedRuby=true.
   rubyWorkers: 1
 
+  # -- Magma backend (in-process IaC executor) configuration. When
+  # `enabled: true` AND the operator binary was built with the
+  # `executor_magma` cargo feature, the controller routes per-CR
+  # to MagmaExecutor — no fork+exec, no tofu subprocess. Per-CR
+  # opt-in via `Pangea.spec.executor: magma`; this flag is the
+  # operator-wide default. Both backends ship side by side per
+  # theory/MAGMA-OPERATOR-BACKEND.md §VI.
+  magma:
+    # -- Enable the magma backend at all. When true, the operator
+    # pod receives `PANGEA_EXECUTOR=magma` as the default backend
+    # for any CR that doesn't set `spec.executor`. Default false
+    # so existing deployments keep their TofuExecutor behavior.
+    enabled: false
+    # -- On-disk state shape for the magma backend.
+    # `magma` = typed serde format (default; magma-only fleets).
+    # `tofu`  = OpenTofu-readable canonical form (use when the
+    # same state is read by both backends during burn-in).
+    shape: magma
+    # -- Whether to write a typed plan checkpoint between plan +
+    # apply for restart safety. Default true; per-CR override via
+    # the operator's MagmaExecutorConfig once that ships.
+    planCheckpoint: true
+
 # -- Log level + filter for the operator's tracing-subscriber. Comma-
 # separated `<target>=<level>` directives per
 # https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html.
