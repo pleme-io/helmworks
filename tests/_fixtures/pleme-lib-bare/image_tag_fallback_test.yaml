@@ -1,0 +1,41 @@
+suite: pleme-lib bare-fixture — pleme-lib.image AppVersion fallback (gap fix 2026-05-18)
+templates:
+  - templates/deployment.yaml
+release:
+  name: t
+  namespace: testns
+defaults: &defaults
+  image.repository: ghcr.io/x/y
+  serviceAccount.create: true
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits:   { memory: 128Mi }
+
+tests:
+  - it: "explicit image.tag wins"
+    set:
+      <<: *defaults
+      image.tag: "1.2.3"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/x/y:1.2.3
+
+  - it: "empty image.tag falls back to .Chart.AppVersion (was 'latest' before 0.15.0)"
+    # The bare-fixture chart's AppVersion is "0.0.0" (see Chart.yaml).
+    set:
+      <<: *defaults
+      image.tag: ""
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/x/y:0.0.0
+
+  - it: "missing image.tag entirely falls back to .Chart.AppVersion"
+    set:
+      <<: *defaults
+      # image.tag deliberately not set
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/x/y:0.0.0

@@ -1,0 +1,139 @@
+suite: pleme-lib bare-fixture — pleme-lib.ingress named template
+templates:
+  - templates/ingress.yaml
+release:
+  name: t
+  namespace: testns
+defaults: &defaults
+  image.repository: ghcr.io/x/y
+  image.tag: "1.0.0"
+  serviceAccount.create: true
+  service.type: ClusterIP
+  service.ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+
+tests:
+  - it: "renders nothing when ingress.enabled is false (default)"
+    set:
+      <<: *defaults
+      ingress.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: "renders nothing when ingress is unset entirely"
+    set:
+      <<: *defaults
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: "renders an Ingress with a single host + path, defaulting servicePort from .service.ports[0]"
+    set:
+      <<: *defaults
+      ingress:
+        enabled: true
+        className: nginx
+        hosts:
+          - host: app.example.com
+            paths:
+              - path: /
+                pathType: Prefix
+    asserts:
+      - isKind:
+          of: Ingress
+      - equal:
+          path: spec.ingressClassName
+          value: nginx
+      - equal:
+          path: spec.rules[0].host
+          value: app.example.com
+      - equal:
+          path: spec.rules[0].http.paths[0].path
+          value: /
+      - equal:
+          path: spec.rules[0].http.paths[0].pathType
+          value: Prefix
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.name
+          value: t-pleme-lib-bare
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.port.name
+          value: http
+
+  - it: "honors per-path servicePortName override"
+    set:
+      <<: *defaults
+      service.ports:
+        - { name: http, port: 8080, targetPort: http, protocol: TCP }
+        - { name: ws,   port: 8081, targetPort: ws,   protocol: TCP }
+      ingress:
+        enabled: true
+        hosts:
+          - host: app.example.com
+            paths:
+              - path: /ws
+                pathType: Prefix
+                servicePortName: ws
+    asserts:
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.port.name
+          value: ws
+
+  - it: "honors per-path servicePort numeric override"
+    set:
+      <<: *defaults
+      ingress:
+        enabled: true
+        hosts:
+          - host: app.example.com
+            paths:
+              - path: /
+                pathType: Prefix
+                servicePort: 9090
+    asserts:
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.port.number
+          value: 9090
+
+  - it: "renders TLS block when ingress.tls is set"
+    set:
+      <<: *defaults
+      ingress:
+        enabled: true
+        hosts:
+          - host: app.example.com
+            paths:
+              - path: /
+                pathType: Prefix
+        tls:
+          - secretName: app-tls
+            hosts:
+              - app.example.com
+    asserts:
+      - equal:
+          path: spec.tls[0].secretName
+          value: app-tls
+      - equal:
+          path: spec.tls[0].hosts[0]
+          value: app.example.com
+
+  - it: "merges user annotations with resource-level annotations"
+    set:
+      <<: *defaults
+      ingress:
+        enabled: true
+        annotations:
+          cert-manager.io/cluster-issuer: letsencrypt-prod
+        hosts:
+          - host: app.example.com
+            paths:
+              - path: /
+                pathType: Prefix
+    asserts:
+      - equal:
+          path: metadata.annotations["cert-manager.io/cluster-issuer"]
+          value: letsencrypt-prod

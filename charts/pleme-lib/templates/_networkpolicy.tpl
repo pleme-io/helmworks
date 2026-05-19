@@ -124,6 +124,46 @@ spec:
         - port: {{ (.Values.monitoring).port | default "http" }}
           protocol: TCP
 {{- end }}
+{{- /*
+  allowEgressHttps — "talks to public API" shape that doesn't fit
+  compliance.egress.toUpstream's allowlist model. Emits one
+  NetworkPolicy allowing TCP 443 egress to 0.0.0.0/0 except RFC1918 +
+  link-local ranges. Use for charts that egress to public-internet
+  APIs (Hashnode, GitHub, third-party SaaS) without enumerating the
+  upstream CIDRs.
+
+  At fedramp-moderate+ baseline, prefer compliance.egress.toUpstream
+  with a curated allowedCidrs list (auditable, principle-of-least-
+  privilege). This helper is the not-yet-curated path.
+*/}}
+{{- if (.Values.networkPolicy).allowEgressHttps }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}-allow-egress-https
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "pleme-lib.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 169.254.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443
+{{- end }}
 {{- range (.Values.networkPolicy).additionalIngress }}
 ---
 apiVersion: networking.k8s.io/v1

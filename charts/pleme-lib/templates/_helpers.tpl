@@ -111,10 +111,24 @@ prometheus.io/path: {{ (.Values.monitoring).path | default "/metrics" | quote }}
 {{- end }}
 
 {{/*
-Image string
+Image string.
+
+Tag resolution chain (first non-empty wins):
+  1. `.Values.image.tag` — explicit per-chart override (preferred for
+     production, set by FluxCD HelmRelease patches)
+  2. `.Chart.AppVersion` — sensible chart-author default; tracks the
+     consuming chart's release version automatically
+  3. `"latest"` — final fallback (mostly for dev/test renders where
+     neither is set)
+
+Charts that pin `image.tag` explicitly are unchanged. Charts that
+leave `image.tag: ""` previously rendered `repo:latest` and now
+render `repo:{Chart.AppVersion}` — matches the pre-pleme-lib
+hand-authored helper convention every existing chart used.
 */}}
 {{- define "pleme-lib.image" -}}
-{{- printf "%s:%s" .Values.image.repository (.Values.image.tag | default "latest") }}
+{{- $tag := .Values.image.tag | default .Chart.AppVersion | default "latest" -}}
+{{- printf "%s:%s" .Values.image.repository $tag }}
 {{- end }}
 
 {{/*
@@ -210,7 +224,9 @@ Only forms 1-3 are accepted at compliance baseline >= fedramp-high.
 */}}
 {{- define "pleme-lib.compliance.image" -}}
 {{- $repo := .Values.image.repository | toString -}}
-{{- $tag := .Values.image.tag | default "latest" | toString -}}
+{{- /* Same fallback chain as pleme-lib.image — explicit tag wins, then
+       chart AppVersion, then "latest". Keeps both helpers in sync. */ -}}
+{{- $tag := .Values.image.tag | default .Chart.AppVersion | default "latest" | toString -}}
 {{- $digest := .Values.image.digest | default "" | toString -}}
 {{- if contains "@sha256:" $repo -}}
 {{- $repo -}}

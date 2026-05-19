@@ -1,0 +1,64 @@
+suite: pleme-lib bare-fixture — networkPolicy.allowEgressHttps
+templates:
+  - templates/networkpolicy.yaml
+release:
+  name: t
+  namespace: testns
+defaults: &defaults
+  image.repository: ghcr.io/x/y
+  image.tag: "1.0.0"
+  serviceAccount.create: true
+
+tests:
+  - it: "renders only the deny-all NetworkPolicy when allowEgressHttps is unset (default false)"
+    set:
+      <<: *defaults
+      networkPolicy:
+        enabled: true
+        # allowEgressHttps deliberately unset
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.name
+          value: t-pleme-lib-bare-deny-all
+        documentIndex: 0
+
+  - it: "renders the allow-egress-https NetworkPolicy when allowEgressHttps is true"
+    set:
+      <<: *defaults
+      networkPolicy:
+        enabled: true
+        allowEgressHttps: true
+        allowDns: false
+        allowPrometheus: false
+    documentSelector:
+      path: metadata.name
+      value: t-pleme-lib-bare-allow-egress-https
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - equal:
+          path: spec.policyTypes[0]
+          value: Egress
+      - equal:
+          path: spec.egress[0].to[0].ipBlock.cidr
+          value: 0.0.0.0/0
+      - contains:
+          path: spec.egress[0].to[0].ipBlock.except
+          content: 10.0.0.0/8
+      - contains:
+          path: spec.egress[0].to[0].ipBlock.except
+          content: 172.16.0.0/12
+      - contains:
+          path: spec.egress[0].to[0].ipBlock.except
+          content: 192.168.0.0/16
+      - contains:
+          path: spec.egress[0].to[0].ipBlock.except
+          content: 169.254.0.0/16
+      - equal:
+          path: spec.egress[0].ports[0].protocol
+          value: TCP
+      - equal:
+          path: spec.egress[0].ports[0].port
+          value: 443
