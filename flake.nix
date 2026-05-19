@@ -284,6 +284,25 @@
               echo "==> mesh:unittest OK"
             '';
 
+            # magma:unittest — convergence-substrate umbrella charts.
+            # Pure rendering invariants for lareira-magma + the
+            # pleme-reconciler library it consumes. No cluster.
+            "magma:unittest" = mkApp "magma-unittest" ''
+              echo "==> running helm-unittest across every magma chart"
+              for chart in lareira-magma pleme-reconciler; do
+                echo ""
+                echo "── $chart ──"
+                if [ -d tests/$chart ]; then
+                  ( cd charts/$chart && helm dep update >/dev/null 2>&1 || true )
+                  ( cd charts/$chart && helm unittest -f "../../tests/$chart/*_test.yaml" . )
+                else
+                  echo "  (no tests/$chart — skipping)"
+                fi
+              done
+              echo ""
+              echo "==> magma:unittest OK"
+            '';
+
             "mesh:e2e" = mkApp "mesh-e2e" ''
               # Real-cluster mesh smoke. Spins up an ephemeral k3d
               # (or kind) cluster, installs SPIRE + cert-manager, then

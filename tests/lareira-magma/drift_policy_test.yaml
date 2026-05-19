@@ -1,0 +1,49 @@
+suite: lareira-magma DriftPolicy ConfigMap
+templates:
+  - templates/drift-policy.yaml
+release:
+  namespace: pangea-system
+  name: magma
+tests:
+  - it: emits one ConfigMap with default conservative policy
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+
+  - it: skipped when driftPolicy.enabled = false
+    set:
+      pleme-reconciler.reconciler.driftPolicy.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: ConfigMap name follows {kind}-drift-policy default
+    asserts:
+      - equal:
+          path: metadata.name
+          value: terraform-drift-policy
+
+  - it: ConfigMap name uses overridden reconciler kind
+    set:
+      pleme-reconciler.reconciler.kind: helm
+    asserts:
+      - equal:
+          path: metadata.name
+          value: helm-drift-policy
+
+  - it: ConfigMap carries the conservative-default 3-rule shape
+    asserts:
+      - matchRegex:
+          path: data["policy.json"]
+          pattern: '"auto-fix-cosmetic"'
+      - matchRegex:
+          path: data["policy.json"]
+          pattern: '"alert-on-functional"'
+      - matchRegex:
+          path: data["policy.json"]
+          pattern: '"approval-required-for-critical"'
+      - matchRegex:
+          path: data["policy.json"]
+          pattern: '"fallback":"require_approval"'

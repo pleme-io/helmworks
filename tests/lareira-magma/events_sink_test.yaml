@@ -1,0 +1,19 @@
+suite: lareira-magma K8s Events Sink RBAC
+templates:
+  - templates/events-sink.yaml
+release:
+  namespace: pangea-system
+  name: magma
+tests:
+  - it: events sink RBAC is OFF by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: emits documents when k8sEventsSink.enabled = true
+    set:
+      pleme-reconciler.reconciler.k8sEventsSink.enabled: true
+    asserts:
+      - documentIndex: 0
+        isNotNullOrEmpty:
+          path: kind

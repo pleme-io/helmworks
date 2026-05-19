@@ -1,0 +1,44 @@
+suite: lareira-magma ServiceMonitor
+templates:
+  - templates/service-monitor.yaml
+release:
+  namespace: pangea-system
+  name: magma
+tests:
+  - it: emits one ServiceMonitor by default
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ServiceMonitor
+
+  - it: skipped when serviceMonitor.enabled = false
+    set:
+      pleme-reconciler.reconciler.serviceMonitor.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: scrape interval comes from values
+    set:
+      pleme-reconciler.reconciler.serviceMonitor.interval: 15s
+    asserts:
+      - equal:
+          path: spec.endpoints[0].interval
+          value: 15s
+
+  - it: metrics path comes from values
+    set:
+      pleme-reconciler.reconciler.serviceMonitor.path: /custom-metrics
+    asserts:
+      - equal:
+          path: spec.endpoints[0].path
+          value: /custom-metrics
+
+  - it: port name comes from values
+    set:
+      pleme-reconciler.reconciler.serviceMonitor.portName: telemetry
+    asserts:
+      - equal:
+          path: spec.endpoints[0].port
+          value: telemetry

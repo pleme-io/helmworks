@@ -1,0 +1,25 @@
+suite: lareira-magma PrometheusRule
+templates:
+  - templates/prometheus-rule.yaml
+release:
+  namespace: pangea-system
+  name: magma
+tests:
+  - it: emits one PrometheusRule by default
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: PrometheusRule
+
+  - it: skipped when prometheusRule.enabled = false
+    set:
+      pleme-reconciler.reconciler.prometheusRule.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: carries alerting groups for typed drift signals
+    asserts:
+      - isNotEmpty:
+          path: spec.groups

@@ -1,0 +1,115 @@
+suite: lareira-magma audit PersistentVolumeClaim
+templates:
+  - templates/audit-pvc.yaml
+release:
+  namespace: pangea-system
+  name: magma
+tests:
+  - it: audit PVC is OFF by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: emits a PVC when audit.enabled = true
+    set:
+      audit.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: PersistentVolumeClaim
+
+  - it: PVC name follows {kind}-magma-audit pattern (default kind=terraform)
+    set:
+      audit.enabled: true
+    asserts:
+      - equal:
+          path: metadata.name
+          value: terraform-magma-audit
+
+  - it: PVC name updates when reconciler kind is overridden
+    set:
+      audit.enabled: true
+      pleme-reconciler.reconciler.kind: helm
+    asserts:
+      - equal:
+          path: metadata.name
+          value: helm-magma-audit
+
+  - it: PVC carries the canonical audit-shape label
+    set:
+      audit.enabled: true
+    asserts:
+      - equal:
+          path: metadata.labels["magma.pleme.io/audit-shape"]
+          value: blake3-jsonlines-v1
+
+  - it: PVC carries the reconciler kind label for downstream routing
+    set:
+      audit.enabled: true
+      pleme-reconciler.reconciler.kind: dns
+    asserts:
+      - equal:
+          path: metadata.labels["magma.pleme.io/reconciler"]
+          value: dns
+
+  - it: storage size comes from values
+    set:
+      audit.enabled: true
+      audit.persistentVolumeClaim.size: 50Gi
+    asserts:
+      - equal:
+          path: spec.resources.requests.storage
+          value: 50Gi
+
+  - it: access modes come from values
+    set:
+      audit.enabled: true
+      audit.persistentVolumeClaim.accessModes:
+        - ReadWriteMany
+    asserts:
+      - equal:
+          path: spec.accessModes[0]
+          value: ReadWriteMany
+
+  - it: multiple access modes are preserved in order
+    set:
+      audit.enabled: true
+      audit.persistentVolumeClaim.accessModes:
+        - ReadWriteOnce
+        - ReadOnlyMany
+    asserts:
+      - equal:
+          path: spec.accessModes[0]
+          value: ReadWriteOnce
+      - equal:
+          path: spec.accessModes[1]
+          value: ReadOnlyMany
+
+  - it: storageClassName is emitted when set
+    set:
+      audit.enabled: true
+      audit.persistentVolumeClaim.storageClassName: gp3-encrypted
+    asserts:
+      - equal:
+          path: spec.storageClassName
+          value: gp3-encrypted
+
+  - it: storageClassName is omitted when empty (uses cluster default)
+    set:
+      audit.enabled: true
+      audit.persistentVolumeClaim.storageClassName: ""
+    asserts:
+      - notExists:
+          path: spec.storageClassName
+
+  - it: standard managed-by + component labels are present
+    set:
+      audit.enabled: true
+    asserts:
+      - equal:
+          path: metadata.labels["app.kubernetes.io/component"]
+          value: magma-audit-chain
+      - equal:
+          path: metadata.labels["app.kubernetes.io/name"]
+          value: lareira-magma

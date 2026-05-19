@@ -3,7 +3,8 @@
      .Values.audit.enabled is false. */}}
 {{- if .Values.audit.enabled }}
 {{- $rec := (index .Values "pleme-reconciler" | default dict) -}}
-{{- $kind := ((index $rec "reconciler" | default dict) | get "kind") | default "magma" -}}
+{{- $reconciler := (index $rec "reconciler" | default dict) -}}
+{{- $kind := (index $reconciler "kind") | default "magma" -}}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
