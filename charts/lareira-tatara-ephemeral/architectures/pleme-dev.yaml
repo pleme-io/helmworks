@@ -1,8 +1,22 @@
-# architectures/pleme-dev.yaml — the live pleme-dev cluster.
+# architectures/pleme-dev.yaml — concrete values for the live pleme-dev
+# cluster (single-node k3s 1.34.5 on AWS, ~2 CPU / 8 GB).
 #
-# Concrete values for the homelab k3s cluster currently running the
-# Akeyless stack. Webhook ingress disabled until a public URL is
-# wired through cloudflared or tailscale-funnel.
+# Sized + adapted from cluster recon (2026-05-20):
+#   • CPU is 99% allocated by the existing akeyless stack — pool
+#     members can't be warm-running here. Set desiredSize=0; allocate
+#     on demand (~2 min cold start, acceptable for a single-dev box).
+#   • No Prometheus Operator on cluster → monitoring.enabled=false on
+#     every controller (no ServiceMonitor CRs emitted).
+#   • No Ingress controller / IngressClass on cluster → webhook
+#     ingress disabled. cloudflared tunnel is the supported path when
+#     you opt into github-watcher; route added to cloudflared's
+#     SOPS-encrypted config separately.
+#   • Tightened resource requests on every controller — even minimal
+#     pods need to fit in the ~50m of headroom we have.
+#   • Pre-create flux-ghcr-auth + ghcr-pull-secret in ephemeral-pools
+#     namespace (see apps/tatara/README.md). FluxCD source-controller
+#     uses flux-ghcr-auth to pull the chart from oci://ghcr.io; the
+#     controller Pods use ghcr-pull-secret to pull their own images.
 
 profile: "pleme-dev"
 
@@ -10,6 +24,7 @@ cluster:
   name: "pleme-dev"
   namespace: ephemeral-pools
 
+# ─── reconciler (Process + ProcessTable) ──────────────────────────
 reconciler:
   enabled: true
   pleme-operator:
@@ -17,7 +32,16 @@ reconciler:
     image:
       repository: ghcr.io/pleme-io/tatara-reconciler
       tag: ""
+      pullSecrets:
+        - name: ghcr-pull-secret
+    resources:
+      requests: { cpu: 25m,  memory: 64Mi }
+      limits:   { cpu: 200m, memory: 256Mi }
+    # No Prometheus Operator → suppress ServiceMonitor emission.
+    monitoring:
+      enabled: false
 
+# ─── pool reconciler (EphemeralPool + EphemeralAllocation) ────────
 poolReconciler:
   enabled: true
   pleme-operator:
@@ -25,19 +49,56 @@ poolReconciler:
     image:
       repository: ghcr.io/pleme-io/tatara-pool-reconciler
       tag: ""
+      pullSecrets:
+        - name: ghcr-pull-secret
+    resources:
+      requests: { cpu: 25m,  memory: 32Mi }
+      limits:   { cpu: 100m, memory: 128Mi }
+    monitoring:
+      enabled: false
 
+# ─── github watcher (PR webhook → Allocation) ─────────────────────
+# Off until cloudflared tunnel route is wired. When ready:
+#   1. add a hostname → tatara-github-watcher.ephemeral-pools.svc:8080
+#      entry to the cloudflared SOPS-encrypted tunnel config
+#   2. flip enabled: true here
+#   3. pre-create the webhook Secret (instructions in README.md)
 githubWatcher:
-  enabled: false       # opt-in once webhook URL is publishable
+  enabled: false
+  pleme-microservice:
+    replicaCount: 1
+    image:
+      repository: ghcr.io/pleme-io/tatara-github-watcher
+      tag: ""
+      pullSecrets:
+        - name: ghcr-pull-secret
+    resources:
+      requests: { cpu: 25m,  memory: 32Mi }
+      limits:   { cpu: 100m, memory: 128Mi }
+    monitoring:
+      enabled: false
+  ingress:
+    enabled: false
   webhookSecret:
     create: false
 
+# ─── Bundled Akeyless pool — pool exists but starts empty ────────
+# `desiredSize: 0` + `minSize: 0` = pool is declared, no warm
+# members spawned. Allocations request a fresh member (1-2 min cold
+# start). Acceptable on this 2-core node where a warm member can't
+# fit alongside the existing Akeyless stack (1985m/2000m CPU pinned).
 pools:
   akeyless:
     enabled: true
-    desiredSize: 1
+    name: akeyless-attest-pool
+    namespace: ephemeral-pools
+    desiredSize: 0          # NO warm members — capacity limit
     minSize: 0
-    maxSize: 2
+    maxSize: 1              # at most 1 ephemeral env at a time
     returnPolicy: Replace
+    selector:
+      repos: ["pleme-io/akeyless-*", "akeylesslabs/*"]
+      kinds: ["github-pr", "manual"]
     template:
       aplicacao:
         chart_ref: "oci://ghcr.io/pleme-io/charts/lareira-akeyless-deployment"
@@ -45,7 +106,7 @@ pools:
         profile: "gateway-with-internal-saas"
         values_overlay:
           cluster:
-            name: pleme-dev-pool-slot
+            name: pleme-dev-ephemeral-slot
           data:
             mysql:    { persistence: { enabled: false } }
             rabbitmq: { persistence: { enabled: false } }
@@ -57,3 +118,8 @@ pools:
           params:
             name: akeyless-saas-consolidated
             namespace: ephemeral-pools
+
+# pleme-dev has no Prometheus Operator → drop overlay-level monitoring.
+compliance:
+  overlays: []
+  enforce: true
