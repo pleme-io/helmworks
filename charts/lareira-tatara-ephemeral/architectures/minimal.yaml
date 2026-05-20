@@ -1,0 +1,22 @@
+# architectures/minimal.yaml — single-controller minimum.
+#
+# Just the Process reconciler. Operators apply Process CRs by hand
+# (via `feira ephemeral up`); no pool, no PR webhook.
+#
+#   helm install ephemeral lareira-tatara-ephemeral \
+#     -f architectures/minimal.yaml
+
+profile: "minimal"
+
+reconciler:
+  enabled: true
+
+poolReconciler:
+  enabled: false
+
+githubWatcher:
+  enabled: false
+
+pools:
+  akeyless:
+    enabled: false

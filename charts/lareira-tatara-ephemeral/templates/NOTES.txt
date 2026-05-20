@@ -1,0 +1,45 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  lareira-tatara-ephemeral installed
+  profile: {{ .Values.profile }}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Controllers enabled:
+{{- if .Values.reconciler.enabled }}
+  ✓ tatara-reconciler          (Process + ProcessTable)
+{{- end }}
+{{- if .Values.poolReconciler.enabled }}
+  ✓ tatara-pool-reconciler     (EphemeralPool + EphemeralAllocation)
+{{- end }}
+{{- if .Values.githubWatcher.enabled }}
+  ✓ tatara-github-watcher      (PR webhook → Allocation)
+{{- end }}
+
+CRDs installed in this chart's `crds/` dir:
+  • processes.tatara.pleme.io
+  • processtables.tatara.pleme.io
+  • ephemeralpools.tatara.pleme.io
+  • ephemeralallocations.tatara.pleme.io
+
+Operator next steps:
+{{- if .Values.githubWatcher.enabled }}
+  1. Pre-create the webhook secret:
+       kubectl create secret generic tatara-github-watcher-webhook \
+         -n {{ .Release.Namespace }} \
+         --from-literal=secret=<the value you put in GitHub>
+{{- end }}
+{{- if .Values.poolReconciler.enabled }}
+  2. Define a pool (or enable the bundled akeyless pool via
+     `pools.akeyless.enabled=true`):
+       feira pool apply pools.yaml
+{{- end }}
+  3. Watch:
+       kubectl get processes,ephemeralpools,ephemeralallocations -A
+       feira pool list -n {{ .Values.cluster.namespace }}
+       feira allocation list -n {{ .Values.cluster.namespace }}
+
+Reachable webhook URL (when ingress.enabled):
+{{- if .Values.githubWatcher.ingress.enabled }}
+  https://{{ .Values.githubWatcher.ingress.host }}/webhook
+{{- else }}
+  (Ingress disabled — port-forward or enable .Values.githubWatcher.ingress)
+{{- end }}

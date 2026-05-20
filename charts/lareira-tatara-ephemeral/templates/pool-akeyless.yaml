@@ -1,0 +1,32 @@
+{{- if and .Values.pools.akeyless.enabled .Values.poolReconciler.enabled }}
+{{- $p := .Values.pools.akeyless }}
+apiVersion: tatara.pleme.io/v1alpha1
+kind: EphemeralPool
+metadata:
+  name: {{ $p.name }}
+  namespace: {{ $p.namespace }}
+  labels:
+    tatara.pleme.io/managed-by: lareira-tatara-ephemeral
+  annotations:
+    tatara.pleme.io/profile: {{ $.Values.profile | quote }}
+spec:
+  desiredSize: {{ $p.desiredSize }}
+  minSize: {{ $p.minSize }}
+  maxSize: {{ $p.maxSize }}
+  returnPolicy: {{ $p.returnPolicy }}
+  selector:
+    {{- with $p.selector.repos }}
+    repos: {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with $p.selector.branches }}
+    branches: {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with $p.selector.prLabels }}
+    prLabels: {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with $p.selector.kinds }}
+    kinds: {{- toYaml . | nindent 6 }}
+    {{- end }}
+  template:
+    {{- toYaml $p.template | nindent 4 }}
+{{- end }}

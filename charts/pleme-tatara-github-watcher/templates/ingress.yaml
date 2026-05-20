@@ -1,0 +1,30 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "pleme-lib.fullname" (index .Subcharts "pleme-microservice") }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pleme-lib.labels" (index .Subcharts "pleme-microservice") | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- if .Values.ingress.tlsSecretName }}
+  tls:
+    - hosts: [ {{ .Values.ingress.host | quote }} ]
+      secretName: {{ .Values.ingress.tlsSecretName }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          - path: /webhook
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "pleme-lib.fullname" (index .Subcharts "pleme-microservice") }}
+                port: { name: http }
+{{- end }}

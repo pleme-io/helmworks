@@ -1,0 +1,48 @@
+# architectures/multi-pool.yaml — selector-routed multiple pools.
+#
+# A baseline akeyless pool + a separate dev-cycle pool. The webhook
+# routes via PoolSelector best-match. Operators add more pools by
+# applying EphemeralPool CRs directly.
+
+profile: "multi-pool"
+
+reconciler:
+  enabled: true
+
+poolReconciler:
+  enabled: true
+
+githubWatcher:
+  enabled: true
+  pleme-microservice:
+    replicaCount: 2
+    env:
+      - name: TATARA_WATCHER_NAMESPACE
+        value: ephemeral-pools
+
+# Built-in akeyless pool — the most-specific selector.
+pools:
+  akeyless:
+    enabled: true
+    desiredSize: 2
+    minSize: 1
+    maxSize: 5
+    selector:
+      repos: ["pleme-io/akeyless-*", "akeylesslabs/*"]
+      prLabels: ["needs-akeyless"]
+      kinds: ["github-pr"]
+
+# Operators should add additional pools (catch-all dev pool, regional
+# pools, compliance-isolated pools) as plain EphemeralPool YAML manifests
+# applied via `feira pool apply pools/*.yaml`. Pattern:
+#
+# apiVersion: tatara.pleme.io/v1alpha1
+# kind: EphemeralPool
+# metadata:
+#   name: dev-default
+#   namespace: ephemeral-pools
+# spec:
+#   desiredSize: 1
+#   selector: {}              # default selector — catch-all
+#   returnPolicy: Replace
+#   template: { aplicacao: { … }, ttl: "30m", … }

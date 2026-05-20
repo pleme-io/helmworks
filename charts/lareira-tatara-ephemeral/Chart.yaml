@@ -1,0 +1,47 @@
+apiVersion: v2
+name: lareira-tatara-ephemeral
+description: |
+  Umbrella chart for the entire tatara ephemeral environment stack on
+  a pleme-io cluster. Installs:
+
+  * tatara CRDs (Process, ProcessTable, EphemeralPool, EphemeralAllocation)
+  * pleme-tatara-reconciler (Process lifecycle + Flux HelmRelease emit)
+  * pleme-tatara-pool-reconciler (warm pool population + allocation routing)
+  * pleme-tatara-github-watcher (PR webhook → typed Allocation)
+
+  One operator-facing knob (`profile`) selects an architecture variant
+  (see architectures/*.yaml):
+
+    minimal              — reconciler only (manual `feira ephemeral up`)
+    pool-only            — reconciler + pool (no GitHub flow)
+    github-org           — full stack (default)
+    multi-pool           — pool reconciler with multiple selector-routed pools
+    fedramp-high         — compliance overlays cascade everywhere
+    homelab              — single replica, small footprint, no Ingress
+
+  Compliance overlays cascade via subcharts' `compliance.overlays`.
+
+type: application
+version: 0.1.0
+appVersion: "0.2.0"
+
+keywords: [tatara, ephemeral, lareira, umbrella, pool, allocation, github]
+maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]
+home: https://github.com/pleme-io/tatara
+
+dependencies:
+  - name: pleme-tatara-reconciler
+    alias: reconciler
+    version: "~0.1.0"
+    repository: "file://../pleme-tatara-reconciler"
+    condition: reconciler.enabled
+  - name: pleme-tatara-pool-reconciler
+    alias: poolReconciler
+    version: "~0.1.0"
+    repository: "file://../pleme-tatara-pool-reconciler"
+    condition: poolReconciler.enabled
+  - name: pleme-tatara-github-watcher
+    alias: githubWatcher
+    version: "~0.1.0"
+    repository: "file://../pleme-tatara-github-watcher"
+    condition: githubWatcher.enabled

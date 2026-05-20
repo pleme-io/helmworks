@@ -1,0 +1,149 @@
+# pleme-tatara-github-watcher — webhook receiver (HTTP service shape).
+
+pleme-microservice:
+  nameOverride: tatara-github-watcher
+  fullnameOverride: ""
+
+  image:
+    repository: ghcr.io/pleme-io/tatara-github-watcher
+    tag: ""
+    pullPolicy: IfNotPresent
+
+  replicaCount: 2          # horizontally-scalable HTTP receiver
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
+
+  ports:
+    - name: http
+      containerPort: 8080
+      protocol: TCP
+  service:
+    type: ClusterIP
+    ports:
+      - name: http
+        port: 8080
+        targetPort: http
+
+  health:
+    # Watcher has no /healthz route yet — the webhook endpoint is the
+    # liveness signal. Override per-cluster when liveness probes get
+    # wired into the binary.
+    path: /webhook
+    readyPath: /webhook
+    port: http
+    livenessInitialDelay: 5
+    livenessPeriod: 30
+    readyInitialDelay: 2
+    readyPeriod: 10
+
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits:   { cpu: 500m, memory: 256Mi }
+
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 65532
+    fsGroup: 65532
+    seccompProfile: { type: RuntimeDefault }
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    capabilities: { drop: [ALL] }
+
+  monitoring:
+    enabled: true
+    port: http
+    path: /metrics
+    interval: 30s
+  networkPolicy:
+    enabled: true
+    allowPrometheus: true
+    allowDns: true
+    # GitHub egress not needed — watcher RECEIVES webhooks; outbound is
+    # only to the kube-apiserver.
+    allowEgressToKubeApi: true
+    # Ingress: allow webhook traffic from cluster ingress controller.
+    ingress:
+      - from:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: ingress-nginx
+        ports:
+          - { port: http, protocol: TCP }
+      - from:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: gateway-system
+        ports:
+          - { port: http, protocol: TCP }
+
+  pdb:
+    enabled: true
+    minAvailable: 1
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+
+  # ─── App env: webhook config ─────────────────────────────────────
+  env:
+    - name: TATARA_WATCHER_LISTEN
+      value: "0.0.0.0:8080"
+    - name: TATARA_WATCHER_NAMESPACE
+      value: "ephemeral-pools"
+    - name: RUST_LOG
+      value: "info,tatara_github_watcher=debug"
+    # Secret-mounted webhook secret.
+    - name: TATARA_WATCHER_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: tatara-github-watcher-webhook
+          key: secret
+    # Optional config knobs (set via --set or per-cluster values overlay):
+    # - name: TATARA_WATCHER_PIN_POOL
+    #   value: "akeyless-attest-pool"
+    # - name: TATARA_WATCHER_INCLUDE_DRAFTS
+    #   value: "false"
+    # - name: TATARA_WATCHER_ALLOW_REPOS
+    #   value: "pleme-io/*,akeyless/*"
+
+  # ─── RBAC: create EphemeralAllocation CRs in target namespace ────
+  serviceAccount:
+    create: true
+  rbac:
+    create: true
+    rules:
+      - apiGroups: ["tatara.pleme.io"]
+        resources: ["ephemeralallocations"]
+        verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+  compliance:
+    overlays: []
+    enforce: true
+  attestation:
+    enabled: true
+
+# ─── Optional Ingress wrapper for external GitHub access ───────────
+# When `ingress.enabled=true`, the chart's template emits a typed
+# Ingress (or HTTPRoute under Gateway API) so GitHub's webhook delivery
+# can reach the cluster. TLS termination via cert-manager.
+ingress:
+  enabled: false
+  className: nginx
+  host: ""                  # e.g. "github-webhooks.pleme-dev.quero.cloud"
+  tlsSecretName: ""
+  annotations:
+    cert-manager.io/cluster-issuer: ""
+
+# ─── Webhook secret provisioning ───────────────────────────────────
+# Option 1: chart creates the Secret from .Values.webhookSecret.value
+#   (operator-supplied; mark file-level SOPS).
+# Option 2: pre-create + reference. Default is option 2 — the env var
+#   above expects a Secret named `tatara-github-watcher-webhook`
+#   with key `secret`.
+webhookSecret:
+  create: false
+  value: ""                 # only used when create: true

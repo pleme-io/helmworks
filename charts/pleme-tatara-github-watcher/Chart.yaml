@@ -1,0 +1,30 @@
+apiVersion: v2
+name: pleme-tatara-github-watcher
+description: |
+  tatara-github-watcher — HTTPS webhook receiver that translates
+  GitHub org-wide PR + push events into EphemeralAllocation CRs the
+  pool reconciler routes to a matching EphemeralPool.
+
+  HTTP service (port 8080 /webhook). HMAC-SHA256 signature verified
+  per request against the operator-supplied secret. Typed PR-event
+  parser; deterministic Allocation naming so synchronize events are
+  idempotent.
+
+  Pairs with pleme-tatara-pool-reconciler. Requires the GitHub org
+  webhook secret to be provisioned (e.g., via ExternalSecrets or SOPS
+  Secret in the chart's namespace).
+type: application
+version: 0.1.0
+appVersion: "0.2.0"
+
+keywords: [tatara, github, webhook, ephemeral, allocation, lareira]
+maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]
+home: https://github.com/pleme-io/tatara
+
+dependencies:
+  - name: pleme-lib
+    version: "~0.15.0"
+    repository: "file://../pleme-lib"
+  - name: pleme-microservice
+    version: "~0.2.0"
+    repository: "file://../pleme-microservice"

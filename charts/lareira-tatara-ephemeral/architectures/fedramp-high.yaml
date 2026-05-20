@@ -1,0 +1,71 @@
+# architectures/fedramp-high.yaml — compliance cascade.
+#
+# Compliance overlays cascade through every subchart. fedramp-high
+# (see pleme-compliance overlays) enforces:
+#   - Pod Security Standard: restricted
+#   - All images digest-pinned (no floating tags)
+#   - mTLS via aresta mesh sidecar injection
+#   - sekiban admission attestation required on every Deployment
+#   - PodDisruptionBudget mandatory (replicaCount >= 2 enforced)
+#   - NetworkPolicy default-deny + DNS + TLS-egress floor only
+#   - ServiceMonitor mandatory (AU-2, AU-12, SI-4)
+
+profile: "fedramp-high"
+
+reconciler:
+  enabled: true
+  pleme-operator:
+    replicaCount: 2          # required by fedramp-high PDB
+    image:
+      # Operator MUST pin image digests; tags rejected at admission.
+      tag: ""
+      pullPolicy: Always
+    compliance:
+      overlays: [fedramp-high]
+      enforce: true
+
+poolReconciler:
+  enabled: true
+  pleme-operator:
+    replicaCount: 2
+    image:
+      tag: ""
+      pullPolicy: Always
+    compliance:
+      overlays: [fedramp-high]
+      enforce: true
+
+githubWatcher:
+  enabled: true
+  pleme-microservice:
+    replicaCount: 3
+    image:
+      tag: ""
+      pullPolicy: Always
+    compliance:
+      overlays: [fedramp-high]
+      enforce: true
+  ingress:
+    enabled: true
+    className: nginx
+    host: ""
+    tlsSecretName: ""
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+
+pools:
+  akeyless:
+    enabled: true
+    desiredSize: 2
+    minSize: 2          # never go below 2 for HA
+    maxSize: 5
+    returnPolicy: Replace   # fedramp-high prefers tear-down over reset
+    template:
+      ttl: "1h"
+      teardown: OnAttested
+
+compliance:
+  overlays: [fedramp-high]
+  enforce: true

@@ -1,0 +1,25 @@
+# architectures/pool-only.yaml — reconciler + pool, no GitHub.
+#
+# Operators allocate manually via `feira allocation request …` or by
+# applying EphemeralAllocation CRs from CI directly. Good when:
+#   - PRs already trigger an external CI that wants to claim a warm env
+#   - You're not yet ready to expose a public webhook URL
+#   - Single-team manual flow
+
+profile: "pool-only"
+
+reconciler:
+  enabled: true
+
+poolReconciler:
+  enabled: true
+
+githubWatcher:
+  enabled: false
+
+pools:
+  akeyless:
+    enabled: true     # bundled Akeyless pool ready for `feira allocation request`
+    desiredSize: 1
+    minSize: 0
+    maxSize: 3

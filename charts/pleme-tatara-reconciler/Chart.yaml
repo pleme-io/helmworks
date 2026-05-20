@@ -1,0 +1,25 @@
+apiVersion: v2
+name: pleme-tatara-reconciler
+description: |
+  tatara-reconciler — FluxCD-adjacent Kubernetes controller that
+  reconciles Process CRDs (tatara.pleme.io/v1alpha1) as Unix processes,
+  composes three-pillar BLAKE3 attestation, and drives ephemeral
+  Aplicacao installations via Flux HelmRelease emission.
+
+  Reconciles: Process, ProcessTable. CRDs ship in the umbrella chart
+  (lareira-tatara-ephemeral) so install ordering is deterministic.
+type: application
+version: 0.1.0
+appVersion: "0.2.0"
+
+keywords: [tatara, reconciler, controller, ephemeral, lareira, attestation]
+maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]
+home: https://github.com/pleme-io/tatara
+
+dependencies:
+  - name: pleme-lib
+    version: "~0.15.0"
+    repository: "file://../pleme-lib"
+  - name: pleme-operator
+    version: "~0.1.0"
+    repository: "file://../pleme-operator"

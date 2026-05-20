@@ -1,0 +1,46 @@
+# architectures/homelab.yaml — small footprint (single-node k3s).
+#
+# Single replica everywhere, tighter resources, no Ingress (operator
+# port-forwards the webhook OR exposes via tailscale).
+
+profile: "homelab"
+
+reconciler:
+  enabled: true
+  pleme-operator:
+    replicaCount: 1
+    resources:
+      requests: { cpu: 50m,  memory: 64Mi }
+      limits:   { cpu: 200m, memory: 256Mi }
+
+poolReconciler:
+  enabled: true
+  pleme-operator:
+    replicaCount: 1
+    resources:
+      requests: { cpu: 25m,  memory: 32Mi }
+      limits:   { cpu: 100m, memory: 128Mi }
+
+githubWatcher:
+  enabled: true
+  pleme-microservice:
+    replicaCount: 1
+    resources:
+      requests: { cpu: 25m,  memory: 32Mi }
+      limits:   { cpu: 100m, memory: 128Mi }
+  ingress:
+    enabled: false
+  webhookSecret:
+    create: true
+    value: "homelab-shared-secret-replace-me"
+
+pools:
+  akeyless:
+    enabled: true
+    desiredSize: 1
+    minSize: 0
+    maxSize: 1     # one warm env at a time
+    returnPolicy: Reset   # cheaper than Replace on a homelab
+    template:
+      ttl: "30m"
+      teardown: OnAttested

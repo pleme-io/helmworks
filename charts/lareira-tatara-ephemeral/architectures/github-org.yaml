@@ -1,0 +1,46 @@
+# architectures/github-org.yaml — full GitHub-PR-driven flow.
+#
+# Webhook URL operators register in GitHub org settings:
+#   https://<host>/webhook
+# HMAC secret pre-created in the chart's namespace:
+#   kubectl create secret generic tatara-github-watcher-webhook \
+#     -n ephemeral-pools \
+#     --from-literal=secret="<the value you put in GitHub>"
+
+profile: "github-org"
+
+reconciler:
+  enabled: true
+
+poolReconciler:
+  enabled: true
+
+githubWatcher:
+  enabled: true
+  pleme-microservice:
+    replicaCount: 2
+    env:
+      - name: TATARA_WATCHER_NAMESPACE
+        value: ephemeral-pools
+      - name: TATARA_WATCHER_INCLUDE_DRAFTS
+        value: "false"
+      # Allowlist tightens which org/repo trigger envs — empty = all
+      # repos that share the webhook. Set explicitly in production.
+      - name: TATARA_WATCHER_ALLOW_REPOS
+        value: "pleme-io/*,akeylesslabs/*"
+  ingress:
+    enabled: true
+    className: nginx
+    host: ""            # operator fills in
+    tlsSecretName: ""   # operator fills in
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+  webhookSecret:
+    create: false       # operator pre-creates (recommended)
+
+pools:
+  akeyless:
+    enabled: true
+    desiredSize: 2      # 2 warm envs ready
+    minSize: 1
+    maxSize: 5

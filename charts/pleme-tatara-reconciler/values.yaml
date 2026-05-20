@@ -1,0 +1,129 @@
+# pleme-tatara-reconciler — typed values overlay over pleme-operator.
+#
+# Defaults are conservative + production-friendly. Override per-cluster
+# via the umbrella chart's architectures/<variant>.yaml.
+
+pleme-operator:
+  nameOverride: tatara-reconciler
+  fullnameOverride: ""
+
+  image:
+    repository: ghcr.io/pleme-io/tatara-reconciler
+    tag: ""              # falls back to Chart.appVersion
+    pullPolicy: IfNotPresent
+
+  replicaCount: 1        # controllers are single-active by design;
+                         # leader-elect via lease comes later
+  strategy: { type: Recreate }
+
+  # ─── RBAC ────────────────────────────────────────────────────────
+  # The reconciler manages Process + ProcessTable + emits FluxCD CRs
+  # (HelmRelease, OCIRepository, Kustomization). Cluster-scoped because
+  # Processes can live in any namespace.
+  rbac:
+    create: true
+    rules:
+      # Own CRDs
+      - apiGroups: ["tatara.pleme.io"]
+        resources: ["processes", "processtables"]
+        verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+      - apiGroups: ["tatara.pleme.io"]
+        resources: ["processes/status", "processtables/status"]
+        verbs: ["get", "update", "patch"]
+      - apiGroups: ["tatara.pleme.io"]
+        resources: ["processes/finalizers", "processtables/finalizers"]
+        verbs: ["update"]
+      # FluxCD source + helm controllers (emit HelmRelease + OCIRepository)
+      - apiGroups: ["source.toolkit.fluxcd.io"]
+        resources: ["ocirepositories", "gitrepositories"]
+        verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+      - apiGroups: ["helm.toolkit.fluxcd.io"]
+        resources: ["helmreleases"]
+        verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+      - apiGroups: ["kustomize.toolkit.fluxcd.io"]
+        resources: ["kustomizations"]
+        verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+      # Boundary evaluation needs to read Jobs + ConfigMaps
+      - apiGroups: ["batch"]
+        resources: ["jobs"]
+        verbs: ["get", "list", "watch"]
+      - apiGroups: [""]
+        resources: ["configmaps"]
+        verbs: ["get", "list", "watch"]
+      # Coordination Lease for future leader-election + drift heartbeat
+      - apiGroups: ["coordination.k8s.io"]
+        resources: ["leases"]
+        verbs: ["get", "list", "watch", "create", "update", "patch"]
+      # Events for operator-visible reconciliation signals
+      - apiGroups: [""]
+        resources: ["events"]
+        verbs: ["create", "patch"]
+
+  # ─── Health + probes ─────────────────────────────────────────────
+  ports:
+    - name: health
+      containerPort: 8080
+      protocol: TCP
+  service:
+    type: ClusterIP
+    ports:
+      - name: health
+        port: 8080
+        targetPort: health
+
+  health:
+    path: /healthz
+    readyPath: /readyz
+    port: health
+    livenessInitialDelay: 10
+    livenessPeriod: 30
+    readyInitialDelay: 2
+    readyPeriod: 10
+
+  # ─── Resources (conservative defaults) ──────────────────────────
+  resources:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits:   { cpu: 500m, memory: 512Mi }
+
+  # ─── Security context ───────────────────────────────────────────
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 65532
+    fsGroup: 65532
+    seccompProfile: { type: RuntimeDefault }
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    capabilities: { drop: [ALL] }
+
+  # ─── Telemetry ──────────────────────────────────────────────────
+  monitoring:
+    enabled: true
+    port: health
+    path: /metrics
+    interval: 30s
+  networkPolicy:
+    enabled: true
+    allowPrometheus: true
+    allowDns: true
+    allowEgressToKubeApi: true
+
+  pdb:
+    enabled: false        # single-active; PDB not meaningful
+  autoscaling:
+    enabled: false        # leader-election > HPA for controllers
+
+  # ─── App-level config (CLI args + env) ──────────────────────────
+  extraArgs:
+    - "--heartbeat-seconds=30"
+  extraEnv:
+    - name: RUST_LOG
+      value: "info,tatara_reconciler=debug,kube=warn"
+
+  # ─── Compliance + attestation ───────────────────────────────────
+  compliance:
+    overlays: []          # override per-cluster (fedramp-high, etc.)
+    enforce: true
+  attestation:
+    enabled: true

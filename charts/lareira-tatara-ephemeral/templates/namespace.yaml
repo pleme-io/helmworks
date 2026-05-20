@@ -1,0 +1,14 @@
+{{- if .Values.cluster.namespace }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.cluster.namespace }}
+  labels:
+    tatara.pleme.io/ephemeral-pools: "true"
+    {{- with .Values.cluster.name }}
+    tatara.pleme.io/cluster: {{ . | quote }}
+    {{- end }}
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+{{- end }}

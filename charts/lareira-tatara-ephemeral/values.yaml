@@ -1,0 +1,88 @@
+# lareira-tatara-ephemeral — umbrella chart.
+#
+# The operator picks one of architectures/*.yaml to layer onto this
+# baseline. This file's defaults are the "github-org" shape: every
+# controller enabled, pool watching a single namespace.
+
+# Profile string for human visibility; doesn't drive logic (the
+# components below do). Should match the architectures/<name>.yaml the
+# operator merged in.
+profile: "github-org"
+
+cluster:
+  name: ""                 # e.g. "pleme-dev"; surfaced into pod labels
+  namespace: ephemeral-pools
+
+# CRD installation — chart-side toggle. Helm only installs CRDs on
+# first install; toggle off when CRDs are managed out-of-band.
+crds:
+  install: true
+
+# ─── reconciler (Process + ProcessTable) ──────────────────────────
+reconciler:
+  enabled: true
+  pleme-operator:
+    replicaCount: 1
+    image:
+      repository: ghcr.io/pleme-io/tatara-reconciler
+      tag: ""
+
+# ─── pool reconciler (EphemeralPool + EphemeralAllocation) ────────
+poolReconciler:
+  enabled: true
+  pleme-operator:
+    replicaCount: 1
+    image:
+      repository: ghcr.io/pleme-io/tatara-pool-reconciler
+      tag: ""
+
+# ─── github watcher (PR webhook → Allocation) ─────────────────────
+githubWatcher:
+  enabled: true
+  pleme-microservice:
+    replicaCount: 2
+    image:
+      repository: ghcr.io/pleme-io/tatara-github-watcher
+      tag: ""
+    env:
+      - name: TATARA_WATCHER_NAMESPACE
+        value: ephemeral-pools
+  ingress:
+    enabled: false        # opt in per cluster + supply host/TLS
+  webhookSecret:
+    create: false
+
+# ─── Built-in EphemeralPool — optional convenience CR ─────────────
+# When `pools.akeyless.enabled=true` the umbrella emits an
+# EphemeralPool CR pre-configured for Akeyless closed-loop attestation.
+# Operators can disable this and author their own Pool CRs.
+pools:
+  akeyless:
+    enabled: false
+    name: akeyless-attest-pool
+    namespace: ephemeral-pools
+    desiredSize: 1
+    minSize: 0
+    maxSize: 3
+    returnPolicy: Replace
+    selector:
+      repos: ["pleme-io/akeyless-*"]
+      prLabels: ["needs-akeyless"]
+      kinds: ["github-pr", "manual"]
+    template:
+      aplicacao:
+        chart_ref: "oci://ghcr.io/pleme-io/charts/lareira-akeyless-deployment"
+        version: "0.5.5"
+        profile: "gateway-with-internal-saas"
+      ttl: "2h"
+      teardown: OnAttested
+      postconditions:
+        - kind: HelmReleaseReleased
+          params:
+            name: akeyless-saas-consolidated
+            namespace: ephemeral-pools
+
+# ─── Compliance — cascades to all subcharts ────────────────────────
+compliance:
+  overlays: []
+  enforce: true

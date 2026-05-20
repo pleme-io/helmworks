@@ -1,0 +1,9 @@
+dependencies:
+- name: pleme-lib
+  repository: file://../pleme-lib
+  version: 0.15.0
+- name: pleme-operator
+  repository: file://../pleme-operator
+  version: 0.1.0
+digest: sha256:61c0a9c43f9719eba636f15305c32972d79f2d27e365ef339ca741e91a4add5a
+generated: "2026-05-20T00:58:17.452164-07:00"

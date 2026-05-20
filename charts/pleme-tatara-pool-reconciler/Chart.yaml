@@ -1,0 +1,25 @@
+apiVersion: v2
+name: pleme-tatara-pool-reconciler
+description: |
+  tatara-pool-reconciler — population manager for EphemeralPool +
+  EphemeralAllocation CRDs. Maintains warm-pre-attested pools of
+  ephemeral Processes; routes Allocations to free members via typed
+  PoolSelector matching; applies ReturnPolicy on release.
+
+  Reconciles: EphemeralPool, EphemeralAllocation. CRDs ship in the
+  umbrella chart.
+type: application
+version: 0.1.0
+appVersion: "0.2.0"
+
+keywords: [tatara, pool, ephemeral, controller, reconciler, lareira]
+maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]
+home: https://github.com/pleme-io/tatara
+
+dependencies:
+  - name: pleme-lib
+    version: "~0.15.0"
+    repository: "file://../pleme-lib"
+  - name: pleme-operator
+    version: "~0.1.0"
+    repository: "file://../pleme-operator"

@@ -1,0 +1,59 @@
+# architectures/pleme-dev.yaml — the live pleme-dev cluster.
+#
+# Concrete values for the homelab k3s cluster currently running the
+# Akeyless stack. Webhook ingress disabled until a public URL is
+# wired through cloudflared or tailscale-funnel.
+
+profile: "pleme-dev"
+
+cluster:
+  name: "pleme-dev"
+  namespace: ephemeral-pools
+
+reconciler:
+  enabled: true
+  pleme-operator:
+    replicaCount: 1
+    image:
+      repository: ghcr.io/pleme-io/tatara-reconciler
+      tag: ""
+
+poolReconciler:
+  enabled: true
+  pleme-operator:
+    replicaCount: 1
+    image:
+      repository: ghcr.io/pleme-io/tatara-pool-reconciler
+      tag: ""
+
+githubWatcher:
+  enabled: false       # opt-in once webhook URL is publishable
+  webhookSecret:
+    create: false
+
+pools:
+  akeyless:
+    enabled: true
+    desiredSize: 1
+    minSize: 0
+    maxSize: 2
+    returnPolicy: Replace
+    template:
+      aplicacao:
+        chart_ref: "oci://ghcr.io/pleme-io/charts/lareira-akeyless-deployment"
+        version: "0.5.5"
+        profile: "gateway-with-internal-saas"
+        values_overlay:
+          cluster:
+            name: pleme-dev-pool-slot
+          data:
+            mysql:    { persistence: { enabled: false } }
+            rabbitmq: { persistence: { enabled: false } }
+          compliance: { overlays: [] }
+      ttl: "1h"
+      teardown: OnAttested
+      postconditions:
+        - kind: HelmReleaseReleased
+          params:
+            name: akeyless-saas-consolidated
+            namespace: ephemeral-pools
