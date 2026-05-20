@@ -43,10 +43,14 @@ pleme-operator:
       - apiGroups: ["kustomize.toolkit.fluxcd.io"]
         resources: ["kustomizations"]
         verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-      # Boundary evaluation needs to read Jobs + ConfigMaps
+      # Boundary evaluation needs to read Jobs + ConfigMaps.
+      # The export window (handle_releasing) additionally CREATES
+      # tatara-export-worker Jobs per declared ExportSpec — adding
+      # create/update/patch/delete on jobs for that path. Process
+      # ownerReferences cascade-delete the Jobs on Reaped.
       - apiGroups: ["batch"]
         resources: ["jobs"]
-        verbs: ["get", "list", "watch"]
+        verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
       - apiGroups: [""]
         resources: ["configmaps"]
         verbs: ["get", "list", "watch"]
@@ -120,6 +124,14 @@ pleme-operator:
   extraEnv:
     - name: RUST_LOG
       value: "info,tatara_reconciler=debug,kube=warn"
+    # Container image + ServiceAccount the reconciler stamps into
+    # every tatara-export-worker Job emitted during the Releasing
+    # phase. Override per-cluster (e.g. pin a digest in production)
+    # via the umbrella chart's architectures/<variant>.yaml.
+    - name: TATARA_EXPORT_WORKER_IMAGE
+      value: "ghcr.io/pleme-io/tatara-export-worker:0.2.0"
+    - name: TATARA_EXPORT_WORKER_SERVICE_ACCOUNT
+      value: "tatara-export-worker"
 
   # ─── Compliance + attestation ───────────────────────────────────
   compliance:
