@@ -1,0 +1,6 @@
+dependencies:
+- name: pleme-lib
+  repository: file://../pleme-lib
+  version: 0.15.0
+digest: sha256:59bf25332c7e9a6679ff6c683c7c52c0609ffb3d9dd03a11710bb8e2427708e5
+generated: "2026-05-20T16:07:41.258142-07:00"

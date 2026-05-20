@@ -1,0 +1,28 @@
+# pleme-tatara-export-worker — per-namespace RBAC bundle for the
+# tatara-export-worker Jobs the reconciler emits during Releasing.
+
+# Name of the ServiceAccount the reconciler stamps into rendered
+# Jobs. Must match TATARA_EXPORT_WORKER_SERVICE_ACCOUNT on the
+# reconciler (default "tatara-export-worker").
+serviceAccountName: tatara-export-worker
+
+# Extra annotations for the SA (e.g. cofre/Akeyless / IRSA hints).
+serviceAccountAnnotations: {}
+
+# Role rules — same-namespace by default. The worker only reaches
+# kube to (a) read the artifact source ConfigMap / Process, (b)
+# patch the receipt ConfigMap. No cluster-wide reads, no other
+# verbs.
+rules:
+  # ConfigMap reads — TestReport + Receipts artifact sources
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list"]
+  # ConfigMap write — receipt persistence
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["patch", "create", "update"]
+  # Process read — ProcessSnapshot artifact source
+  - apiGroups: ["tatara.pleme.io"]
+    resources: ["processes"]
+    verbs: ["get"]

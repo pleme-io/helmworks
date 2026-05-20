@@ -1,0 +1,29 @@
+apiVersion: v2
+name: pleme-tatara-export-worker
+description: |
+  Per-namespace RBAC bundle for tatara-export-worker Jobs the
+  reconciler emits during the Releasing phase.
+
+  Ships:
+    - ServiceAccount tatara-export-worker
+    - Role granting get/list on configmaps + patch on configmaps
+      (for the receipt write) + get on tatara.pleme.io/processes
+      (for the ProcessSnapshot artifact source)
+    - RoleBinding to the SA
+
+  Install once per namespace that hosts ephemeral Processes. The
+  Jobs the reconciler renders reference this SA by name —
+  override via TATARA_EXPORT_WORKER_SERVICE_ACCOUNT on the
+  reconciler if you've named it something else.
+type: application
+version: 0.1.0
+appVersion: "0.2.0"
+
+keywords: [tatara, ephemeral, worker, rbac, lareira]
+maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]
+home: https://github.com/pleme-io/tatara
+
+dependencies:
+  - name: pleme-lib
+    version: "~0.15.0"
+    repository: "file://../pleme-lib"
