@@ -90,6 +90,35 @@ spec:
             status:
               nullable: true
               properties:
+                claims:
+                  additionalProperties:
+                    description: One stable-name claim record. Cited by holder Process's namespace/name + content-hash PID + when granted + priority that won the arbitration. Used by [`ProcessTableStatus::claims`].
+                    properties:
+                      grantedAt:
+                        description: When the claim was granted to the current holder. Operator- visible "how long has this been the claim holder?" metric.
+                        format: date-time
+                        type: string
+                      holder:
+                        description: '`${namespace}/${name}` of the holder Process. Reconciler uses this to resolve the holder during render — every emitted stable-form Ingress carries an ownerRef back to this Process.'
+                        type: string
+                      pid:
+                        description: PID path of the holder (mirror of the Process's `status.pid`). Lets observers detect a stale claim if the holder is reaped but the registry update lags.
+                        type: string
+                      priority:
+                        description: Priority the holder declared (from `RoutingSpec.priority`). Stamped so a new candidate-Process can compare without reading the holder's spec.
+                        format: int32
+                        type: integer
+                    required:
+                      - grantedAt
+                      - holder
+                      - pid
+                      - priority
+                    type: object
+                  description: |-
+                    **R6** — Stable-name claim registry. Key: `${cluster}/${app}` (e.g., `pleme-dev/gator`). Value: the Process currently holding the unprefixed-form DNS for that (cluster, app) tuple. At most one Process per key; transfer is atomic on the holder's Failed/Zombie/Reaped transition.
+
+                    The reconciler's claim arbiter (`tatara-reconciler::claim`) is the sole writer; every other actor reads.
+                  type: object
                 lastReconciled:
                   format: date-time
                   nullable: true

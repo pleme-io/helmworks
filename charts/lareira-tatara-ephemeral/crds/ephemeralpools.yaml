@@ -40,6 +40,15 @@ spec:
 
                 ```yaml apiVersion: tatara.pleme.io/v1alpha1 kind: EphemeralPool metadata: name: akeyless-attest-pool namespace: ephemeral-pools spec: desiredSize: 3 minSize: 1 maxSize: 5 returnPolicy: Reset selector: repos: ["pleme-io/akeyless-*"] branches: ["main", "release-*"] prLabels: ["needs-akeyless"] template: aplicacao: chartRef: "oci://ghcr.io/pleme-io/charts/lareira-akeyless-deployment" version: "0.5.5" profile: "gateway-with-internal-saas" … ttl: "2h" teardown: OnAttested postconditions: [ … ] ```
               properties:
+                desired:
+                  default: 0
+                  description: |-
+                    **R5 desired-count loop** — when set non-zero, the pool reconciler maintains exactly this many *healthy* (Running or Attested) Processes regardless of allocation pressure. Drives the "always seeking stability" property: failed members are replaced per `replacement_policy`. `0` keeps the legacy allocation-driven sizing (desired = floor of free + allocated).
+
+                    Operator usage: `desired: 5` means "always have 5 of these running"; failures auto-replace.
+                  format: uint32
+                  minimum: 0.0
+                  type: integer
                 desiredSize:
                   description: Target number of warm Processes the pool maintains in `Free` state (sum of Free + Spawning targets `desired_size`).
                   format: uint32
@@ -65,6 +74,14 @@ spec:
                   format: uint32
                   minimum: 0.0
                   type: integer
+                replacementPolicy:
+                  default: ReplaceImmediate
+                  description: '**R5** — what the pool reconciler does when a member reaches `Failed` phase.'
+                  enum:
+                    - ReplaceImmediate
+                    - HoldFailed
+                    - PausePool
+                  type: string
                 returnPolicy:
                   default: Replace
                   description: What to do when an allocation releases.
@@ -106,6 +123,10 @@ spec:
                         type: string
                       type: array
                   type: object
+                stableNameClaim:
+                  default: false
+                  description: '**R5** — when true, exactly one healthy member of the pool holds the unprefixed-form DNS hostnames declared in `template.routing` at any moment. The claim arbiter (see `tatara-reconciler::claim`) transfers atomically when the holder fails.'
+                  type: boolean
                 template:
                   description: Template for each pool member — a typed `EphemeralSpec` that the reconciler lowers to `ProcessSpec` and instantiates. While in the free list each member's lifetime is overridden to `Permanent`; allocation flips it back to `Ephemeral` with the requestor's TTL.
                   properties:
@@ -404,6 +425,73 @@ spec:
                           - kind
                         type: object
                       type: array
+                    routing:
+                      description: Routing template — DNS + Ingress declarations inherited by the materialized `ProcessSpec`. When set on a pool's `template`, every member receives the same shape; each member's content-hash form differs by its own canonical spec (which differs across members by slot index). See [`crate::routing`].
+                      nullable: true
+                      properties:
+                        backend:
+                          description: Single backend Service every hostname routes to. Per-hostname backends are a future extension; v1 keeps the simple shape.
+                          properties:
+                            ingressAnnotations:
+                              additionalProperties:
+                                type: string
+                              description: 'Annotations stamped on every emitted Ingress. Common keys: `nginx.ingress.kubernetes.io/rate-limit`, `nginx.ingress. kubernetes.io/proxy-body-size`. The reconciler MERGES these with its own annotations; conflict ⇒ this map wins.'
+                              type: object
+                            port:
+                              description: Port number on the Service to route to.
+                              format: uint16
+                              minimum: 0.0
+                              type: integer
+                            service:
+                              description: In-cluster Service name (same namespace as the Process).
+                              type: string
+                            tlsIssuer:
+                              description: '`ClusterIssuer` name for TLS. None ⇒ reconciler-config default (typically `letsencrypt-prod` or the cluster''s SPIRE-issuing issuer).'
+                              nullable: true
+                              type: string
+                          required:
+                            - port
+                            - service
+                          type: object
+                        hostnames:
+                          default: []
+                          description: Hostnames this Process answers on. Empty list is legal but nonsensical (no Ingress, no DNS) — operators should drop the `routing` slot entirely instead. The reconciler warns on empty hostnames.
+                          items:
+                            description: |-
+                              One entry in `RoutingSpec.hostnames`.
+
+                              Emitted FQDN: `${app}.${ephemeral_id}.${cluster}.${location}.${domain}` where: * `app` and (optional) `instance` come from this struct; * `cluster` falls back to reconciler-config when unset; * `location` and `domain` are reconciler-config (from `nix/lib/fleet-domains.nix`).
+                            properties:
+                              app:
+                                description: 'Application slot — `api`, `gator`, `gateway`, `web`, etc. Must be a valid DNS label (RFC 1123): lowercase alpha-num + hyphen, 1–63 chars, no leading/trailing hyphen. The reconciler validates this at the boundary.'
+                                type: string
+                              cluster:
+                                description: Cluster override. Empty/None ⇒ reconciler-config default (e.g., `pleme-dev`). Used for cross-cluster routing rules, rare in practice.
+                                nullable: true
+                                type: string
+                              instance:
+                                description: |-
+                                  Named instance segment. When `Some("akeyless-prod")` the FQDN reads `${app}.akeyless-prod.${cluster}.…`. When `None` the reconciler substitutes `blake3(canonical_spec)[:8]` — deterministic per-spec, changes when the spec changes.
+
+                                  Must be a valid DNS label when set.
+                                nullable: true
+                                type: string
+                            required:
+                              - app
+                            type: object
+                          type: array
+                        priority:
+                          default: 0
+                          description: Claim arbitration priority. Higher wins. Ties broken by oldest `creationTimestamp`. Negative values legal (signals "prefer not to hold the claim"). Default 0.
+                          format: int32
+                          type: integer
+                        stableNameClaim:
+                          default: false
+                          description: When true, additionally emit the *unprefixed* form of every hostname (`${app}.${cluster}.${loc}.${domain}` — no `eph_id` segment) iff this Process currently holds the ProcessTable claim for `(cluster, app)`. At most one Process per (cluster, app) holds the claim.
+                          type: boolean
+                      required:
+                        - backend
+                      type: object
                     teardown:
                       default: Always
                       description: When the ephemeral Process auto-terminates.

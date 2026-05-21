@@ -247,6 +247,71 @@ spec:
                       - name
                     type: object
                   type: array
+                encapsulates:
+                  description: Pre-existing in-cluster state this Process wraps. When `None`, the Process is greenfield (Manage mode implicitly applied to nothing pre-existing). See [`crate::encapsulates`] for the three modes (Manage / Adopt / Observe).
+                  nullable: true
+                  properties:
+                    kind:
+                      description: What kind of pre-existing state.
+                      properties:
+                        bareWorkload:
+                          description: Pre-existing in-cluster workload (Deployment/StatefulSet/etc) not Flux-managed. The reconciler adds ownerRefs + emits routing only. The workload stays where it is.
+                          nullable: true
+                          properties:
+                            namespace:
+                              description: Namespace the workload lives in.
+                              type: string
+                            selector:
+                              additionalProperties:
+                                type: string
+                              description: Label selector. Must match a single Deployment/StatefulSet/ DaemonSet; multiple matches are a config error.
+                              type: object
+                          required:
+                            - namespace
+                            - selector
+                          type: object
+                        existingHelmRelease:
+                          description: An existing FluxCD HelmRelease. The reconciler emits a new HR with the SAME `release_name` — helm-controller finds + adopts the in-cluster release without recreating Pods.
+                          nullable: true
+                          properties:
+                            name:
+                              description: Name of the HelmRelease CR.
+                              type: string
+                            namespace:
+                              description: Namespace of the HelmRelease CR.
+                              type: string
+                            releaseName:
+                              description: The `spec.releaseName` Helm used for the actual chart install. For Adopt mode, the reconciler's emitted HR matches this so helm-controller adopts in-place. Required because the HR's `metadata.name` and `spec.releaseName` aren't always equal.
+                              type: string
+                          required:
+                            - name
+                            - namespace
+                            - releaseName
+                          type: object
+                        existingKustomization:
+                          description: An existing FluxCD Kustomization. The reconciler stops emitting its own and instead references the existing one.
+                          nullable: true
+                          properties:
+                            name:
+                              type: string
+                            namespace:
+                              type: string
+                          required:
+                            - name
+                            - namespace
+                          type: object
+                      type: object
+                    mode:
+                      default: Manage
+                      description: Reconciler's relationship to that state. Defaults to `Manage` (the operational default when `encapsulates` is set without an explicit mode).
+                      enum:
+                        - Manage
+                        - Adopt
+                        - Observe
+                      type: string
+                  required:
+                    - kind
+                  type: object
                 identity:
                   default: {}
                   description: Identity (parent, name override).
@@ -612,6 +677,73 @@ spec:
                       description: Permanent lifetime — the existing Process behavior. SIGHUP re-converges; SIGTERM terminates only on explicit operator action.
                       nullable: true
                       type: object
+                  type: object
+                routing:
+                  description: External edges — DNS + Ingress. When `None`, the Process is internal-only (matches today's default). See [`crate::routing`] for the full shape.
+                  nullable: true
+                  properties:
+                    backend:
+                      description: Single backend Service every hostname routes to. Per-hostname backends are a future extension; v1 keeps the simple shape.
+                      properties:
+                        ingressAnnotations:
+                          additionalProperties:
+                            type: string
+                          description: 'Annotations stamped on every emitted Ingress. Common keys: `nginx.ingress.kubernetes.io/rate-limit`, `nginx.ingress. kubernetes.io/proxy-body-size`. The reconciler MERGES these with its own annotations; conflict ⇒ this map wins.'
+                          type: object
+                        port:
+                          description: Port number on the Service to route to.
+                          format: uint16
+                          minimum: 0.0
+                          type: integer
+                        service:
+                          description: In-cluster Service name (same namespace as the Process).
+                          type: string
+                        tlsIssuer:
+                          description: '`ClusterIssuer` name for TLS. None ⇒ reconciler-config default (typically `letsencrypt-prod` or the cluster''s SPIRE-issuing issuer).'
+                          nullable: true
+                          type: string
+                      required:
+                        - port
+                        - service
+                      type: object
+                    hostnames:
+                      default: []
+                      description: Hostnames this Process answers on. Empty list is legal but nonsensical (no Ingress, no DNS) — operators should drop the `routing` slot entirely instead. The reconciler warns on empty hostnames.
+                      items:
+                        description: |-
+                          One entry in `RoutingSpec.hostnames`.
+
+                          Emitted FQDN: `${app}.${ephemeral_id}.${cluster}.${location}.${domain}` where: * `app` and (optional) `instance` come from this struct; * `cluster` falls back to reconciler-config when unset; * `location` and `domain` are reconciler-config (from `nix/lib/fleet-domains.nix`).
+                        properties:
+                          app:
+                            description: 'Application slot — `api`, `gator`, `gateway`, `web`, etc. Must be a valid DNS label (RFC 1123): lowercase alpha-num + hyphen, 1–63 chars, no leading/trailing hyphen. The reconciler validates this at the boundary.'
+                            type: string
+                          cluster:
+                            description: Cluster override. Empty/None ⇒ reconciler-config default (e.g., `pleme-dev`). Used for cross-cluster routing rules, rare in practice.
+                            nullable: true
+                            type: string
+                          instance:
+                            description: |-
+                              Named instance segment. When `Some("akeyless-prod")` the FQDN reads `${app}.akeyless-prod.${cluster}.…`. When `None` the reconciler substitutes `blake3(canonical_spec)[:8]` — deterministic per-spec, changes when the spec changes.
+
+                              Must be a valid DNS label when set.
+                            nullable: true
+                            type: string
+                        required:
+                          - app
+                        type: object
+                      type: array
+                    priority:
+                      default: 0
+                      description: Claim arbitration priority. Higher wins. Ties broken by oldest `creationTimestamp`. Negative values legal (signals "prefer not to hold the claim"). Default 0.
+                      format: int32
+                      type: integer
+                    stableNameClaim:
+                      default: false
+                      description: When true, additionally emit the *unprefixed* form of every hostname (`${app}.${cluster}.${loc}.${domain}` — no `eph_id` segment) iff this Process currently holds the ProcessTable claim for `(cluster, app)`. At most one Process per (cluster, app) holds the claim.
+                      type: boolean
+                  required:
+                    - backend
                   type: object
                 signals:
                   default:

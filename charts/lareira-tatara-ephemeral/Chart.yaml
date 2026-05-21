@@ -22,8 +22,8 @@ description: |
   Compliance overlays cascade via subcharts' `compliance.overlays`.
 
 type: application
-version: 0.2.1
-appVersion: "0.2.0"
+version: 0.3.0
+appVersion: "0.3.0"
 
 keywords: [tatara, ephemeral, lareira, umbrella, pool, allocation, github]
 maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]
