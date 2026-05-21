@@ -1,12 +1,12 @@
 dependencies:
 - name: pleme-tatara-reconciler
   repository: file://../pleme-tatara-reconciler
-  version: 0.1.0
+  version: 0.2.0
 - name: pleme-tatara-pool-reconciler
   repository: file://../pleme-tatara-pool-reconciler
   version: 0.1.0
 - name: pleme-tatara-github-watcher
   repository: file://../pleme-tatara-github-watcher
   version: 0.1.0
-digest: sha256:740be22af28a3572d00e24f3900235b0a947f1979dca6c206c68f68130737e68
-generated: "2026-05-20T00:56:57.936323-07:00"
+digest: sha256:d29c214fface565a4471e62a84a99900921675750096d82cb6684644077696a6
+generated: "2026-05-20T16:55:59.089504-07:00"

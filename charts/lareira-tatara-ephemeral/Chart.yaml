@@ -22,7 +22,7 @@ description: |
   Compliance overlays cascade via subcharts' `compliance.overlays`.
 
 type: application
-version: 0.1.0
+version: 0.2.1
 appVersion: "0.2.0"
 
 keywords: [tatara, ephemeral, lareira, umbrella, pool, allocation, github]
@@ -30,9 +30,11 @@ maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]
 home: https://github.com/pleme-io/tatara
 
 dependencies:
+  # Reconciler 0.2.0 — adds Releasing-phase export window + Job-creation
+  # RBAC + TATARA_EXPORT_WORKER_{IMAGE,SERVICE_ACCOUNT} env wiring.
   - name: pleme-tatara-reconciler
     alias: reconciler
-    version: "~0.1.0"
+    version: "~0.2.0"
     repository: "file://../pleme-tatara-reconciler"
     condition: reconciler.enabled
   - name: pleme-tatara-pool-reconciler
