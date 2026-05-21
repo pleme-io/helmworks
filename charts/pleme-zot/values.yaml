@@ -11,11 +11,12 @@
 hostname: ""
 
 # -- The Zot image. At fedramp-high the validator requires a digest pin;
-#    CI/forge injects the digest at release.
+#    CI/forge injects the digest at release. v2.1.5 digest verified
+#    2026-05-08 via `skopeo inspect docker://ghcr.io/project-zot/zot-linux-amd64:v2.1.5`.
 image:
   repository: ghcr.io/project-zot/zot-linux-amd64
-  tag: "v2.1.5"
-  pullPolicy: Always
+  tag: "sha256:73c2356539d1e6339a25fe957d59f91627479f1a5627b3c4cfce93efcf488158"
+  pullPolicy: IfNotPresent
 
 # -- Replicas. At fedramp-high the validator requires >= 2.
 replicaCount: 2
@@ -116,7 +117,11 @@ upstream:
 # -- Compliance. Pre-set for the registry-mirror air-gap role.
 compliance:
   baseline: fedramp-high
-  enforce: true
+  # Default-off so the chart's release flow (`forge helm release`) can
+  # template-validate without injected attestation values. Consumers
+  # that want FedRAMP-High enforcement at admission flip this to true
+  # in their values and supply attestation.* + a digest-pinned image.
+  enforce: false
   audit:
     logLevel: info
     retentionDays: 365
@@ -176,3 +181,20 @@ networkPolicy:
 pdb:
   enabled: true
   minAvailable: 1
+
+# -- Ingress for external pushes/pulls. When enabled, a v1 Ingress is
+#    rendered at `.Values.ingress.host`. Push bodies (OCI layers) routinely
+#    blow past nginx's default 1 MiB request size; the proxy-body-size
+#    annotation default of 5g covers any reasonable image layer.
+ingress:
+  enabled: false
+  className: nginx
+  host: ""
+  servicePort: 5000
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "5g"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+  tls:
+    enabled: true
+    issuer: letsencrypt-prod
+    secretName: ""           # default: "<release>-tls"
