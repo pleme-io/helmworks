@@ -28,16 +28,29 @@ re-derives `Chart.yaml`, `values.yaml`, and every file under
 ### Regenerate
 
 ```bash
+# 1. Re-render Chart.yaml + values.yaml + templates/ from .tlisp source
 nix run github:pleme-io/lava-chart -- \
   render charts/pleme-lava-operator/_source/chart.tlisp \
          charts/pleme-lava-operator
+
+# 2. Re-render CRDs from the operator binary (Helm v3 auto-applies
+#    `crds/` content on install — but not on upgrade — by convention)
+nix run github:pleme-io/lava-operator -- crds \
+  > charts/pleme-lava-operator/crds/lava-operator-crds.yaml
 ```
 
-Or, if `lava-chart-cli` is already on PATH:
+Or, if both binaries are on PATH:
 
 ```bash
 lava-chart-cli render _source/chart.tlisp .
+lava-operator crds > crds/lava-operator-crds.yaml
 ```
+
+The CRDs surface (`LavaArchitecture`, `RemediationPolicy`,
+`LavaArchitectureDependency`) comes from the **same Rust types the
+operator uses to reconcile** — there's no separate hand-authored CRD
+YAML. Edit the kube-rs `#[derive(CustomResource)]` shapes in
+`pleme-io/lava-operator/src/controller.rs` and re-render.
 
 ## Install
 
