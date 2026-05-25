@@ -4,16 +4,114 @@ metadata:
   name: lavaarchitectures.lava.pleme.io
 spec:
   group: lava.pleme.io
-  scope: Namespaced
   names:
+    categories: []
     kind: LavaArchitecture
-    listKind: LavaArchitectureList
     plural: lavaarchitectures
+    shortNames: []
     singular: lavaarchitecture
+  scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns: []
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Auto-generated derived type for LavaArchitectureSpecCR via `CustomResource`
+        properties:
+          spec:
+            description: kube-rs typed shape. Mirrors [`crate::LavaArchitectureSpec`] but carries the `#[derive(CustomResource)]` plumbing kube-rs needs to dispatch the watch + patch loop.
+            properties:
+              bindings:
+                additionalProperties:
+                  type: string
+                default: {}
+                type: object
+              engine:
+                default: embedded
+                type: string
+              gate:
+                nullable: true
+                type: string
+              source:
+                oneOf:
+                - required:
+                  - inline
+                - required:
+                  - name
+                - required:
+                  - git
+                properties:
+                  git:
+                    properties:
+                      path:
+                        type: string
+                      rev:
+                        type: string
+                      url:
+                        type: string
+                    required:
+                    - path
+                    - rev
+                    - url
+                    type: object
+                  inline:
+                    properties:
+                      inline:
+                        type: string
+                    required:
+                    - inline
+                    type: object
+                  name:
+                    properties:
+                      name:
+                        type: string
+                    required:
+                    - name
+                    type: object
+                type: object
+            required:
+            - source
+            type: object
+          status:
+            nullable: true
+            properties:
+              conditions:
+                default: []
+                items:
+                  properties:
+                    message:
+                      nullable: true
+                      type: string
+                    reason:
+                      nullable: true
+                      type: string
+                    status:
+                      type: string
+                    type:
+                      type: string
+                  required:
+                  - status
+                  - type
+                  type: object
+                type: array
+              lastAppliedAt:
+                nullable: true
+                type: string
+              lastSynthesizedHash:
+                nullable: true
+                type: string
+              phase:
+                nullable: true
+                type: string
+            type: object
+        required:
+        - spec
+        title: LavaArchitecture
+        type: object
     served: true
     storage: true
+    subresources:
+      status: {}
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
@@ -21,16 +119,85 @@ metadata:
   name: remediationpolicies.lava.pleme.io
 spec:
   group: lava.pleme.io
-  scope: Namespaced
   names:
+    categories: []
     kind: RemediationPolicy
-    listKind: RemediationPolicyList
     plural: remediationpolicies
+    shortNames: []
     singular: remediationpolicy
+  scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns: []
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Auto-generated derived type for RemediationPolicySpec via `CustomResource`
+        properties:
+          spec:
+            description: Typed kube-rs CRD for [`lava_anomaly::RemediationPolicy`]. Operators attach one of these per cluster (or per environment) and reference it from `LavaArchitectureSpecCR.remediationPolicyRef`.
+            properties:
+              cosmetic:
+                type: string
+              critical:
+                type: string
+              escalation:
+                nullable: true
+                properties:
+                  tiers:
+                    items:
+                      properties:
+                        target:
+                          description: Flat notify-target shape — `kind` is a free string + remaining fields are optional. The lava-anomaly typed enum (`Slack | Ntfy | Pagerduty | Email | Webhook | Custom`) is reconstructed at use-site. Flat layout keeps the JsonSchema derivation simple (kube-rs apiextensions/v1 rejects tagged-enum CRDs with per-variant property schemas).
+                          properties:
+                            address:
+                              nullable: true
+                              type: string
+                            kind:
+                              description: '`slack` | `ntfy` | `pagerduty` | `email` | `webhook`.'
+                              type: string
+                            secretRef:
+                              nullable: true
+                              type: string
+                            serviceKeySecretRef:
+                              nullable: true
+                              type: string
+                            topic:
+                              nullable: true
+                              type: string
+                            url:
+                              nullable: true
+                              type: string
+                            webhookSecretRef:
+                              nullable: true
+                              type: string
+                          required:
+                          - kind
+                          type: object
+                        waitBeforeNext:
+                          default: PT15M
+                          description: ISO-8601 duration string (`PT15M`, `PT1H`) — parsed at use site. Kept as String here so the CRD schema stays simple + JsonSchema-derivable without a chrono::Duration crater.
+                          type: string
+                      required:
+                      - target
+                      type: object
+                    type: array
+                required:
+                - tiers
+                type: object
+              functional:
+                type: string
+            required:
+            - cosmetic
+            - critical
+            - functional
+            type: object
+        required:
+        - spec
+        title: RemediationPolicy
+        type: object
     served: true
     storage: true
+    subresources: {}
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
@@ -38,13 +205,63 @@ metadata:
   name: lavaarchitecturedependencies.lava.pleme.io
 spec:
   group: lava.pleme.io
-  scope: Namespaced
   names:
+    categories: []
     kind: LavaArchitectureDependency
-    listKind: LavaArchitectureDependencyList
     plural: lavaarchitecturedependencies
+    shortNames: []
     singular: lavaarchitecturedependency
+  scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns: []
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Auto-generated derived type for LavaArchitectureDependencySpec via `CustomResource`
+        properties:
+          spec:
+            description: Typed kube-rs CRD for [`lava_dependency::LavaArchitectureDependency`].
+            properties:
+              from:
+                properties:
+                  cluster:
+                    type: string
+                  name:
+                    type: string
+                  namespace:
+                    type: string
+                required:
+                - cluster
+                - name
+                - namespace
+                type: object
+              kind:
+                type: string
+              requirePhase:
+                default: Applied
+                type: string
+              to:
+                properties:
+                  cluster:
+                    type: string
+                  name:
+                    type: string
+                  namespace:
+                    type: string
+                required:
+                - cluster
+                - name
+                - namespace
+                type: object
+            required:
+            - from
+            - kind
+            - to
+            type: object
+        required:
+        - spec
+        title: LavaArchitectureDependency
+        type: object
     served: true
     storage: true
+    subresources: {}
