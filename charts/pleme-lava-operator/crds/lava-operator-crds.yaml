@@ -33,41 +33,30 @@ spec:
                 nullable: true
                 type: string
               source:
-                oneOf:
-                - required:
-                  - inline
-                - required:
-                  - name
-                - required:
-                  - git
+                description: |-
+                  Flat source descriptor — `inline`, `name`, and the three git fields are all optional + the consumer picks the populated one. Flat shape avoids kube-rs JsonSchema discriminated-union pitfalls + matches the YAML authoring shape operators expect:
+
+                  source: inline: | (deflava-architecture ...)
+
+                  source: name: aws-vpc-network
+
+                  source: url:  https://github.com/... rev:  main path: infra/vpc.tlisp
                 properties:
-                  git:
-                    properties:
-                      path:
-                        type: string
-                      rev:
-                        type: string
-                      url:
-                        type: string
-                    required:
-                    - path
-                    - rev
-                    - url
-                    type: object
                   inline:
-                    properties:
-                      inline:
-                        type: string
-                    required:
-                    - inline
-                    type: object
+                    nullable: true
+                    type: string
                   name:
-                    properties:
-                      name:
-                        type: string
-                    required:
-                    - name
-                    type: object
+                    nullable: true
+                    type: string
+                  path:
+                    nullable: true
+                    type: string
+                  rev:
+                    nullable: true
+                    type: string
+                  url:
+                    nullable: true
+                    type: string
                 type: object
             required:
             - source

@@ -1,6 +1,6 @@
 apiVersion: v2
 name: pleme-lava-operator
-version: 0.1.1
+version: 0.1.2
 appVersion: 0.5.0
 description: "lava-operator â\x80\x94 typed Kubernetes controller for the LavaArchitecture CRD. Embedded magma + drift detection + OutcomeChain + AnomalyController + 7-beat Viggy tick."
 type: application
