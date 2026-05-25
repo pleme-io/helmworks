@@ -113,6 +113,7 @@
             { name = "iac-forge"; chartDir = ./charts/iac-forge; }
             { name = "pleme-shinryu"; chartDir = ./charts/pleme-shinryu; }
             { name = "pleme-attic"; chartDir = ./charts/pleme-attic; }
+            { name = "pleme-lava-operator"; chartDir = ./charts/pleme-lava-operator; }
             { name = "pleme-tatara-operator"; chartDir = ./charts/pleme-tatara-operator; }
             { name = "pleme-tend-operator"; chartDir = ./charts/pleme-tend-operator; }
             { name = "pleme-tend-throttle"; chartDir = ./charts/pleme-tend-throttle; }
