@@ -2,23 +2,24 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: lava-operator
-spec:
-  rules:
+rules:
   - apiGroups:
-    - lava.pleme.io
+      - lava.pleme.io
     resources:
-    - lavaarchitectures
-    - lavaarchitectures/status
+      - lavaarchitectures
+      - lavaarchitectures/status
+      - remediationpolicies
+      - lavaarchitecturedependencies
     verbs:
-    - get
-    - list
-    - watch
-    - patch
-    - update
+      - get
+      - list
+      - watch
+      - patch
+      - update
   - apiGroups:
-    - ''
+      - ''
     resources:
-    - events
+      - events
     verbs:
-    - create
-    - patch
+      - create
+      - patch

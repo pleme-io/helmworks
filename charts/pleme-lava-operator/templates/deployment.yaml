@@ -16,27 +16,33 @@ spec:
     spec:
       serviceAccountName: {{ .Values.serviceAccount.name }}
       containers:
-      - name: lava-operator
-        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
-        imagePullPolicy: {{ .Values.image.pullPolicy }}
-        args:
-        - run
-        resources:
-          limits: {{ .Values.resources.limits }}
-          requests: {{ .Values.resources.requests }}
-        env:
-        - name: LAVA_OPERATOR_OUTCOME_CHAIN_PATH
-          value: {{ .Values.outcomeChain.sink.path }}
-        - name: LAVA_OPERATOR_DRIFT_INTERVAL
-          value: {{ .Values.drift.scanIntervalSeconds }}
-        - name: RUST_LOG
-          value: {{ .Values.logging.level }}
-        ports:
-        - name: metrics
-          containerPort: {{ .Values.metrics.port }}
-        volumeMounts:
+        - name: lava-operator
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - run
+          resources:
+            limits:
+              cpu: {{ .Values.resources.limits.cpu | quote }}
+              memory: {{ .Values.resources.limits.memory | quote }}
+            requests:
+              cpu: {{ .Values.resources.requests.cpu | quote }}
+              memory: {{ .Values.resources.requests.memory | quote }}
+          env:
+            - name: LAVA_OPERATOR_OUTCOME_CHAIN_PATH
+              value: {{ .Values.outcomeChain.sink.path | quote }}
+            - name: LAVA_OPERATOR_DRIFT_INTERVAL
+              value: {{ .Values.drift.scanIntervalSeconds | quote }}
+            - name: RUST_LOG
+              value: {{ .Values.logging.level | quote }}
+            - name: LAVA_OPERATOR_CLUSTER
+              value: "rio"
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.metrics.port }}
+          volumeMounts:
+            - name: chains
+              mountPath: /var/lib/lava-operator/chains
+      volumes:
         - name: chains
-          mountPath: /var/lib/lava-operator/chains
-    volumes:
-    - name: chains
-      emptyDir: {}
+          emptyDir: {}
