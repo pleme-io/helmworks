@@ -13,8 +13,8 @@
   :values
   (:replica-count 1
    :image (:repository "ghcr.io/pleme-io/lava-operator"
-           :tag        "v0.5.0"
-           :pull-policy "IfNotPresent")
+           :tag        "latest"
+           :pull-policy "Always")
    :resources (:limits   (:cpu "500m" :memory "512Mi")
                :requests (:cpu "100m" :memory "128Mi"))
    :executor (:embedded (:enabled true)

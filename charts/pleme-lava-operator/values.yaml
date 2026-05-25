@@ -1,8 +1,8 @@
 replicaCount: 1
 image:
   repository: ghcr.io/pleme-io/lava-operator
-  tag: v0.5.0
-  pullPolicy: IfNotPresent
+  tag: latest
+  pullPolicy: Always
 resources:
   limits:
     cpu: 500m
