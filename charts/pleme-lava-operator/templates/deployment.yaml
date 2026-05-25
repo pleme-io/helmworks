@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lava-operator
+  labels:
+    app: lava-operator
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: lava-operator
+  template:
+    metadata:
+      labels:
+        app: lava-operator
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      containers:
+      - name: lava-operator
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        args:
+        - run
+        resources:
+          limits: {{ .Values.resources.limits }}
+          requests: {{ .Values.resources.requests }}
+        env:
+        - name: LAVA_OPERATOR_OUTCOME_CHAIN_PATH
+          value: {{ .Values.outcomeChain.sink.path }}
+        - name: LAVA_OPERATOR_DRIFT_INTERVAL
+          value: {{ .Values.drift.scanIntervalSeconds }}
+        - name: RUST_LOG
+          value: {{ .Values.logging.level }}
+        ports:
+        - name: metrics
+          containerPort: {{ .Values.metrics.port }}
+        volumeMounts:
+        - name: chains
+          mountPath: /var/lib/lava-operator/chains
+    volumes:
+    - name: chains
+      emptyDir: {}

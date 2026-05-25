@@ -1,0 +1,106 @@
+;; pleme-lava-operator chart authored via (deflava-chart …).
+;;
+;; Render via `lava-chart-cli render chart.tlisp`. Output is checked
+;; in alongside this source so Helm/Flux consume the rendered files
+;; without needing the renderer at install time. Re-render after any
+;; edit to this file.
+
+(deflava-chart pleme-lava-operator
+  :version "0.1.0"
+  :app-version "0.5.0"
+  :description "lava-operator — typed Kubernetes controller for the LavaArchitecture CRD. Embedded magma + drift detection + OutcomeChain + AnomalyController + 7-beat Viggy tick."
+  :type application
+  :values
+  (:replica-count 1
+   :image (:repository "ghcr.io/pleme-io/lava-operator"
+           :tag        "v0.5.0"
+           :pull-policy "IfNotPresent")
+   :resources (:limits   (:cpu "500m" :memory "512Mi")
+               :requests (:cpu "100m" :memory "128Mi"))
+   :executor (:embedded (:enabled true)
+              :remote   (:enabled false :endpoint ""))
+   :outcome-chain (:sink (:kind "filesystem"
+                          :path "/var/lib/lava-operator/chains")
+                  :signing (:kind "ed25519"
+                           :secret-ref "lava-operator-signing-key"))
+   :drift (:scan-interval-seconds 60
+           :cosmetic-attribute-prefixes ("tags." "labels."))
+   :anomaly (:default-policy
+             (:cosmetic   "Alert"
+              :functional "AutoCorrect"
+              :critical   "RequireApproval"))
+   :viggy (:tick-budget-ms 30000
+           :requeue-on-failure-seconds 60)
+   :service-account (:create true :name "lava-operator")
+   :metrics (:enabled true :port 9090)
+   :logging (:level "info" :format "json")
+   :node-selector (:)
+   :tolerations ()
+   :affinity (:))
+  :manifests
+  ;; Deployment — single replica running the operator binary.
+  ((manifest deployment
+     :kind Deployment
+     :api-version apps/v1
+     :metadata (:name "lava-operator" :labels (:app "lava-operator"))
+     :spec (:replicas (ref :replica-count)
+            :selector (:match-labels (:app "lava-operator"))
+            :template (:metadata (:labels (:app "lava-operator"))
+                       :spec
+                       (:service-account-name (ref :service-account.name)
+                        :containers
+                        ((:name  "lava-operator"
+                          :image (ref :image.repository :image.tag)
+                          :image-pull-policy (ref :image.pull-policy)
+                          :args  ("run")
+                          :resources (:limits   (ref :resources.limits)
+                                      :requests (ref :resources.requests))
+                          :env ((:name "LAVA_OPERATOR_OUTCOME_CHAIN_PATH"
+                                 :value (ref :outcome-chain.sink.path))
+                                (:name "LAVA_OPERATOR_DRIFT_INTERVAL"
+                                 :value (ref :drift.scan-interval-seconds))
+                                (:name "RUST_LOG"
+                                 :value (ref :logging.level)))
+                          :ports ((:name "metrics"
+                                   :container-port (ref :metrics.port)))
+                          :volume-mounts ((:name "chains"
+                                           :mount-path "/var/lib/lava-operator/chains")))))
+                       :volumes ((:name "chains"
+                                  :empty-dir (:))))))
+   ;; Service exposing metrics + readiness.
+   (manifest service
+     :kind Service
+     :api-version v1
+     :metadata (:name "lava-operator" :labels (:app "lava-operator"))
+     :spec (:type "ClusterIP"
+            :selector (:app "lava-operator")
+            :ports ((:name "metrics"
+                     :port (ref :metrics.port)
+                     :target-port "metrics"))))
+   ;; ServiceAccount the operator pod runs as.
+   (manifest serviceaccount
+     :kind ServiceAccount
+     :api-version v1
+     :metadata (:name (ref :service-account.name) :labels (:app "lava-operator")))
+   ;; ClusterRole granting the operator full control over its CRDs.
+   (manifest clusterrole
+     :kind ClusterRole
+     :api-version rbac.authorization.k8s.io/v1
+     :metadata (:name "lava-operator")
+     :spec (:rules ((:api-groups ("lava.pleme.io")
+                     :resources ("lavaarchitectures" "lavaarchitectures/status")
+                     :verbs ("get" "list" "watch" "patch" "update"))
+                    (:api-groups ("")
+                     :resources ("events")
+                     :verbs ("create" "patch")))))
+   ;; ClusterRoleBinding wiring the role to the ServiceAccount.
+   (manifest clusterrolebinding
+     :kind ClusterRoleBinding
+     :api-version rbac.authorization.k8s.io/v1
+     :metadata (:name "lava-operator")
+     :spec (:role-ref (:api-group "rbac.authorization.k8s.io"
+                       :kind "ClusterRole"
+                       :name "lava-operator")
+            :subjects ((:kind "ServiceAccount"
+                        :name (ref :service-account.name)
+                        :namespace "{{ .Release.Namespace }}"))))))
