@@ -16,9 +16,9 @@ dependencies:
   version: 0.1.0
 - name: pleme-zot
   repository: file://../pleme-zot
-  version: 0.1.2
+  version: 0.1.3
 - name: lareira-openclaw-web
   repository: file://../lareira-openclaw-web
   version: 0.2.5
-digest: sha256:1acea8003305611ab7e269014be2bb1ca86d37513bd41aaed7e88f55f85f7fb7
-generated: "2026-05-10T13:43:33.791201-04:00"
+digest: sha256:e8d6ecb6418da82578c9873d80b7fddc47bd89ec20fe189d1ffa006ef5172885
+generated: "2026-05-25T23:48:55.407478-04:00"

@@ -1,9 +1,9 @@
 dependencies:
 - name: pleme-lib
   repository: file://../pleme-lib
-  version: 0.6.0
+  version: 0.15.0
 - name: trivy-operator
   repository: https://aquasecurity.github.io/helm-charts/
   version: 0.32.1
-digest: sha256:1f59c67ed797c1f0522e56d567b19279692b62a55ef77fed8c37e84c1d704eaf
-generated: "2026-04-27T17:56:32.417798-04:00"
+digest: sha256:19de5ae324fca05c13160e8d770c760b5b6e6c093a595d2ae91b99f0e8a87f91
+generated: "2026-05-25T23:56:44.199409-04:00"

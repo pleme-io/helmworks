@@ -1,9 +1,9 @@
 dependencies:
 - name: pleme-lib
   repository: file://../pleme-lib
-  version: 0.6.0
+  version: 0.15.0
 - name: kubescape-operator
   repository: https://kubescape.github.io/helm-charts/
   version: 1.27.6
-digest: sha256:56038359e23b2d911a458d8a8e960cc8d475133fe0ce9de445562d6d696ba4dc
-generated: "2026-04-27T17:55:36.184445-04:00"
+digest: sha256:d9a70db535bbc03bb6cad4f649cdfa010a39218e9c486c4f019f31f1bd452603
+generated: "2026-05-25T23:55:23.391478-04:00"

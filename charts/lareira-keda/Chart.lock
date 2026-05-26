@@ -1,9 +1,9 @@
 dependencies:
 - name: pleme-lib
   repository: file://../pleme-lib
-  version: 0.6.0
+  version: 0.15.0
 - name: keda
   repository: https://kedacore.github.io/charts
   version: 2.16.1
-digest: sha256:b9ef366c76f3a50aca9566006379333433903ed8defe4dadcccd8610a3b3f00d
-generated: "2026-04-27T17:55:29.028082-04:00"
+digest: sha256:958ca70e4c96e8dcfde458637c6b1c989b83b1bc3e2fb1564d155aff8eadb567
+generated: "2026-05-25T23:55:16.951135-04:00"

@@ -29,7 +29,7 @@ maintainers:
 
 dependencies:
   - name: pleme-lib
-    version: "~0.13.0"
+    version: "~0.15.0"
     repository: "file://../pleme-lib"
   - name: keda-add-ons-http
     version: "0.10.0"

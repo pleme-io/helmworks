@@ -1,6 +1,6 @@
 dependencies:
 - name: pleme-microservice
   repository: file://../pleme-microservice
-  version: 0.1.0
-digest: sha256:528602aac2fd3cb63918b12649ab328c92098970c93c4e35c49a86bef01e0118
-generated: "2026-05-12T12:56:27.290287-04:00"
+  version: 0.2.0
+digest: sha256:042790c9dc6bcb94a0314c10e9e371f9eeb399651fd3cf221b5a81a48757ffc1
+generated: "2026-05-26T00:05:37.827572-04:00"

@@ -1,9 +1,9 @@
 dependencies:
 - name: pleme-lib
   repository: file://../pleme-lib
-  version: 0.6.0
+  version: 0.15.0
 - name: authentik
   repository: https://charts.goauthentik.io
   version: 2024.10.5
-digest: sha256:846aa0dd12e7aae5c70e26c307378a2bb09b028f875deb21197feca62403c85b
-generated: "2026-04-27T17:54:26.28027-04:00"
+digest: sha256:5aba7f212a07a4befd6c4f5c8c734908466abaf89bf5eaca789252d8d02e5027
+generated: "2026-05-25T23:53:52.275907-04:00"

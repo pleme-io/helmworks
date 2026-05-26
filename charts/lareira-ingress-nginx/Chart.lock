@@ -1,9 +1,9 @@
 dependencies:
 - name: pleme-lib
   repository: file://../pleme-lib
-  version: 0.6.0
+  version: 0.15.0
 - name: ingress-nginx
   repository: https://kubernetes.github.io/ingress-nginx
   version: 4.13.0
-digest: sha256:c20054da6e341a86e35b1fcf2d87e7ce6f7399c2fd12c259d43352f788351955
-generated: "2026-04-27T17:55:12.169874-04:00"
+digest: sha256:16989be21b9aaaac82aea43ff8f43667d3668d21d81dedd08591fdc883fec2a8
+generated: "2026-05-25T23:54:59.051247-04:00"

@@ -1,9 +1,9 @@
 dependencies:
 - name: pleme-lib
   repository: file://../pleme-lib
-  version: 0.6.0
+  version: 0.15.0
 - name: kyverno
   repository: https://kyverno.github.io/kyverno/
   version: 3.3.4
-digest: sha256:d07a47caafaebd83b4af5cee547eb80010b05988ddfdda23730807065cdc484f
-generated: "2026-04-27T17:55:41.757317-04:00"
+digest: sha256:5f6d8f030f91a64d69300f56d6be84f3ed7a6f4a5640c535b41443fab6110eb9
+generated: "2026-05-25T23:55:27.108734-04:00"
