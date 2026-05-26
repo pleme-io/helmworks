@@ -1,0 +1,105 @@
+suite: pleme-zot — baseline:none dev-path invariants
+# The compliance suite covers the fedramp-high default. This suite pins the
+# behavior on the non-compliance (baseline: none) path used by single-node
+# dev clusters (e.g. pleme-dev), where pleme-lib's compliance security/network
+# helpers are bypassed and the chart's own defaults must still be PodSecurity
+# `restricted`-admissible and fully express the network posture.
+templates:
+  - templates/statefulset.yaml
+  - templates/networkpolicy.yaml
+release:
+  name: zot
+  namespace: zot-system
+set:
+  compliance.baseline: none
+  compliance.enforce: false
+tests:
+  - it: "[SC-39] pod securityContext emits seccomp RuntimeDefault at baseline:none"
+    template: templates/statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 65532
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 65532
+
+  - it: "[CM-7/SC-39] container securityContext hardened at baseline:none"
+    template: templates/statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+
+  - it: "registry probes are TCPSocket (auth'd /v2/ would 401 an HTTPGet)"
+    template: templates/statefulset.yaml
+    asserts:
+      - isNotNullOrEmpty:
+          path: spec.template.spec.containers[0].livenessProbe.tcpSocket
+      - isNotNullOrEmpty:
+          path: spec.template.spec.containers[0].readinessProbe.tcpSocket
+      - isNull:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet
+
+  - it: "network posture is fully chart-expressed (exactly four lockdown policies)"
+    template: templates/networkpolicy.yaml
+    asserts:
+      - hasDocuments:
+          count: 4
+
+  - it: "default-deny base policy renders (ingress + egress)"
+    template: templates/networkpolicy.yaml
+    documentSelector:
+      path: metadata.name
+      value: zot-pleme-zot-deny-all
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - contains:
+          path: spec.policyTypes
+          content: Ingress
+      - contains:
+          path: spec.policyTypes
+          content: Egress
+
+  - it: "cluster-pull ingress policy renders"
+    template: templates/networkpolicy.yaml
+    documentSelector:
+      path: metadata.name
+      value: zot-pleme-zot-allow-pulls
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+
+  - it: "image-sync push ingress policy renders"
+    template: templates/networkpolicy.yaml
+    documentSelector:
+      path: metadata.name
+      value: zot-pleme-zot-allow-image-sync
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+
+  - it: "DNS egress policy renders"
+    template: templates/networkpolicy.yaml
+    documentSelector:
+      path: metadata.name
+      value: zot-pleme-zot-allow-dns
+    asserts:
+      - isKind:
+          of: NetworkPolicy

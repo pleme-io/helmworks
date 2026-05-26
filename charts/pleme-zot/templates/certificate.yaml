@@ -1,0 +1,27 @@
+{{- if .Values.certificate.enabled }}
+{{- $fullname := include "pleme-lib.fullname" . }}
+{{- $host := default .Values.ingress.host .Values.certificate.host }}
+{{- $secret := default (printf "%s-tls" $fullname) .Values.certificate.secretName }}
+{{- if not $host }}
+{{- fail "certificate.enabled=true requires certificate.host (or ingress.host) to be set" }}
+{{- end }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ $secret }}
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+spec:
+  secretName: {{ $secret }}
+  duration: {{ .Values.certificate.duration | default "2160h" }}
+  renewBefore: {{ .Values.certificate.renewBefore | default "360h" }}
+  dnsNames:
+    - {{ $host | quote }}
+    {{- range .Values.certificate.extraDnsNames }}
+    - {{ . | quote }}
+    {{- end }}
+  issuerRef:
+    kind: {{ .Values.certificate.issuerKind | default "ClusterIssuer" }}
+    name: {{ .Values.certificate.issuer | quote }}
+{{- end }}

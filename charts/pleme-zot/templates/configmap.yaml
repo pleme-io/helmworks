@@ -1,7 +1,8 @@
 {{- /*
-  Zot config.json — rendered from values. The compliance-relevant settings
-  (TLS minVersion, audit log path, signature verification, sync policy)
-  are all driven by the compliance baseline.
+  Zot config.json — rendered from values. TLS is terminated at the edge
+  (Ingress or Cloudflare Tunnel), so Zot itself serves plain HTTP on :5000.
+  The in-process settings driven from values are the audit/access log paths,
+  signature verification (cosign extensions), and the pull-mode sync policy.
 */ -}}
 apiVersion: v1
 kind: ConfigMap
@@ -18,10 +19,10 @@ data:
       "distSpecVersion": "1.1.0",
       "storage": {
         "rootDirectory": {{ .Values.persistence.mountPath | quote }},
-        "dedupe": true,
-        "gc": true,
-        "gcDelay": "1h",
-        "gcInterval": "24h"
+        "dedupe": {{ dig "dedupe" true (.Values.storage | default dict) }},
+        "gc": {{ dig "gc" true (.Values.storage | default dict) }},
+        "gcDelay": {{ dig "gcDelay" "1h" (.Values.storage | default dict) | quote }},
+        "gcInterval": {{ dig "gcInterval" "24h" (.Values.storage | default dict) | quote }}
       },
       "http": {
         "address": "0.0.0.0",
@@ -51,15 +52,15 @@ data:
       },
       "extensions": {
         "metrics": {
-          "enable": true,
+          "enable": {{ dig "metrics" true (.Values.extensions | default dict) }},
           "prometheus": {
             "path": "/metrics"
           }
         },
         "search": {
-          "enable": true,
+          "enable": {{ dig "search" true (.Values.extensions | default dict) }},
           "cve": {
-            "updateInterval": "2h"
+            "updateInterval": {{ dig "cveUpdateInterval" "2h" (.Values.extensions | default dict) | quote }}
           }
         }{{ if .Values.cosign.enabled }},
         "scrub": {

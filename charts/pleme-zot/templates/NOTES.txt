@@ -1,0 +1,36 @@
+pleme-zot — cluster-local Zot OCI registry "{{ include "pleme-lib.fullname" . }}"
+
+In-cluster endpoint:
+  {{ include "pleme-lib.fullname" . }}.{{ include "pleme-lib.namespace" . }}.svc.cluster.local:5000
+{{- if .Values.ingress.enabled }}
+External endpoint:
+  https://{{ .Values.ingress.host }}
+{{- end }}
+
+Mode:       {{ .Values.mode }}{{ if eq .Values.mode "cache" }}  (image-sync pushes mirrored images in; Zot has no upstream egress){{ else }}  (Zot pulls upstream itself via extensions.sync){{ end }}
+Auth:       {{ .Values.auth.backend }}
+Baseline:   {{ (.Values.compliance).baseline | default "none" }}
+Health:     {{ (.Values.health).type | default "HTTPGet" }} probe on the registry port
+{{- if eq .Values.auth.backend "htpasswd" }}
+
+Credentials live in the Secret "{{ .Values.auth.htpasswdSecret }}".
+Log in from a workstation (external endpoint, or a port-forward):
+
+  kubectl -n {{ include "pleme-lib.namespace" . }} port-forward svc/{{ include "pleme-lib.fullname" . }} 5000:5000 &
+  skopeo login --username <user> localhost:5000
+
+Push an image:
+
+  skopeo copy docker-archive:./image.tar docker://localhost:5000/<repo>:<tag>
+{{- end }}
+{{- if .Values.networkPolicy.enabled }}
+
+NetworkPolicy default-deny is ON. In-cluster pulls are allowed on :5000.
+For direct workstation pushes, add an `allow-laptop-push` ipBlock rule under
+networkPolicy.additionalIngress (see values.yaml) with your egress CIDR.
+{{- end }}
+{{- if and .Values.cosign.enabled (not .Values.cosign.publicKeySecret) }}
+
+WARNING: cosign.enabled=true but no cosign.publicKeySecret is set — signature
+verification extensions are advertised but no trust key is mounted.
+{{- end }}

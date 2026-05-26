@@ -1,0 +1,92 @@
+suite: pleme-zot — configurable behavior surface
+# Locks the helm-expressible behavior added for "everything under helm":
+# optional Certificate, extraEnv/scheduling passthroughs, storage GC tuning,
+# and extension toggles (dig-based so a `false` override actually takes).
+templates:
+  - templates/statefulset.yaml
+  - templates/configmap.yaml
+  - templates/certificate.yaml
+release:
+  name: zot
+  namespace: zot-system
+tests:
+  - it: "no standalone Certificate by default"
+    template: templates/certificate.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: "renders a cert-manager Certificate when certificate.enabled"
+    template: templates/certificate.yaml
+    set:
+      certificate.enabled: true
+      certificate.host: zot-dev.quero.cloud
+      certificate.issuer: letsencrypt-prod
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Certificate
+      - equal:
+          path: spec.dnsNames[0]
+          value: zot-dev.quero.cloud
+      - equal:
+          path: spec.issuerRef.name
+          value: letsencrypt-prod
+
+  - it: "certificate.enabled without a host fails fast"
+    template: templates/certificate.yaml
+    set:
+      certificate.enabled: true
+    asserts:
+      - failedTemplate:
+          errorPattern: "certificate.enabled=true requires certificate.host"
+
+  - it: "extraEnv is passed through to the container"
+    template: templates/statefulset.yaml
+    set:
+      extraEnv:
+        - name: TZ
+          value: UTC
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TZ
+            value: UTC
+
+  - it: "scheduling passthroughs render"
+    template: templates/statefulset.yaml
+    set:
+      nodeSelector:
+        kubernetes.io/hostname: node-a
+      priorityClassName: system-cluster-critical
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector["kubernetes.io/hostname"]
+          value: node-a
+      - equal:
+          path: spec.template.spec.priorityClassName
+          value: system-cluster-critical
+
+  - it: "storage GC tuning lands in config.json"
+    template: templates/configmap.yaml
+    set:
+      storage.gcInterval: 6h
+      storage.dedupe: false
+    asserts:
+      - matchRegex:
+          path: data["config.json"]
+          pattern: '"gcInterval": "6h"'
+      - matchRegex:
+          path: data["config.json"]
+          pattern: '"dedupe": false'
+
+  - it: "search extension can be disabled (dig handles a false override)"
+    template: templates/configmap.yaml
+    set:
+      extensions.search: false
+    asserts:
+      - matchRegex:
+          path: data["config.json"]
+          pattern: '"enable": false'

@@ -4,6 +4,11 @@ pleme-lib: security context templates
 Enforces a hardened security baseline across all pleme-io services.
 These match the k8s-fluxcd-kaizen P0/P1 gates.
 
+Even with no compliance baseline, the default pod/container security context
+now emits seccompProfile=RuntimeDefault, so workloads are PodSecurity
+`restricted`-admissible out of the box. Override via
+podSecurityContext.seccompProfile / securityContext.seccompProfile.
+
 When `.Values.compliance.baseline` is set, the rendered security context is
 produced by `_compliance_security.tpl` instead — that variant is baseline-aware
 (seccompProfile, fsGroupChangePolicy, runAsUser policy) and validated.
@@ -23,10 +28,11 @@ runAsUser: {{ (.Values.podSecurityContext).runAsUser | default 1000 }}
 runAsGroup: {{ . }}
 {{- end }}
 fsGroup: {{ (.Values.podSecurityContext).fsGroup | default 1000 }}
-{{- with (.Values.podSecurityContext).seccompProfile }}
 seccompProfile:
-  {{- toYaml . | nindent 2 }}
-{{- end }}
+  type: {{ ((.Values.podSecurityContext).seccompProfile).type | default "RuntimeDefault" }}
+  {{- with ((.Values.podSecurityContext).seccompProfile).localhostProfile }}
+  localhostProfile: {{ . }}
+  {{- end }}
 {{- end -}}
 {{- end }}
 
@@ -47,9 +53,10 @@ capabilities:
     {{- else }}
     - ALL
     {{- end }}
-{{- with (.Values.securityContext).seccompProfile }}
 seccompProfile:
-  {{- toYaml . | nindent 2 }}
-{{- end }}
+  type: {{ ((.Values.securityContext).seccompProfile).type | default "RuntimeDefault" }}
+  {{- with ((.Values.securityContext).seccompProfile).localhostProfile }}
+  localhostProfile: {{ . }}
+  {{- end }}
 {{- end -}}
 {{- end }}

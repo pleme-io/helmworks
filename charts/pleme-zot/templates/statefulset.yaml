@@ -18,7 +18,7 @@ spec:
   selector:
     matchLabels:
       {{- include "pleme-lib.selectorLabels" . | nindent 6 }}
-  podManagementPolicy: Parallel
+  podManagementPolicy: {{ .Values.podManagementPolicy | default "Parallel" }}
   template:
     metadata:
       labels:
@@ -43,6 +43,10 @@ spec:
           args:
             - "serve"
             - "/etc/zot/config.json"
+          {{- with .Values.extraEnv }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           ports:
             {{- toYaml .Values.ports | nindent 12 }}
           resources:
@@ -87,6 +91,21 @@ spec:
               readOnly: true
             {{- end }}
             {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
       volumes:
         - name: config
           configMap:

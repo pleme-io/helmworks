@@ -31,10 +31,52 @@ resources:
     cpu: "2"
     memory: 4Gi
 
+# -- StatefulSet pod management policy. Parallel brings replicas up/down
+#    together (fine for an RWO-per-replica registry); set OrderedReady if you
+#    need sequential rollout.
+podManagementPolicy: Parallel
+
+# -- Extra environment variables passed through to the zot container.
+extraEnv: []
+#  - name: TZ
+#    value: UTC
+
+# -- Scheduling. Passthroughs for placing the registry pod. On a single-node
+#    dev cluster a nodeSelector/toleration may be needed; priorityClassName
+#    helps the registry survive eviction under node pressure.
+nodeSelector: {}
+tolerations: []
+affinity: {}
+priorityClassName: ""
+
 # -- ServiceAccount: dedicated, no automount.
 serviceAccount:
   create: true
   automountServiceAccountToken: false
+
+# -- Pod-level security context. Zot's official distroless image runs as the
+#    nonroot UID 65532; fsGroup 65532 lets the registry write to its PVC at
+#    /var/lib/registry under a read-only root filesystem. seccompProfile is
+#    emitted at every compliance baseline (pleme-lib default RuntimeDefault),
+#    so the pod is PodSecurity `restricted`-admissible even at baseline: none.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+
+# -- Container-level security context (CM-7/AC-6/SC-39 hardened).
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  capabilities:
+    drop:
+      - ALL
+  seccompProfile:
+    type: RuntimeDefault
 
 # -- Container ports.
 ports:
@@ -58,10 +100,13 @@ service:
       targetPort: metrics
       protocol: TCP
 
-# -- Health probe paths (Zot 2.x exposes /v2/ and /metrics).
+# -- Health probe. Zot's /v2/ API root is auth-gated (htpasswd/oidc), so an
+#    HTTPGet probe gets 401 and kubelet crash-loops the pod. A TCPSocket probe
+#    on the registry port is the correct liveness/readiness shape for an
+#    authenticated registry. Switch to `type: HTTPGet` (path /v2/) only when
+#    running with `auth.backend: none`.
 health:
-  path: /v2/
-  readyPath: /v2/
+  type: TCPSocket
   port: http
   livenessInitialDelay: 10
   readinessInitialDelay: 5
@@ -73,6 +118,15 @@ persistence:
   storageClass: encrypted
   size: 200Gi
   mountPath: /var/lib/registry
+
+# -- Zot storage engine tuning (rendered into config.json). dedupe collapses
+#    identical blobs; gc reclaims untagged/expired manifests on gcInterval
+#    after gcDelay. Tune gcInterval down on busy mirrors, up on cold archives.
+storage:
+  dedupe: true
+  gc: true
+  gcDelay: 1h
+  gcInterval: 24h
 
 # -- Mode: "cache" (default; image-sync pushes) or "pull" (Zot itself
 #    pulls from upstream via extensions.sync).
@@ -100,6 +154,15 @@ cosign:
 # -- Audit logging. Zot writes structured JSON to stdout; Vector scrapes.
 audit:
   enabled: true
+
+# -- Zot extensions (rendered into config.json). `search` enables the built-in
+#    Trivy-backed CVE scanning of stored images (Zot scans its own contents on
+#    cveUpdateInterval); `metrics` enables the Prometheus /metrics endpoint
+#    (scraping is separately gated by monitoring.enabled / the ServiceMonitor).
+extensions:
+  metrics: true
+  search: true
+  cveUpdateInterval: 2h
 
 # -- Pull-mode upstream registries (used when mode=pull). Each entry is
 #    an URL the Zot extensions.sync mirror will pull from.
@@ -164,18 +227,58 @@ monitoring:
   path: /metrics
   interval: 30s
 
-# -- NetworkPolicy. The Layer 2 airgap helper handles egress; we still
-#    need ingress allow rules so workloads can pull.
+# -- NetworkPolicy. Fully expresses the registry's ingress/egress posture so
+#    the gitops layer carries no raw NetworkPolicy YAML. At compliance
+#    baseline >= fedramp-moderate the deny-all + DNS + air-gap egress trio is
+#    rendered by pleme-lib's compliance helpers and `enabled/allowDns/
+#    allowEgressHttps` below are no-ops; the additionalIngress rules render at
+#    every baseline. At baseline: none (e.g. pleme-dev) the chart renders the
+#    equivalent lockdown itself:
+#      enabled        -> <fullname>-deny-all (default-deny ingress + egress)
+#      allowDns       -> <fullname>-allow-dns (egress :53)
+#      allowEgressHttps -> <fullname>-allow-egress-https (egress :443, pull mode)
+#      additionalIngress[] -> one NetworkPolicy each
 networkPolicy:
   enabled: true
+  # Cluster DNS resolution.
+  allowDns: true
+  # Upstream :443 egress to the public internet (minus RFC1918). Only needed
+  # in `mode: pull`, where Zot fetches upstream itself. In cache mode (default)
+  # image-sync does the pulling, so Zot needs zero upstream egress.
+  allowEgressHttps: false
   additionalIngress:
-    - name: allow-cluster-pulls
+    # Any in-cluster workload may pull images over :5000.
+    - name: allow-pulls
       rules:
         - from:
             - namespaceSelector: {}
           ports:
             - port: 5000
               protocol: TCP
+    # image-sync pushes mirrored upstream images into the cache.
+    - name: allow-image-sync
+      rules:
+        - from:
+            - namespaceSelector:
+                matchLabels:
+                  kubernetes.io/metadata.name: image-sync
+              podSelector:
+                matchLabels:
+                  app.kubernetes.io/name: image-sync
+          ports:
+            - port: 5000
+              protocol: TCP
+    # Operator laptop push (private-push.sh). The egress CIDR is per-cluster,
+    # so it is supplied as a values override rather than a chart default:
+    # - name: allow-laptop-push
+    #   rules:
+    #     - from:
+    #         - ipBlock:
+    #             cidr: "203.0.113.10/32"
+    #       ports:
+    #         - port: 5000
+    #           protocol: TCP
+  additionalEgress: []
 
 # -- PDB at fedramp-high (auto-emitted via compliance.availability.pdb).
 pdb:
@@ -198,3 +301,19 @@ ingress:
     enabled: true
     issuer: letsencrypt-prod
     secretName: ""           # default: "<release>-tls"
+
+# -- Optional standalone cert-manager Certificate for the registry hostname.
+#    Use when TLS terminates somewhere other than an nginx Ingress (e.g. a
+#    Cloudflare Tunnel origin) but cert-manager should still provision/renew
+#    the cert into a Secret. Leave disabled when ingress.enabled +
+#    ingress.tls.enabled, since the Ingress's cluster-issuer annotation already
+#    provisions an equivalent cert (avoids a duplicate Certificate).
+certificate:
+  enabled: false
+  host: ""                   # defaults to ingress.host
+  issuer: letsencrypt-prod
+  issuerKind: ClusterIssuer
+  secretName: ""             # defaults to "<fullname>-tls"
+  duration: 2160h
+  renewBefore: 360h
+  extraDnsNames: []
