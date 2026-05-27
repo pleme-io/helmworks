@@ -28,6 +28,10 @@ spec:
         {{- $cl | nindent 8 }}
         {{- end }}
       annotations:
+        # Roll the pod when the Zot config (auth/authz/tls/extensions) changes
+        # — Zot reads config.json only at startup, so a config-only change
+        # (e.g. accessControl) must restart the pod to take effect.
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         {{- include "pleme-lib.prometheusAnnotations" . | nindent 8 }}
         {{- include "pleme-lib.compliance.annotations" . | nindent 8 }}
         {{- include "pleme-lib.compliance.audit.annotations" . | nindent 8 }}

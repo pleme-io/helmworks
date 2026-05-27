@@ -7,6 +7,9 @@ suite: pleme-zot — baseline:none dev-path invariants
 templates:
   - templates/statefulset.yaml
   - templates/networkpolicy.yaml
+  # configmap.yaml is loaded so the statefulset's checksum/config
+  # cross-template include resolves under helm-unittest.
+  - templates/configmap.yaml
 release:
   name: zot
   namespace: zot-system
