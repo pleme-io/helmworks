@@ -84,12 +84,15 @@ spec:
               subPath: sync-creds.json
               readOnly: true
             {{- end }}
-            {{- if .Values.cosign.enabled }}
-            {{- if .Values.cosign.publicKeySecret }}
+            {{- if and (or .Values.cosign.enabled .Values.cosign.verify) .Values.cosign.publicKeySecret }}
             - name: cosign-pub
               mountPath: /etc/zot/cosign
               readOnly: true
             {{- end }}
+            {{- if eq .Values.tls.mode "inPod" }}
+            - name: zot-tls
+              mountPath: /etc/zot-tls
+              readOnly: true
             {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
@@ -122,12 +125,15 @@ spec:
           secret:
             secretName: {{ .Values.upstream.credentialsSecret | default "zot-sync-creds" }}
         {{- end }}
-        {{- if .Values.cosign.enabled }}
-        {{- if .Values.cosign.publicKeySecret }}
+        {{- if and (or .Values.cosign.enabled .Values.cosign.verify) .Values.cosign.publicKeySecret }}
         - name: cosign-pub
           secret:
             secretName: {{ .Values.cosign.publicKeySecret }}
         {{- end }}
+        {{- if eq .Values.tls.mode "inPod" }}
+        - name: zot-tls
+          secret:
+            secretName: {{ required "tls.inPod.certSecret is required when tls.mode=inPod" .Values.tls.inPod.certSecret }}
         {{- end }}
       {{- $availReq := include "pleme-lib.compliance.availability.required" . }}
       {{- if eq $availReq "true" }}

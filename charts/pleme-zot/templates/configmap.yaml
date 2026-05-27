@@ -1,9 +1,81 @@
 {{- /*
-  Zot config.json — rendered from values. TLS is terminated at the edge
-  (Ingress or Cloudflare Tunnel), so Zot itself serves plain HTTP on :5000.
-  The in-process settings driven from values are the audit/access log paths,
-  signature verification (cosign extensions), and the pull-mode sync policy.
+  Zot config.json — built as a typed dict and rendered with toPrettyJson, so
+  the JSON is always well-formed (no hand-managed commas). Security-relevant
+  blocks driven from values:
+    http.auth          — htpasswd | openid           (.Values.auth)
+    http.accessControl — least-privilege authz        (.Values.authz)
+    http.tls           — in-pod TLS                    (.Values.tls.mode=inPod)
+    extensions.sign    — sign-on-push                  (.Values.cosign.enabled)
+    extensions.trust   — cosign verification on serve  (.Values.cosign.verify)
+    extensions.sync    — pull-mode upstream mirror      (.Values.mode=pull)
+  TLS for the :5000 listener is edge-terminated by default (Ingress/Tunnel);
+  set tls.mode=inPod for Zot-served HTTPS.
 */ -}}
+{{- $v := .Values -}}
+{{- $storage := dict
+      "rootDirectory" $v.persistence.mountPath
+      "dedupe"   (dig "dedupe" true ($v.storage | default dict))
+      "gc"       (dig "gc" true ($v.storage | default dict))
+      "gcDelay"  (dig "gcDelay" "1h" ($v.storage | default dict))
+      "gcInterval" (dig "gcInterval" "24h" ($v.storage | default dict)) -}}
+{{- /* ── http: listener + auth + authz + tls ── */ -}}
+{{- $http := dict "address" "0.0.0.0" "port" "5000" -}}
+{{- if eq $v.auth.backend "htpasswd" -}}
+  {{- $_ := set $http "auth" (dict "htpasswd" (dict "path" "/etc/zot-auth/htpasswd")) -}}
+{{- else if eq $v.auth.backend "oidc" -}}
+  {{- $_ := set $http "auth" (dict "openid" (dict "providers" (dict "oidc" (dict
+        "name" "authentik"
+        "issuer" $v.auth.oidc.issuer
+        "clientid" $v.auth.oidc.clientID
+        "scopes" (list "openid" "profile" "email"))))) -}}
+{{- end -}}
+{{- if $v.authz.enabled -}}
+  {{- $anon := ternary (list "read") (list) $v.authz.anonymousReadOnly -}}
+  {{- $repos := dict "**" (dict "defaultPolicy" $v.authz.defaultPolicy "anonymousPolicy" $anon) -}}
+  {{- range $w := ($v.authz.writers | default list) -}}
+    {{- $actions := $w.actions | default (list "read" "create" "update" "delete") -}}
+    {{- range $glob := $w.repos -}}
+      {{- $entry := (index $repos $glob) | default (dict "defaultPolicy" $v.authz.defaultPolicy "anonymousPolicy" $anon "policies" (list)) -}}
+      {{- $_ := set $entry "policies" (append (index $entry "policies" | default list) (dict "users" $w.users "actions" $actions)) -}}
+      {{- $_ := set $repos $glob $entry -}}
+    {{- end -}}
+  {{- end -}}
+  {{- range $glob, $entry := ($v.authz.repositories | default dict) -}}
+    {{- $_ := set $repos $glob $entry -}}
+  {{- end -}}
+  {{- $ac := dict "repositories" $repos -}}
+  {{- if $v.authz.adminUsers -}}
+    {{- $_ := set $ac "adminPolicy" (dict "users" $v.authz.adminUsers "actions" (list "read" "create" "update" "delete")) -}}
+  {{- end -}}
+  {{- $_ := set $http "accessControl" $ac -}}
+{{- end -}}
+{{- if eq $v.tls.mode "inPod" -}}
+  {{- $_ := set $http "tls" (dict "cert" "/etc/zot-tls/tls.crt" "key" "/etc/zot-tls/tls.key") -}}
+{{- end -}}
+{{- /* ── extensions: metrics, search/cve, sign, trust, sync ── */ -}}
+{{- $ext := dict
+      "metrics" (dict "enable" (dig "metrics" true ($v.extensions | default dict)) "prometheus" (dict "path" "/metrics"))
+      "search"  (dict "enable" (dig "search" true ($v.extensions | default dict)) "cve" (dict "updateInterval" (dig "cveUpdateInterval" "2h" ($v.extensions | default dict)))) -}}
+{{- if $v.cosign.enabled -}}
+  {{- $_ := set $ext "sign" (dict "enable" true) -}}
+  {{- $_ := set $ext "scrub" (dict "enable" true "interval" "24h") -}}
+{{- end -}}
+{{- if $v.cosign.verify -}}
+  {{- $_ := set $ext "trust" (dict "enable" true "cosign" true "notation" false) -}}
+{{- end -}}
+{{- if eq $v.mode "pull" -}}
+  {{- $regs := list -}}
+  {{- range $r := ($v.upstream.registries | default list) -}}
+    {{- $regs = append $regs (dict "urls" $r.urls "pollInterval" ($r.pollInterval | default "1h") "onDemand" ($r.onDemand | default true) "tlsVerify" true "content" $r.content) -}}
+  {{- end -}}
+  {{- $_ := set $ext "sync" (dict "enable" true "credentialsFile" "/etc/zot/sync-creds.json" "registries" $regs) -}}
+{{- end -}}
+{{- $config := dict
+      "distSpecVersion" "1.1.0"
+      "storage" $storage
+      "http" $http
+      "log" (dict "level" ((($v.compliance).audit).logLevel | default "info") "output" "/var/log/zot/access.log" "audit" "/var/log/zot/audit.log")
+      "extensions" $ext -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -14,77 +86,5 @@ metadata:
   annotations:
     {{- include "pleme-lib.compliance.annotations" . | nindent 4 }}
 data:
-  config.json: |
-    {
-      "distSpecVersion": "1.1.0",
-      "storage": {
-        "rootDirectory": {{ .Values.persistence.mountPath | quote }},
-        "dedupe": {{ dig "dedupe" true (.Values.storage | default dict) }},
-        "gc": {{ dig "gc" true (.Values.storage | default dict) }},
-        "gcDelay": {{ dig "gcDelay" "1h" (.Values.storage | default dict) | quote }},
-        "gcInterval": {{ dig "gcInterval" "24h" (.Values.storage | default dict) | quote }}
-      },
-      "http": {
-        "address": "0.0.0.0",
-        "port": "5000"{{ if eq .Values.auth.backend "htpasswd" }},
-        "auth": {
-          "htpasswd": {
-            "path": "/etc/zot-auth/htpasswd"
-          }
-        }{{ else if eq .Values.auth.backend "oidc" }},
-        "auth": {
-          "openid": {
-            "providers": {
-              "oidc": {
-                "name": "authentik",
-                "issuer": {{ .Values.auth.oidc.issuer | quote }},
-                "clientid": {{ .Values.auth.oidc.clientID | quote }},
-                "scopes": ["openid", "profile", "email"]
-              }
-            }
-          }
-        }{{ end }}
-      },
-      "log": {
-        "level": {{ ((.Values.compliance).audit).logLevel | default "info" | quote }},
-        "output": "/var/log/zot/access.log",
-        "audit": "/var/log/zot/audit.log"
-      },
-      "extensions": {
-        "metrics": {
-          "enable": {{ dig "metrics" true (.Values.extensions | default dict) }},
-          "prometheus": {
-            "path": "/metrics"
-          }
-        },
-        "search": {
-          "enable": {{ dig "search" true (.Values.extensions | default dict) }},
-          "cve": {
-            "updateInterval": {{ dig "cveUpdateInterval" "2h" (.Values.extensions | default dict) | quote }}
-          }
-        }{{ if .Values.cosign.enabled }},
-        "scrub": {
-          "enable": true,
-          "interval": "24h"
-        },
-        "sign": {
-          "enable": true
-        }{{ end }}{{ if eq .Values.mode "pull" }},
-        "sync": {
-          "enable": true,
-          "credentialsFile": "/etc/zot/sync-creds.json",
-          "registries": [
-            {{- range $i, $r := .Values.upstream.registries }}
-            {{- if $i }},{{ end }}
-            {
-              "urls": {{ $r.urls | toJson }},
-              "pollInterval": {{ $r.pollInterval | default "1h" | quote }},
-              "onDemand": {{ $r.onDemand | default true }},
-              "tlsVerify": true,
-              "content": {{ $r.content | toJson }}
-            }
-            {{- end }}
-          ]
-        }{{ end }}
-      }
-    }
+  config.json: |-
+{{ $config | toPrettyJson | indent 4 }}

@@ -2,7 +2,7 @@ apiVersion: v2
 name: pleme-zot
 description: Cluster-local Zot OCI registry — air-gap registry-mirror role. Deploys a Zot StatefulSet that is the cluster's only path to external image bytes (via image-sync) or, in pull-mode, the only workload allowed external egress to a curated upstream allowlist.
 type: application
-version: 0.2.0
+version: 0.3.0
 appVersion: "2.1.5"
 
 dependencies:

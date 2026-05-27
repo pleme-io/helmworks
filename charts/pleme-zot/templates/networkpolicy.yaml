@@ -1,1 +1,32 @@
 {{- include "pleme-lib.networkpolicy" . }}
+{{- /*
+  Direct-push allow rule. push.allowedCidrs admits specific source CIDRs to
+  :5000 for pushes that bypass `kubectl port-forward` (which arrives via the
+  node and isn't gated here). Empty (default) => no rule => port-forward /
+  in-cluster only, the most private posture.
+*/ -}}
+{{- with .Values.push.allowedCidrs }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "pleme-lib.fullname" $ }}-allow-push
+  namespace: {{ include "pleme-lib.namespace" $ }}
+  labels:
+    {{- include "pleme-lib.labels" $ | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "pleme-lib.selectorLabels" $ | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        {{- range . }}
+        - ipBlock:
+            cidr: {{ . | quote }}
+        {{- end }}
+      ports:
+        - port: 5000
+          protocol: TCP
+{{- end }}

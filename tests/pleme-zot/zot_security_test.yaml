@@ -1,0 +1,111 @@
+suite: pleme-zot — image-shipping security surface
+# Exercises the authz / signature-verify / in-pod-TLS / push-access axes that
+# make shipping images into the registry least-privilege and private.
+templates:
+  - templates/configmap.yaml
+  - templates/statefulset.yaml
+  - templates/networkpolicy.yaml
+release:
+  name: zot
+  namespace: zot-system
+set:
+  compliance.baseline: none
+tests:
+  - it: "authz renders Zot accessControl (deny-anonymous, authenticated read default)"
+    template: templates/configmap.yaml
+    asserts:
+      - matchRegex:
+          path: data["config.json"]
+          pattern: '"accessControl"'
+      - matchRegex:
+          path: data["config.json"]
+          pattern: '"defaultPolicy"'
+      - matchRegex:
+          path: data["config.json"]
+          pattern: '"anonymousPolicy": \[\]'
+
+  - it: "writers grant scoped push actions on a repo glob"
+    template: templates/configmap.yaml
+    set:
+      authz.writers:
+        - users: ["akeyless-builder"]
+          repos: ["akeyless-**"]
+    asserts:
+      - matchRegex:
+          path: data["config.json"]
+          pattern: 'akeyless-\*\*'
+      - matchRegex:
+          path: data["config.json"]
+          pattern: 'akeyless-builder'
+
+  - it: "adminUsers render an adminPolicy"
+    template: templates/configmap.yaml
+    set:
+      authz.adminUsers: ["luis-d"]
+    asserts:
+      - matchRegex:
+          path: data["config.json"]
+          pattern: '"adminPolicy"'
+
+  - it: "authz disabled omits accessControl entirely"
+    template: templates/configmap.yaml
+    set:
+      authz.enabled: false
+    asserts:
+      - notMatchRegex:
+          path: data["config.json"]
+          pattern: '"accessControl"'
+
+  - it: "cosign.verify enables the trust (verification-on-serve) extension"
+    template: templates/configmap.yaml
+    set:
+      cosign.verify: true
+    asserts:
+      - matchRegex:
+          path: data["config.json"]
+          pattern: '"trust"'
+
+  - it: "tls.mode=inPod renders http.tls and mounts the cert secret"
+    set:
+      tls.mode: inPod
+      tls.inPod.certSecret: zot-tls
+    asserts:
+      - matchRegex:
+          path: data["config.json"]
+          pattern: '/etc/zot-tls/tls.crt'
+        template: templates/configmap.yaml
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: zot-tls
+            secret:
+              secretName: zot-tls
+        template: templates/statefulset.yaml
+
+  - it: "edge TLS (default) keeps Zot plain-HTTP (no http.tls)"
+    template: templates/configmap.yaml
+    asserts:
+      - notMatchRegex:
+          path: data["config.json"]
+          pattern: '/etc/zot-tls'
+
+  - it: "push.allowedCidrs renders an allow-push NetworkPolicy"
+    template: templates/networkpolicy.yaml
+    set:
+      push.allowedCidrs: ["203.0.113.10/32"]
+    documentSelector:
+      path: metadata.name
+      value: zot-pleme-zot-allow-push
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - equal:
+          path: spec.ingress[0].from[0].ipBlock.cidr
+          value: "203.0.113.10/32"
+
+  - it: "default push posture renders no allow-push policy (port-forward only)"
+    template: templates/networkpolicy.yaml
+    asserts:
+      - notMatchRegex:
+          path: metadata.name
+          pattern: 'allow-push'

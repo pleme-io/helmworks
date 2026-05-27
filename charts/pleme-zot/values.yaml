@@ -132,6 +132,41 @@ storage:
 #    pulls from upstream via extensions.sync).
 mode: cache
 
+# -- Push / ingest surface — how operator/CI images get INTO the registry.
+#    This is the privacy boundary for shipping images.
+#      portForward (default): no public push path. Operators push over an
+#                  authenticated `kubectl port-forward` to the in-cluster
+#                  ClusterIP Service (rides the TLS K8s API channel). Most
+#                  private — nothing is exposed.
+#      ingress:    pushes go through the public TLS Ingress (ingress.enabled
+#                  must be true). Convenient, but exposes a push path.
+#      both:       port-forward AND ingress.
+#    `allowedCidrs` renders an allow-push NetworkPolicy admitting those source
+#    CIDRs to :5000 (for direct pushes that bypass port-forward). Empty =
+#    port-forward / in-cluster only. NOTE: port-forward traffic arrives via the
+#    node/kubelet, so it is gated by K8s API auth, not this CIDR list.
+push:
+  via: portForward
+  allowedCidrs: []
+  # - "203.0.113.10/32"      # an operator/builder egress IP
+
+# -- Transport encryption mode for the registry's own :5000 listener.
+#      edge (default): Zot serves plain HTTP; TLS terminates at the Ingress
+#                      or Cloudflare Tunnel ahead of it. In-cluster pulls are
+#                      cluster-network + NetworkPolicy gated (no wire TLS).
+#      inPod:          Zot serves HTTPS directly using a mounted cert Secret
+#                      (tls.crt/tls.key). Use when there is no trusted edge or
+#                      for end-to-end TLS to the pod.
+#      mesh:           a service mesh provides mTLS (see compliance.authn.istio
+#                      .mtls). Zot stays plain HTTP; the sidecar encrypts.
+#    At fedramp-high, prefer inPod or mesh over edge — plaintext to the pod
+#    leaves in-cluster pulls unencrypted (SC-8).
+tls:
+  mode: edge
+  inPod:
+    certSecret: ""           # Secret with tls.crt + tls.key (mode=inPod)
+    minVersion: "1.2"
+
 # -- Auth backend: htpasswd (default) or oidc (Authentik). When oidc, the
 #    Ingress is the auth boundary; in-cluster pulls use a Bearer token
 #    issued by Authentik.
@@ -143,13 +178,54 @@ auth:
     clientID: ""
     clientSecretSecret: ""
 
-# -- Cosign signature verification at the registry boundary (SI-7).
-#    When enabled, Zot's extensions.scrub + extensions.sign verify
-#    cosign signatures before serving an image. Required at fedramp-high.
+# -- Authorization (renders Zot's `accessControl`). WITHOUT this every
+#    authenticated principal has full read+write to ALL repos. WITH it, access
+#    is least-privilege per repo glob.
+#      adminUsers:        full read/create/update/delete on every repo.
+#      anonymousReadOnly: when true, unauthenticated clients may pull (read).
+#      defaultPolicy:     actions for any *authenticated* user not matched by a
+#                         more specific repo entry (["read"] = pull-only).
+#      writers:           convenience — grants actions on `repos` globs to
+#                         `users` (rendered into accessControl.repositories).
+#      repositories:      escape hatch — verbatim Zot accessControl repo
+#                         entries, merged over the convenience model.
+#    Enabled by default (all baselines); keep on at fedramp-high — operating a
+#    registry with no authz is a least-privilege (AC-6) finding.
+authz:
+  enabled: true
+  anonymousReadOnly: false
+  adminUsers: []
+  defaultPolicy:
+    - read
+  writers: []
+  #  - users: ["akeyless-builder"]
+  #    repos: ["akeyless-**"]
+  #    actions: ["read", "create", "update", "delete"]
+  repositories: {}
+  #  "akeyless-**":
+  #    defaultPolicy: ["read"]
+  #    anonymousPolicy: []
+  #    policies:
+  #      - users: ["akeyless-builder"]
+  #        actions: ["read", "create", "update", "delete"]
+
+# -- Image signing & signature verification at the registry boundary (SI-7).
+#      enabled: Zot signs + scrubs images on push (extensions.sign + scrub).
+#      verify:  Zot verifies cosign signatures before serving (extensions.trust);
+#               pulls of unsigned/untrusted images are rejected at the registry.
+#      publicKeySecret/Key: cosign public key mounted as the trust anchor.
+#      admissionVerify: doc-flag — when true, a sigstore policy-controller
+#               ClusterImagePolicy gates Pod admission cluster-side (deployed
+#               out-of-chart via infrastructure/sigstore-stack). Strongest gate;
+#               pairs with `verify`.
+#    At fedramp-high, set verify=true + supply publicKeySecret (registry-side
+#    SI-7); the airgap validator separately requires requireSignedImages=true.
 cosign:
   enabled: true
-  # publicKeySecret: cosign-pub
-  # publicKeyKey: cosign.pub
+  verify: false
+  publicKeySecret: ""
+  publicKeyKey: cosign.pub
+  admissionVerify: false
 
 # -- Audit logging. Zot writes structured JSON to stdout; Vector scrapes.
 audit:
