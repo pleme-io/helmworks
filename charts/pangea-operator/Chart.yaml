@@ -99,8 +99,8 @@ description: >-
   Per theory/MAGMA-OPERATOR-BACKEND.md §VI (canonical dual-backend
   selection model).
 type: application
-version: 0.8.15
-appVersion: "0.8.15"
+version: 0.8.16
+appVersion: "0.8.16"
 
 dependencies:
   - name: pleme-lib
