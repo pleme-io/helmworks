@@ -1,4 +1,5 @@
 {{- include "pleme-lib.compliance.validate" . -}}
+{{- include "pleme-zot.security.validate" . -}}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:

@@ -7,10 +7,14 @@ External endpoint:
   https://{{ .Values.ingress.host }}
 {{- end }}
 
-Mode:       {{ .Values.mode }}{{ if eq .Values.mode "cache" }}  (image-sync pushes mirrored images in; Zot has no upstream egress){{ else }}  (Zot pulls upstream itself via extensions.sync){{ end }}
-Auth:       {{ .Values.auth.backend }}
-Baseline:   {{ (.Values.compliance).baseline | default "none" }}
-Health:     {{ (.Values.health).type | default "HTTPGet" }} probe on the registry port
+Mode:      {{ .Values.mode }}{{ if eq .Values.mode "cache" }}  (image-sync pushes mirrored images in; Zot has no upstream egress){{ else }}  (Zot pulls upstream itself via extensions.sync){{ end }}
+Push via:  {{ (.Values.push).via | default "portForward" }}{{ if eq ((.Values.push).via | default "portForward") "portForward" }}  (private — no public push path; kubectl port-forward only){{ end }}
+Auth:      {{ .Values.auth.backend }}
+AuthZ:     {{ if .Values.authz.enabled }}on — anonymous {{ if .Values.authz.anonymousReadOnly }}read-only{{ else }}denied{{ end }}; authenticated read by default{{ else }}OFF — any authenticated principal has full read+write to every repo{{ end }}
+TLS:       {{ (.Values.tls).mode | default "edge" }}{{ if eq ((.Values.tls).mode | default "edge") "edge" }}  (terminated at ingress/tunnel; plain HTTP to the pod){{ end }}
+Verify:    {{ if .Values.cosign.verify }}cosign signatures verified on serve (extensions.trust){{ else }}OFF — images served without signature verification{{ end }}
+Baseline:  {{ (.Values.compliance).baseline | default "none" }}{{ if (.Values.compliance).enforce }} (enforced — fail-loud gate active){{ end }}
+Health:    {{ (.Values.health).type | default "HTTPGet" }} probe on the registry port
 {{- if eq .Values.auth.backend "htpasswd" }}
 
 Credentials live in the Secret "{{ .Values.auth.htpasswdSecret }}".
@@ -19,18 +23,18 @@ Log in from a workstation (external endpoint, or a port-forward):
   kubectl -n {{ include "pleme-lib.namespace" . }} port-forward svc/{{ include "pleme-lib.fullname" . }} 5000:5000 &
   skopeo login --username <user> localhost:5000
 
-Push an image:
+Push an image (must be an authz writer/admin for the target repo):
 
   skopeo copy docker-archive:./image.tar docker://localhost:5000/<repo>:<tag>
 {{- end }}
 {{- if .Values.networkPolicy.enabled }}
 
 NetworkPolicy default-deny is ON. In-cluster pulls are allowed on :5000.
-For direct workstation pushes, add an `allow-laptop-push` ipBlock rule under
-networkPolicy.additionalIngress (see values.yaml) with your egress CIDR.
+For direct (non-port-forward) workstation pushes, set push.allowedCidrs to your
+egress CIDR — it renders an allow-push NetworkPolicy.
 {{- end }}
-{{- if and .Values.cosign.enabled (not .Values.cosign.publicKeySecret) }}
+{{- if and (or .Values.cosign.enabled .Values.cosign.verify) (not .Values.cosign.publicKeySecret) }}
 
-WARNING: cosign.enabled=true but no cosign.publicKeySecret is set — signature
-verification extensions are advertised but no trust key is mounted.
+WARNING: cosign signing/verification is on but no cosign.publicKeySecret is set
+— the trust extensions are advertised but no key is mounted.
 {{- end }}

@@ -9,6 +9,10 @@ templates:
 release:
   name: zot
   namespace: zot-system
+set:
+  # behavior knobs are baseline-agnostic; run at none so the fedramp gate
+  # (pleme-zot.security.validate) doesn't require a full compliant posture.
+  compliance.baseline: none
 tests:
   - it: "no standalone Certificate by default"
     template: templates/certificate.yaml

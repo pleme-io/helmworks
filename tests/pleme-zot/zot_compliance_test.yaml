@@ -16,6 +16,12 @@ defaults: &defaults
   image.tag: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
   attestation.enabled: true
   attestation.signature: "blake3:0000000000000000000000000000000000000000000000000000000000000000"
+  # FedRAMP-compliant shipping posture (gated by pleme-zot.security.validate):
+  # signature verification on serve, in-pod TLS. authz is on by default.
+  cosign.verify: true
+  cosign.publicKeySecret: cosign-pub
+  tls.mode: inPod
+  tls.inPod.certSecret: zot-tls
 tests:
   # ── Positive: the rendered StatefulSet satisfies every invariant ──
   - it: "[CM-2/SI-7] Zot image is digest-pinned"
@@ -139,3 +145,67 @@ tests:
     asserts:
       - failedTemplate:
           errorPattern: "requires airgap.requireSignedImages=true"
+
+  # ── Fail-loud shipping-security gate (pleme-zot.security.validate) ──
+  - it: "[SI-7] fedramp-high fails when cosign.verify is off"
+    set:
+      <<: *defaults
+      compliance.enforce: true
+      cosign.verify: false
+    template: templates/statefulset.yaml
+    asserts:
+      - failedTemplate:
+          errorPattern: "requires cosign.verify=true"
+
+  - it: "[SC-8] fedramp-high fails when tls.mode=edge (plaintext to pod)"
+    set:
+      <<: *defaults
+      compliance.enforce: true
+      tls.mode: edge
+    template: templates/statefulset.yaml
+    asserts:
+      - failedTemplate:
+          errorPattern: "forbids tls.mode=edge"
+
+  - it: "[AC-6] fedramp-high fails when authz is disabled"
+    set:
+      <<: *defaults
+      compliance.enforce: true
+      authz.enabled: false
+    template: templates/statefulset.yaml
+    asserts:
+      - failedTemplate:
+          errorPattern: "requires authz.enabled=true"
+
+  - it: "[AC-3] fedramp-high fails when anonymous read is allowed"
+    set:
+      <<: *defaults
+      compliance.enforce: true
+      authz.anonymousReadOnly: true
+    template: templates/statefulset.yaml
+    asserts:
+      - failedTemplate:
+          errorPattern: "forbids authz.anonymousReadOnly=true"
+
+  - it: "[compliance] enforce=true with a fully compliant posture renders cleanly"
+    set:
+      <<: *defaults
+      compliance.enforce: true
+    template: templates/statefulset.yaml
+    asserts:
+      - isKind:
+          of: StatefulSet
+
+  - it: "[compliance] enforce=false (default) does not gate a loose posture"
+    set:
+      image.repository: ghcr.io/project-zot/zot-linux-amd64
+      image.tag: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      attestation.enabled: true
+      attestation.signature: "blake3:0000000000000000000000000000000000000000000000000000000000000000"
+      compliance.enforce: false
+      cosign.verify: false
+      tls.mode: edge
+    template: templates/statefulset.yaml
+    asserts:
+      - isKind:
+          of: StatefulSet

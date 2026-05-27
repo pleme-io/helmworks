@@ -256,10 +256,13 @@ upstream:
 # -- Compliance. Pre-set for the registry-mirror air-gap role.
 compliance:
   baseline: fedramp-high
-  # Default-off so the chart's release flow (`forge helm release`) can
-  # template-validate without injected attestation values. Consumers
-  # that want FedRAMP-High enforcement at admission flip this to true
-  # in their values and supply attestation.* + a digest-pinned image.
+  # ★ The FedRAMP critical-fail lever. Default-off so the chart installs and
+  #   the release flow (`forge helm release`) can template-validate. Flip to
+  #   true to ENFORCE the baseline: pleme-zot.security.validate then FAILS the
+  #   render loudly on ANY shipping violation (authz off, cosign.verify off,
+  #   tls.mode=edge, anonymous read at high), alongside pleme-lib's digest-pin
+  #   / airgap / securityContext checks. Supply the compliant posture first
+  #   (cosign.verify + publicKeySecret, tls.mode inPod|mesh, attestation.*).
   enforce: false
   audit:
     logLevel: info
