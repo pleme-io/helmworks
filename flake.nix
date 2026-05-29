@@ -9,12 +9,12 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     substrate = {
-      url = "github:pleme-io/substrate/321b5027f27fe867aa4f6dc7a0d4c355e70848f7";
+      url = "github:pleme-io/substrate";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.fenix.follows = "fenix";
     };
     forge = {
-      url = "github:pleme-io/forge/65225fd";
+      url = "github:pleme-io/forge";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.fenix.follows = "fenix";
       inputs.substrate.follows = "substrate";
