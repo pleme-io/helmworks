@@ -1,3 +1,4 @@
+{{- if .Values.enabled }}
 {{- include "pleme-lib.networkpolicy" . }}
 {{- /*
   Direct-push allow rule. push.allowedCidrs admits specific source CIDRs to
@@ -29,4 +30,5 @@ spec:
       ports:
         - port: 5000
           protocol: TCP
+{{- end }}
 {{- end }}

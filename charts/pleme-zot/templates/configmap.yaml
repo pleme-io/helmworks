@@ -1,3 +1,4 @@
+{{- if .Values.enabled }}
 {{- /*
   Zot config.json — built as a typed dict and rendered with toPrettyJson, so
   the JSON is always well-formed (no hand-managed commas). Security-relevant
@@ -88,3 +89,4 @@ metadata:
 data:
   config.json: |-
 {{ $config | toPrettyJson | indent 4 }}
+{{- end }}

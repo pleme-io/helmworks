@@ -6,6 +6,14 @@
 #   - pull mode:            Zot pulls upstream itself via extensions.sync,
 #                           with an upstream allowlist NetworkPolicy.
 
+# -- Master on/off gate. When false the chart renders to NOTHING (no
+#    StatefulSet, Service, ConfigMap, ServiceAccount, policies, Ingress or
+#    Certificate) while the HelmRelease stays installed + reconciled — the
+#    "committed but off" posture. Default ON so existing consumers are
+#    unaffected; set `enabled: false` in a cluster's HelmRelease values to
+#    hold the registry inert until an operator flips it on.
+enabled: true
+
 # -- Fully-qualified Zot service hostname; used for the ServiceMonitor +
 #    cosign config + Ingress. Auto-derived from name+namespace+domain.
 hostname: ""

@@ -1,4 +1,4 @@
-{{- if .Values.ingress.enabled }}
+{{- if and .Values.enabled .Values.ingress.enabled }}
 {{- $fullname := include "pleme-lib.fullname" . }}
 {{- $tlsSecret := default (printf "%s-tls" $fullname) .Values.ingress.tls.secretName }}
 {{- $servicePort := default 5000 .Values.ingress.servicePort }}

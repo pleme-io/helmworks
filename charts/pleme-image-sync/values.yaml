@@ -7,6 +7,14 @@
 # Tool: skopeo (single-binary OCI copy + cosign-aware). Future renderers
 # may swap in oras / zli without changing the values surface.
 
+# -- Master on/off gate. When false the chart renders to NOTHING (no CronJob,
+#    ServiceAccount, NetworkPolicy or compliance manifest) while the
+#    HelmRelease stays installed + reconciled — the "committed but off"
+#    posture. Default ON so existing consumers are unaffected; set
+#    `enabled: false` in a cluster's HelmRelease values to hold the mirror
+#    inert until an operator flips it on.
+enabled: true
+
 # -- skopeo image. At fedramp-high the validator requires a digest pin.
 image:
   repository: quay.io/skopeo/stable

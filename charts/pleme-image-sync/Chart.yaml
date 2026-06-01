@@ -2,7 +2,7 @@ apiVersion: v2
 name: pleme-image-sync
 description: Air-gap image-sync CronJob — mirrors upstream OCI registries into the cluster-local Zot. The only workload (besides Zot in pull-mode) allowed external image-supply egress. Composes pleme-lib mirror + airgap registry-mirror primitives.
 type: application
-version: 0.1.0
+version: 0.1.1
 appVersion: "1.0.0"
 
 dependencies:
