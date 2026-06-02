@@ -1,0 +1,15 @@
+# AUTO-RELEASE (default-on): publish every hand-bumped chart to OCI on merge.
+# The whole footprint is this shim around the substrate monorepo reusable, which
+# runs `nix run .#release` (forge helm release-all — discover→lint→package→push,
+# 404-idempotent so already-published (name,version) pairs are skipped). Bump a
+# chart's Chart.yaml version in its own commit; merging it is what ships it.
+name: auto-release
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  release:
+    uses: pleme-io/substrate/.github/workflows/helm-monorepo-auto-release.yml@main
+    secrets: inherit

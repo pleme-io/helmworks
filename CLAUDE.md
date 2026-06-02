@@ -38,6 +38,17 @@ All chart lifecycle operations are `nix run` commands:
 | `nix run .#release:pleme-microservice` | Release a specific chart |
 | `nix run .#template -- pleme-microservice examples/releases.yaml` | Render templates |
 
+**Auto-release (CI, default-on).** On every push to `main`, GitHub Actions
+(`.github/workflows/auto-release.yml` → substrate's
+`helm-monorepo-auto-release` reusable) runs `nix run .#release` and publishes
+every chart whose hand-bumped `Chart.yaml` version is not yet on
+`oci://ghcr.io/pleme-io/charts` (404-idempotent — already-published versions are
+skipped). There is **no auto-bump**: a chart monorepo has no single version, so
+bumping a chart's `Chart.yaml` version in its own commit is the act that ships it
+on merge. The `nix run` commands above remain the local / fallback path. Package
+visibility is not touched by CI — a private chart's package is set private once
+out-of-band.
+
 ## Chart Architecture
 
 **pleme-lib** is a library chart providing named templates:
