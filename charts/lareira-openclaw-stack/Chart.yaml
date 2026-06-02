@@ -11,10 +11,8 @@ description: |
 type: application
 version: 0.6.5
 appVersion: "0.6.4"
-
 keywords: [openclaw, fedramp-high, attestation, lareira, umbrella]
-maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]
-
+maintainers: [{name: drzzln, email: drzzln@protonmail.com}]
 dependencies:
   - name: lareira-openclaw-pki
     alias: pki
@@ -60,3 +58,5 @@ dependencies:
     version: "~0.2.5"
     repository: "file://../lareira-openclaw-web"
     condition: web.enabled
+annotations:
+  pleme.io/oci-auto-release: "false"

@@ -9,11 +9,11 @@ description: |
 type: application
 version: 0.5.0
 appVersion: "0.6.0"
-
 keywords: [openclaw, registry, artifacts, merkle, attestation, fedramp-high, lareira]
-maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]
-
+maintainers: [{name: drzzln, email: drzzln@protonmail.com}]
 dependencies:
   - name: pleme-microservice
     version: "~0.2.0"
     repository: "file://../pleme-microservice"
+annotations:
+  pleme.io/oci-auto-release: "false"

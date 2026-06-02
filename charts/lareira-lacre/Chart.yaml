@@ -10,15 +10,14 @@ description: |
   Tag-spoofing attacks are rejected because the body's hash never
   matches the claimed digest. Wraps https://github.com/pleme-io/lacre
   on top of pleme-microservice with the fedramp-high compliance overlay.
-
 type: application
 version: 0.1.2
 appVersion: "0.1.0"
-
 keywords: [openclaw, oci, registry, gate, fedramp-high, lareira]
-maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]
-
+maintainers: [{name: drzzln, email: drzzln@protonmail.com}]
 dependencies:
   - name: pleme-microservice
     version: "~0.2.0"
     repository: "file://../pleme-microservice"
+annotations:
+  pleme.io/oci-auto-release: "false"

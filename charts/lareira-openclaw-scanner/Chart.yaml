@@ -10,11 +10,11 @@ description: |
 type: application
 version: 0.1.0
 appVersion: "0.1.0"
-
 keywords: [openclaw, scanner, attestation, fedramp-high, lareira]
-maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]
-
+maintainers: [{name: drzzln, email: drzzln@protonmail.com}]
 dependencies:
   - name: pleme-microservice
     version: "~0.2.0"
     repository: "file://../pleme-microservice"
+annotations:
+  pleme.io/oci-auto-release: "false"
