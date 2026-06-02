@@ -4,8 +4,7 @@ description: Cluster-local Zot OCI registry — air-gap registry-mirror role. De
 type: application
 version: 0.3.3
 appVersion: "2.1.5"
-
 dependencies:
   - name: pleme-lib
-    version: ">=0.16.0,<1.0.0"
+    version: ">=0.18.0 <0.19.0"
     repository: "file://../pleme-lib"

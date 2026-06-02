@@ -1,110 +1,13 @@
 apiVersion: v2
 name: pangea-operator
 description: >-
-  Pangea infrastructure operator — manages 11 CRDs for infrastructure
-  lifecycle, AMI pipeline, compliance testing, and dynamic synthesizer
-  formats. v0.8.4 adds per-workspace tri-state pause to
-  OperatorPolicy/default (spec.workspaceSuspend.{templates, catalogs}
-  with `state: inherit | paused | active` per entry). Specific
-  overrides general — template entries override catalog cascade,
-  both override controllerSuspend/globalSuspend. `Active` is the
-  surgical carve-out: keep reconciling under a more-general pause.
-  Adds `pangea_workspace_active_override` gauge + `target` label on
-  `pangea_policy_skipped_total` + 2 new alerts (PangeaWorkspacePaused,
-  PangeaActiveOverridesActive) + `WorkspaceOverrides` printer column
-  on OperatorPolicy. v0.8.5 ships the Q-set operability quick wins:
-  `runbook_url` annotations on all 18 alerts pointing at
-  pangea-operator/docs/RUNBOOKS.md; `helm.sh/resource-policy: keep`
-  on every CRD; pinned compiler-sidecar default tag (no more `:latest`);
-  new `logLevel` value threaded into RUST_LOG so debug toggles don't
-  require an env-list edit; `category: pangea` on all 13 CRDs so
-  `kubectl get pangea` works fleet-wide; pause-state alerts (info)
-  bumped to 1h `for:` so short maintenance windows stay silent.
-  v0.8.6 ships values.schema.json covering the OperatorPolicy
-  surface + the useEmbeddedRuby/gemAuth dependency + the
-  workspaceSuspend.state enum. Helm now fail-louds on typos (e.g.
-  `state: paused-urgently`) and missing required fields (e.g.
-  `useEmbeddedRuby=true` without a gem-auth Secret). v0.8.7 fixes
-  PangeaDashboard CRD scope (was rendering Cluster; deployed as
-  Namespaced — the kube derive needed the explicit `namespaced`
-  flag). All 13 CRDs now render with the scope they were originally
-  applied as; no CRD-scope-immutable conflicts on upgrade. v0.8.8
-  switches values.schema.json to auto-generated from a typed Rust
-  mirror (`pangea_operator::chart_values::ChartValues` + schemars).
-  Schema-affecting values changes now flow from the struct →
-  `cargo run -- --generate-values-schema` instead of hand-edits.
-  v0.8.9 ships PangeaFleetStatus — a new cluster-scoped operator-driven
-  singleton CRD that surfaces the operator's running rollup of every
-  pangea CRD class. `kubectl get pangeafleetstatus default` becomes the
-  canonical at-a-glance fleet command (printer columns: WCATS,
-  TEMPLATES, READY, FAILED, GEMS, NAMESPACES, UPDATED, AGE). The
-  fleet-status controller refreshes the singleton every 30s and
-  bypasses OperatorPolicy.globalSuspend so fleet visibility stays
-  live during a pause. New ClusterRole rules: pangeafleetstatuses
-  (with create) + pangeadashboards. Pairs with operator @acb4e1a.
-  v0.8.10 surfaces executor.rubyWorkers in helm values (threaded into
-  PANGEA_RUBY_WORKERS env). Default 1 = today's single-owner shape;
-  consumers bump to N≥2 to engage the magnus thread pool. Pairs with
-  operator @65d89d5+ which provides the RubyPool round-robin
-  dispatcher.
-  v0.8.11 wires the OpenTelemetry OTLP-gRPC exporter (X1 of the
-  Crossplane-absorb plan). New observability.otel.{endpoint,serviceName}
-  values surface as OTEL_EXPORTER_OTLP_ENDPOINT + OTEL_SERVICE_NAME
-  env. When endpoint is empty (default), operator emits no traces
-  (logs unchanged); when set, per-phase reconcile spans
-  (handle_pending, handle_compiling, handle_planning, handle_applying,
-  …) export to a Tempo / VictoriaTraces / Jaeger backend the consumer
-  configures separately.
-  v0.8.12 ships outputBindings (X2 of the Crossplane-absorb plan).
-  Each InfrastructureTemplate may declare `spec.outputBindings[]`
-  pairing a tofu output address with a target Secret/key/namespace
-  (and an optional `sensitive: true` label). The operator publishes
-  each binding via server-side apply after a successful apply,
-  cross-namespace, with managed-by + provenance labels and a
-  same-namespace ownerRef. RBAC widens secrets to
-  get/list/watch/create/update/patch (was get/list/watch). New
-  metric `pangea_output_bindings_published_total{template, namespace,
-  result}` (result ∈ published|output_missing|errored).
-  v0.8.13 regenerates the InfrastructureTemplate CRD bundle so the
-  X2 `spec.outputBindings[]` field actually surfaces in the
-  apiserver schema. 0.8.12 shipped only the operator-side hookup +
-  the RBAC widen; the chart's `crds/infrastructuretemplate.yaml`
-  was hand-authored upstream of the operator's `--generate-crds`
-  output and didn't pick up the new field, so on rio the chart-
-  controller deploy succeeded but `kubectl explain
-  infrastructuretemplate.spec.outputBindings` returned empty. 0.8.13
-  swaps in the regenerated bundle (still preserving the
-  `helm.sh/resource-policy: keep` annotation that the generator
-  doesn't yet emit).
-  v0.8.14 ships a defense-in-depth alert family for the bug class
-  that hit rio on 2026-05-07 — status-write feedback loops in
-  `template_controller` (~123 PATCH/sec) and
-  `operator_policy_controller` (~76 reconciles/sec). New values
-  block `prometheusRules.reconcileRateAnomaly` (default OFF) ships
-  three alerts: PangeaControllerReconcileRateHigh (warning, >1/sec
-  1m), PangeaControllerReconcileRateCritical (critical, >10/sec
-  5m), PangeaOperatorErrorRateHigh (warning, >0.5 err/sec 10m).
-  Flip `enabled: true` per cluster after baselining the steady-
-  state reconcile rate.
-  v0.8.15 surfaces the M0.10–M0.12 magma backend (in-process IaC
-  executor) under `executor.magma.{enabled, shape, planCheckpoint}`.
-  When `enabled: true`, the deployment renders three new env vars
-  (PANGEA_EXECUTOR, PANGEA_MAGMA_SHAPE, PANGEA_MAGMA_PLAN_CHECKPOINT)
-  that wire the operator-wide default to MagmaExecutor. Per-CR
-  override via `Pangea.spec.executor: magma|tofu` still wins. The
-  operator image must be built with the `executor_magma` cargo
-  feature for the flag to take effect — image builds remain on
-  the existing release-train, so `enabled: false` (default) keeps
-  every deployment on TofuExecutor regardless of feature bits.
-  Per theory/MAGMA-OPERATOR-BACKEND.md §VI (canonical dual-backend
-  selection model).
+  Pangea infrastructure operator — manages 11 CRDs for infrastructure lifecycle, AMI pipeline, compliance testing, and dynamic synthesizer formats. v0.8.4 adds per-workspace tri-state pause to OperatorPolicy/default (spec.workspaceSuspend.{templates, catalogs} with `state: inherit | paused | active` per entry). Specific overrides general — template entries override catalog cascade, both override controllerSuspend/globalSuspend. `Active` is the surgical carve-out: keep reconciling under a more-general pause. Adds `pangea_workspace_active_override` gauge + `target` label on `pangea_policy_skipped_total` + 2 new alerts (PangeaWorkspacePaused, PangeaActiveOverridesActive) + `WorkspaceOverrides` printer column on OperatorPolicy. v0.8.5 ships the Q-set operability quick wins: `runbook_url` annotations on all 18 alerts pointing at pangea-operator/docs/RUNBOOKS.md; `helm.sh/resource-policy: keep` on every CRD; pinned compiler-sidecar default tag (no more `:latest`); new `logLevel` value threaded into RUST_LOG so debug toggles don't require an env-list edit; `category: pangea` on all 13 CRDs so `kubectl get pangea` works fleet-wide; pause-state alerts (info) bumped to 1h `for:` so short maintenance windows stay silent. v0.8.6 ships values.schema.json covering the OperatorPolicy surface + the useEmbeddedRuby/gemAuth dependency + the workspaceSuspend.state enum. Helm now fail-louds on typos (e.g. `state: paused-urgently`) and missing required fields (e.g. `useEmbeddedRuby=true` without a gem-auth Secret). v0.8.7 fixes PangeaDashboard CRD scope (was rendering Cluster; deployed as Namespaced — the kube derive needed the explicit `namespaced` flag). All 13 CRDs now render with the scope they were originally applied as; no CRD-scope-immutable conflicts on upgrade. v0.8.8 switches values.schema.json to auto-generated from a typed Rust mirror (`pangea_operator::chart_values::ChartValues` + schemars). Schema-affecting values changes now flow from the struct → `cargo run -- --generate-values-schema` instead of hand-edits. v0.8.9 ships PangeaFleetStatus — a new cluster-scoped operator-driven singleton CRD that surfaces the operator's running rollup of every pangea CRD class. `kubectl get pangeafleetstatus default` becomes the canonical at-a-glance fleet command (printer columns: WCATS, TEMPLATES, READY, FAILED, GEMS, NAMESPACES, UPDATED, AGE). The fleet-status controller refreshes the singleton every 30s and bypasses OperatorPolicy.globalSuspend so fleet visibility stays live during a pause. New ClusterRole rules: pangeafleetstatuses (with create) + pangeadashboards. Pairs with operator @acb4e1a. v0.8.10 surfaces executor.rubyWorkers in helm values (threaded into PANGEA_RUBY_WORKERS env). Default 1 = today's single-owner shape; consumers bump to N≥2 to engage the magnus thread pool. Pairs with operator @65d89d5+ which provides the RubyPool round-robin dispatcher. v0.8.11 wires the OpenTelemetry OTLP-gRPC exporter (X1 of the Crossplane-absorb plan). New observability.otel.{endpoint,serviceName} values surface as OTEL_EXPORTER_OTLP_ENDPOINT + OTEL_SERVICE_NAME env. When endpoint is empty (default), operator emits no traces (logs unchanged); when set, per-phase reconcile spans (handle_pending, handle_compiling, handle_planning, handle_applying, …) export to a Tempo / VictoriaTraces / Jaeger backend the consumer configures separately. v0.8.12 ships outputBindings (X2 of the Crossplane-absorb plan). Each InfrastructureTemplate may declare `spec.outputBindings[]` pairing a tofu output address with a target Secret/key/namespace (and an optional `sensitive: true` label). The operator publishes each binding via server-side apply after a successful apply, cross-namespace, with managed-by + provenance labels and a same-namespace ownerRef. RBAC widens secrets to get/list/watch/create/update/patch (was get/list/watch). New metric `pangea_output_bindings_published_total{template, namespace, result}` (result ∈ published|output_missing|errored). v0.8.13 regenerates the InfrastructureTemplate CRD bundle so the X2 `spec.outputBindings[]` field actually surfaces in the apiserver schema. 0.8.12 shipped only the operator-side hookup + the RBAC widen; the chart's `crds/infrastructuretemplate.yaml` was hand-authored upstream of the operator's `--generate-crds` output and didn't pick up the new field, so on rio the chart- controller deploy succeeded but `kubectl explain infrastructuretemplate.spec.outputBindings` returned empty. 0.8.13 swaps in the regenerated bundle (still preserving the `helm.sh/resource-policy: keep` annotation that the generator doesn't yet emit). v0.8.14 ships a defense-in-depth alert family for the bug class that hit rio on 2026-05-07 — status-write feedback loops in `template_controller` (~123 PATCH/sec) and `operator_policy_controller` (~76 reconciles/sec). New values block `prometheusRules.reconcileRateAnomaly` (default OFF) ships three alerts: PangeaControllerReconcileRateHigh (warning, >1/sec 1m), PangeaControllerReconcileRateCritical (critical, >10/sec 5m), PangeaOperatorErrorRateHigh (warning, >0.5 err/sec 10m). Flip `enabled: true` per cluster after baselining the steady- state reconcile rate. v0.8.15 surfaces the M0.10–M0.12 magma backend (in-process IaC executor) under `executor.magma.{enabled, shape, planCheckpoint}`. When `enabled: true`, the deployment renders three new env vars (PANGEA_EXECUTOR, PANGEA_MAGMA_SHAPE, PANGEA_MAGMA_PLAN_CHECKPOINT) that wire the operator-wide default to MagmaExecutor. Per-CR override via `Pangea.spec.executor: magma|tofu` still wins. The operator image must be built with the `executor_magma` cargo feature for the flag to take effect — image builds remain on the existing release-train, so `enabled: false` (default) keeps every deployment on TofuExecutor regardless of feature bits. Per theory/MAGMA-OPERATOR-BACKEND.md §VI (canonical dual-backend selection model).
 type: application
 version: 0.8.16
 appVersion: "0.8.16"
-
 dependencies:
   - name: pleme-lib
     # Loose constraint — pleme-lib bumps minor versions frequently and
     # the operator chart only depends on its template stability surface.
-    version: ">=0.10.0,<1.0.0"
+    version: ">=0.18.0 <0.19.0"
     repository: "file://../pleme-lib"
