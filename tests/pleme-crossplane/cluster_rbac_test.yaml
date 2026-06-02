@@ -1,0 +1,113 @@
+suite: pleme-lib.clusterRBAC — ClusterRole (+ ClusterRoleBinding) from a values map
+templates:
+  - templates/cluster-rbac.yaml
+release:
+  name: t
+  namespace: testns
+tests:
+  - it: no-op when the map is empty/absent
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: one entry renders ClusterRole + ClusterRoleBinding (cluster-scoped)
+    set:
+      rbac:
+        clusterRoles:
+          pitr-creator:
+            rules:
+              - apiGroups: [""]
+                resources: ["namespaces"]
+                verbs: ["get", "list"]
+            subjects:
+              - { kind: ServiceAccount, name: pitr-sa }
+    asserts:
+      - hasDocuments:
+          count: 2
+      - documentIndex: 0
+        isKind:
+          of: ClusterRole
+      - documentIndex: 0
+        equal:
+          path: metadata.name
+          value: pitr-creator
+      - documentIndex: 0
+        notExists:
+          path: metadata.namespace
+      - documentIndex: 1
+        isKind:
+          of: ClusterRoleBinding
+      - documentIndex: 1
+        equal:
+          path: roleRef.name
+          value: pitr-creator
+      - documentIndex: 1
+        equal:
+          path: subjects[0].namespace
+          value: testns
+
+  - it: aggregateLabels merge onto the ClusterRole (crossplane aggregation)
+    set:
+      rbac:
+        clusterRoles:
+          agg:
+            rules: [ { apiGroups: ["rds.aws.upbound.io"], resources: ["instances"], verbs: ["*"] } ]
+            aggregateLabels:
+              rbac.crossplane.io/aggregate-to-crossplane: "true"
+            binding: false
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ClusterRole
+      - equal:
+          path: metadata.labels["rbac.crossplane.io/aggregate-to-crossplane"]
+          value: "true"
+
+  - it: aggregationRule renders for an aggregator ClusterRole
+    set:
+      rbac:
+        clusterRoles:
+          aggregator:
+            binding: false
+            aggregationRule:
+              clusterRoleSelectors:
+                - matchLabels: { example.io/aggregate: "true" }
+    asserts:
+      - equal:
+          path: aggregationRule.clusterRoleSelectors[0].matchLabels["example.io/aggregate"]
+          value: "true"
+      - notExists:
+          path: rules
+
+  - it: Group subject gets apiGroup and no namespace
+    set:
+      rbac:
+        clusterRoles:
+          admin:
+            rules: [ { apiGroups: ["*"], resources: ["*"], verbs: ["*"] } ]
+            subjects:
+              - { kind: Group, name: "system:masters" }
+    asserts:
+      - documentIndex: 1
+        equal:
+          path: subjects[0].kind
+          value: Group
+      - documentIndex: 1
+        equal:
+          path: subjects[0].apiGroup
+          value: rbac.authorization.k8s.io
+      - documentIndex: 1
+        notExists:
+          path: subjects[0].namespace
+
+  - it: three entries render three ClusterRole+Binding pairs
+    set:
+      rbac:
+        clusterRoles:
+          a: { rules: [], subjects: [ { kind: ServiceAccount, name: a } ] }
+          b: { rules: [], subjects: [ { kind: ServiceAccount, name: b } ] }
+          c: { rules: [], subjects: [ { kind: ServiceAccount, name: c } ] }
+    asserts:
+      - hasDocuments:
+          count: 6

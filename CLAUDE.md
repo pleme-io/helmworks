@@ -50,6 +50,8 @@ All chart lifecycle operations are `nix run` commands:
 - `pleme-lib.hpa` — HorizontalPodAutoscaler
 - `pleme-lib.karpenterNodePool` / `pleme-lib.karpenterEC2NodeClass` — Karpenter primitives, iterate values maps for multi-pool charts (added v0.6.0)
 - `pleme-lib.namespacedRBAC` — namespace-scoped Role + RoleBinding pairs from a values map (added v0.6.0)
+- `pleme-lib.clusterRBAC` — cluster-scoped ClusterRole (+ ClusterRoleBinding) pairs from `.Values.rbac.clusterRoles`; `aggregateLabels` slot for crossplane aggregation, `binding: false` for aggregation-only, Group/User subjects (added v0.18.0)
+- `pleme-lib.serviceAccounts` — multiple ServiceAccounts from a `.Values.serviceAccounts` map (sibling of the single-SA `pleme-lib.serviceaccount`) (added v0.18.0)
 - `pleme-lib.externalSecret` — External Secrets Operator ExternalSecret resources from a values map; defaults to `cluster-secret-store` (override per entry) (added v0.6.0)
 - **Crossplane substrate** (full v1+v2 vocabulary, rendered from `.Values.crossplane.*` maps; added v0.17.0). Each is a no-op on empty map, composes labels + the annotations passthrough, fail()s on missing required fields, and is cluster-scoped except `Usage` (namespaced):
   - `pleme-lib.crossplaneProvider` — `Provider` (+ folded IRSA `DeploymentRuntimeConfig` when `irsaRoleArn` set)
