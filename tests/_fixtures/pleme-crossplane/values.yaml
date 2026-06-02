@@ -1,0 +1,6 @@
+# Empty by default — suites drive the primitives via `set:` (deterministic per-case
+# fixtures) and the unified suite loads ../../../examples/pleme-crossplane.yaml.
+crossplane:
+  providers: {}
+  providerConfigs: {}
+  functions: {}

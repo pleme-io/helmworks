@@ -1,0 +1,272 @@
+suite: pleme-lib.crossplaneCompositeResourceDefinition — XRD with the v2/v1 scope + claimNames invariants
+templates:
+  - templates/composite-resource-definitions.yaml
+release:
+  name: t
+  namespace: testns
+# A minimal, valid v2 XRD reused across the happy-path cases via YAML anchors.
+tests:
+  - it: no-op when the map is empty/absent
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: minimal v2 XRD renders (cluster-scoped, apiextensions v2)
+    set:
+      crossplane:
+        compositeResourceDefinitions:
+          xdatabases:
+            group: platform.example.org
+            names:
+              kind: XDatabase
+              plural: xdatabases
+            scope: Namespaced
+            versions:
+              - name: v1alpha1
+                served: true
+                referenceable: true
+                schema:
+                  openAPIV3Schema:
+                    type: object
+                    properties:
+                      spec: { type: object }
+                      status:
+                        type: object
+                        properties:
+                          ready: { type: boolean }
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: CompositeResourceDefinition
+      - equal:
+          path: apiVersion
+          value: apiextensions.crossplane.io/v2
+      - equal:
+          path: metadata.name
+          value: xdatabases
+      - equal:
+          path: spec.group
+          value: platform.example.org
+      - equal:
+          path: spec.names.kind
+          value: XDatabase
+      - equal:
+          path: spec.scope
+          value: Namespaced
+      - notExists:
+          path: metadata.namespace
+
+  - it: scope omitted under v2 leaves spec.scope unset (API server defaults it)
+    set:
+      crossplane:
+        compositeResourceDefinitions:
+          xdatabases:
+            group: platform.example.org
+            names: { kind: XDatabase, plural: xdatabases }
+            versions:
+              - { name: v1alpha1, served: true, referenceable: true, schema: { openAPIV3Schema: { type: object } } }
+    asserts:
+      - notExists:
+          path: spec.scope
+
+  - it: openAPIV3Schema passthrough — declared status property survives verbatim (not stripped)
+    set:
+      crossplane:
+        compositeResourceDefinitions:
+          xdatabases:
+            group: platform.example.org
+            names: { kind: XDatabase, plural: xdatabases }
+            versions:
+              - name: v1alpha1
+                served: true
+                referenceable: true
+                schema:
+                  openAPIV3Schema:
+                    type: object
+                    properties:
+                      status:
+                        type: object
+                        properties:
+                          endpoint: { type: string }
+    asserts:
+      - equal:
+          path: spec.versions[0].schema.openAPIV3Schema.properties.status.properties.endpoint.type
+          value: string
+
+  - it: v1 toggle renders apiextensions v1 and never emits spec.scope (v1 has no scope)
+    set:
+      crossplane:
+        compositeResourceDefinitions:
+          xdatabases:
+            apiVersion: apiextensions.crossplane.io/v1
+            group: platform.example.org
+            names: { kind: XDatabase, plural: xdatabases }
+            scope: Cluster
+            versions:
+              - { name: v1alpha1, served: true, referenceable: true, schema: { openAPIV3Schema: { type: object } } }
+    asserts:
+      - equal:
+          path: apiVersion
+          value: apiextensions.crossplane.io/v1
+      - notExists:
+          path: spec.scope
+
+  - it: claimNames renders under v1
+    set:
+      crossplane:
+        compositeResourceDefinitions:
+          xdatabases:
+            apiVersion: apiextensions.crossplane.io/v1
+            group: platform.example.org
+            names: { kind: XDatabase, plural: xdatabases }
+            claimNames: { kind: Database, plural: databases }
+            versions:
+              - { name: v1alpha1, served: true, referenceable: true, schema: { openAPIV3Schema: { type: object } } }
+    asserts:
+      - equal:
+          path: spec.claimNames.kind
+          value: Database
+
+  - it: claimNames under v2 + scope LegacyCluster is allowed (renders)
+    set:
+      crossplane:
+        compositeResourceDefinitions:
+          xdatabases:
+            group: platform.example.org
+            names: { kind: XDatabase, plural: xdatabases }
+            scope: LegacyCluster
+            claimNames: { kind: Database, plural: databases }
+            versions:
+              - { name: v1alpha1, served: true, referenceable: true, schema: { openAPIV3Schema: { type: object } } }
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: spec.scope
+          value: LegacyCluster
+
+  - it: claimNames under v2 default scope fails loudly
+    set:
+      crossplane:
+        compositeResourceDefinitions:
+          xdatabases:
+            group: platform.example.org
+            names: { kind: XDatabase, plural: xdatabases }
+            claimNames: { kind: Database, plural: databases }
+            versions:
+              - { name: v1alpha1, served: true, referenceable: true, schema: { openAPIV3Schema: { type: object } } }
+    asserts:
+      - failedTemplate:
+          errorMessage: "pleme-lib crossplaneXRD \"xdatabases\": claimNames is only valid under apiextensions.crossplane.io/v1 or scope: LegacyCluster"
+
+  - it: connectionSecretKeys under v2 fails loudly
+    set:
+      crossplane:
+        compositeResourceDefinitions:
+          xdatabases:
+            group: platform.example.org
+            names: { kind: XDatabase, plural: xdatabases }
+            connectionSecretKeys: [ host, port ]
+            versions:
+              - { name: v1alpha1, served: true, referenceable: true, schema: { openAPIV3Schema: { type: object } } }
+    asserts:
+      - failedTemplate:
+          errorMessage: "pleme-lib crossplaneXRD \"xdatabases\": connectionSecretKeys is removed in v2 (recompose your own Secret)"
+
+  - it: connectionSecretKeys renders under v1
+    set:
+      crossplane:
+        compositeResourceDefinitions:
+          xdatabases:
+            apiVersion: apiextensions.crossplane.io/v1
+            group: platform.example.org
+            names: { kind: XDatabase, plural: xdatabases }
+            connectionSecretKeys: [ host, port ]
+            versions:
+              - { name: v1alpha1, served: true, referenceable: true, schema: { openAPIV3Schema: { type: object } } }
+    asserts:
+      - equal:
+          path: spec.connectionSecretKeys[0]
+          value: host
+
+  - it: missing group fails
+    set:
+      crossplane:
+        compositeResourceDefinitions:
+          xdatabases:
+            names: { kind: XDatabase, plural: xdatabases }
+            versions:
+              - { name: v1alpha1, served: true, referenceable: true, schema: { openAPIV3Schema: { type: object } } }
+    asserts:
+      - failedTemplate:
+          errorMessage: "pleme-lib crossplaneXRD \"xdatabases\": spec.group is required"
+
+  - it: missing names.kind fails
+    set:
+      crossplane:
+        compositeResourceDefinitions:
+          xdatabases:
+            group: platform.example.org
+            versions:
+              - { name: v1alpha1, served: true, referenceable: true, schema: { openAPIV3Schema: { type: object } } }
+    asserts:
+      - failedTemplate:
+          errorMessage: "pleme-lib crossplaneXRD \"xdatabases\": spec.names.kind is required"
+
+  - it: missing versions fails
+    set:
+      crossplane:
+        compositeResourceDefinitions:
+          xdatabases:
+            group: platform.example.org
+            names: { kind: XDatabase, plural: xdatabases }
+    asserts:
+      - failedTemplate:
+          errorMessage: "pleme-lib crossplaneXRD \"xdatabases\": spec.versions is required"
+
+  - it: two referenceable versions fail (exactly one required)
+    set:
+      crossplane:
+        compositeResourceDefinitions:
+          xdatabases:
+            group: platform.example.org
+            names: { kind: XDatabase, plural: xdatabases }
+            versions:
+              - { name: v1alpha1, served: true, referenceable: true, schema: { openAPIV3Schema: { type: object } } }
+              - { name: v1beta1, served: true, referenceable: true, schema: { openAPIV3Schema: { type: object } } }
+    asserts:
+      - failedTemplate:
+          errorMessage: "pleme-lib crossplaneXRD \"xdatabases\": exactly one version must be referenceable:true (found 2)"
+
+  - it: zero referenceable versions fail
+    set:
+      crossplane:
+        compositeResourceDefinitions:
+          xdatabases:
+            group: platform.example.org
+            names: { kind: XDatabase, plural: xdatabases }
+            versions:
+              - { name: v1alpha1, served: true, referenceable: false, schema: { openAPIV3Schema: { type: object } } }
+    asserts:
+      - failedTemplate:
+          errorMessage: "pleme-lib crossplaneXRD \"xdatabases\": exactly one version must be referenceable:true (found 0)"
+
+  - it: defaultCompositionRef + conversion passthrough land
+    set:
+      crossplane:
+        compositeResourceDefinitions:
+          xdatabases:
+            group: platform.example.org
+            names: { kind: XDatabase, plural: xdatabases }
+            defaultCompositionRef: { name: xdatabase-default }
+            conversion: { strategy: None }
+            versions:
+              - { name: v1alpha1, served: true, referenceable: true, schema: { openAPIV3Schema: { type: object } } }
+    asserts:
+      - equal:
+          path: spec.defaultCompositionRef.name
+          value: xdatabase-default
+      - equal:
+          path: spec.conversion.strategy
+          value: None

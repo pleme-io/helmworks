@@ -1,0 +1,214 @@
+suite: pleme-lib.crossplaneProvider — generic Provider + folded IRSA DeploymentRuntimeConfig
+templates:
+  - templates/providers.yaml
+release:
+  name: t
+  namespace: testns
+tests:
+  - it: IRSA provider renders Provider + paired DeploymentRuntimeConfig (1 entry x2 = 2 docs)
+    set:
+      crossplane:
+        providers:
+          provider-aws-rds:
+            registry: xpkg.upbound.io/upbound
+            name: provider-aws-rds
+            version: "2.5.3"
+            irsaRoleArn: "arn:aws:iam::111111111111:role/example-rds"
+    asserts:
+      - hasDocuments:
+          count: 2
+      - documentIndex: 0
+        isKind:
+          of: Provider
+      - documentIndex: 0
+        equal:
+          path: metadata.name
+          value: provider-aws-rds
+      - documentIndex: 0
+        equal:
+          path: spec.package
+          value: "xpkg.upbound.io/upbound/provider-aws-rds:v2.5.3"
+      - documentIndex: 0
+        equal:
+          path: spec.runtimeConfigRef.name
+          value: provider-aws-rds
+      - documentIndex: 1
+        isKind:
+          of: DeploymentRuntimeConfig
+      - documentIndex: 1
+        equal:
+          path: metadata.name
+          value: provider-aws-rds
+      - documentIndex: 1
+        equal:
+          path: spec.serviceAccountTemplate.metadata.annotations["eks.amazonaws.com/role-arn"]
+          value: "arn:aws:iam::111111111111:role/example-rds"
+
+  - it: non-IRSA provider renders Provider only — no DRC, no runtimeConfigRef
+    set:
+      crossplane:
+        providers:
+          provider-helm:
+            registry: xpkg.upbound.io/crossplane-contrib
+            name: provider-helm
+            version: "0.21.0"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Provider
+      - notExists:
+          path: spec.runtimeConfigRef
+
+  - it: empty-string irsaRoleArn is treated as absent (Provider only, no runtimeConfigRef)
+    set:
+      crossplane:
+        providers:
+          provider-aws-rds:
+            registry: xpkg.upbound.io/upbound
+            name: provider-aws-rds
+            version: "2.5.3"
+            irsaRoleArn: ""
+    asserts:
+      - hasDocuments:
+          count: 1
+      - notExists:
+          path: spec.runtimeConfigRef
+
+  - it: full package string wins over assembled parts
+    set:
+      crossplane:
+        providers:
+          provider-aws-rds:
+            registry: xpkg.upbound.io/upbound
+            name: provider-aws-rds
+            version: "2.5.3"
+            package: "xpkg.upbound.io/upbound/provider-aws-rds@sha256:deadbeef"
+    asserts:
+      - equal:
+          path: spec.package
+          value: "xpkg.upbound.io/upbound/provider-aws-rds@sha256:deadbeef"
+
+  - it: versionPrefix is not doubled when the version already carries a leading v
+    set:
+      crossplane:
+        providers:
+          provider-helm:
+            registry: xpkg.upbound.io/crossplane-contrib
+            name: provider-helm
+            version: "v0.21.0"
+    asserts:
+      - equal:
+          path: spec.package
+          value: "xpkg.upbound.io/crossplane-contrib/provider-helm:v0.21.0"
+
+  - it: fails loudly when neither a full package nor complete parts are given
+    set:
+      crossplane:
+        providers:
+          provider-broken:
+            irsaRoleArn: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: "pleme-lib crossplane \"provider-broken\": set either 'package:' or all of {registry,name,version}"
+
+  - it: passthrough fields render on the Provider
+    set:
+      crossplane:
+        providers:
+          provider-aws-s3:
+            registry: xpkg.upbound.io/upbound
+            name: provider-aws-s3
+            version: "2.5.3"
+            packagePullPolicy: IfNotPresent
+            revisionActivationPolicy: Automatic
+            ignoreCrossplaneConstraints: true
+    asserts:
+      - equal:
+          path: spec.packagePullPolicy
+          value: IfNotPresent
+      - equal:
+          path: spec.revisionActivationPolicy
+          value: Automatic
+      - equal:
+          path: spec.ignoreCrossplaneConstraints
+          value: true
+
+  - it: per-entry annotations passthrough renders on the Provider
+    set:
+      crossplane:
+        providers:
+          provider-helm:
+            registry: xpkg.upbound.io/crossplane-contrib
+            name: provider-helm
+            version: "0.21.0"
+            annotations:
+              argocd.argoproj.io/sync-wave: "-2"
+    asserts:
+      - equal:
+          path: metadata.annotations["argocd.argoproj.io/sync-wave"]
+          value: "-2"
+
+  - it: no annotations anywhere omits the metadata.annotations key entirely
+    set:
+      crossplane:
+        providers:
+          provider-helm:
+            registry: xpkg.upbound.io/crossplane-contrib
+            name: provider-helm
+            version: "0.21.0"
+    asserts:
+      - notExists:
+          path: metadata.annotations
+
+  - it: attestation annotations and per-entry passthrough coexist on the same resource
+    set:
+      attestation:
+        enabled: true
+        signature: "blake3:abc"
+      crossplane:
+        providers:
+          provider-helm:
+            registry: xpkg.upbound.io/crossplane-contrib
+            name: provider-helm
+            version: "0.21.0"
+            annotations:
+              argocd.argoproj.io/sync-wave: "-2"
+    asserts:
+      - equal:
+          path: metadata.annotations["sekiban.pleme.io/signature"]
+          value: "blake3:abc"
+      - equal:
+          path: metadata.annotations["argocd.argoproj.io/sync-wave"]
+          value: "-2"
+
+  - it: Provider and DeploymentRuntimeConfig are cluster-scoped (no namespace)
+    set:
+      crossplane:
+        providers:
+          provider-aws-rds:
+            registry: xpkg.upbound.io/upbound
+            name: provider-aws-rds
+            version: "2.5.3"
+            irsaRoleArn: "arn:aws:iam::111111111111:role/example-rds"
+    asserts:
+      - documentIndex: 0
+        notExists:
+          path: metadata.namespace
+      - documentIndex: 1
+        notExists:
+          path: metadata.namespace
+
+  - it: never emits a provider-family-aws CR — six AWS providers x2 = exactly 12 docs
+    set:
+      crossplane:
+        providers:
+          provider-aws-rds:            { registry: xpkg.upbound.io/upbound, name: provider-aws-rds,            version: "2.5.3", irsaRoleArn: "arn:aws:iam::1:role/a" }
+          provider-aws-route53:        { registry: xpkg.upbound.io/upbound, name: provider-aws-route53,        version: "2.5.3", irsaRoleArn: "arn:aws:iam::1:role/b" }
+          provider-aws-elbv2:          { registry: xpkg.upbound.io/upbound, name: provider-aws-elbv2,          version: "2.5.3", irsaRoleArn: "arn:aws:iam::1:role/c" }
+          provider-aws-globalaccelerator: { registry: xpkg.upbound.io/upbound, name: provider-aws-globalaccelerator, version: "2.5.3", irsaRoleArn: "arn:aws:iam::1:role/d" }
+          provider-aws-iam:            { registry: xpkg.upbound.io/upbound, name: provider-aws-iam,            version: "2.5.3", irsaRoleArn: "arn:aws:iam::1:role/e" }
+          provider-aws-s3:             { registry: xpkg.upbound.io/upbound, name: provider-aws-s3,             version: "2.5.3", irsaRoleArn: "arn:aws:iam::1:role/f" }
+    asserts:
+      - hasDocuments:
+          count: 12

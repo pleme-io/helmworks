@@ -1,0 +1,487 @@
+matches the committed render snapshot (no-drift lock on ordering / separators / annotation keys):
+  1: |
+    apiVersion: apiextensions.crossplane.io/v2
+    kind: CompositeResourceDefinition
+    metadata:
+      annotations:
+        argocd.argoproj.io/sync-wave: "0"
+      labels:
+        app: t-pleme-crossplane
+        app.kubernetes.io/instance: t
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: pleme-crossplane
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.0.0
+        helm.sh/chart: pleme-crossplane-0.0.0
+      name: xdatabases.platform.example.org
+    spec:
+      group: platform.example.org
+      names:
+        kind: XDatabase
+        plural: xdatabases
+      scope: Namespaced
+      versions:
+        - name: v1alpha1
+          referenceable: true
+          schema:
+            openAPIV3Schema:
+              properties:
+                spec:
+                  properties:
+                    size:
+                      type: string
+                  type: object
+                status:
+                  properties:
+                    ready:
+                      type: boolean
+                  type: object
+              type: object
+          served: true
+  2: |
+    apiVersion: apiextensions.crossplane.io/v1
+    kind: Composition
+    metadata:
+      annotations:
+        argocd.argoproj.io/sync-wave: "0"
+      labels:
+        app: t-pleme-crossplane
+        app.kubernetes.io/instance: t
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: pleme-crossplane
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.0.0
+        helm.sh/chart: pleme-crossplane-0.0.0
+      name: xdatabase-default
+    spec:
+      compositeTypeRef:
+        apiVersion: platform.example.org/v1alpha1
+        kind: XDatabase
+      mode: Pipeline
+      pipeline:
+        - functionRef:
+            name: function-patch-and-transform
+          input:
+            apiVersion: pt.fn.crossplane.io/v1beta1
+            kind: Resources
+          step: render-resources
+  3: |
+    apiVersion: pkg.crossplane.io/v1
+    kind: Configuration
+    metadata:
+      annotations:
+        argocd.argoproj.io/sync-wave: "-1"
+      labels:
+        app: t-pleme-crossplane
+        app.kubernetes.io/instance: t
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: pleme-crossplane
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.0.0
+        helm.sh/chart: pleme-crossplane-0.0.0
+      name: configuration-platform-db
+    spec:
+      package: xpkg.upbound.io/pleme-io/configuration-platform-db:v1.0.0
+  4: |
+    apiVersion: pkg.crossplane.io/v1beta1
+    kind: DeploymentRuntimeConfig
+    metadata:
+      annotations:
+        argocd.argoproj.io/sync-wave: "-2"
+      labels:
+        app: t-pleme-crossplane
+        app.kubernetes.io/instance: t
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: pleme-crossplane
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.0.0
+        helm.sh/chart: pleme-crossplane-0.0.0
+      name: shared-aws-runtime
+    spec:
+      serviceAccountTemplate:
+        metadata:
+          annotations:
+            eks.amazonaws.com/role-arn: arn:aws:iam::000000000000:role/example-shared-aws-runtime
+  5: |
+    apiVersion: apiextensions.crossplane.io/v1beta1
+    data:
+      accountId: "000000000000"
+      regionMap:
+        dr: us-west-2
+        primary: us-east-1
+    kind: EnvironmentConfig
+    metadata:
+      annotations:
+        argocd.argoproj.io/sync-wave: "-1"
+      labels:
+        app: t-pleme-crossplane
+        app.kubernetes.io/instance: t
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: pleme-crossplane
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.0.0
+        helm.sh/chart: pleme-crossplane-0.0.0
+        tier: prod
+      name: platform-env
+  6: |
+    apiVersion: pkg.crossplane.io/v1beta1
+    kind: Function
+    metadata:
+      annotations:
+        argocd.argoproj.io/sync-wave: "-2"
+      labels:
+        app: t-pleme-crossplane
+        app.kubernetes.io/instance: t
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: pleme-crossplane
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.0.0
+        helm.sh/chart: pleme-crossplane-0.0.0
+      name: function-kcl
+    spec:
+      package: xpkg.upbound.io/crossplane-contrib/function-kcl:v0.11.0
+  7: |
+    apiVersion: aws.upbound.io/v1beta1
+    kind: ProviderConfig
+    metadata:
+      annotations:
+        argocd.argoproj.io/sync-wave: "-1"
+      labels:
+        app: t-pleme-crossplane
+        app.kubernetes.io/instance: t
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: pleme-crossplane
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.0.0
+        helm.sh/chart: pleme-crossplane-0.0.0
+      name: default
+    spec:
+      credentials:
+        source: IRSA
+  8: |
+    apiVersion: helm.crossplane.io/v1beta1
+    kind: ProviderConfig
+    metadata:
+      annotations:
+        argocd.argoproj.io/sync-wave: "-1"
+      labels:
+        app: t-pleme-crossplane
+        app.kubernetes.io/instance: t
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: pleme-crossplane
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.0.0
+        helm.sh/chart: pleme-crossplane-0.0.0
+      name: default
+    spec:
+      credentials:
+        source: InjectedIdentity
+  9: |
+    apiVersion: kubernetes.crossplane.io/v1alpha1
+    kind: ProviderConfig
+    metadata:
+      annotations:
+        argocd.argoproj.io/sync-wave: "-1"
+      labels:
+        app: t-pleme-crossplane
+        app.kubernetes.io/instance: t
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: pleme-crossplane
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.0.0
+        helm.sh/chart: pleme-crossplane-0.0.0
+      name: default
+    spec:
+      credentials:
+        source: InjectedIdentity
+  10: |
+    apiVersion: pkg.crossplane.io/v1
+    kind: Provider
+    metadata:
+      annotations:
+        argocd.argoproj.io/sync-wave: "-2"
+      labels:
+        app: t-pleme-crossplane
+        app.kubernetes.io/instance: t
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: pleme-crossplane
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.0.0
+        helm.sh/chart: pleme-crossplane-0.0.0
+      name: provider-aws-elbv2
+    spec:
+      package: xpkg.upbound.io/upbound/provider-aws-elbv2:v2.5.3
+      runtimeConfigRef:
+        name: provider-aws-elbv2
+  11: |
+    apiVersion: pkg.crossplane.io/v1beta1
+    kind: DeploymentRuntimeConfig
+    metadata:
+      annotations:
+        argocd.argoproj.io/sync-wave: "-2"
+      labels:
+        app: t-pleme-crossplane
+        app.kubernetes.io/instance: t
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: pleme-crossplane
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.0.0
+        helm.sh/chart: pleme-crossplane-0.0.0
+      name: provider-aws-elbv2
+    spec:
+      serviceAccountTemplate:
+        metadata:
+          annotations:
+            eks.amazonaws.com/role-arn: arn:aws:iam::000000000000:role/example-provider-aws-elbv2
+  12: |
+    apiVersion: pkg.crossplane.io/v1
+    kind: Provider
+    metadata:
+      annotations:
+        argocd.argoproj.io/sync-wave: "-2"
+      labels:
+        app: t-pleme-crossplane
+        app.kubernetes.io/instance: t
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: pleme-crossplane
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.0.0
+        helm.sh/chart: pleme-crossplane-0.0.0
+      name: provider-aws-globalaccelerator
+    spec:
+      package: xpkg.upbound.io/upbound/provider-aws-globalaccelerator:v2.5.3
+      runtimeConfigRef:
+        name: provider-aws-globalaccelerator
+  13: |
+    apiVersion: pkg.crossplane.io/v1beta1
+    kind: DeploymentRuntimeConfig
+    metadata:
+      annotations:
+        argocd.argoproj.io/sync-wave: "-2"
+      labels:
+        app: t-pleme-crossplane
+        app.kubernetes.io/instance: t
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: pleme-crossplane
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.0.0
+        helm.sh/chart: pleme-crossplane-0.0.0
+      name: provider-aws-globalaccelerator
+    spec:
+      serviceAccountTemplate:
+        metadata:
+          annotations:
+            eks.amazonaws.com/role-arn: arn:aws:iam::000000000000:role/example-provider-aws-globalaccelerator
+  14: |
+    apiVersion: pkg.crossplane.io/v1
+    kind: Provider
+    metadata:
+      annotations:
+        argocd.argoproj.io/sync-wave: "-2"
+      labels:
+        app: t-pleme-crossplane
+        app.kubernetes.io/instance: t
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: pleme-crossplane
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.0.0
+        helm.sh/chart: pleme-crossplane-0.0.0
+      name: provider-aws-iam
+    spec:
+      package: xpkg.upbound.io/upbound/provider-aws-iam:v2.5.3
+      runtimeConfigRef:
+        name: provider-aws-iam
+  15: |
+    apiVersion: pkg.crossplane.io/v1beta1
+    kind: DeploymentRuntimeConfig
+    metadata:
+      annotations:
+        argocd.argoproj.io/sync-wave: "-2"
+      labels:
+        app: t-pleme-crossplane
+        app.kubernetes.io/instance: t
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: pleme-crossplane
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.0.0
+        helm.sh/chart: pleme-crossplane-0.0.0
+      name: provider-aws-iam
+    spec:
+      serviceAccountTemplate:
+        metadata:
+          annotations:
+            eks.amazonaws.com/role-arn: arn:aws:iam::000000000000:role/example-provider-aws-iam
+  16: |
+    apiVersion: pkg.crossplane.io/v1
+    kind: Provider
+    metadata:
+      annotations:
+        argocd.argoproj.io/sync-wave: "-2"
+      labels:
+        app: t-pleme-crossplane
+        app.kubernetes.io/instance: t
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: pleme-crossplane
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.0.0
+        helm.sh/chart: pleme-crossplane-0.0.0
+      name: provider-aws-rds
+    spec:
+      package: xpkg.upbound.io/upbound/provider-aws-rds:v2.5.3
+      runtimeConfigRef:
+        name: provider-aws-rds
+  17: |
+    apiVersion: pkg.crossplane.io/v1beta1
+    kind: DeploymentRuntimeConfig
+    metadata:
+      annotations:
+        argocd.argoproj.io/sync-wave: "-2"
+      labels:
+        app: t-pleme-crossplane
+        app.kubernetes.io/instance: t
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: pleme-crossplane
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.0.0
+        helm.sh/chart: pleme-crossplane-0.0.0
+      name: provider-aws-rds
+    spec:
+      serviceAccountTemplate:
+        metadata:
+          annotations:
+            eks.amazonaws.com/role-arn: arn:aws:iam::000000000000:role/example-provider-aws-rds
+  18: |
+    apiVersion: pkg.crossplane.io/v1
+    kind: Provider
+    metadata:
+      annotations:
+        argocd.argoproj.io/sync-wave: "-2"
+      labels:
+        app: t-pleme-crossplane
+        app.kubernetes.io/instance: t
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: pleme-crossplane
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.0.0
+        helm.sh/chart: pleme-crossplane-0.0.0
+      name: provider-aws-route53
+    spec:
+      package: xpkg.upbound.io/upbound/provider-aws-route53:v2.5.3
+      runtimeConfigRef:
+        name: provider-aws-route53
+  19: |
+    apiVersion: pkg.crossplane.io/v1beta1
+    kind: DeploymentRuntimeConfig
+    metadata:
+      annotations:
+        argocd.argoproj.io/sync-wave: "-2"
+      labels:
+        app: t-pleme-crossplane
+        app.kubernetes.io/instance: t
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: pleme-crossplane
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.0.0
+        helm.sh/chart: pleme-crossplane-0.0.0
+      name: provider-aws-route53
+    spec:
+      serviceAccountTemplate:
+        metadata:
+          annotations:
+            eks.amazonaws.com/role-arn: arn:aws:iam::000000000000:role/example-provider-aws-route53
+  20: |
+    apiVersion: pkg.crossplane.io/v1
+    kind: Provider
+    metadata:
+      annotations:
+        argocd.argoproj.io/sync-wave: "-2"
+      labels:
+        app: t-pleme-crossplane
+        app.kubernetes.io/instance: t
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: pleme-crossplane
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.0.0
+        helm.sh/chart: pleme-crossplane-0.0.0
+      name: provider-aws-s3
+    spec:
+      package: xpkg.upbound.io/upbound/provider-aws-s3:v2.5.3
+      runtimeConfigRef:
+        name: provider-aws-s3
+  21: |
+    apiVersion: pkg.crossplane.io/v1beta1
+    kind: DeploymentRuntimeConfig
+    metadata:
+      annotations:
+        argocd.argoproj.io/sync-wave: "-2"
+      labels:
+        app: t-pleme-crossplane
+        app.kubernetes.io/instance: t
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: pleme-crossplane
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.0.0
+        helm.sh/chart: pleme-crossplane-0.0.0
+      name: provider-aws-s3
+    spec:
+      serviceAccountTemplate:
+        metadata:
+          annotations:
+            eks.amazonaws.com/role-arn: arn:aws:iam::000000000000:role/example-provider-aws-s3
+  22: |
+    apiVersion: pkg.crossplane.io/v1
+    kind: Provider
+    metadata:
+      annotations:
+        argocd.argoproj.io/sync-wave: "-2"
+      labels:
+        app: t-pleme-crossplane
+        app.kubernetes.io/instance: t
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: pleme-crossplane
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.0.0
+        helm.sh/chart: pleme-crossplane-0.0.0
+      name: provider-helm
+    spec:
+      package: xpkg.upbound.io/crossplane-contrib/provider-helm:v0.21.0
+  23: |
+    apiVersion: pkg.crossplane.io/v1
+    kind: Provider
+    metadata:
+      annotations:
+        argocd.argoproj.io/sync-wave: "-2"
+      labels:
+        app: t-pleme-crossplane
+        app.kubernetes.io/instance: t
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: pleme-crossplane
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.0.0
+        helm.sh/chart: pleme-crossplane-0.0.0
+      name: provider-kubernetes
+    spec:
+      package: xpkg.upbound.io/crossplane-contrib/provider-kubernetes:v0.18.0
+  24: |
+    apiVersion: protection.crossplane.io/v1beta1
+    kind: Usage
+    metadata:
+      annotations:
+        argocd.argoproj.io/sync-wave: "1"
+      labels:
+        app: t-pleme-crossplane
+        app.kubernetes.io/instance: t
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: pleme-crossplane
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.0.0
+        helm.sh/chart: pleme-crossplane-0.0.0
+      name: protect-bucket
+      namespace: testns
+    spec:
+      of:
+        apiVersion: s3.aws.upbound.io/v1beta1
+        kind: Bucket
+        resourceRef:
+          name: example-bucket
+      reason: protected while the composition that consumes it exists

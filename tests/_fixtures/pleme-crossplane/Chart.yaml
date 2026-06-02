@@ -1,0 +1,11 @@
+apiVersion: v2
+name: pleme-crossplane
+description: Test fixture exercising the pleme-lib Crossplane substrate primitives in isolation. Not intended for installation.
+type: application
+version: 0.0.0
+appVersion: "0.0.0"
+
+dependencies:
+  - name: pleme-lib
+    version: ">=0.17.0 <0.18.0"
+    repository: "file://../../../charts/pleme-lib"

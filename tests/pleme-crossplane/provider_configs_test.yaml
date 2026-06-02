@@ -1,0 +1,101 @@
+suite: pleme-lib.crossplaneProviderConfig — per-family apiVersion, credentials source, escape hatch
+templates:
+  - templates/provider-configs.yaml
+release:
+  name: t
+  namespace: testns
+tests:
+  - it: renders one ProviderConfig per entry across three provider families (3 docs)
+    set:
+      crossplane:
+        providerConfigs:
+          aws:
+            apiVersion: aws.upbound.io/v1beta1
+            credentialsSource: IRSA
+          helm:
+            apiVersion: helm.crossplane.io/v1beta1
+            credentialsSource: InjectedIdentity
+          kubernetes:
+            apiVersion: kubernetes.crossplane.io/v1alpha1
+            credentialsSource: InjectedIdentity
+    asserts:
+      - hasDocuments:
+          count: 3
+      - documentIndex: 0
+        equal:
+          path: apiVersion
+          value: aws.upbound.io/v1beta1
+      - documentIndex: 0
+        equal:
+          path: spec.credentials.source
+          value: IRSA
+      - documentIndex: 1
+        equal:
+          path: apiVersion
+          value: helm.crossplane.io/v1beta1
+      - documentIndex: 2
+        equal:
+          path: apiVersion
+          value: kubernetes.crossplane.io/v1alpha1
+
+  - it: aws ProviderConfig uses IRSA credentials and defaults the CR name to "default"
+    set:
+      crossplane:
+        providerConfigs:
+          aws:
+            apiVersion: aws.upbound.io/v1beta1
+            credentialsSource: IRSA
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.name
+          value: default
+      - equal:
+          path: spec.credentials.source
+          value: IRSA
+      - notExists:
+          path: metadata.namespace
+
+  - it: non-AWS ProviderConfig defaults to InjectedIdentity
+    set:
+      crossplane:
+        providerConfigs:
+          helm:
+            apiVersion: helm.crossplane.io/v1beta1
+    asserts:
+      - equal:
+          path: spec.credentials.source
+          value: InjectedIdentity
+
+  - it: apiVersion is required — fails loudly when absent
+    set:
+      crossplane:
+        providerConfigs:
+          aws:
+            credentialsSource: IRSA
+    asserts:
+      - failedTemplate:
+          errorMessage: "pleme-lib crossplaneProviderConfig \"aws\": apiVersion is required (varies by provider family, e.g. aws.upbound.io/v1beta1)"
+
+  - it: full spec escape hatch renders verbatim and overrides credentialsSource
+    set:
+      crossplane:
+        providerConfigs:
+          aws:
+            apiVersion: aws.upbound.io/v1beta1
+            credentialsSource: IRSA
+            spec:
+              credentials:
+                source: Secret
+                secretRef:
+                  namespace: crossplane-system
+                  name: aws-creds
+                  key: creds
+    asserts:
+      - equal:
+          path: spec.credentials.source
+          value: Secret
+      - equal:
+          path: spec.credentials.secretRef.name
+          value: aws-creds

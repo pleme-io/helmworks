@@ -1,0 +1,93 @@
+suite: pleme-lib.crossplaneEnvironmentConfig — cluster-scoped data bag for Compositions
+templates:
+  - templates/environment-configs.yaml
+release:
+  name: t
+  namespace: testns
+tests:
+  - it: no-op when the map is empty/absent
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders one EnvironmentConfig with verbatim/nested data (cluster-scoped)
+    set:
+      crossplane:
+        environmentConfigs:
+          platform:
+            data:
+              accountId: "111111111111"
+              regionMap:
+                us-east-1: primary
+                us-west-2: dr
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: EnvironmentConfig
+      - equal:
+          path: apiVersion
+          value: apiextensions.crossplane.io/v1beta1
+      - equal:
+          path: data.accountId
+          value: "111111111111"
+      - equal:
+          path: data.regionMap.us-east-1
+          value: primary
+      - notExists:
+          path: metadata.namespace
+
+  - it: missing data fails
+    set:
+      crossplane:
+        environmentConfigs:
+          platform:
+            labels: { tier: prod }
+    asserts:
+      - failedTemplate:
+          errorMessage: "pleme-lib crossplaneEnvironmentConfig \"platform\": spec.data is required"
+
+  - it: empty data ({}) is valid
+    set:
+      crossplane:
+        environmentConfigs:
+          platform:
+            data: {}
+    asserts:
+      - hasDocuments:
+          count: 1
+
+  - it: selectable labels merge onto metadata.labels (alongside pleme-lib.labels)
+    set:
+      crossplane:
+        environmentConfigs:
+          platform:
+            data: { k: v }
+            labels:
+              tier: prod
+    asserts:
+      - equal:
+          path: metadata.labels.tier
+          value: prod
+      - equal:
+          path: metadata.labels["app.kubernetes.io/part-of"]
+          value: nexus-platform
+
+  - it: per-entry annotation passthrough + attestation coexist
+    set:
+      attestation:
+        enabled: true
+        signature: "blake3:abc"
+      crossplane:
+        environmentConfigs:
+          platform:
+            data: { k: v }
+            annotations:
+              example.io/note: hi
+    asserts:
+      - equal:
+          path: metadata.annotations["sekiban.pleme.io/signature"]
+          value: "blake3:abc"
+      - equal:
+          path: metadata.annotations["example.io/note"]
+          value: hi

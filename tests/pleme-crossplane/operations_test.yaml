@@ -1,0 +1,78 @@
+suite: pleme-lib.crossplaneOperation — run-once function pipeline (ALPHA, ops.crossplane.io)
+templates:
+  - templates/operations.yaml
+release:
+  name: t
+  namespace: testns
+tests:
+  - it: no-op when the map is empty/absent
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders one Operation (cluster-scoped, Pipeline)
+    set:
+      crossplane:
+        operations:
+          run-task:
+            pipeline:
+              - step: run
+                functionRef: { name: function-kcl }
+                input: { apiVersion: krm.kcl.dev/v1alpha1, kind: KCLInput }
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Operation
+      - equal:
+          path: apiVersion
+          value: ops.crossplane.io/v1alpha1
+      - equal:
+          path: spec.mode
+          value: Pipeline
+      - equal:
+          path: spec.pipeline[0].step
+          value: run
+      - notExists:
+          path: metadata.namespace
+
+  - it: retryLimit passthrough renders; absent => notExists
+    set:
+      crossplane:
+        operations:
+          a:
+            retryLimit: 5
+            pipeline:
+              - { step: s, functionRef: { name: f } }
+          b:
+            pipeline:
+              - { step: s, functionRef: { name: f } }
+    asserts:
+      - documentIndex: 0
+        equal:
+          path: spec.retryLimit
+          value: 5
+      - documentIndex: 1
+        notExists:
+          path: spec.retryLimit
+
+  - it: missing pipeline fails
+    set:
+      crossplane:
+        operations:
+          x: {}
+    asserts:
+      - failedTemplate:
+          errorMessage: "pleme-lib crossplaneOperation \"x\": spec.pipeline is required"
+
+  - it: mode != Pipeline fails
+    set:
+      crossplane:
+        operations:
+          x:
+            mode: Other
+            pipeline:
+              - { step: s, functionRef: { name: f } }
+    asserts:
+      - failedTemplate:
+          errorMessage: "pleme-lib crossplaneOperation \"x\": mode must be Pipeline"

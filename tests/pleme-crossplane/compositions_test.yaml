@@ -1,0 +1,150 @@
+suite: pleme-lib.crossplaneComposition — Composition (Pipeline-only) with opaque per-step input
+templates:
+  - templates/compositions.yaml
+release:
+  name: t
+  namespace: testns
+tests:
+  - it: no-op when the map is empty/absent
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: minimal Composition renders (apiextensions v1, mode Pipeline)
+    set:
+      crossplane:
+        compositions:
+          xdatabase-default:
+            compositeTypeRef:
+              apiVersion: platform.example.org/v1alpha1
+              kind: XDatabase
+            pipeline:
+              - step: render-resources
+                functionRef: { name: function-patch-and-transform }
+                input:
+                  apiVersion: pt.fn.crossplane.io/v1beta1
+                  kind: Resources
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Composition
+      - equal:
+          path: apiVersion
+          value: apiextensions.crossplane.io/v1
+      - equal:
+          path: spec.mode
+          value: Pipeline
+      - equal:
+          path: spec.compositeTypeRef.kind
+          value: XDatabase
+      - notExists:
+          path: metadata.namespace
+
+  - it: two-step pipeline (PITR-shaped) preserves order + per-step input passthrough
+    set:
+      crossplane:
+        compositions:
+          drill:
+            compositeTypeRef: { apiVersion: platform.example.org/v1alpha1, kind: XDrill }
+            pipeline:
+              - step: render-resources
+                functionRef: { name: function-kcl }
+                input:
+                  apiVersion: krm.kcl.dev/v1alpha1
+                  kind: KCLInput
+                  source: "items = []"
+              - step: reflect-status
+                functionRef: { name: function-kcl }
+                input:
+                  apiVersion: krm.kcl.dev/v1alpha1
+                  kind: KCLInput
+    asserts:
+      - equal:
+          path: spec.pipeline[0].step
+          value: render-resources
+      - equal:
+          path: spec.pipeline[1].functionRef.name
+          value: function-kcl
+      - equal:
+          path: spec.pipeline[0].input.source
+          value: "items = []"
+      - lengthEqual:
+          path: spec.pipeline
+          count: 2
+
+  - it: mode Resources fails (v2 is Pipeline-only)
+    set:
+      crossplane:
+        compositions:
+          x:
+            compositeTypeRef: { apiVersion: platform.example.org/v1alpha1, kind: XDatabase }
+            mode: Resources
+            pipeline:
+              - { step: s, functionRef: { name: f } }
+    asserts:
+      - failedTemplate:
+          errorMessage: "pleme-lib crossplaneComposition \"x\": mode \"Resources\" unsupported — v2 is Pipeline-only (native patch-and-transform removed)"
+
+  - it: missing compositeTypeRef fails
+    set:
+      crossplane:
+        compositions:
+          x:
+            pipeline:
+              - { step: s, functionRef: { name: f } }
+    asserts:
+      - failedTemplate:
+          errorMessage: "pleme-lib crossplaneComposition \"x\": spec.compositeTypeRef is required"
+
+  - it: missing pipeline fails
+    set:
+      crossplane:
+        compositions:
+          x:
+            compositeTypeRef: { apiVersion: platform.example.org/v1alpha1, kind: XDatabase }
+    asserts:
+      - failedTemplate:
+          errorMessage: "pleme-lib crossplaneComposition \"x\": spec.pipeline is required (v2 is function-pipeline only)"
+
+  - it: writeConnectionSecretsToNamespace + step credentials/requirements passthrough
+    set:
+      crossplane:
+        compositions:
+          x:
+            compositeTypeRef: { apiVersion: platform.example.org/v1alpha1, kind: XDatabase }
+            writeConnectionSecretsToNamespace: crossplane-system
+            pipeline:
+              - step: s
+                functionRef: { name: f }
+                credentials:
+                  - name: creds
+                    source: Secret
+                    secretRef: { namespace: ns, name: sec }
+                requirements:
+                  requiredResources:
+                    - requirementName: env
+                      apiVersion: v1
+                      kind: ConfigMap
+    asserts:
+      - equal:
+          path: spec.writeConnectionSecretsToNamespace
+          value: crossplane-system
+      - equal:
+          path: spec.pipeline[0].credentials[0].name
+          value: creds
+      - equal:
+          path: spec.pipeline[0].requirements.requiredResources[0].requirementName
+          value: env
+
+  - it: writeConnectionSecretsToNamespace omitted when absent
+    set:
+      crossplane:
+        compositions:
+          x:
+            compositeTypeRef: { apiVersion: platform.example.org/v1alpha1, kind: XDatabase }
+            pipeline:
+              - { step: s, functionRef: { name: f } }
+    asserts:
+      - notExists:
+          path: spec.writeConnectionSecretsToNamespace

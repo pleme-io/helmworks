@@ -1,0 +1,131 @@
+suite: pleme-lib.crossplaneUsage — Usage (namespaced) / ClusterUsage (cluster) deletion-ordering
+templates:
+  - templates/usages.yaml
+release:
+  name: t
+  namespace: testns
+tests:
+  - it: no-op when the map is empty/absent
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: namespaced Usage renders with release namespace + quoted reason
+    set:
+      crossplane:
+        usages:
+          bucket-guard:
+            of:
+              apiVersion: s3.aws.upbound.io/v1beta1
+              kind: Bucket
+              resourceRef: { name: my-bucket }
+            reason: "protected during migration"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Usage
+      - equal:
+          path: apiVersion
+          value: protection.crossplane.io/v1beta1
+      - equal:
+          path: metadata.namespace
+          value: testns
+      - equal:
+          path: spec.of.kind
+          value: Bucket
+      - equal:
+          path: spec.reason
+          value: "protected during migration"
+
+  - it: per-entry namespace override
+    set:
+      crossplane:
+        usages:
+          g:
+            namespace: crossplane-system
+            of: { apiVersion: v1, kind: ConfigMap, resourceRef: { name: c } }
+            reason: keep
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: crossplane-system
+
+  - it: ClusterUsage (cluster:true) is cluster-scoped (no namespace)
+    set:
+      crossplane:
+        usages:
+          cluster-guard:
+            cluster: true
+            of: { apiVersion: v1, kind: Namespace, resourceRef: { name: n } }
+            reason: keep
+    asserts:
+      - isKind:
+          of: ClusterUsage
+      - notExists:
+          path: metadata.namespace
+
+  - it: of + by (no reason) renders — by satisfies the one-of
+    set:
+      crossplane:
+        usages:
+          g:
+            of: { apiVersion: v1, kind: ConfigMap, resourceRef: { name: c } }
+            by:
+              apiVersion: apps/v1
+              kind: Deployment
+              resourceRef: { name: d }
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: spec.by.kind
+          value: Deployment
+
+  - it: of only (no by, no reason) fails
+    set:
+      crossplane:
+        usages:
+          g:
+            of: { apiVersion: v1, kind: ConfigMap, resourceRef: { name: c } }
+    asserts:
+      - failedTemplate:
+          errorMessage: "pleme-lib crossplaneUsage \"g\": at least one of spec.by or spec.reason is required"
+
+  - it: missing of fails
+    set:
+      crossplane:
+        usages:
+          g:
+            reason: keep
+    asserts:
+      - failedTemplate:
+          errorMessage: "pleme-lib crossplaneUsage \"g\": spec.of is required"
+
+  - it: replayDeletion passthrough renders when set; absent => notExists
+    set:
+      crossplane:
+        usages:
+          g:
+            of: { apiVersion: v1, kind: ConfigMap, resourceRef: { name: c } }
+            reason: keep
+            replayDeletion: true
+    asserts:
+      - equal:
+          path: spec.replayDeletion
+          value: true
+
+  - it: mixed map (1 Usage + 1 ClusterUsage) => 2 docs, correct per-doc kind/namespace
+    set:
+      crossplane:
+        usages:
+          ns-guard:
+            of: { apiVersion: v1, kind: ConfigMap, resourceRef: { name: c } }
+            reason: keep
+          cl-guard:
+            cluster: true
+            of: { apiVersion: v1, kind: Namespace, resourceRef: { name: n } }
+            reason: keep
+    asserts:
+      - hasDocuments:
+          count: 2

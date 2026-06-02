@@ -1,0 +1,192 @@
+# Generic example values for the pleme-lib Crossplane substrate primitives.
+#
+# Drives pleme-lib.crossplaneProvider / .crossplaneProviderConfig / .crossplaneFunction
+# from one values block — the "collapse N charts -> 1" shape proven entirely in pleme-io.
+# Packages are neutral upstream Crossplane artifacts. The `irsaRoleArn` placeholders are
+# illustrative AWS/EKS IRSA role ARNs (consumers populate real ARNs per cluster); a
+# non-empty value flips the entry into emitting a paired DeploymentRuntimeConfig.
+#
+# Rendered fleet (used by the unified test's doc-count lock):
+#   6 IRSA providers  x2 (Provider + DRC) = 12
+#   2 non-IRSA providers x1               =  2
+#   3 providerConfigs                     =  3
+#   1 function                            =  1
+#                                  total  = 18
+
+crossplane:
+  providers:
+    # AWS service providers — IRSA-bound, so each emits Provider + DeploymentRuntimeConfig.
+    provider-aws-rds:
+      registry: xpkg.upbound.io/upbound
+      name: provider-aws-rds
+      version: "2.5.3"
+      irsaRoleArn: "arn:aws:iam::000000000000:role/example-provider-aws-rds"
+      annotations:
+        argocd.argoproj.io/sync-wave: "-2"
+    provider-aws-route53:
+      registry: xpkg.upbound.io/upbound
+      name: provider-aws-route53
+      version: "2.5.3"
+      irsaRoleArn: "arn:aws:iam::000000000000:role/example-provider-aws-route53"
+      annotations:
+        argocd.argoproj.io/sync-wave: "-2"
+    provider-aws-elbv2:
+      registry: xpkg.upbound.io/upbound
+      name: provider-aws-elbv2
+      version: "2.5.3"
+      irsaRoleArn: "arn:aws:iam::000000000000:role/example-provider-aws-elbv2"
+      annotations:
+        argocd.argoproj.io/sync-wave: "-2"
+    provider-aws-globalaccelerator:
+      registry: xpkg.upbound.io/upbound
+      name: provider-aws-globalaccelerator
+      version: "2.5.3"
+      irsaRoleArn: "arn:aws:iam::000000000000:role/example-provider-aws-globalaccelerator"
+      annotations:
+        argocd.argoproj.io/sync-wave: "-2"
+    provider-aws-iam:
+      registry: xpkg.upbound.io/upbound
+      name: provider-aws-iam
+      version: "2.5.3"
+      irsaRoleArn: "arn:aws:iam::000000000000:role/example-provider-aws-iam"
+      annotations:
+        argocd.argoproj.io/sync-wave: "-2"
+    provider-aws-s3:
+      registry: xpkg.upbound.io/upbound
+      name: provider-aws-s3
+      version: "2.5.3"
+      irsaRoleArn: "arn:aws:iam::000000000000:role/example-provider-aws-s3"
+      annotations:
+        argocd.argoproj.io/sync-wave: "-2"
+    # Non-AWS providers — no IRSA, so Provider only (no DeploymentRuntimeConfig).
+    provider-helm:
+      registry: xpkg.upbound.io/crossplane-contrib
+      name: provider-helm
+      version: "0.21.0"
+      annotations:
+        argocd.argoproj.io/sync-wave: "-2"
+    provider-kubernetes:
+      registry: xpkg.upbound.io/crossplane-contrib
+      name: provider-kubernetes
+      version: "0.18.0"
+      annotations:
+        argocd.argoproj.io/sync-wave: "-2"
+
+  providerConfigs:
+    aws:
+      apiVersion: aws.upbound.io/v1beta1
+      name: default
+      credentialsSource: IRSA
+      annotations:
+        argocd.argoproj.io/sync-wave: "-1"
+    helm:
+      apiVersion: helm.crossplane.io/v1beta1
+      name: default
+      credentialsSource: InjectedIdentity
+      annotations:
+        argocd.argoproj.io/sync-wave: "-1"
+    kubernetes:
+      apiVersion: kubernetes.crossplane.io/v1alpha1
+      name: default
+      credentialsSource: InjectedIdentity
+      annotations:
+        argocd.argoproj.io/sync-wave: "-1"
+
+  functions:
+    function-kcl:
+      registry: xpkg.upbound.io/crossplane-contrib
+      name: function-kcl
+      version: "0.11.0"
+      annotations:
+        argocd.argoproj.io/sync-wave: "-2"
+
+  # ── Composition layer ──────────────────────────────────────────────────
+  # A Configuration package (an XRD+Composition bundle delivered as OCI).
+  configurations:
+    configuration-platform-db:
+      registry: xpkg.upbound.io/pleme-io
+      name: configuration-platform-db
+      version: "1.0.0"
+      annotations:
+        argocd.argoproj.io/sync-wave: "-1"
+
+  # A v2 (namespaced) composite resource definition. The openAPIV3Schema is
+  # passed through verbatim — never hand-modelled.
+  compositeResourceDefinitions:
+    xdatabases.platform.example.org:
+      group: platform.example.org
+      names:
+        kind: XDatabase
+        plural: xdatabases
+      scope: Namespaced
+      versions:
+        - name: v1alpha1
+          served: true
+          referenceable: true
+          schema:
+            openAPIV3Schema:
+              type: object
+              properties:
+                spec:
+                  type: object
+                  properties:
+                    size: { type: string }
+                status:
+                  type: object
+                  properties:
+                    ready: { type: boolean }
+      annotations:
+        argocd.argoproj.io/sync-wave: "0"
+
+  # A function-pipeline Composition for the XR above (engine-neutral; the input
+  # is opaque passthrough — shown here with function-patch-and-transform).
+  compositions:
+    xdatabase-default:
+      compositeTypeRef:
+        apiVersion: platform.example.org/v1alpha1
+        kind: XDatabase
+      pipeline:
+        - step: render-resources
+          functionRef:
+            name: function-patch-and-transform
+          input:
+            apiVersion: pt.fn.crossplane.io/v1beta1
+            kind: Resources
+      annotations:
+        argocd.argoproj.io/sync-wave: "0"
+
+  # Cluster-scoped environment data a Composition can matchLabels-select.
+  environmentConfigs:
+    platform-env:
+      data:
+        accountId: "000000000000"
+        regionMap:
+          primary: us-east-1
+          dr: us-west-2
+      labels:
+        tier: prod
+      annotations:
+        argocd.argoproj.io/sync-wave: "-1"
+
+  # A standalone DeploymentRuntimeConfig (IRSA convenience shortcut).
+  deploymentRuntimeConfigs:
+    shared-aws-runtime:
+      irsaRoleArn: "arn:aws:iam::000000000000:role/example-shared-aws-runtime"
+      annotations:
+        argocd.argoproj.io/sync-wave: "-2"
+
+  # A namespaced Usage that protects a resource from premature deletion.
+  usages:
+    protect-bucket:
+      of:
+        apiVersion: s3.aws.upbound.io/v1beta1
+        kind: Bucket
+        resourceRef:
+          name: example-bucket
+      reason: "protected while the composition that consumes it exists"
+      annotations:
+        argocd.argoproj.io/sync-wave: "1"
+
+  # NOTE: the v2 Operations kinds (operations / cronOperations / watchOperations)
+  # are ALPHA + feature-gated and are intentionally NOT shown in this default
+  # example — opt in on a control plane with --enable-operations.

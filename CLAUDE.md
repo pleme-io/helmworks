@@ -51,6 +51,18 @@ All chart lifecycle operations are `nix run` commands:
 - `pleme-lib.karpenterNodePool` / `pleme-lib.karpenterEC2NodeClass` — Karpenter primitives, iterate values maps for multi-pool charts (added v0.6.0)
 - `pleme-lib.namespacedRBAC` — namespace-scoped Role + RoleBinding pairs from a values map (added v0.6.0)
 - `pleme-lib.externalSecret` — External Secrets Operator ExternalSecret resources from a values map; defaults to `cluster-secret-store` (override per entry) (added v0.6.0)
+- **Crossplane substrate** (full v1+v2 vocabulary, rendered from `.Values.crossplane.*` maps; added v0.17.0). Each is a no-op on empty map, composes labels + the annotations passthrough, fail()s on missing required fields, and is cluster-scoped except `Usage` (namespaced):
+  - `pleme-lib.crossplaneProvider` — `Provider` (+ folded IRSA `DeploymentRuntimeConfig` when `irsaRoleArn` set)
+  - `pleme-lib.crossplaneProviderConfig` — `ProviderConfig` (per-family `apiVersion` required; `credentials.source` or full `spec:` escape hatch)
+  - `pleme-lib.crossplaneFunction` — `Function`
+  - `pleme-lib.crossplaneConfiguration` — `Configuration` (XRD+Composition bundle package)
+  - `pleme-lib.crossplaneDeploymentRuntimeConfig` — standalone `DeploymentRuntimeConfig` (IRSA / SA-attach / replicas shortcuts + full passthrough)
+  - `pleme-lib.crossplaneCompositeResourceDefinition` (alias `pleme-lib.crossplaneXRD`) — `CompositeResourceDefinition` (apiextensions v2 default; `/v1` toggle; `scope` + claimNames/connectionSecretKeys invariants; openAPIV3Schema passthrough)
+  - `pleme-lib.crossplaneComposition` — `Composition` (function-pipeline-only; opaque per-step input)
+  - `pleme-lib.crossplaneEnvironmentConfig` — `EnvironmentConfig` (cluster-scoped data bag)
+  - `pleme-lib.crossplaneUsage` — `Usage` (namespaced) / `ClusterUsage` (cluster) via `cluster:`
+  - `pleme-lib.crossplaneOperation` / `crossplaneCronOperation` / `crossplaneWatchOperation` — `ops.crossplane.io/v1alpha1` (ALPHA, feature-gated, opt-in)
+  - `pleme-lib.crossplaneAnnotations` / `crossplanePackage` — helpers (engine-neutral annotations merge; package-string resolver with `fail()` guard)
 
 Application charts invoke these via `{{- include "pleme-lib.deployment" . }}`.
 

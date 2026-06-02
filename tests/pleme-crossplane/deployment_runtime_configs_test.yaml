@@ -1,0 +1,119 @@
+suite: pleme-lib.crossplaneDeploymentRuntimeConfig — standalone DRC (typed shortcuts + escape hatches)
+templates:
+  - templates/deployment-runtime-configs.yaml
+release:
+  name: t
+  namespace: testns
+tests:
+  - it: no-op when the map is empty/absent
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: empty-spec entry is a valid CR (no required subkeys)
+    set:
+      crossplane:
+        deploymentRuntimeConfigs:
+          bare: {}
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: DeploymentRuntimeConfig
+      - equal:
+          path: apiVersion
+          value: pkg.crossplane.io/v1beta1
+      - equal:
+          path: metadata.name
+          value: bare
+      - notExists:
+          path: metadata.namespace
+
+  - it: irsaRoleArn shortcut wires the SA role-arn annotation
+    set:
+      crossplane:
+        deploymentRuntimeConfigs:
+          provider-aws-rds:
+            irsaRoleArn: "arn:aws:iam::111111111111:role/x"
+    asserts:
+      - equal:
+          path: spec.serviceAccountTemplate.metadata.annotations["eks.amazonaws.com/role-arn"]
+          value: "arn:aws:iam::111111111111:role/x"
+
+  - it: serviceAccountName shortcut ATTACHES (deploymentTemplate) and does NOT take ownership
+    set:
+      crossplane:
+        deploymentRuntimeConfigs:
+          drc:
+            serviceAccountName: my-sa
+    asserts:
+      - equal:
+          path: spec.deploymentTemplate.spec.template.spec.serviceAccountName
+          value: my-sa
+      - notExists:
+          path: spec.serviceAccountTemplate.metadata.name
+
+  - it: replicas shortcut sets deploymentTemplate replicas
+    set:
+      crossplane:
+        deploymentRuntimeConfigs:
+          drc:
+            replicas: 3
+    asserts:
+      - equal:
+          path: spec.deploymentTemplate.spec.replicas
+          value: 3
+
+  - it: full serviceAccountTemplate passthrough WINS over irsaRoleArn shortcut
+    set:
+      crossplane:
+        deploymentRuntimeConfigs:
+          drc:
+            irsaRoleArn: "arn:aws:iam::111111111111:role/shortcut"
+            serviceAccountTemplate:
+              metadata:
+                name: owned-sa
+                annotations:
+                  eks.amazonaws.com/role-arn: "arn:aws:iam::111111111111:role/explicit"
+    asserts:
+      - equal:
+          path: spec.serviceAccountTemplate.metadata.name
+          value: owned-sa
+      - equal:
+          path: spec.serviceAccountTemplate.metadata.annotations["eks.amazonaws.com/role-arn"]
+          value: "arn:aws:iam::111111111111:role/explicit"
+
+  - it: full deploymentTemplate passthrough renders verbatim
+    set:
+      crossplane:
+        deploymentRuntimeConfigs:
+          drc:
+            deploymentTemplate:
+              spec:
+                replicas: 2
+                template:
+                  spec:
+                    containers:
+                      - name: package-runtime
+                        args: [ "--debug" ]
+    asserts:
+      - equal:
+          path: spec.deploymentTemplate.spec.template.spec.containers[0].name
+          value: package-runtime
+      - equal:
+          path: spec.deploymentTemplate.spec.template.spec.containers[0].args[0]
+          value: "--debug"
+
+  - it: serviceTemplate passthrough renders
+    set:
+      crossplane:
+        deploymentRuntimeConfigs:
+          drc:
+            serviceTemplate:
+              metadata:
+                annotations:
+                  prometheus.io/scrape: "true"
+    asserts:
+      - equal:
+          path: spec.serviceTemplate.metadata.annotations["prometheus.io/scrape"]
+          value: "true"

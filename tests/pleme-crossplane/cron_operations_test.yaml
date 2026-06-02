@@ -1,0 +1,86 @@
+suite: pleme-lib.crossplaneCronOperation — scheduled Operation (ALPHA, ops.crossplane.io)
+templates:
+  - templates/cron-operations.yaml
+release:
+  name: t
+  namespace: testns
+tests:
+  - it: no-op when the map is empty/absent
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders one CronOperation with quoted schedule + embedded operationTemplate
+    set:
+      crossplane:
+        cronOperations:
+          nightly:
+            schedule: "0 */6 * * *"
+            operationTemplate:
+              spec:
+                pipeline:
+                  - step: scheduled
+                    functionRef: { name: function-kcl }
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: CronOperation
+      - equal:
+          path: apiVersion
+          value: ops.crossplane.io/v1alpha1
+      - equal:
+          path: spec.schedule
+          value: "0 */6 * * *"
+      - equal:
+          path: spec.operationTemplate.spec.pipeline[0].step
+          value: scheduled
+      - notExists:
+          path: metadata.namespace
+
+  - it: missing schedule fails
+    set:
+      crossplane:
+        cronOperations:
+          x:
+            operationTemplate: { spec: { pipeline: [ { step: s, functionRef: { name: f } } ] } }
+    asserts:
+      - failedTemplate:
+          errorMessage: "pleme-lib crossplaneCronOperation \"x\": spec.schedule is required"
+
+  - it: missing operationTemplate fails
+    set:
+      crossplane:
+        cronOperations:
+          x:
+            schedule: "* * * * *"
+    asserts:
+      - failedTemplate:
+          errorMessage: "pleme-lib crossplaneCronOperation \"x\": spec.operationTemplate is required"
+
+  - it: concurrency + history passthrough render; absent => notExists
+    set:
+      crossplane:
+        cronOperations:
+          a:
+            schedule: "* * * * *"
+            concurrencyPolicy: Forbid
+            startingDeadlineSeconds: 60
+            successfulHistoryLimit: 3
+            failedHistoryLimit: 1
+            operationTemplate: { spec: { pipeline: [ { step: s, functionRef: { name: f } } ] } }
+          b:
+            schedule: "* * * * *"
+            operationTemplate: { spec: { pipeline: [ { step: s, functionRef: { name: f } } ] } }
+    asserts:
+      - documentIndex: 0
+        equal:
+          path: spec.concurrencyPolicy
+          value: Forbid
+      - documentIndex: 0
+        equal:
+          path: spec.successfulHistoryLimit
+          value: 3
+      - documentIndex: 1
+        notExists:
+          path: spec.concurrencyPolicy

@@ -1,0 +1,52 @@
+suite: pleme-crossplane unified — the whole non-alpha Crossplane substrate from one values file
+templates:
+  - templates/providers.yaml
+  - templates/provider-configs.yaml
+  - templates/functions.yaml
+  - templates/configurations.yaml
+  - templates/composite-resource-definitions.yaml
+  - templates/compositions.yaml
+  - templates/environment-configs.yaml
+  - templates/deployment-runtime-configs.yaml
+  - templates/usages.yaml
+release:
+  name: t
+  namespace: testns
+values:
+  - ../../examples/pleme-crossplane.yaml
+tests:
+  - it: renders the full package + composition layers, one map per kind, from a single values file
+    asserts:
+      # package layer
+      - template: templates/providers.yaml          # 6 IRSA (x2 = Provider+DRC) + 2 plain = 14
+        hasDocuments:
+          count: 14
+      - template: templates/provider-configs.yaml   # aws + helm + kubernetes
+        hasDocuments:
+          count: 3
+      - template: templates/functions.yaml          # function-kcl
+        hasDocuments:
+          count: 1
+      # composition layer
+      - template: templates/configurations.yaml     # configuration-platform-db
+        hasDocuments:
+          count: 1
+      - template: templates/composite-resource-definitions.yaml  # xdatabases XRD
+        hasDocuments:
+          count: 1
+      - template: templates/compositions.yaml       # xdatabase-default
+        hasDocuments:
+          count: 1
+      - template: templates/environment-configs.yaml  # platform-env
+        hasDocuments:
+          count: 1
+      - template: templates/deployment-runtime-configs.yaml  # shared-aws-runtime
+        hasDocuments:
+          count: 1
+      - template: templates/usages.yaml             # protect-bucket
+        hasDocuments:
+          count: 1
+
+  - it: matches the committed render snapshot (no-drift lock on ordering / separators / annotation keys)
+    asserts:
+      - matchSnapshot: {}

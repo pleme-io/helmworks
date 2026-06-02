@@ -1,0 +1,128 @@
+suite: pleme-lib.crossplaneConfiguration — Configuration package from a values map
+templates:
+  - templates/configurations.yaml
+release:
+  name: t
+  namespace: testns
+tests:
+  - it: no-op when the map is empty/absent
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders one Configuration with assembled package + verbatim name (cluster-scoped)
+    set:
+      crossplane:
+        configurations:
+          configuration-platform-db:
+            registry: xpkg.upbound.io/pleme-io
+            name: configuration-platform-db
+            version: "1.2.0"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Configuration
+      - equal:
+          path: apiVersion
+          value: pkg.crossplane.io/v1
+      - equal:
+          path: metadata.name
+          value: configuration-platform-db
+      - equal:
+          path: spec.package
+          value: "xpkg.upbound.io/pleme-io/configuration-platform-db:v1.2.0"
+      - notExists:
+          path: metadata.namespace
+
+  - it: full package string wins over assembled parts
+    set:
+      crossplane:
+        configurations:
+          cfg:
+            registry: xpkg.upbound.io/pleme-io
+            name: cfg
+            version: "1.2.0"
+            package: "xpkg.upbound.io/pleme-io/cfg@sha256:abc"
+    asserts:
+      - equal:
+          path: spec.package
+          value: "xpkg.upbound.io/pleme-io/cfg@sha256:abc"
+
+  - it: passthrough fields + packagePullSecrets render
+    set:
+      crossplane:
+        configurations:
+          cfg:
+            package: "xpkg.upbound.io/pleme-io/cfg:v1.0.0"
+            packagePullPolicy: IfNotPresent
+            revisionActivationPolicy: Automatic
+            revisionHistoryLimit: 1
+            ignoreCrossplaneConstraints: true
+            skipDependencyResolution: false
+            commonLabels:
+              team: platform
+            packagePullSecrets:
+              - name: ghcr-creds
+    asserts:
+      - equal:
+          path: spec.packagePullPolicy
+          value: IfNotPresent
+      - equal:
+          path: spec.revisionActivationPolicy
+          value: Automatic
+      - equal:
+          path: spec.revisionHistoryLimit
+          value: 1
+      - equal:
+          path: spec.ignoreCrossplaneConstraints
+          value: true
+      - equal:
+          path: spec.skipDependencyResolution
+          value: false
+      - equal:
+          path: spec.commonLabels.team
+          value: platform
+      - equal:
+          path: spec.packagePullSecrets[0].name
+          value: ghcr-creds
+
+  - it: fails loudly when neither a full package nor complete parts are given
+    set:
+      crossplane:
+        configurations:
+          cfg-broken:
+            packagePullPolicy: IfNotPresent
+    asserts:
+      - failedTemplate:
+          errorMessage: "pleme-lib crossplane \"cfg-broken\": set either 'package:' or all of {registry,name,version}"
+
+  - it: per-entry annotations passthrough + attestation coexist
+    set:
+      attestation:
+        enabled: true
+        signature: "blake3:abc"
+      crossplane:
+        configurations:
+          cfg:
+            package: "xpkg.upbound.io/pleme-io/cfg:v1.0.0"
+            annotations:
+              example.io/note: hi
+    asserts:
+      - equal:
+          path: metadata.annotations["sekiban.pleme.io/signature"]
+          value: "blake3:abc"
+      - equal:
+          path: metadata.annotations["example.io/note"]
+          value: hi
+
+  - it: ranges all entries (3 => 3 docs)
+    set:
+      crossplane:
+        configurations:
+          a: { package: "r/a:v1" }
+          b: { package: "r/b:v1" }
+          c: { package: "r/c:v1" }
+    asserts:
+      - hasDocuments:
+          count: 3

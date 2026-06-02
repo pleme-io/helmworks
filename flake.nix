@@ -246,6 +246,28 @@
               echo "==> unittest OK"
             '';
 
+            # crossplane:unittest — the generic pleme-lib Crossplane substrate
+            # primitives (_crossplane.tpl), exercised through the non-shipped
+            # tests/_fixtures/pleme-crossplane harness. Also enforces the
+            # zero-akeyless invariant mechanically (helmworks has no CI).
+            "crossplane:unittest" = mkApp "crossplane-unittest" ''
+              echo "==> pleme-lib Crossplane substrate: zero-akeyless gate + helm-unittest"
+              if grep -rliq akeyless \
+                   charts/pleme-lib/templates/_crossplane.tpl \
+                   tests/pleme-crossplane \
+                   tests/_fixtures/pleme-crossplane \
+                   examples/pleme-crossplane.yaml; then
+                echo "  ✗ akeyless reference found — the generic substrate must stay zero-akeyless:"
+                grep -rli akeyless charts/pleme-lib/templates/_crossplane.tpl tests/pleme-crossplane tests/_fixtures/pleme-crossplane examples/pleme-crossplane.yaml
+                exit 1
+              fi
+              echo "  ✓ zero-akeyless"
+              ( cd tests/_fixtures/pleme-crossplane && helm dep update >/dev/null 2>&1 )
+              ( cd tests/_fixtures/pleme-crossplane && helm unittest -f "../../pleme-crossplane/*_test.yaml" . )
+              echo ""
+              echo "==> crossplane:unittest OK"
+            '';
+
             "mesh:render" = mkApp "mesh-render" ''
               echo "==> rendering mesh charts (no cluster)"
               for chart in lareira-aresta-defaults lareira-enxerto lareira-mesh-spec; do

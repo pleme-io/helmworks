@@ -1,0 +1,87 @@
+suite: pleme-lib.crossplaneWatchOperation — event-triggered Operation (ALPHA, ops.crossplane.io)
+templates:
+  - templates/watch-operations.yaml
+release:
+  name: t
+  namespace: testns
+tests:
+  - it: no-op when the map is empty/absent
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders one WatchOperation with typed watch + embedded operationTemplate
+    set:
+      crossplane:
+        watchOperations:
+          on-cm:
+            watch:
+              apiVersion: v1
+              kind: ConfigMap
+              namespace: app
+              matchLabels: { managed: "true" }
+            operationTemplate:
+              spec:
+                pipeline:
+                  - step: react
+                    functionRef: { name: function-kcl }
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: WatchOperation
+      - equal:
+          path: apiVersion
+          value: ops.crossplane.io/v1alpha1
+      - equal:
+          path: spec.watch.kind
+          value: ConfigMap
+      - equal:
+          path: spec.watch.matchLabels.managed
+          value: "true"
+      - equal:
+          path: spec.operationTemplate.spec.pipeline[0].step
+          value: react
+      - notExists:
+          path: metadata.namespace
+
+  - it: missing watch fails
+    set:
+      crossplane:
+        watchOperations:
+          x:
+            operationTemplate: { spec: { pipeline: [ { step: s, functionRef: { name: f } } ] } }
+    asserts:
+      - failedTemplate:
+          errorMessage: "pleme-lib crossplaneWatchOperation \"x\": spec.watch is required"
+
+  - it: missing operationTemplate fails
+    set:
+      crossplane:
+        watchOperations:
+          x:
+            watch: { apiVersion: v1, kind: ConfigMap }
+    asserts:
+      - failedTemplate:
+          errorMessage: "pleme-lib crossplaneWatchOperation \"x\": spec.operationTemplate is required"
+
+  - it: concurrency + history passthrough render; absent => notExists
+    set:
+      crossplane:
+        watchOperations:
+          a:
+            watch: { apiVersion: v1, kind: ConfigMap }
+            concurrencyPolicy: Allow
+            failedHistoryLimit: 2
+            operationTemplate: { spec: { pipeline: [ { step: s, functionRef: { name: f } } ] } }
+          b:
+            watch: { apiVersion: v1, kind: ConfigMap }
+            operationTemplate: { spec: { pipeline: [ { step: s, functionRef: { name: f } } ] } }
+    asserts:
+      - documentIndex: 0
+        equal:
+          path: spec.concurrencyPolicy
+          value: Allow
+      - documentIndex: 1
+        notExists:
+          path: spec.concurrencyPolicy
