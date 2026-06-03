@@ -105,6 +105,15 @@ compliance:
   attestation:
     enabled: true
 
+# -- Sekiban attestation. fedramp-high's validator reads the TOP-LEVEL
+#    `attestation.enabled` (pleme-lib.compliance.attestation.validate), not
+#    `compliance.attestation.*` (which only carries the dod-il6 hardwareRoot
+#    knob). The compliance.attestation.enabled above was a no-op for this guard;
+#    this top-level flag is what actually satisfies CM-2/SI-7/AC-3, so the chart
+#    renders under its own declared baseline.
+attestation:
+  enabled: true
+
 # -- Monitoring. CronJob success/failure metrics surface via the
 #    kube-state-metrics + kube-prometheus stack.
 monitoring:

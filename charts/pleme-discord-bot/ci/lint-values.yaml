@@ -1,0 +1,6 @@
+# Values used ONLY for `helm lint`/`helm template` validation in CI (forge's
+# auto-release lint discovers ci/lint-values.yaml automatically). This chart
+# `required`s botName at render time so real deployments must set it — that guard
+# stays in force for consumers; this file just supplies a placeholder so the
+# chart renders during generic lint without weakening the default (botName: "").
+botName: lint-validation
