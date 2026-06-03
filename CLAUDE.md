@@ -47,7 +47,26 @@ skipped). There is **no auto-bump**: a chart monorepo has no single version, so
 bumping a chart's `Chart.yaml` version in its own commit is the act that ships it
 on merge. The `nix run` commands above remain the local / fallback path. Package
 visibility is not touched by CI — a private chart's package is set private once
-out-of-band.
+out-of-band. Seven digest-substituted charts (cartorio / lacre / openclaw-*)
+carry `annotations: { pleme.io/oci-auto-release: "false" }` so forge's
+`discover_charts` skips them (they pin an all-zero placeholder digest a separate
+flow substitutes — they can't publish as generic library charts).
+
+**Remote-subchart dependency resolution (release-time, not vendored).** The 15
+wrapper charts that pull a third-party upstream subchart (lareira-vm-stack →
+victoria-metrics-k8s-stack, lareira-cert-manager, lareira-authentik, the
+keda/kyverno/falco/ingress-nginx/external-secrets/policy-controller/trivy/
+kubescape wrappers, pleme-arc-*) do **not** vendor that subchart in git
+(`.gitignore` excludes `charts/*/charts/` + `charts/*/*.tgz`), so `nix run
+.#release` fetches it from the upstream `*.github.io` / OCI repo at release time.
+forge ≥ `5a30818` runs every `helm dependency update` under a hard 240s cap + 1
+retry (`run_program_timed`), so a slow/down upstream (victoriametrics wedged run
+26868152070) fails that one chart cleanly and `release_all` continues, instead of
+hanging the whole monorepo release. **Destination (not yet built):** a hermetic
+supply chain — mirror these upstream subcharts into `oci://ghcr.io/pleme-io/charts`
+once and re-point each wrapper's dep at the pleme-io registry, so release never
+depends on third-party repo uptime. Until then the bounded fetch is the floor,
+not the ceiling; a genuinely-down upstream still red-flags its chart for retry.
 
 ## Chart Architecture
 
