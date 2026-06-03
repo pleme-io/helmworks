@@ -4,18 +4,10 @@ description: Cluster-side admission policies (Kyverno ClusterPolicy + Gatekeeper
 type: application
 version: 0.1.0
 appVersion: "1.0.0"
-annotations:
-  # Opt out of generic OCI auto-release. This is a non-workload policy bundle
-  # that declares the max compliance overlay set (fedramp-high + airgap +
-  # supplychain + fips) to DRIVE the policies it emits — but forge's generic
-  # `helm template` lint renders it with workload defaults, so fedramp-high's
-  # workload validators (image-digest, audit-signal, dedicated-SA, replicaCount>=2)
-  # fail() on a chart that owns no pod. Stuffing meaningless workload values to
-  # satisfy them is the wrong layer. Destination: a pleme-lib non-workload /
-  # policy-bundle compliance mode that skips workload-only validators; drop this
-  # opt-out once that lands.
-  pleme.io/oci-auto-release: "false"
+# (No oci-auto-release opt-out: the chart declares compliance.workload.kind=policy
+# so pleme-lib's workload-only validators skip it — it lints + publishes like any
+# other chart.)
 dependencies:
   - name: pleme-lib
-    version: ">=0.18.0 <0.19.0"
+    version: ">=0.18.1 <0.19.0"
     repository: "file://../pleme-lib"

@@ -155,16 +155,30 @@ compliance.pleme.io/encryption-at-rest-required: "true"
 
 {{/*
 Whether this Release renders a workload (Deployment/StatefulSet/Job/etc.).
-Detected by the presence of a non-empty .Values.image.repository.
 
-Used to gate workload-scoped validators (security context, audit, availability,
-network, image) so that pure-policy charts (pleme-compliance, pleme-namespace)
-which call pleme-lib.compliance.validate from their templates don't trip
-validators that do not apply.
+Resolution: an EXPLICIT .Values.compliance.workload.kind wins — `policy` means a
+pure-policy bundle that owns no pod (false), any other kind is a workload (true).
+This explicit form is immune to a lint/test harness that synthesizes an image
+(e.g. forge's auto-release `--set image.repository=test`), which would otherwise
+flip a policy bundle to workload=true and fire workload-only validators
+(replicaCount/SA/audit/security-context) against a chart with no pod. Absent an
+explicit kind, fall back to auto-detect: a non-empty .Values.image.repository ⇒
+workload.
+
+Gates the workload-scoped validators (security context, audit, availability,
+network, image, dedicated-SA) so pure-policy charts (pleme-admission-policies,
+pleme-compliance, pleme-namespace) calling pleme-lib.compliance.validate don't
+trip validators that do not apply. Mirrors pleme-lib.compliance.workloadKind's
+explicit branch without recursing into it.
 */}}
 {{- define "pleme-lib.compliance.isWorkload" -}}
+{{- $w := (.Values.compliance | default dict).workload | default dict -}}
+{{- if $w.kind -}}
+{{- if eq ($w.kind | toString | lower) "policy" -}}false{{- else -}}true{{- end -}}
+{{- else -}}
 {{- $repo := (.Values.image | default dict).repository | default "" | toString -}}
 {{- if ne $repo "" -}}true{{- else -}}false{{- end -}}
+{{- end -}}
 {{- end }}
 
 {{/*

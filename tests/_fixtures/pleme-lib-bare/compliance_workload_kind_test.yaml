@@ -1,0 +1,62 @@
+suite: pleme-lib — compliance.workload.kind gates workload-only validators
+# Proves pleme-lib.compliance.isWorkload honours an EXPLICIT
+# compliance.workload.kind. `policy` means a pure-policy bundle (no pod), so the
+# workload-only validators (audit-signal / dedicated-SA / replicaCount / resources
+# / security-context) skip — even when a lint/test harness forces an image
+# (forge's auto-release `--set image.repository=test`, which would otherwise flip
+# isWorkload to true). Universal validators (image digest under fedramp-high) still
+# fire in policy mode, so the compliance proof is NOT weakened. Absent an explicit
+# kind, the legacy image.repository heuristic still applies.
+templates:
+  - templates/deployment.yaml
+release:
+  name: t
+  namespace: testns
+# A digest tag satisfies the (unconditional) fedramp-high image.validate so these
+# tests isolate the WORKLOAD-only guards.
+digest: &digest "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+tests:
+  - it: "[policy] workload.kind=policy skips workload validators even with a forced image (the forge-lint case)"
+    set:
+      compliance.baseline: fedramp-high
+      compliance.enforce: true
+      compliance.workload.kind: policy
+      image.repository: test        # forge forces this — would normally flip isWorkload=true
+      image.tag: *digest
+      # deliberately OMIT replicaCount / serviceAccount.create / attestation.enabled
+      # / monitoring.enabled / resources — a real workload fail()s on these
+    asserts:
+      - isKind:
+          of: Deployment            # renders clean: workload validators skipped
+
+  - it: "[heuristic] no explicit kind + a real image ⇒ workload validators FIRE"
+    set:
+      compliance.baseline: fedramp-high
+      compliance.enforce: true
+      image.repository: test
+      image.tag: *digest
+    asserts:
+      - failedTemplate:
+          errorPattern: "(audit signal|dedicated ServiceAccount|replicaCount >= 2|requires resources)"
+
+  - it: "[explicit-workload] workload.kind=deployment enforces workload validators (policy is not the only opt-out)"
+    set:
+      compliance.baseline: fedramp-high
+      compliance.enforce: true
+      compliance.workload.kind: deployment
+      image.repository: test
+      image.tag: *digest
+    asserts:
+      - failedTemplate:
+          errorPattern: "(audit signal|dedicated ServiceAccount|replicaCount >= 2|requires resources)"
+
+  - it: "[policy] policy mode still enforces UNIVERSAL checks — fedramp-high image digest is not weakened"
+    set:
+      compliance.baseline: fedramp-high
+      compliance.enforce: true
+      compliance.workload.kind: policy
+      image.repository: test
+      image.tag: "v1.2.3"           # NOT a digest → unconditional image.validate fails even in policy mode
+    asserts:
+      - failedTemplate:
+          errorPattern: "requires image to be digest-pinned"

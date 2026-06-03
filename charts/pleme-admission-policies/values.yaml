@@ -32,6 +32,16 @@ compliance:
   # overlays. enforce=true is the only sensible value for cluster admin.
   enforce: true
 
+  # This chart is a policy BUNDLE — it emits ClusterPolicy/Constraint admission
+  # objects and owns no pod. Declaring the workload kind as `policy` makes
+  # pleme-lib.compliance.isWorkload return false even when a lint harness forces
+  # an image (forge's auto-release `--set image.repository=test`), so the
+  # workload-only validators (replicaCount>=2 / dedicated-SA / audit-signal /
+  # security-context) don't fire against a chart with no pod. The overlay set
+  # above still drives the emitted policies in full.
+  workload:
+    kind: policy
+
   # Per-overlay configuration that informs the emitted policies.
   supplychain:
     cosign:
