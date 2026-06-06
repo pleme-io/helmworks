@@ -6,7 +6,16 @@ M8.5: when .Values.useEmbeddedRuby is true, switch the operator to
 embedded mode and drop the compiler sidecar from the pod spec.
 */}}
 {{- $useEmbedded := .Values.useEmbeddedRuby | default false -}}
-{{- $compilerBackend := ternary "embedded" "http" $useEmbedded -}}
+{{/* rubyIsolation (default "embedded"): when useEmbeddedRuby=true, choose
+     between the long-lived in-thread magnus VM ("embedded") and
+     process-per-compile isolation ("process" → PANGEA_COMPILER_BACKEND=process,
+     a fresh `--compile-worker` child per compile → cross-template contamination
+     unrepresentable by construction). Default keeps today's behavior. */}}
+{{- $rubyIsolation := .Values.rubyIsolation | default "embedded" -}}
+{{- $compilerBackend := "http" -}}
+{{- if $useEmbedded -}}
+{{-   $compilerBackend = ternary "process" "embedded" (eq $rubyIsolation "process") -}}
+{{- end -}}
 {{- $gemAuthSecretName := (((.Values.gemAuth).tokenSecret).name | default "") -}}
 {{- $gemAuthSecretKey := (((.Values.gemAuth).tokenSecret).key | default "token") -}}
 {{- $executorEnv := list

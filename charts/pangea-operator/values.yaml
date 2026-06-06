@@ -234,6 +234,19 @@ compilerEndpoint: http://localhost:8082
 # See theory/PANGEA-WORKSPACE-RECONCILIATION.md M8.4 + M8.5.
 useEmbeddedRuby: false
 
+# -- Ruby compile isolation strategy. Only consulted when useEmbeddedRuby=true.
+#   embedded (default): one long-lived magnus VM with an in-thread worker pool
+#     (PANGEA_RUBY_WORKERS). Fast, but process-global Ruby state ($LOADED_FEATURES,
+#     Pangea::* constants + autoload tables) accumulates across template compiles —
+#     the cross-template contamination class root-caused 2026-06-05.
+#   process: PANGEA_COMPILER_BACKEND=process — each compile runs in a fresh
+#     `pangea-operator --compile-worker` child that boots its own VM, serves one
+#     request, and exits. Cross-template contamination is UNREPRESENTABLE by
+#     construction (order-independent). Costs a magnus boot (~1-3s) per compile;
+#     PANGEA_RUBY_WORKERS bounds concurrent worker processes. Requires an operator
+#     image built with the embedded_ruby feature (release-train default).
+rubyIsolation: embedded
+
 # -- Sidecar containers rendered by pleme-lib into the pod spec.
 # The compiler sidecar compiles Ruby DSL to Terraform/Packer JSON.
 # Replaced by the embedded evaluator when useEmbeddedRuby=true.
