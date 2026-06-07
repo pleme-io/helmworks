@@ -99,3 +99,48 @@ tests:
       - equal:
           path: spec.credentials.secretRef.name
           value: aws-creds
+
+  - it: emits ClusterProviderConfig (cluster-scoped, no namespace) when cluster=true
+    set:
+      crossplane:
+        providerConfigs:
+          aws:
+            apiVersion: aws.upbound.io/v1beta1
+            cluster: true
+            credentialsSource: IRSA
+    asserts:
+      - isKind:
+          of: ClusterProviderConfig
+      - equal:
+          path: metadata.name
+          value: default
+      - notExists:
+          path: metadata.namespace
+
+  - it: emits a NAMESPACED ProviderConfig (v2) when namespace is set and cluster is not
+    set:
+      crossplane:
+        providerConfigs:
+          aws:
+            apiVersion: aws.upbound.io/v1beta1
+            namespace: restore-abc123
+            credentialsSource: IRSA
+    asserts:
+      - isKind:
+          of: ProviderConfig
+      - equal:
+          path: metadata.namespace
+          value: restore-abc123
+
+  - it: stays backward-compatible — plain ProviderConfig, no namespace, when neither set
+    set:
+      crossplane:
+        providerConfigs:
+          aws:
+            apiVersion: aws.upbound.io/v1beta1
+            credentialsSource: IRSA
+    asserts:
+      - isKind:
+          of: ProviderConfig
+      - notExists:
+          path: metadata.namespace

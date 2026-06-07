@@ -85,7 +85,7 @@ not the ceiling; a genuinely-down upstream still red-flags its chart for retry.
 - `pleme-lib.externalSecret` — External Secrets Operator ExternalSecret resources from a values map; defaults to `cluster-secret-store` (override per entry) (added v0.6.0)
 - **Crossplane substrate** (full v1+v2 vocabulary, rendered from `.Values.crossplane.*` maps; added v0.17.0). Each is a no-op on empty map, composes labels + the annotations passthrough, fail()s on missing required fields, and is cluster-scoped except `Usage` (namespaced):
   - `pleme-lib.crossplaneProvider` — `Provider` (+ folded IRSA `DeploymentRuntimeConfig` when `irsaRoleArn` set)
-  - `pleme-lib.crossplaneProviderConfig` — `ProviderConfig` (per-family `apiVersion` required; `credentials.source` or full `spec:` escape hatch)
+  - `pleme-lib.crossplaneProviderConfig` — `ProviderConfig` (namespaced, v2) / `ClusterProviderConfig` (cluster-scoped) via `cluster:` toggle; per-family `apiVersion` required; optional `namespace:`; `credentials.source` or full `spec:` escape hatch (ClusterProviderConfig split added v0.20.0)
   - `pleme-lib.crossplaneFunction` — `Function`
   - `pleme-lib.crossplaneConfiguration` — `Configuration` (XRD+Composition bundle package)
   - `pleme-lib.crossplaneDeploymentRuntimeConfig` — standalone `DeploymentRuntimeConfig` (IRSA / SA-attach / replicas shortcuts + full passthrough)

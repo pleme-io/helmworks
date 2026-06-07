@@ -156,18 +156,30 @@ spec:
 {{- end }}
 
 {{/*
-pleme-lib.crossplaneProviderConfig — one ProviderConfig per .Values.crossplane.providerConfigs
-entry. apiVersion is REQUIRED (varies by family). Common case is a credentials.source; a
-full `spec:` escape hatch overrides it.
+pleme-lib.crossplaneProviderConfig — one ProviderConfig (namespaced) or ClusterProviderConfig
+(cluster-scoped) per .Values.crossplane.providerConfigs entry. apiVersion is REQUIRED (varies
+by family). Common case is a credentials.source; a full `spec:` escape hatch overrides it.
+
+SCOPE (Crossplane v2): ProviderConfig is NAMESPACED in v2 — a namespaced managed resource
+references a ProviderConfig in its own namespace. A cluster-scoped one (referenced by
+namespaced MRs across namespaces, the common substrate case) is `ClusterProviderConfig`.
+Toggle with `cluster: true` (mirrors the crossplaneUsage / ClusterUsage split). Default
+(false) emits `ProviderConfig`; supply `namespace:` to place it (else the entry is
+namespace-less — valid for a v1/LegacyCluster control plane where ProviderConfig is
+cluster-scoped, preserving backward-compat for pre-v2 consumers).
 */}}
 {{- define "pleme-lib.crossplaneProviderConfig" -}}
 {{- range $name, $spec := (.Values.crossplane).providerConfigs }}
 {{- if not $spec.apiVersion }}{{- fail (printf "pleme-lib crossplaneProviderConfig %q: apiVersion is required (varies by provider family, e.g. aws.upbound.io/v1beta1)" $name) }}{{- end }}
+{{- $isCluster := $spec.cluster | default false }}
 ---
 apiVersion: {{ $spec.apiVersion }}
-kind: ProviderConfig
+kind: {{ if $isCluster }}ClusterProviderConfig{{ else }}ProviderConfig{{ end }}
 metadata:
   name: {{ $spec.name | default "default" }}
+  {{- if and (not $isCluster) $spec.namespace }}
+  namespace: {{ $spec.namespace }}
+  {{- end }}
   labels:
     {{- include "pleme-lib.labels" $ | nindent 4 }}
   {{- with (include "pleme-lib.crossplaneAnnotations" (list $ $spec)) }}
