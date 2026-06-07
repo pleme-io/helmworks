@@ -1,0 +1,80 @@
+suite: pleme-lib.crossplaneManagedResourceActivationPolicy — scope-by-default MRAP from a values map
+templates:
+  - templates/managed-resource-activation-policies.yaml
+release:
+  name: t
+  namespace: testns
+tests:
+  - it: renders one MRAP per entry with the activate glob-list + default v2alpha1 apiVersion
+    set:
+      crossplane:
+        managedResourceActivationPolicies:
+          minimal:
+            activate:
+              - instances.rds.aws.upbound.io
+              - "*.s3.aws.upbound.io"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ManagedResourceActivationPolicy
+      - equal:
+          path: apiVersion
+          value: apiextensions.crossplane.io/v2alpha1
+      - equal:
+          path: metadata.name
+          value: minimal
+      - equal:
+          path: spec.activate[0]
+          value: instances.rds.aws.upbound.io
+      - equal:
+          path: spec.activate[1]
+          value: "*.s3.aws.upbound.io"
+      # cluster-scoped — no namespace
+      - notExists:
+          path: metadata.namespace
+
+  - it: honors a per-entry apiVersion override (cluster serves a different MRAP surface)
+    set:
+      crossplane:
+        managedResourceActivationPolicies:
+          minimal:
+            apiVersion: apiextensions.crossplane.io/v2beta1
+            activate:
+              - instances.rds.aws.upbound.io
+    asserts:
+      - equal:
+          path: apiVersion
+          value: apiextensions.crossplane.io/v2beta1
+
+  - it: fails loudly when activate is empty (never silently deactivate every MR)
+    set:
+      crossplane:
+        managedResourceActivationPolicies:
+          oops:
+            activate: []
+    asserts:
+      - failedTemplate:
+          errorMessage: 'pleme-lib crossplaneMRAP "oops": spec.activate (a non-empty glob list of MR names to keep Active) is required — an empty list would deactivate every managed resource'
+
+  - it: composes the per-entry annotations passthrough (e.g. ordering for any reconciler)
+    set:
+      crossplane:
+        managedResourceActivationPolicies:
+          minimal:
+            activate:
+              - instances.rds.aws.upbound.io
+            annotations:
+              example.io/sync-wave: "-2"
+    asserts:
+      - equal:
+          path: metadata.annotations["example.io/sync-wave"]
+          value: "-2"
+
+  - it: is a no-op when the map is empty
+    set:
+      crossplane:
+        managedResourceActivationPolicies: {}
+    asserts:
+      - hasDocuments:
+          count: 0

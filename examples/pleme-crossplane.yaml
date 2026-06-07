@@ -100,6 +100,20 @@ crossplane:
       annotations:
         argocd.argoproj.io/sync-wave: "-2"
 
+  # ── Scope-by-default (Crossplane v2) ───────────────────────────────────
+  # A ManagedResourceActivationPolicy keeps ONLY the MRs a workload uses
+  # Active (their CRD served); everything else stays Inactive and contributes
+  # ZERO schema to the apiserver's aggregated /openapi/v2 document. This is the
+  # feature-neutral lever against OpenAPI-merge pressure on large provider
+  # installs — re-activating a kind is a one-line glob edit, fully reversible.
+  managedResourceActivationPolicies:
+    minimal:
+      activate:
+        - instances.rds.aws.upbound.io   # one exact kind
+        - "*.s3.aws.upbound.io"          # a whole service's MRs by glob
+      annotations:
+        argocd.argoproj.io/sync-wave: "-2"
+
   # ── Composition layer ──────────────────────────────────────────────────
   # A Configuration package (an XRD+Composition bundle delivered as OCI).
   configurations:

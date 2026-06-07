@@ -9,6 +9,7 @@ templates:
   - templates/environment-configs.yaml
   - templates/deployment-runtime-configs.yaml
   - templates/usages.yaml
+  - templates/managed-resource-activation-policies.yaml
 release:
   name: t
   namespace: testns
@@ -44,6 +45,9 @@ tests:
         hasDocuments:
           count: 1
       - template: templates/usages.yaml             # protect-bucket
+        hasDocuments:
+          count: 1
+      - template: templates/managed-resource-activation-policies.yaml  # minimal
         hasDocuments:
           count: 1
 

@@ -141,6 +141,25 @@ matches the committed render snapshot (no-drift lock on ordering / separators / 
     spec:
       package: xpkg.upbound.io/crossplane-contrib/function-kcl:v0.11.0
   7: |
+    apiVersion: apiextensions.crossplane.io/v2alpha1
+    kind: ManagedResourceActivationPolicy
+    metadata:
+      annotations:
+        argocd.argoproj.io/sync-wave: "-2"
+      labels:
+        app: t-pleme-crossplane
+        app.kubernetes.io/instance: t
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: pleme-crossplane
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.0.0
+        helm.sh/chart: pleme-crossplane-0.0.0
+      name: minimal
+    spec:
+      activate:
+        - instances.rds.aws.upbound.io
+        - '*.s3.aws.upbound.io'
+  8: |
     apiVersion: aws.upbound.io/v1beta1
     kind: ProviderConfig
     metadata:
@@ -158,7 +177,7 @@ matches the committed render snapshot (no-drift lock on ordering / separators / 
     spec:
       credentials:
         source: IRSA
-  8: |
+  9: |
     apiVersion: helm.crossplane.io/v1beta1
     kind: ProviderConfig
     metadata:
@@ -176,7 +195,7 @@ matches the committed render snapshot (no-drift lock on ordering / separators / 
     spec:
       credentials:
         source: InjectedIdentity
-  9: |
+  10: |
     apiVersion: kubernetes.crossplane.io/v1alpha1
     kind: ProviderConfig
     metadata:
@@ -194,7 +213,7 @@ matches the committed render snapshot (no-drift lock on ordering / separators / 
     spec:
       credentials:
         source: InjectedIdentity
-  10: |
+  11: |
     apiVersion: pkg.crossplane.io/v1
     kind: Provider
     metadata:
@@ -213,7 +232,7 @@ matches the committed render snapshot (no-drift lock on ordering / separators / 
       package: xpkg.upbound.io/upbound/provider-aws-elbv2:v2.5.3
       runtimeConfigRef:
         name: provider-aws-elbv2
-  11: |
+  12: |
     apiVersion: pkg.crossplane.io/v1beta1
     kind: DeploymentRuntimeConfig
     metadata:
@@ -233,7 +252,7 @@ matches the committed render snapshot (no-drift lock on ordering / separators / 
         metadata:
           annotations:
             eks.amazonaws.com/role-arn: arn:aws:iam::000000000000:role/example-provider-aws-elbv2
-  12: |
+  13: |
     apiVersion: pkg.crossplane.io/v1
     kind: Provider
     metadata:
@@ -252,7 +271,7 @@ matches the committed render snapshot (no-drift lock on ordering / separators / 
       package: xpkg.upbound.io/upbound/provider-aws-globalaccelerator:v2.5.3
       runtimeConfigRef:
         name: provider-aws-globalaccelerator
-  13: |
+  14: |
     apiVersion: pkg.crossplane.io/v1beta1
     kind: DeploymentRuntimeConfig
     metadata:
@@ -272,7 +291,7 @@ matches the committed render snapshot (no-drift lock on ordering / separators / 
         metadata:
           annotations:
             eks.amazonaws.com/role-arn: arn:aws:iam::000000000000:role/example-provider-aws-globalaccelerator
-  14: |
+  15: |
     apiVersion: pkg.crossplane.io/v1
     kind: Provider
     metadata:
@@ -291,7 +310,7 @@ matches the committed render snapshot (no-drift lock on ordering / separators / 
       package: xpkg.upbound.io/upbound/provider-aws-iam:v2.5.3
       runtimeConfigRef:
         name: provider-aws-iam
-  15: |
+  16: |
     apiVersion: pkg.crossplane.io/v1beta1
     kind: DeploymentRuntimeConfig
     metadata:
@@ -311,7 +330,7 @@ matches the committed render snapshot (no-drift lock on ordering / separators / 
         metadata:
           annotations:
             eks.amazonaws.com/role-arn: arn:aws:iam::000000000000:role/example-provider-aws-iam
-  16: |
+  17: |
     apiVersion: pkg.crossplane.io/v1
     kind: Provider
     metadata:
@@ -330,7 +349,7 @@ matches the committed render snapshot (no-drift lock on ordering / separators / 
       package: xpkg.upbound.io/upbound/provider-aws-rds:v2.5.3
       runtimeConfigRef:
         name: provider-aws-rds
-  17: |
+  18: |
     apiVersion: pkg.crossplane.io/v1beta1
     kind: DeploymentRuntimeConfig
     metadata:
@@ -350,7 +369,7 @@ matches the committed render snapshot (no-drift lock on ordering / separators / 
         metadata:
           annotations:
             eks.amazonaws.com/role-arn: arn:aws:iam::000000000000:role/example-provider-aws-rds
-  18: |
+  19: |
     apiVersion: pkg.crossplane.io/v1
     kind: Provider
     metadata:
@@ -369,7 +388,7 @@ matches the committed render snapshot (no-drift lock on ordering / separators / 
       package: xpkg.upbound.io/upbound/provider-aws-route53:v2.5.3
       runtimeConfigRef:
         name: provider-aws-route53
-  19: |
+  20: |
     apiVersion: pkg.crossplane.io/v1beta1
     kind: DeploymentRuntimeConfig
     metadata:
@@ -389,7 +408,7 @@ matches the committed render snapshot (no-drift lock on ordering / separators / 
         metadata:
           annotations:
             eks.amazonaws.com/role-arn: arn:aws:iam::000000000000:role/example-provider-aws-route53
-  20: |
+  21: |
     apiVersion: pkg.crossplane.io/v1
     kind: Provider
     metadata:
@@ -408,7 +427,7 @@ matches the committed render snapshot (no-drift lock on ordering / separators / 
       package: xpkg.upbound.io/upbound/provider-aws-s3:v2.5.3
       runtimeConfigRef:
         name: provider-aws-s3
-  21: |
+  22: |
     apiVersion: pkg.crossplane.io/v1beta1
     kind: DeploymentRuntimeConfig
     metadata:
@@ -428,7 +447,7 @@ matches the committed render snapshot (no-drift lock on ordering / separators / 
         metadata:
           annotations:
             eks.amazonaws.com/role-arn: arn:aws:iam::000000000000:role/example-provider-aws-s3
-  22: |
+  23: |
     apiVersion: pkg.crossplane.io/v1
     kind: Provider
     metadata:
@@ -445,7 +464,7 @@ matches the committed render snapshot (no-drift lock on ordering / separators / 
       name: provider-helm
     spec:
       package: xpkg.upbound.io/crossplane-contrib/provider-helm:v0.21.0
-  23: |
+  24: |
     apiVersion: pkg.crossplane.io/v1
     kind: Provider
     metadata:
@@ -462,7 +481,7 @@ matches the committed render snapshot (no-drift lock on ordering / separators / 
       name: provider-kubernetes
     spec:
       package: xpkg.upbound.io/crossplane-contrib/provider-kubernetes:v0.18.0
-  24: |
+  25: |
     apiVersion: protection.crossplane.io/v1beta1
     kind: Usage
     metadata:

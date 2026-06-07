@@ -93,6 +93,7 @@ not the ceiling; a genuinely-down upstream still red-flags its chart for retry.
   - `pleme-lib.crossplaneComposition` — `Composition` (function-pipeline-only; opaque per-step input)
   - `pleme-lib.crossplaneEnvironmentConfig` — `EnvironmentConfig` (cluster-scoped data bag)
   - `pleme-lib.crossplaneUsage` — `Usage` (namespaced) / `ClusterUsage` (cluster) via `cluster:`
+  - `pleme-lib.crossplaneManagedResourceActivationPolicy` (alias `pleme-lib.crossplaneMRAP`) — `ManagedResourceActivationPolicy` (Crossplane v2 scope-by-default; `activate` glob-list keeps only used MRs served → cuts the apiserver `/openapi/v2` full-merge cost; `apiVersion` overridable; fail()s on empty `activate`) (added v0.19.0)
   - `pleme-lib.crossplaneOperation` / `crossplaneCronOperation` / `crossplaneWatchOperation` — `ops.crossplane.io/v1alpha1` (ALPHA, feature-gated, opt-in)
   - `pleme-lib.crossplaneAnnotations` / `crossplanePackage` — helpers (engine-neutral annotations merge; package-string resolver with `fail()` guard)
 

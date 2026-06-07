@@ -209,6 +209,59 @@ spec:
 {{- end }}
 
 {{/*
+pleme-lib.crossplaneManagedResourceActivationPolicy (alias: crossplaneMRAP) — one
+ManagedResourceActivationPolicy per .Values.crossplane.managedResourceActivationPolicies
+entry. THE SCOPE-BY-DEFAULT primitive (Crossplane v2 / Upbound provider-family v2).
+
+Why this exists: a v2 service provider installs its ManagedResourceDefinitions (MRDs)
+INACTIVE by default; an MRAP's `spec.activate` glob-list is what flips the needed ones
+Active (their CRD becomes served). Activating ONLY what a workload uses is the
+feature-neutral lever against the apiserver /openapi/v2 full-merge cost — deactivated MRs
+keep zero CRD schema in the aggregated OpenAPI doc, and re-activating one is a one-line
+glob edit (no data loss, fully reversible). This is the upstream-documented way to run the
+big AWS providers at scale (vs. installing 185 CRDs to use 1).
+
+  crossplane:
+    managedResourceActivationPolicies:
+      minimal:
+        activate:
+          - instances.rds.aws.upbound.io        # exact MR name — one kind
+          - "*.s3.aws.upbound.io"               # glob — a whole service's MRs
+        # apiVersion: apiextensions.crossplane.io/v2alpha1   # OVERRIDE per installed crossplane
+
+VERIFY-POINT: confirm the apiVersion + that MRAP/MRD is exposed by the installed provider
+package channel before applying — `kubectl api-resources | grep -i
+managedresourceactivationpolicy`. The default below targets the v2alpha1 surface; override
+`apiVersion:` if the cluster serves a different one. fail()s on an empty activate list so a
+policy never silently activates nothing (which would deactivate the whole provider).
+*/}}
+{{- define "pleme-lib.crossplaneManagedResourceActivationPolicy" -}}
+{{- range $name, $spec := (.Values.crossplane).managedResourceActivationPolicies }}
+{{- if not $spec.activate }}{{- fail (printf "pleme-lib crossplaneMRAP %q: spec.activate (a non-empty glob list of MR names to keep Active) is required — an empty list would deactivate every managed resource" $name) }}{{- end }}
+---
+apiVersion: {{ $spec.apiVersion | default "apiextensions.crossplane.io/v2alpha1" }}
+kind: ManagedResourceActivationPolicy
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "pleme-lib.labels" $ | nindent 4 }}
+  {{- with (include "pleme-lib.crossplaneAnnotations" (list $ $spec)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
+spec:
+  activate:
+    {{- range $spec.activate }}
+    - {{ . | quote }}
+    {{- end }}
+{{- end }}
+{{- end }}
+
+{{- define "pleme-lib.crossplaneMRAP" -}}
+{{- include "pleme-lib.crossplaneManagedResourceActivationPolicy" . }}
+{{- end -}}
+
+{{/*
 pleme-lib.crossplaneConfiguration — one Configuration package per
 .Values.crossplane.configurations entry. Same package layer as Provider/Function
 (pkg.crossplane.io), but the install kind is `Configuration` (an XRD+Composition
