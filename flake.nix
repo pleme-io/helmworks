@@ -2,7 +2,7 @@
   description = "Helmworks: reusable Helm chart library for pleme-io internal services";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
+    nixpkgs.follows = "substrate/nixpkgs";
     flake-parts.url = "github:hercules-ci/flake-parts";
     fenix = {
       url = "github:nix-community/fenix";
@@ -10,7 +10,6 @@
     };
     substrate = {
       url = "github:pleme-io/substrate";
-      inputs.nixpkgs.follows = "nixpkgs";
       inputs.fenix.follows = "fenix";
     };
     forge = {
