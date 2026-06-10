@@ -52,6 +52,21 @@ carry `annotations: { pleme.io/oci-auto-release: "false" }` so forge's
 `discover_charts` skips them (they pin an all-zero placeholder digest a separate
 flow substitutes — they can't publish as generic library charts).
 
+**In-tree dependency constraints are floor-only (`>=X.Y.Z`), never ceilinged.**
+Every `file://../<chart>` dependency resolves to exactly one chart — the
+in-tree one — so a ceiling (`<0.19.0`, `~0.1.0`, `0.1.x`) is not a safety
+device; it is a hand-sync tripwire that strands every consumer the moment the
+dep's version crosses it. That tripwire fired twice: 017375a (2026-06-02,
+98 charts pinned `~0.15.0` while pleme-lib was 0.18.0) re-armed it as a
+per-minor pin, and the pleme-lib 0.19.0/0.20.0 bumps (a553074/d0f135b,
+2026-06-07) tripped it again — 98/114 charts red at `helm dependency update`
+across three days of auto-release runs. Floors record the oldest version a
+consumer was verified against; lockstep comes from the monorepo itself —
+release-time `helm dependency update` always vendors the in-tree version into
+the published .tgz, and helm-unittest catches real template breakage at the
+consumer. Exact pins on **remote** deps (oci:// / https:// upstreams) are the
+opposite case and stay exact per the hermetic-supply-chain posture below.
+
 **Remote-subchart dependency resolution (release-time, not vendored).** The 15
 wrapper charts that pull a third-party upstream subchart (lareira-vm-stack →
 victoria-metrics-k8s-stack, lareira-cert-manager, lareira-authentik, the

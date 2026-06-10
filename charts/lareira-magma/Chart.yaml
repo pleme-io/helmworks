@@ -31,14 +31,14 @@ keywords:
 dependencies:
   # The operator with magma feature surface (v0.8.15+).
   - name: pangea-operator
-    version: ">=0.8.15,<0.9.0"
+    version: ">=0.8.15"
     repository: "file://../pangea-operator"
   # Reusable library fragment for every reconciler kind. Required
   # so the umbrella renders the DriftPolicy + ServiceMonitor +
   # PrometheusRule on behalf of every kind the operator runs.
   - name: pleme-reconciler
-    version: ">=0.1.0,<0.2.0"
+    version: ">=0.1.0"
     repository: "file://../pleme-reconciler"
   - name: pleme-lib
-    version: ">=0.18.0 <0.19.0"
+    version: ">=0.18.0"
     repository: "file://../pleme-lib"

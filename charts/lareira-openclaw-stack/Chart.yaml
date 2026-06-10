@@ -16,27 +16,27 @@ maintainers: [{name: drzzln, email: drzzln@protonmail.com}]
 dependencies:
   - name: lareira-openclaw-pki
     alias: pki
-    version: "~0.1.0"
+    version: ">=0.1.0"
     repository: "file://../lareira-openclaw-pki"
     condition: pki.enabled
   - name: lareira-cartorio
     alias: registry
-    version: "~0.5.0"
+    version: ">=0.5.0"
     repository: "file://../lareira-cartorio"
     condition: registry.enabled
   - name: lareira-lacre
     alias: gate
-    version: "~0.1.2"
+    version: ">=0.1.2"
     repository: "file://../lareira-lacre"
     condition: gate.enabled
   - name: lareira-openclaw-store
     alias: store
-    version: "~0.1.0"
+    version: ">=0.1.0"
     repository: "file://../lareira-openclaw-store"
     condition: store.enabled
   - name: lareira-openclaw-scanner
     alias: scanner
-    version: "~0.1.0"
+    version: ">=0.1.0"
     repository: "file://../lareira-openclaw-scanner"
     condition: scanner.enabled
   # Aliased as `backing-registry` (lowercase + hyphen) — alias bytes
@@ -47,7 +47,7 @@ dependencies:
   # in YAML need quoting OR hyphenated; we pick the canonical form.)
   - name: pleme-zot
     alias: backing-registry
-    version: "~0.1.2"
+    version: ">=0.1.2"
     repository: "file://../pleme-zot"
     condition: backing-registry.enabled
   # The public read-only browser view. Off by default — operators
@@ -55,7 +55,7 @@ dependencies:
   # own UI front don't).
   - name: lareira-openclaw-web
     alias: web
-    version: "~0.2.5"
+    version: ">=0.2.5"
     repository: "file://../lareira-openclaw-web"
     condition: web.enabled
 annotations:

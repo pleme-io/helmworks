@@ -11,5 +11,5 @@ keywords: [webhook, flux, github, lareira, computeunit, breathable]
 maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]
 dependencies:
   - name: pleme-computeunit
-    version: "~0.1.0"
+    version: ">=0.1.0"
     repository: "file://../pleme-computeunit"

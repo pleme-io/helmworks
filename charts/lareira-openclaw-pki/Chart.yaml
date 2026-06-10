@@ -16,7 +16,7 @@ keywords: [openclaw, pki, fedramp-high, attestation, lareira]
 maintainers: [{name: drzzln, email: drzzln@protonmail.com}]
 dependencies:
   - name: pleme-microservice
-    version: "~0.2.0"
+    version: ">=0.2.0"
     repository: "file://../pleme-microservice"
 annotations:
   pleme.io/oci-auto-release: "false"

@@ -25,7 +25,7 @@ maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]
 
 dependencies:
   - name: pleme-computeunit
-    version: "~0.1.0"
+    version: ">=0.1.0"
     repository: "file://../pleme-computeunit"
     condition: pleme-computeunit.enabled    # never enabled directly; we
                                             # render multiple CUs ourselves

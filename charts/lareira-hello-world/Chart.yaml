@@ -20,5 +20,5 @@ home: https://github.com/pleme-io/programs/tree/main/hello-world
 
 dependencies:
   - name: pleme-computeunit
-    version: "~0.1.0"
+    version: ">=0.1.0"
     repository: "file://../pleme-computeunit"

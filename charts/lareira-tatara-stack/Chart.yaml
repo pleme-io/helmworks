@@ -24,17 +24,17 @@ keywords: [tatara-lisp, wasm, kubernetes, breathable, lareira]
 maintainers: [{name: drzzln, email: drzzln@protonmail.com}]
 dependencies:
   - name: pleme-lib
-    version: ">=0.18.0 <0.19.0"
+    version: ">=0.18.0"
     repository: "file://../pleme-lib"
   - name: lareira-wasm-platform
-    version: "0.1.x"
+    version: ">=0.1.0"
     repository: "file://../lareira-wasm-platform"
     condition: wasmPlatform.enabled
   - name: lareira-openclaw
-    version: "0.1.x"
+    version: ">=0.1.0"
     repository: "file://../lareira-openclaw"
     condition: openclaw.enabled
   - name: lareira-tatara-runtime
-    version: "0.1.x"
+    version: ">=0.1.0"
     repository: "file://../lareira-tatara-runtime"
     condition: tataraRuntime.enabled

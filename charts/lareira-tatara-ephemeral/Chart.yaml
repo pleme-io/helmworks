@@ -34,16 +34,16 @@ dependencies:
   # RBAC + TATARA_EXPORT_WORKER_{IMAGE,SERVICE_ACCOUNT} env wiring.
   - name: pleme-tatara-reconciler
     alias: reconciler
-    version: "~0.2.0"
+    version: ">=0.2.0"
     repository: "file://../pleme-tatara-reconciler"
     condition: reconciler.enabled
   - name: pleme-tatara-pool-reconciler
     alias: poolReconciler
-    version: "~0.1.0"
+    version: ">=0.1.0"
     repository: "file://../pleme-tatara-pool-reconciler"
     condition: poolReconciler.enabled
   - name: pleme-tatara-github-watcher
     alias: githubWatcher
-    version: "~0.1.0"
+    version: ">=0.1.0"
     repository: "file://../pleme-tatara-github-watcher"
     condition: githubWatcher.enabled

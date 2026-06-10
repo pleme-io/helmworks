@@ -18,7 +18,7 @@ keywords: [openclaw, agent, fedramp-high, attestation, lareira]
 maintainers: [{name: drzzln, email: drzzln@protonmail.com}]
 dependencies:
   - name: pleme-microservice
-    version: "~0.2.0"
+    version: ">=0.2.0"
     repository: "file://../pleme-microservice"
     condition: enabled
 annotations:

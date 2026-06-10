@@ -9,5 +9,5 @@ dependencies:
   - name: pleme-lib
     # Loose constraint — pleme-lib bumps minor versions frequently and
     # the operator chart only depends on its template stability surface.
-    version: ">=0.18.0 <0.19.0"
+    version: ">=0.18.0"
     repository: "file://../pleme-lib"
