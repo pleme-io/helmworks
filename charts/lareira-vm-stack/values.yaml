@@ -132,6 +132,55 @@ vmStack:
   defaultRules:
     create: true
 
+# ── Grafana OIDC injection — driven by global.grafanaSso ───────────────
+#
+# CORRECT dependency key: the upstream subchart is declared with NO alias,
+# so subchart values flow under its real name `victoria-metrics-k8s-stack`
+# (NOT the dead `vmStack:` key above — see report). Grafana is a
+# sub-dependency, hence `.grafana.*`.
+#
+# Map leaf values are `tpl`-gated on `global.grafanaSso.enabled`. This block
+# DEEP-MERGES into grafana's own grafana.ini defaults (paths/analytics/log/
+# server.domain) — it adds sections, never clobbers them.
+#
+# Default-OFF footprint: a single inert `[auth.generic_oauth] enabled=false`
+# section (Grafana treats enabled=false as OAuth OFF → identical behavior:
+# login form present, no redirect). No client_secret env, no login-form
+# override, no server.root_url change when off. This inert section is the
+# minimal unavoidable static-values footprint; see report for why a true
+# byte-no-op is not reachable for a subchart-map gated by a parent flag.
+victoria-metrics-k8s-stack:
+  grafana:
+    # client_secret → env GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET, sourced from
+    # the existing K8s Secret (NEVER in grafana.ini). `optional: true` so the
+    # env is harmless when SSO is OFF (the [auth.generic_oauth] enabled=false
+    # already disables OAuth, and an absent secret won't block pod start). The
+    # secret name is always non-empty (never `name: ''`, which K8s rejects).
+    envValueFrom:
+      GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET:
+        secretKeyRef:
+          name: '{{ $.Values.global.grafanaSso.clientSecret.secretName }}'
+          key: '{{ $.Values.global.grafanaSso.clientSecret.key }}'
+          optional: true
+    grafana.ini:
+      server:
+        # root_url + serve_from_sub_path only take effect when SSO is on.
+        root_url: '{{ if $.Values.global.grafanaSso.enabled }}{{ $.Values.global.grafanaSso.rootUrl }}{{ end }}'
+      auth:
+        disable_login_form: '{{ and $.Values.global.grafanaSso.enabled $.Values.global.grafanaSso.autoLogin }}'
+        oauth_auto_login: '{{ and $.Values.global.grafanaSso.enabled $.Values.global.grafanaSso.autoLogin }}'
+      auth.generic_oauth:
+        enabled: '{{ $.Values.global.grafanaSso.enabled }}'
+        name: '{{ $.Values.global.grafanaSso.name }}'
+        allow_sign_up: '{{ $.Values.global.grafanaSso.allowSignUp }}'
+        client_id: '{{ if $.Values.global.grafanaSso.enabled }}{{ $.Values.global.grafanaSso.clientId }}{{ end }}'
+        scopes: '{{ $.Values.global.grafanaSso.scopes }}'
+        auth_url: '{{ if $.Values.global.grafanaSso.enabled }}{{ $.Values.global.grafanaSso.authUrl }}{{ end }}'
+        token_url: '{{ if $.Values.global.grafanaSso.enabled }}{{ $.Values.global.grafanaSso.tokenUrl }}{{ end }}'
+        api_url: '{{ if $.Values.global.grafanaSso.enabled }}{{ $.Values.global.grafanaSso.apiUrl }}{{ end }}'
+        role_attribute_path: '{{ if $.Values.global.grafanaSso.enabled }}{{ $.Values.global.grafanaSso.roleAttributePath }}{{ end }}'
+        allowed_groups: '{{ if $.Values.global.grafanaSso.enabled }}{{ join "," $.Values.global.grafanaSso.allowedGroups }}{{ end }}'
+
 # Grafana scale-to-zero — opt-in; requires lareira-keda-http installed.
 # When enabled, an HTTPScaledObject scales the Grafana Deployment 0→1
 # on first inbound request (cooldown 600s default).
@@ -144,6 +193,48 @@ grafanaBreathability:
     targetPendingRequests: 1
   hosts:
     - grafana.example.com   # cluster overrides
+
+# ── Grafana SSO via the fleet Authentik IdP (native OIDC) ──────────────
+#
+# Default-OFF reusable capability: gate the bundled Grafana behind the
+# fleet Authentik IdP using Grafana's native [auth.generic_oauth].
+#
+# CANONICAL SURFACE: global.grafanaSso (NOT a bare top-level key).
+#
+# WHY `global`: Grafana is a sub-dependency of the victoria-metrics-k8s-stack
+# subchart. A Helm parent CANNOT inject computed values into a subchart, and a
+# parent's bare top-level value is invisible inside a subchart's `tpl` context —
+# only Helm `global.*` propagates parent→subchart. The subchart-side injection
+# below (under `victoria-metrics-k8s-stack.grafana`) reads `global.grafanaSso.*`
+# via the grafana subchart's `tpl`-evaluated `grafana.ini` string values, so the
+# single switch `global.grafanaSso.enabled=true` is the only mechanism that
+# actually reaches the rendered Grafana. (The dead `vmStack:` key above is a
+# separate pre-existing passthrough bug — see report; left untouched here so as
+# not to change default behavior.)
+#
+# When global.grafanaSso.enabled=false (default) NOTHING is injected — the
+# subchart grafana.ini section, env, and login-form overrides are all empty,
+# so rendered output is byte-identical to the no-SSO baseline.
+global:
+  grafanaSso:
+    enabled: false
+    # Public-facing Grafana URL — sets [server] root_url + serve_from_sub_path=false.
+    rootUrl: ""                # e.g. https://grafana.rio.pleme.lol
+    name: "Authentik"          # OAuth button label
+    clientId: ""               # e.g. grafana-rio
+    authUrl:  "https://auth.quero.cloud/application/o/authorize/"
+    tokenUrl: "https://auth.quero.cloud/application/o/token/"
+    apiUrl:   "https://auth.quero.cloud/application/o/userinfo/"
+    scopes: "openid email profile"
+    allowedGroups: []          # e.g. [saguao] → CSV in [auth.generic_oauth] allowed_groups
+    roleAttributePath: "contains(groups[*], 'authentik Admins') && 'Admin' || 'Viewer'"
+    autoLogin: true            # disable_login_form=true + oauth_auto_login=true → straight to Authentik
+    allowSignUp: true          # auto-create Grafana users on first OIDC login (Google-federated first logins)
+    # client_secret is NEVER placed in grafana.ini — it is read from an existing
+    # K8s Secret via env GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET (envValueFrom below).
+    clientSecret:
+      secretName: grafana-oidc # existing Secret in the monitoring namespace
+      key: client-secret
 
 observability:
   prometheusRule:

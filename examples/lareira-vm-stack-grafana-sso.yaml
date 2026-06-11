@@ -1,0 +1,39 @@
+# Example: lareira-vm-stack with the bundled Grafana gated behind the fleet
+# Authentik IdP via native OIDC ([auth.generic_oauth]).
+#
+# Apply to a cluster that already has:
+#   - an Authentik OIDC provider + application for Grafana (client_id below)
+#   - a K8s Secret in the monitoring namespace holding the OIDC client secret
+#     (default: Secret/grafana-oidc, key client-secret) — Grafana reads it via
+#     env GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET
+#
+# Install:
+#   helm install lareira-vm-stack oci://ghcr.io/pleme-io/charts/lareira-vm-stack \
+#     --namespace monitoring --create-namespace \
+#     -f examples/lareira-vm-stack-grafana-sso.yaml
+#
+# IMPORTANT: the SSO switch lives under `global.grafanaSso`, NOT a bare
+# top-level `grafanaSso`. Grafana is a sub-dependency of the
+# victoria-metrics-k8s-stack subchart, and only Helm `global.*` values
+# propagate parent→subchart (a parent's bare top-level value is invisible to
+# the subchart's grafana.ini `tpl` context). `global.grafanaSso.enabled` is the
+# single switch; everything below is wired through it.
+
+enabled: true
+
+global:
+  grafanaSso:
+    enabled: true
+    rootUrl: https://grafana.rio.pleme.lol   # sets [server] root_url
+    name: Authentik                          # OAuth button label
+    clientId: grafana-rio                     # Authentik application client id
+    # authUrl / tokenUrl / apiUrl default to the fleet Authentik
+    # (auth.quero.cloud) — override only for a different IdP host.
+    scopes: "openid email profile"
+    allowedGroups: [saguao]                   # → allowed_groups CSV in grafana.ini
+    roleAttributePath: "contains(groups[*], 'authentik Admins') && 'Admin' || 'Viewer'"
+    autoLogin: true                           # disable_login_form + oauth_auto_login → straight to Authentik
+    allowSignUp: true                         # auto-create Grafana users on first OIDC login
+    clientSecret:
+      secretName: grafana-oidc                # existing Secret in the monitoring namespace
+      key: client-secret

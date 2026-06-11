@@ -1,0 +1,55 @@
+{{/*
+Grafana SSO contract — the auditable, testable record of the native-OIDC
+config this chart injects into the bundled Grafana (a sub-dependency of the
+victoria-metrics-k8s-stack subchart) when SSO is enabled.
+
+This ConfigMap is NOT what Grafana reads — the live config flows through the
+subchart values `victoria-metrics-k8s-stack.grafana.{grafana.ini,envValueFrom}`
+in values.yaml (driven by `global.grafanaSso.*`). This template renders the
+SAME values as a single, human-readable, helm-unittest-scopable surface:
+operators audit "what OIDC did this release wire?" by reading it, and the test
+suite asserts the contract here (the multi-subchart umbrella defeats
+helm-unittest's per-subchart-template targeting, so the parent owns the proof).
+
+True no-op by construction: the whole template is guarded by
+`global.grafanaSso.enabled` — disabled renders nothing at all.
+*/}}
+{{- $sso := .Values.global.grafanaSso -}}
+{{- if $sso.enabled }}
+{{- if not $sso.clientId }}{{ fail "grafanaSso.enabled=true requires global.grafanaSso.clientId (e.g. grafana-rio)" }}{{- end }}
+{{- if not $sso.rootUrl }}{{ fail "grafanaSso.enabled=true requires global.grafanaSso.rootUrl (e.g. https://grafana.rio.pleme.lol)" }}{{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-grafana-sso
+  labels:
+    {{- include "lareira-vm-stack.labels" . | nindent 4 }}
+    lareira.pleme.io/grafana-sso: "true"
+data:
+  # The [auth.generic_oauth] config injected into Grafana's grafana.ini.
+  grafana.ini: |-
+    [server]
+    root_url = {{ $sso.rootUrl }}
+    serve_from_sub_path = false
+    [auth]
+    disable_login_form = {{ $sso.autoLogin }}
+    oauth_auto_login = {{ $sso.autoLogin }}
+    [auth.generic_oauth]
+    enabled = true
+    name = {{ $sso.name }}
+    allow_sign_up = {{ $sso.allowSignUp }}
+    client_id = {{ $sso.clientId }}
+    scopes = {{ $sso.scopes }}
+    auth_url = {{ $sso.authUrl }}
+    token_url = {{ $sso.tokenUrl }}
+    api_url = {{ $sso.apiUrl }}
+    role_attribute_path = {{ $sso.roleAttributePath }}
+    {{- with $sso.allowedGroups }}
+    allowed_groups = {{ join "," . }}
+    {{- end }}
+  # client_secret is NOT in grafana.ini — Grafana reads it from env
+  # GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET, sourced from this existing Secret.
+  client-secret-env: "GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET"
+  client-secret-from: {{ printf "secret/%s#%s" $sso.clientSecret.secretName $sso.clientSecret.key | quote }}
+{{- end }}

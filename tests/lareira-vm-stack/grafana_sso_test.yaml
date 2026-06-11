@@ -1,0 +1,162 @@
+suite: lareira-vm-stack — Grafana SSO via the fleet Authentik IdP (native OIDC)
+#
+# The capability is default-OFF and reusable: setting global.grafanaSso.enabled=true
+# gates the bundled Grafana behind Authentik via Grafana's [auth.generic_oauth].
+#
+# The live config flows through the subchart values
+# `victoria-metrics-k8s-stack.grafana.{grafana.ini,envValueFrom}` (driven by
+# global.grafanaSso.*). The multi-subchart umbrella defeats helm-unittest's
+# per-subchart-template targeting, so the parent template templates/grafana-sso.yaml
+# is the auditable + testable mirror of exactly what gets injected. These tests
+# assert that contract surface; `helm template | grep` proves the subchart-side
+# grafana.ini + env reach Grafana (see chart commit message / PR notes).
+templates:
+  - templates/grafana-sso.yaml
+release:
+  name: lareira-vm-stack
+  namespace: monitoring
+tests:
+  # ── default-OFF: NOTHING new renders ──────────────────────────────────────
+  - it: default-off renders no Grafana SSO contract at all (true no-op)
+    template: templates/grafana-sso.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: default-off (chart enabled, SSO off) still renders no generic_oauth
+    template: templates/grafana-sso.yaml
+    set:
+      enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # ── enabled: full [auth.generic_oauth] contract ──────────────────────────
+  - it: enabled emits the grafana-sso contract ConfigMap
+    template: templates/grafana-sso.yaml
+    set:
+      enabled: true
+      global:
+        grafanaSso:
+          enabled: true
+          clientId: grafana-rio
+          rootUrl: https://grafana.rio.pleme.lol
+          allowedGroups: [saguao]
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: lareira-vm-stack-grafana-sso
+
+  - it: enabled renders client_id, auth_url, and enabled=true in grafana.ini
+    template: templates/grafana-sso.yaml
+    set:
+      enabled: true
+      global:
+        grafanaSso:
+          enabled: true
+          clientId: grafana-rio
+          rootUrl: https://grafana.rio.pleme.lol
+    asserts:
+      - matchRegex:
+          path: data["grafana.ini"]
+          pattern: "enabled = true"
+      - matchRegex:
+          path: data["grafana.ini"]
+          pattern: "client_id = grafana-rio"
+      - matchRegex:
+          path: data["grafana.ini"]
+          pattern: 'auth_url = https://auth\.quero\.cloud/application/o/authorize/'
+      - matchRegex:
+          path: data["grafana.ini"]
+          pattern: 'token_url = https://auth\.quero\.cloud/application/o/token/'
+      - matchRegex:
+          path: data["grafana.ini"]
+          pattern: 'api_url = https://auth\.quero\.cloud/application/o/userinfo/'
+      - matchRegex:
+          path: data["grafana.ini"]
+          pattern: "root_url = https://grafana\\.rio\\.pleme\\.lol"
+
+  - it: enabled maps allowedGroups list to a CSV allowed_groups
+    template: templates/grafana-sso.yaml
+    set:
+      enabled: true
+      global:
+        grafanaSso:
+          enabled: true
+          clientId: grafana-rio
+          rootUrl: https://grafana.rio.pleme.lol
+          allowedGroups: [saguao, platform]
+    asserts:
+      - matchRegex:
+          path: data["grafana.ini"]
+          pattern: "allowed_groups = saguao,platform"
+
+  - it: client_secret is sourced from the K8s Secret via env, never in grafana.ini
+    template: templates/grafana-sso.yaml
+    set:
+      enabled: true
+      global:
+        grafanaSso:
+          enabled: true
+          clientId: grafana-rio
+          rootUrl: https://grafana.rio.pleme.lol
+          clientSecret:
+            secretName: grafana-oidc
+            key: client-secret
+    asserts:
+      - equal:
+          path: data["client-secret-env"]
+          value: "GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET"
+      - equal:
+          path: data["client-secret-from"]
+          value: "secret/grafana-oidc#client-secret"
+      - notMatchRegex:
+          path: data["grafana.ini"]
+          pattern: "client_secret"
+
+  - it: autoLogin true sets disable_login_form + oauth_auto_login
+    template: templates/grafana-sso.yaml
+    set:
+      enabled: true
+      global:
+        grafanaSso:
+          enabled: true
+          clientId: grafana-rio
+          rootUrl: https://grafana.rio.pleme.lol
+          autoLogin: true
+    asserts:
+      - matchRegex:
+          path: data["grafana.ini"]
+          pattern: "disable_login_form = true"
+      - matchRegex:
+          path: data["grafana.ini"]
+          pattern: "oauth_auto_login = true"
+
+  # ── invariants: enabling without the load-bearing inputs fails render ─────
+  - it: enabled without clientId fails template render
+    template: templates/grafana-sso.yaml
+    set:
+      enabled: true
+      global:
+        grafanaSso:
+          enabled: true
+          rootUrl: https://grafana.rio.pleme.lol
+    asserts:
+      - failedTemplate:
+          errorMessage: "grafanaSso.enabled=true requires global.grafanaSso.clientId (e.g. grafana-rio)"
+
+  - it: enabled without rootUrl fails template render
+    template: templates/grafana-sso.yaml
+    set:
+      enabled: true
+      global:
+        grafanaSso:
+          enabled: true
+          clientId: grafana-rio
+    asserts:
+      - failedTemplate:
+          errorMessage: "grafanaSso.enabled=true requires global.grafanaSso.rootUrl (e.g. https://grafana.rio.pleme.lol)"
