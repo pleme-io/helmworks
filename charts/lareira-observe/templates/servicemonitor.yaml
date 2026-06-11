@@ -1,0 +1,38 @@
+{{/*
+servicemonitor.yaml — scrape the TARGET's /metrics endpoint.
+
+NOTE on pleme-lib.servicemonitor reuse: that helper builds its selector from
+`pleme-lib.selectorLabels` (the chart's OWN app.kubernetes.io/{name,instance})
+and its namespace from `.Release.Namespace`. For an ATTACH chart the scrape
+target is an EXTERNAL Service — a different selector, possibly a different
+namespace — so reusing the helper as-is would scrape the wrong (or no) Service.
+We therefore author the ServiceMonitor natively against target.*, while keeping
+the same monitoring.coreos.com/v1 shape + VM-stack discovery label the helper
+emits. (When pleme-lib grows a target-parameterised servicemonitor helper —
+`pleme-lib.vmServiceScrape` per the recon — this template becomes a thin
+include passing target.* through; the rendered output is identical.)
+*/}}
+{{- if (.Values.monitoring).enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "lareira-observe.fullname" . }}
+  namespace: {{ include "lareira-observe.targetNamespace" . }}
+  labels:
+    {{- include "lareira-observe.labels" . | nindent 4 }}
+    {{- with (.Values.monitoring).release }}
+    release: {{ . }}
+    {{- end }}
+spec:
+  namespaceSelector:
+    matchNames:
+      - {{ include "lareira-observe.targetNamespace" . }}
+  selector:
+    matchLabels:
+      {{- include "lareira-observe.targetSelector" . | nindent 6 }}
+  endpoints:
+    - port: {{ (.Values.monitoring).port | default "metrics" }}
+      path: {{ (.Values.monitoring).path | default "/metrics" }}
+      interval: {{ (.Values.monitoring).interval | default "30s" }}
+      scrapeTimeout: {{ (.Values.monitoring).scrapeTimeout | default "10s" }}
+{{- end }}

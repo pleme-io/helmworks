@@ -1,0 +1,51 @@
+{{/*
+alertmanagerconfig.yaml — closes the alert→ntfy DELIVERY gap the recon found.
+
+When ntfyRouting.enabled, emit an AlertmanagerConfig whose route matches the
+`ntfy-topic` label this chart stamps onto every alert rule (see
+prometheusrule.yaml) and delivers matched alerts to a webhook receiver pointing
+at the ntfy topic URL.
+
+apiVersion NOTE: the recon brief said monitoring.coreos.com/v1; the CRD the
+PrometheusOperator actually serves (and that rio's observability base uses) is
+monitoring.coreos.com/v1alpha1. We author against the REAL in-cluster CRD so the
+manifest is admission-valid. If/when the operator promotes AlertmanagerConfig to
+/v1 fleet-wide, bump the apiVersion here — the spec body is unchanged.
+*/}}
+{{- if (.Values.ntfyRouting).enabled }}
+{{- $r := .Values.ntfyRouting }}
+{{- $topic := $r.topic | default "" }}
+{{- if eq $topic "" }}
+{{- fail "lareira-observe: ntfyRouting.enabled=true requires ntfyRouting.topic (the ntfy topic alerts route to)" }}
+{{- end }}
+{{- $url := $r.ntfyUrl | default "" }}
+{{- if eq $url "" }}
+{{- fail "lareira-observe: ntfyRouting.enabled=true requires ntfyRouting.ntfyUrl (the ntfy webhook URL alerts POST to)" }}
+{{- end }}
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: {{ include "lareira-observe.fullname" . }}
+  namespace: {{ include "lareira-observe.targetNamespace" . }}
+  labels:
+    {{- include "lareira-observe.labels" . | nindent 4 }}
+spec:
+  route:
+    receiver: {{ include "lareira-observe.fullname" . }}-ntfy
+    {{- with $r.groupBy }}
+    groupBy:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    groupWait: {{ $r.groupWait | default "30s" }}
+    groupInterval: {{ $r.groupInterval | default "5m" }}
+    repeatInterval: {{ $r.repeatInterval | default "4h" }}
+    matchers:
+      - name: ntfy-topic
+        matchType: "="
+        value: {{ $topic | quote }}
+  receivers:
+    - name: {{ include "lareira-observe.fullname" . }}-ntfy
+      webhookConfigs:
+        - url: {{ $url | quote }}
+          sendResolved: {{ $r.sendResolved | default true }}
+{{- end }}

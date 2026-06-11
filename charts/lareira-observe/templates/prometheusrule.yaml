@@ -1,0 +1,58 @@
+{{/*
+prometheusrule.yaml — per-target alert group.
+
+NOTE on pleme-lib.prometheusrule / pleme-lib.alerts reuse: both helpers name the
+rule + namespace from the chart's OWN identity (pleme-lib.fullname / .namespace)
+and pleme-lib.alerts hard-codes its alert exprs to `pod=~"<fullname>.*"` in
+.Release.Namespace — i.e. the lareira-observe release's own (non-existent) pods,
+not the TARGET. For an ATTACH chart the alerts are about the target, so we author
+the PrometheusRule natively against target.* and pass the operator's `groups`
+through verbatim. We additionally STAMP a routing label (ntfy-topic) onto every
+rule when ntfyRouting is enabled, so the AlertmanagerConfig route can match them.
+*/}}
+{{- if (.Values.alerts).enabled }}
+{{- if (.Values.alerts).groups }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "lareira-observe.fullname" . }}
+  namespace: {{ include "lareira-observe.targetNamespace" . }}
+  labels:
+    {{- include "lareira-observe.labels" . | nindent 4 }}
+    prometheus: main
+spec:
+  groups:
+    {{- range $group := .Values.alerts.groups }}
+    - name: {{ $group.name }}
+      {{- with $group.interval }}
+      interval: {{ . }}
+      {{- end }}
+      rules:
+        {{- range $rule := $group.rules }}
+        - {{- if $rule.alert }} alert: {{ $rule.alert }}{{- end }}
+          {{- if $rule.record }}
+          record: {{ $rule.record }}
+          {{- end }}
+          expr: {{ $rule.expr | toYaml | nindent 12 }}
+          {{- with $rule.for }}
+          for: {{ . }}
+          {{- end }}
+          labels:
+            {{- with $rule.labels }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+            {{- /* stamp the target identity on every rule so alerts carry it */}}
+            target: {{ include "lareira-observe.targetName" $ }}
+            {{- if ($.Values.ntfyRouting).enabled }}
+            {{- with ($.Values.ntfyRouting).topic }}
+            ntfy-topic: {{ . }}
+            {{- end }}
+            {{- end }}
+          {{- with $rule.annotations }}
+          annotations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        {{- end }}
+    {{- end }}
+{{- end }}
+{{- end }}

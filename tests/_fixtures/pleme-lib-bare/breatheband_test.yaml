@@ -1,0 +1,241 @@
+suite: pleme-lib bare-fixture — pleme-lib.breatheBand named template
+templates:
+  - templates/breatheband.yaml
+release:
+  name: t
+  namespace: testns
+defaults: &defaults
+  image.repository: ghcr.io/x/y
+  image.tag: "1.0.0"
+  serviceAccount.create: true
+
+tests:
+  - it: "renders nothing when breathe is unset entirely"
+    set:
+      <<: *defaults
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: "renders nothing when breathe.enabled is false"
+    set:
+      <<: *defaults
+      breathe.enabled: false
+      breathe.memory.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: "minimal values (just breathe.enabled) still renders a valid MemoryBand at the default setpoint"
+    set:
+      <<: *defaults
+      breathe.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: MemoryBand
+      - equal:
+          path: apiVersion
+          value: breathe.pleme.io/v1
+      - equal:
+          path: spec.setpoint
+          value: 0.8
+      # default-target → chart's own apps/v1 Deployment
+      - equal:
+          path: spec.targetRef.apiVersion
+          value: apps/v1
+      - equal:
+          path: spec.targetRef.kind
+          value: Deployment
+      - equal:
+          path: spec.targetRef.name
+          value: t-pleme-lib-bare
+      - equal:
+          path: metadata.name
+          value: t-pleme-lib-bare-memory
+      - equal:
+          path: metadata.namespace
+          value: testns
+      # documented spec defaults must all be present + settable
+      - equal:
+          path: spec.floor
+          value: "256Mi"
+      - equal:
+          path: spec.ceiling
+          value: "2Gi"
+      - equal:
+          path: spec.growAbove
+          value: 0.85
+      - equal:
+          path: spec.growFactor
+          value: 1.25
+      - equal:
+          path: spec.shrinkBelow
+          value: 0.7
+      - equal:
+          path: spec.shrinkFactor
+          value: 0.9
+      - equal:
+          path: spec.cooldownSeconds
+          value: 600
+      - equal:
+          path: spec.disruptionPolicy
+          value: allowRestart
+      - equal:
+          path: spec.dryRun
+          value: false
+      - equal:
+          path: spec.maxStalenessSeconds
+          value: 120
+
+  - it: "default-target MemoryBand renders with an explicit setpoint override"
+    set:
+      <<: *defaults
+      breathe.enabled: true
+      breathe.memory.setpoint: 0.8
+      breathe.memory.floor: 512Mi
+      breathe.memory.ceiling: 4Gi
+      breathe.memory.disruptionPolicy: inPlaceOnly
+      breathe.memory.dryRun: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: MemoryBand
+      - equal:
+          path: spec.setpoint
+          value: 0.8
+      - equal:
+          path: spec.floor
+          value: "512Mi"
+      - equal:
+          path: spec.ceiling
+          value: "4Gi"
+      - equal:
+          path: spec.disruptionPolicy
+          value: inPlaceOnly
+      - equal:
+          path: spec.dryRun
+          value: true
+
+  - it: "cpu band is disabled by default — only the MemoryBand renders"
+    set:
+      <<: *defaults
+      breathe.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: MemoryBand
+
+  - it: "explicit external targetRef overrides the chart's own workload"
+    set:
+      <<: *defaults
+      breathe:
+        enabled: true
+        targetRef:
+          apiVersion: apps/v1
+          kind: StatefulSet
+          name: external-db
+        memory:
+          enabled: true
+          setpoint: 0.75
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: MemoryBand
+      - equal:
+          path: spec.targetRef.apiVersion
+          value: apps/v1
+      - equal:
+          path: spec.targetRef.kind
+          value: StatefulSet
+      - equal:
+          path: spec.targetRef.name
+          value: external-db
+      # CR name follows the explicit target name, not the chart fullname
+      - equal:
+          path: metadata.name
+          value: external-db-memory
+      - equal:
+          path: spec.setpoint
+          value: 0.75
+
+  - it: "both memory and cpu enabled emits two documents (MemoryBand + CpuBand)"
+    set:
+      <<: *defaults
+      breathe:
+        enabled: true
+        memory:
+          enabled: true
+        cpu:
+          enabled: true
+          setpoint: 0.8
+          floor: 200m
+          ceiling: 2000m
+    asserts:
+      - hasDocuments:
+          count: 2
+      # deterministic order: MemoryBand first, CpuBand second
+      - isKind:
+          of: MemoryBand
+        documentIndex: 0
+      - equal:
+          path: apiVersion
+          value: breathe.pleme.io/v1
+        documentIndex: 0
+      - isKind:
+          of: CpuBand
+        documentIndex: 1
+      - equal:
+          path: apiVersion
+          value: breathe.pleme.io/v1
+        documentIndex: 1
+
+  - it: "CpuBand carries millicore floor/ceiling and the correct name suffix"
+    documentIndex: 1
+    set:
+      <<: *defaults
+      breathe:
+        enabled: true
+        memory:
+          enabled: true
+        cpu:
+          enabled: true
+          floor: 200m
+          ceiling: 2000m
+    asserts:
+      - isKind:
+          of: CpuBand
+      - equal:
+          path: metadata.name
+          value: t-pleme-lib-bare-cpu
+      - equal:
+          path: spec.floor
+          value: "200m"
+      - equal:
+          path: spec.ceiling
+          value: "2000m"
+      - equal:
+          path: spec.setpoint
+          value: 0.8
+
+  - it: "cpu enabled alone (memory explicitly disabled) emits only the CpuBand"
+    set:
+      <<: *defaults
+      breathe:
+        enabled: true
+        memory:
+          enabled: false
+        cpu:
+          enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: CpuBand
+      - equal:
+          path: metadata.name
+          value: t-pleme-lib-bare-cpu

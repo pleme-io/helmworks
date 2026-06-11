@@ -1,0 +1,406 @@
+suite: lareira-observe — the attachable observability + breathability abstraction
+templates:
+  - templates/servicemonitor.yaml
+  - templates/breatheband.yaml
+  - templates/prometheusrule.yaml
+  - templates/alertmanagerconfig.yaml
+  - templates/dashboard.yaml
+release:
+  name: observe-pangea
+  namespace: pangea-system
+
+tests:
+  # ── target.name required ───────────────────────────────────────────────────
+  - it: fails when target.name is unset (the single load-bearing input)
+    template: templates/servicemonitor.yaml
+    set:
+      target:
+        name: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: "lareira-observe: target.name is REQUIRED — it names the in-cluster workload/Service this release attaches to (e.g. pangea-operator)"
+
+  # ── ServiceMonitor renders against the TARGET ──────────────────────────────
+  - it: emits a ServiceMonitor scraping the target Service in the target namespace
+    template: templates/servicemonitor.yaml
+    set:
+      target:
+        name: pangea-operator
+        namespace: pangea-system
+        labelSelector:
+          app: pangea-operator
+      monitoring:
+        enabled: true
+        port: metrics
+        path: /metrics
+        interval: 30s
+    asserts:
+      - isKind:
+          of: ServiceMonitor
+      - equal:
+          path: metadata.name
+          value: observe-pangea-operator
+      - equal:
+          path: metadata.namespace
+          value: pangea-system
+      - equal:
+          path: spec.namespaceSelector.matchNames[0]
+          value: pangea-system
+      - equal:
+          path: spec.selector.matchLabels.app
+          value: pangea-operator
+      - equal:
+          path: spec.endpoints[0].port
+          value: metrics
+      - equal:
+          path: spec.endpoints[0].path
+          value: /metrics
+      - equal:
+          path: metadata.labels.release
+          value: victoria-metrics-k8s-stack
+      - equal:
+          path: metadata.labels["lareira.pleme.io/observe-target"]
+          value: pangea-operator
+
+  - it: ServiceMonitor defaults its selector to app=<target.name> when labelSelector empty
+    template: templates/servicemonitor.yaml
+    set:
+      target:
+        name: my-workload
+    asserts:
+      - equal:
+          path: spec.selector.matchLabels.app
+          value: my-workload
+
+  - it: ServiceMonitor target namespace defaults to the release namespace
+    template: templates/servicemonitor.yaml
+    set:
+      target:
+        name: pangea-operator
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: pangea-system
+      - equal:
+          path: spec.namespaceSelector.matchNames[0]
+          value: pangea-system
+
+  - it: ServiceMonitor is absent when monitoring disabled
+    template: templates/servicemonitor.yaml
+    set:
+      target:
+        name: pangea-operator
+      monitoring:
+        enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # ── breatheband emits MemoryBand with the EXTERNAL targetRef ───────────────
+  - it: emits a MemoryBand whose targetRef is the EXTERNAL target Deployment
+    template: templates/breatheband.yaml
+    set:
+      target:
+        name: pangea-operator
+        deployment: pangea-operator
+        namespace: pangea-system
+      breathe:
+        enabled: true
+        memory:
+          enabled: true
+          setpoint: 0.8
+          floor: 256Mi
+          ceiling: 2Gi
+        cpu:
+          enabled: false
+    asserts:
+      - isKind:
+          of: MemoryBand
+      - equal:
+          path: apiVersion
+          value: breathe.pleme.io/v1
+      - equal:
+          path: metadata.namespace
+          value: pangea-system
+      - equal:
+          path: spec.targetRef.apiVersion
+          value: apps/v1
+      - equal:
+          path: spec.targetRef.kind
+          value: Deployment
+      - equal:
+          path: spec.targetRef.name
+          value: pangea-operator
+      - equal:
+          path: spec.setpoint
+          value: 0.8
+      - equal:
+          path: spec.floor
+          value: 256Mi
+      - equal:
+          path: spec.ceiling
+          value: 2Gi
+
+  - it: breathe deployment defaults to target.name when not set
+    template: templates/breatheband.yaml
+    set:
+      target:
+        name: pangea-operator
+      breathe:
+        enabled: true
+        memory:
+          enabled: true
+        cpu:
+          enabled: false
+    asserts:
+      - equal:
+          path: spec.targetRef.name
+          value: pangea-operator
+
+  - it: cpu band is OFF by default (memory only)
+    template: templates/breatheband.yaml
+    set:
+      target:
+        name: pangea-operator
+      breathe:
+        enabled: true
+        memory:
+          enabled: true
+        cpu:
+          enabled: false
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: MemoryBand
+
+  - it: emits both MemoryBand and CpuBand when cpu enabled, both targeting the external workload
+    template: templates/breatheband.yaml
+    set:
+      target:
+        name: pangea-operator
+      breathe:
+        enabled: true
+        memory:
+          enabled: true
+        cpu:
+          enabled: true
+          floor: 200m
+          ceiling: 2000m
+    asserts:
+      - hasDocuments:
+          count: 2
+      - documentIndex: 1
+        isKind:
+          of: CpuBand
+      - documentIndex: 1
+        equal:
+          path: spec.targetRef.name
+          value: pangea-operator
+      - documentIndex: 1
+        equal:
+          path: spec.ceiling
+          value: 2000m
+
+  - it: breathe bands honour an explicit non-Deployment targetRef (CNPG Cluster)
+    template: templates/breatheband.yaml
+    set:
+      target:
+        name: pangea-database
+      breathe:
+        enabled: true
+        targetRef:
+          kind: Cluster
+          name: pangea-database
+          apiVersion: postgresql.cnpg.io/v1
+        memory:
+          enabled: true
+        cpu:
+          enabled: false
+    asserts:
+      - equal:
+          path: spec.targetRef.kind
+          value: Cluster
+      - equal:
+          path: spec.targetRef.apiVersion
+          value: postgresql.cnpg.io/v1
+
+  - it: breathe bands absent when breathe disabled
+    template: templates/breatheband.yaml
+    set:
+      target:
+        name: pangea-operator
+      breathe:
+        enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # ── PrometheusRule passthrough + ntfy-topic stamping ───────────────────────
+  - it: emits a PrometheusRule from passthrough groups, stamping target + ntfy-topic
+    template: templates/prometheusrule.yaml
+    set:
+      target:
+        name: pangea-operator
+        namespace: pangea-system
+      alerts:
+        enabled: true
+        groups:
+          - name: pangea-operator.observe
+            rules:
+              - alert: PangeaTemplateFailing
+                expr: "max(pangea_template_reconcile_failed_total) > 0"
+                for: 10m
+                labels:
+                  severity: critical
+      ntfyRouting:
+        enabled: true
+        topic: rio-critical
+        ntfyUrl: "http://lareira-ntfy.ntfy.svc/rio-critical"
+    asserts:
+      - isKind:
+          of: PrometheusRule
+      - equal:
+          path: metadata.namespace
+          value: pangea-system
+      - equal:
+          path: spec.groups[0].rules[0].alert
+          value: PangeaTemplateFailing
+      - equal:
+          path: spec.groups[0].rules[0].labels.target
+          value: pangea-operator
+      - equal:
+          path: spec.groups[0].rules[0].labels.severity
+          value: critical
+      - equal:
+          path: spec.groups[0].rules[0].labels["ntfy-topic"]
+          value: rio-critical
+
+  - it: PrometheusRule does NOT stamp ntfy-topic when ntfyRouting disabled
+    template: templates/prometheusrule.yaml
+    set:
+      target:
+        name: pangea-operator
+      alerts:
+        enabled: true
+        groups:
+          - name: g
+            rules:
+              - alert: A
+                expr: "vector(1)"
+      ntfyRouting:
+        enabled: false
+    asserts:
+      - notExists:
+          path: spec.groups[0].rules[0].labels["ntfy-topic"]
+      - equal:
+          path: spec.groups[0].rules[0].labels.target
+          value: pangea-operator
+
+  - it: PrometheusRule absent when no alert groups
+    template: templates/prometheusrule.yaml
+    set:
+      target:
+        name: pangea-operator
+      alerts:
+        enabled: true
+        groups: []
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # ── AlertmanagerConfig — the alert-delivery gap closer ─────────────────────
+  - it: ntfyRouting OFF → NO AlertmanagerConfig
+    template: templates/alertmanagerconfig.yaml
+    set:
+      target:
+        name: pangea-operator
+      ntfyRouting:
+        enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: ntfyRouting ON → AlertmanagerConfig with the webhook URL and topic matcher
+    template: templates/alertmanagerconfig.yaml
+    set:
+      target:
+        name: pangea-operator
+        namespace: pangea-system
+      ntfyRouting:
+        enabled: true
+        topic: rio-critical
+        ntfyUrl: "http://lareira-ntfy.ntfy.svc/rio-critical"
+        sendResolved: true
+    asserts:
+      - isKind:
+          of: AlertmanagerConfig
+      - equal:
+          path: apiVersion
+          value: monitoring.coreos.com/v1alpha1
+      - equal:
+          path: metadata.namespace
+          value: pangea-system
+      - equal:
+          path: spec.route.matchers[0].name
+          value: ntfy-topic
+      - equal:
+          path: spec.route.matchers[0].value
+          value: rio-critical
+      - equal:
+          path: spec.receivers[0].webhookConfigs[0].url
+          value: "http://lareira-ntfy.ntfy.svc/rio-critical"
+      - equal:
+          path: spec.receivers[0].webhookConfigs[0].sendResolved
+          value: true
+
+  - it: AlertmanagerConfig fails when topic is empty
+    template: templates/alertmanagerconfig.yaml
+    set:
+      target:
+        name: pangea-operator
+      ntfyRouting:
+        enabled: true
+        topic: ""
+        ntfyUrl: "http://x/y"
+    asserts:
+      - failedTemplate:
+          errorMessage: "lareira-observe: ntfyRouting.enabled=true requires ntfyRouting.topic (the ntfy topic alerts route to)"
+
+  - it: AlertmanagerConfig fails when ntfyUrl is empty
+    template: templates/alertmanagerconfig.yaml
+    set:
+      target:
+        name: pangea-operator
+      ntfyRouting:
+        enabled: true
+        topic: rio-critical
+        ntfyUrl: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: "lareira-observe: ntfyRouting.enabled=true requires ntfyRouting.ntfyUrl (the ntfy webhook URL alerts POST to)"
+
+  # ── dashboard — opt-in ConfigMap ───────────────────────────────────────────
+  - it: dashboard ConfigMap absent by default
+    template: templates/dashboard.yaml
+    set:
+      target:
+        name: pangea-operator
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: dashboard ConfigMap emitted with grafana label when enabled
+    template: templates/dashboard.yaml
+    set:
+      target:
+        name: pangea-operator
+      dashboard:
+        enabled: true
+        json: "{}"
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.labels.grafana_dashboard
+          value: "1"

@@ -1,0 +1,76 @@
+# lareira-observe attached to the pangea-operator.
+#
+# Render:
+#   helm template observe-pangea charts/lareira-observe \
+#     -f charts/lareira-observe/examples/pangea-operator.yaml \
+#     --namespace pangea-system
+#
+# Produces, against pangea-operator in pangea-system:
+#   - ServiceMonitor scraping :metrics /metrics (the operator serves 33 metrics
+#     on :9090 /metrics)
+#   - MemoryBand holding the operator Deployment in the 80/20 band (256Mi→2Gi)
+#   - PrometheusRule with the operator alert group, ntfy-topic-stamped
+#   - AlertmanagerConfig routing those alerts → ntfy topic rio-critical
+#
+# A SECOND lareira-observe release (or a pleme-lib inline band) can target the
+# pangea-database CNPG Cluster — set breathe.targetRef to
+#   { kind: Cluster, name: pangea-database, apiVersion: postgresql.cnpg.io/v1 }
+# (the breathe band CRD targets any controller-owned resource, not just
+# Deployments — see k8s/clusters/rio/infrastructure/breathe-bands/).
+
+target:
+  name: pangea-operator
+  namespace: pangea-system
+  deployment: pangea-operator
+  labelSelector:
+    app: pangea-operator
+
+monitoring:
+  enabled: true
+  port: metrics
+  path: /metrics
+  interval: 30s
+
+breathe:
+  enabled: true
+  dryRun: true              # SHADOW-first — prove convergence before LIVE
+  disruptionPolicy: RestartFreeOnly
+  memory:
+    enabled: true
+    setpoint: 0.8
+    floor: 256Mi
+    ceiling: 2Gi
+  cpu:
+    enabled: false
+
+alerts:
+  enabled: true
+  groups:
+    - name: pangea-operator.observe
+      rules:
+        - alert: PangeaTemplateFailing
+          # the operator's pangea_* failed-template metric crossing zero
+          expr: |
+            max(pangea_template_reconcile_failed_total) > 0
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: "pangea-operator has a failing InfrastructureTemplate"
+            description: "At least one pangea_* template reconcile has been failing for 10m. Check status.lastCycle on the InfrastructureTemplate CRs."
+        - alert: PangeaTemplateStuckInitializing
+          # a template wedged in Initializing/Compiling (the env-fetch wedge class)
+          expr: |
+            max(pangea_template_phase{phase="Initializing"}) > 0
+          for: 30m
+          labels:
+            severity: critical
+          annotations:
+            summary: "pangea-operator template stuck Initializing"
+            description: "An InfrastructureTemplate has been stuck in Initializing/Compiling for 30m — likely an ENV.fetch bootstrap-var wedge. Inspect the template's status.lastError."
+
+ntfyRouting:
+  enabled: true
+  topic: rio-critical
+  ntfyUrl: "http://lareira-ntfy.ntfy.svc/rio-critical"
+  sendResolved: true

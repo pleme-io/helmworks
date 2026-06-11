@@ -204,6 +204,94 @@ monitoring:
   # -- Scrape timeout
   scrapeTimeout: 10s
 
+# -- VMServiceScrape configuration (VictoriaMetrics-operator-native scrape).
+# Rendered by pleme-lib.vmServiceScrape. The native ALTERNATIVE to the
+# Prometheus-operator ServiceMonitor above — not a replacement. The
+# ServiceMonitor still works via vmagent's selectAllByDefault (cross-CR
+# conversion); set vmScrape.enabled to emit an explicit
+# operator.victoriametrics.com/v1beta1 VMServiceScrape instead.
+vmScrape:
+  # -- Enable VMServiceScrape creation
+  enabled: false
+  # -- Metrics port NAME on the Service to scrape
+  port: http
+  # -- Metrics path
+  path: /metrics
+  # -- Scrape interval
+  interval: 30s
+  # -- Scrape timeout
+  scrapeTimeout: 10s
+
+# -- breathe resource-homeostasis bands (breathe.pleme.io/v1).
+# Rendered by pleme-lib.breatheBand. Emits ZERO, ONE, or TWO documents — a
+# MemoryBand and/or a CpuBand — that the breathe controller reconciles by
+# carving resources.limits.{memory,cpu} on the targetRef workload to hold
+# utilization at the band's setpoint (the band center; default 0.8, the 80/20
+# law). A band is a NAMESPACED CR. No-op unless breathe.enabled.
+breathe:
+  # -- Master toggle for this chart's bands. When false, no band is emitted.
+  enabled: false
+  # -- OPTIONAL explicit target workload {apiVersion, kind, name}. When EMPTY,
+  # the band targets the chart's OWN workload: {apiVersion: apps/v1,
+  # kind: Deployment, name: <pleme-lib.fullname>}. This dual mode is
+  # load-bearing: inline charts band their own deployment (leave this empty);
+  # lareira-observe passes an explicit EXTERNAL targetRef here.
+  targetRef: {}
+  #   apiVersion: apps/v1
+  #   kind: Deployment
+  #   name: some-external-workload
+  memory:
+    # -- Emit a MemoryBand (default true when breathe.enabled)
+    enabled: true
+    # -- Band center utilization (0.0-1.0). The 80/20 law default.
+    setpoint: 0.8
+    # -- Lower bound the controller will never carve below (memory quantity)
+    floor: 256Mi
+    # -- Upper bound the controller will never carve above (memory quantity)
+    ceiling: 2Gi
+    # -- Grow limits when observed utilization exceeds this (0.0-1.0)
+    growAbove: 0.85
+    # -- Multiplier applied to limits when growing
+    growFactor: 1.25
+    # -- Shrink limits when observed utilization drops below this (0.0-1.0)
+    shrinkBelow: 0.7
+    # -- Multiplier applied to limits when shrinking
+    shrinkFactor: 0.9
+    # -- Seconds the controller waits between carve actions
+    cooldownSeconds: 600
+    # -- How the controller may apply a carve: allowRestart | inPlaceOnly
+    disruptionPolicy: allowRestart
+    # -- When true, the controller computes but does not apply carves
+    dryRun: false
+    # -- Reject metric samples older than this many seconds
+    maxStalenessSeconds: 120
+  cpu:
+    # -- Emit a CpuBand. Off by default (M2Typed maturity). Same field shape as
+    # memory; floor/ceiling are CPU quantities in millicores (e.g. 200m / 2000m).
+    enabled: false
+    # -- Band center utilization (0.0-1.0). The 80/20 law default.
+    setpoint: 0.8
+    # -- Lower bound the controller will never carve below (millicores)
+    floor: 200m
+    # -- Upper bound the controller will never carve above (millicores)
+    ceiling: 2000m
+    # -- Grow limits when observed utilization exceeds this (0.0-1.0)
+    growAbove: 0.85
+    # -- Multiplier applied to limits when growing
+    growFactor: 1.25
+    # -- Shrink limits when observed utilization drops below this (0.0-1.0)
+    shrinkBelow: 0.7
+    # -- Multiplier applied to limits when shrinking
+    shrinkFactor: 0.9
+    # -- Seconds the controller waits between carve actions
+    cooldownSeconds: 600
+    # -- How the controller may apply a carve: allowRestart | inPlaceOnly
+    disruptionPolicy: allowRestart
+    # -- When true, the controller computes but does not apply carves
+    dryRun: false
+    # -- Reject metric samples older than this many seconds
+    maxStalenessSeconds: 120
+
 # -- NetworkPolicy configuration
 networkPolicy:
   # -- Enable NetworkPolicy creation

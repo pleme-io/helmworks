@@ -1,0 +1,79 @@
+{{/*
+breatheband.yaml — homeostasis on the ATTACHED workload (breathe 80/20 bands).
+
+CONTRACT: emits breathe.pleme.io/v1 MemoryBand + CpuBand whose spec.targetRef is
+EXTERNAL — it points at the attached workload (target.deployment as an apps/v1
+Deployment by default, or breathe.targetRef verbatim for a non-Deployment target
+such as a CNPG Cluster), NEVER at a resource this chart owns.
+
+pleme-lib.breatheBand REUSE (defensive — the sibling helper may not be merged at
+render time): the recon says pleme-lib is growing a `pleme-lib.breatheBand`
+helper that reads .Values.breathe and emits these bands. When it lands, set
+`breathe.useLibHelper: true` to route through it — the helper reads the SAME
+.Values.breathe contract this template authors against, so the rendered bands are
+identical and the swap is transparent. Until then (default `useLibHelper: false`)
+we emit natively so the chart renders clean TODAY. The orchestrator reconciles
+the exact dict-passing signature at integration; both paths target the same
+EXTERNAL workload.
+*/}}
+{{- if (.Values.breathe).enabled }}
+{{- if (.Values.breathe).useLibHelper }}
+{{- /* sibling helper present: hand it the full context; it reads .Values.breathe */ -}}
+{{- include "pleme-lib.breatheBand" . }}
+{{- else }}
+{{- $b := .Values.breathe }}
+{{- $name := include "lareira-observe.targetName" . }}
+{{- $ns := include "lareira-observe.targetNamespace" . }}
+{{- $labels := include "lareira-observe.labels" . }}
+{{- $targetRef := include "lareira-observe.breatheTargetRef" . }}
+{{- if (and $b.memory $b.memory.enabled) }}
+apiVersion: breathe.pleme.io/v1
+kind: MemoryBand
+metadata:
+  name: {{ $name }}
+  namespace: {{ $ns }}
+  labels:
+    {{- $labels | nindent 4 }}
+    lareira.pleme.io/observe-dimension: memory
+spec:
+  targetRef:
+    {{- $targetRef | nindent 4 }}
+  setpoint: {{ $b.memory.setpoint | default $b.setpoint | default 0.8 }}
+  growAbove: {{ $b.growAbove | default 0.85 }}
+  shrinkBelow: {{ $b.shrinkBelow | default 0.70 }}
+  growFactor: {{ $b.growFactor | default 1.25 }}
+  shrinkFactor: {{ $b.shrinkFactor | default 0.90 }}
+  floor: {{ $b.memory.floor | default "256Mi" | quote }}
+  ceiling: {{ $b.memory.ceiling | default "2Gi" | quote }}
+  cooldownSeconds: {{ $b.cooldownSeconds | default 600 }}
+  maxStalenessSeconds: {{ $b.maxStalenessSeconds | default 120 }}
+  dryRun: {{ $b.dryRun | default false }}
+  disruptionPolicy: {{ $b.disruptionPolicy | default "RestartFreeOnly" }}
+{{- end }}
+{{- if (and $b.cpu $b.cpu.enabled) }}
+---
+apiVersion: breathe.pleme.io/v1
+kind: CpuBand
+metadata:
+  name: {{ $name }}
+  namespace: {{ $ns }}
+  labels:
+    {{- $labels | nindent 4 }}
+    lareira.pleme.io/observe-dimension: cpu
+spec:
+  targetRef:
+    {{- $targetRef | nindent 4 }}
+  setpoint: {{ $b.cpu.setpoint | default $b.setpoint | default 0.8 }}
+  growAbove: {{ $b.growAbove | default 0.85 }}
+  shrinkBelow: {{ $b.shrinkBelow | default 0.70 }}
+  growFactor: {{ $b.growFactor | default 1.25 }}
+  shrinkFactor: {{ $b.shrinkFactor | default 0.90 }}
+  floor: {{ $b.cpu.floor | default "200m" | quote }}
+  ceiling: {{ $b.cpu.ceiling | default "2000m" | quote }}
+  cooldownSeconds: {{ $b.cooldownSeconds | default 600 }}
+  maxStalenessSeconds: {{ $b.maxStalenessSeconds | default 120 }}
+  dryRun: {{ $b.dryRun | default false }}
+  disruptionPolicy: {{ $b.disruptionPolicy | default "RestartFreeOnly" }}
+{{- end }}
+{{- end }}
+{{- end }}

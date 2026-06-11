@@ -1,0 +1,16 @@
+apiVersion: v2
+name: lareira-observe
+description: >-
+  Attach observability (scrape + alerts) and breathability (resource-homeostasis
+  bands) to any in-cluster workload — the workload supplies a /metrics endpoint +
+  a Service; this chart supplies the telemetry + 80/20 bands + alert routing.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+# lareira-observe is the ATTACH abstraction, not a homelab service. It depends on
+# pleme-lib ONLY (it owns no Deployment of its own — the target workload already
+# runs), so it does NOT pull pleme-lareira the way lareira-ntfy does.
+dependencies:
+  - name: pleme-lib
+    version: ">=0.20.0"
+    repository: "file://../pleme-lib"

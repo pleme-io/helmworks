@@ -75,6 +75,8 @@
             { name = "lareira-adguard"; chartDir = ./charts/lareira-adguard; }
             { name = "lareira-home-assistant"; chartDir = ./charts/lareira-home-assistant; }
             { name = "lareira-ntfy"; chartDir = ./charts/lareira-ntfy; }
+            # Attachable observability + breathability — scrape + bands + alert routing for any workload
+            { name = "lareira-observe"; chartDir = ./charts/lareira-observe; }
             # Family Tier 2 — quality-of-life household services
             { name = "lareira-joplin"; chartDir = ./charts/lareira-joplin; }
             { name = "lareira-audiobookshelf"; chartDir = ./charts/lareira-audiobookshelf; }

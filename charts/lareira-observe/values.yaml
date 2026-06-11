@@ -1,0 +1,154 @@
+# lareira-observe — THE attachable observability + breathability abstraction.
+#
+# One HelmRelease attaches full telemetry + homeostasis to ANY in-cluster
+# workload. The workload itself is NOT deployed by this chart — it already
+# runs (e.g. pangea-operator). lareira-observe only supplies the *attachments*:
+#
+#   1. a ServiceMonitor scraping the target's /metrics endpoint
+#   2. breathe MemoryBand / CpuBand holding the target in the 80/20 band
+#   3. a per-target PrometheusRule alert group
+#   4. (optional) an AlertmanagerConfig routing the target's alerts → ntfy
+#
+# The whole surface is `target.*` (who to attach to) + the four attach blocks.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# target — REQUIRED. The in-cluster workload/Service this release attaches to.
+# Everything below renders against these coordinates; nothing renders the
+# workload itself.
+# ─────────────────────────────────────────────────────────────────────────────
+target:
+  # name — REQUIRED. The workload identity (used for resource names, the
+  # ServiceMonitor selector default, alert label `target`, and the band names).
+  # Template render FAILS with a clear message when this is empty.
+  name: ""                            # e.g. pangea-operator
+  # namespace — the namespace the TARGET lives in. Defaults to .Release.Namespace.
+  # The ServiceMonitor stamps this into namespaceSelector so it can scrape a
+  # Service in another namespace than the lareira-observe release.
+  namespace: ""
+  # deployment — the Deployment name the breathe bands carve (resource limits).
+  # Defaults to target.name. Set this when the Deployment name differs from the
+  # Service name. (For a CNPG/other-CRD target, override breathe.targetRef.)
+  deployment: ""
+  # labelSelector — matchLabels selecting the target Service for scraping.
+  # Defaults (when empty) to { app: target.name } — the pleme-lib convention.
+  # Override to match the target chart's actual Service selector labels.
+  labelSelector: {}                   # e.g. { app.kubernetes.io/name: pangea-operator }
+
+# ─────────────────────────────────────────────────────────────────────────────
+# monitoring — the scrape attachment (→ a ServiceMonitor against the target).
+# ─────────────────────────────────────────────────────────────────────────────
+monitoring:
+  enabled: true
+  port: metrics                       # the named Service port exposing /metrics
+  path: /metrics
+  interval: 30s
+  scrapeTimeout: 10s
+  # release — the Prometheus/VM-stack ServiceMonitor discovery label. The rio
+  # victoria-metrics-k8s-stack selects ServiceMonitors by this label.
+  release: victoria-metrics-k8s-stack
+
+# ─────────────────────────────────────────────────────────────────────────────
+# breathe — the homeostasis attachment (→ breathe MemoryBand / CpuBand holding
+# the target's Deployment in the 80/20 band). The targetRef is EXTERNAL: it
+# points at the attached workload, not at any resource this chart owns.
+#
+# Consumes pleme-lib.breatheBand when present (the sibling-added helper that
+# reads .Values.breathe and emits the bands). When that helper is NOT yet
+# available at render time, breatheband.yaml emits the bands natively against
+# the same .Values.breathe contract — byte-shape identical, so the swap is
+# transparent once the helper lands.
+# ─────────────────────────────────────────────────────────────────────────────
+breathe:
+  enabled: true
+  # useLibHelper — route band emission through pleme-lib.breatheBand (the
+  # sibling-added helper) instead of native emission. Default false so the chart
+  # renders clean BEFORE that helper merges; flip to true once pleme-lib ships
+  # it (the helper reads this same .Values.breathe block, so output is identical).
+  useLibHelper: false
+  # targetRef — the EXTERNAL workload the bands carve. Left empty here so the
+  # template wires it from target.* (apiVersion apps/v1, kind Deployment,
+  # name target.deployment). Override the whole dict to band a non-Deployment
+  # target (e.g. a CNPG Cluster: { kind: Cluster, name: …,
+  # apiVersion: postgresql.cnpg.io/v1 }).
+  targetRef: {}
+  # Band-shaping knobs shared by both dimensions (breathe defaults applied when
+  # omitted): setpoint, floor, ceiling are the load-bearing three.
+  setpoint: 0.8
+  growAbove: 0.85
+  shrinkBelow: 0.70
+  growFactor: 1.25
+  shrinkFactor: 0.90
+  cooldownSeconds: 600
+  maxStalenessSeconds: 120
+  # dryRun — SHADOW-first. true = the controller observes + attests every tick
+  # but never carves. Prove convergence before flipping to false (LIVE).
+  dryRun: true
+  # disruptionPolicy — allowRestart re-arms grow-on-pressure for restart-
+  # requiring resizes; RestartFreeOnly (the breathe default) defers them.
+  disruptionPolicy: RestartFreeOnly
+  memory:
+    enabled: true
+    setpoint: 0.8
+    floor: 256Mi
+    ceiling: 2Gi
+  cpu:
+    enabled: false                    # cpu band off by default (throttle-not-kill)
+    setpoint: 0.8
+    floor: 200m
+    ceiling: 2000m
+
+# ─────────────────────────────────────────────────────────────────────────────
+# alerts — the alert attachment (→ a per-target PrometheusRule). Pass through
+# raw PrometheusRule groups in `groups`; when ntfyRouting.enabled the chart
+# stamps a routing label (ntfy-topic) onto every rule so the AlertmanagerConfig
+# can match them.
+# ─────────────────────────────────────────────────────────────────────────────
+alerts:
+  enabled: true
+  # groups — passthrough monitoring.coreos.com/v1 PrometheusRule .spec.groups.
+  # Default group skeleton (commented) — copy into a values override to start:
+  #   groups:
+  #     - name: <target>.observe
+  #       rules:
+  #         - alert: <Target>Down
+  #           expr: up{job="<target>"} == 0
+  #           for: 5m
+  #           labels: { severity: critical }
+  #           annotations:
+  #             summary: "<target> is down"
+  groups: []
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ntfyRouting — the alert → ntfy DELIVERY the recon found MISSING. When enabled,
+# the chart stamps every alert rule with a routing label and emits an
+# AlertmanagerConfig whose route matches that label and delivers to a webhook
+# receiver pointing at the ntfy topic URL.
+# ─────────────────────────────────────────────────────────────────────────────
+ntfyRouting:
+  enabled: false
+  # topic — the ntfy topic. Also the value stamped into the `ntfy-topic` alert
+  # label and matched by the AlertmanagerConfig route.
+  topic: ""                           # e.g. rio-critical
+  # ntfyUrl — the webhook URL alerts are POSTed to. Typically the in-cluster
+  # lareira-ntfy Service plus the topic path.
+  ntfyUrl: ""                         # e.g. http://lareira-ntfy.ntfy.svc/rio-critical
+  # sendResolved — POST a resolve notification when the alert clears.
+  sendResolved: true
+  # groupBy / groupWait / groupInterval / repeatInterval — route timing.
+  groupBy: ["alertname", "target"]
+  groupWait: 30s
+  groupInterval: 5m
+  repeatInterval: 4h
+
+# ─────────────────────────────────────────────────────────────────────────────
+# dashboard — OPTIONAL. A ConfigMap with the grafana_dashboard label so a
+# sidecar-style Grafana picks it up. NOTE: pangea-dashboards owns first-class
+# dashboards in pleme-io; prefer that. This is an escape hatch for an attach-
+# local panel set.
+# ─────────────────────────────────────────────────────────────────────────────
+dashboard:
+  enabled: false
+  # label — the discovery label the Grafana sidecar matches.
+  label: grafana_dashboard
+  # json — the dashboard JSON (string). Left empty by default.
+  json: ""
