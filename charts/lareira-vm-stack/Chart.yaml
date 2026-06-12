@@ -6,7 +6,7 @@ description: |
   the canonical Grafana datasources for VMSingle + VictoriaLogs, and
   alert rules.
 type: application
-version: 0.1.1
+version: 0.1.2
 appVersion: "0.39.0"
 keywords: [observability, victoriametrics, prometheus, grafana, alertmanager, lareira]
 maintainers:
@@ -19,4 +19,4 @@ dependencies:
   - name: victoria-metrics-k8s-stack
     version: "0.39.0"
     repository: "https://victoriametrics.github.io/helm-charts/"
-    condition: vmStack.enabled
+    condition: victoria-metrics-k8s-stack.enabled

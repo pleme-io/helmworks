@@ -6,10 +6,22 @@
 
 enabled: false
 
-vmStack:
+# ── Upstream subchart overrides ────────────────────────────────────────
+#
+# The upstream dependency in Chart.yaml is declared with NO `alias:`, so
+# Helm routes subchart values ONLY under its real name:
+# `victoria-metrics-k8s-stack`. (A `vmStack:` block here would SILENTLY
+# NO-OP — that was the pre-existing dead-key bug this chart fixed by
+# re-keying every override under the real subchart name.)
+#
+# `grafana:` is a sub-dependency of this subchart (declared `name: grafana`,
+# no alias), so its overrides live under `victoria-metrics-k8s-stack.grafana`.
+# The base Grafana config below DEEP-MERGES with the `global.grafanaSso`
+# OIDC injection block at the bottom of this file — Grafana ends up with
+# datasources + persistence + admin + sidecar AND the (default-off, gated)
+# [auth.generic_oauth] injection.
+victoria-metrics-k8s-stack:
   enabled: true
-  nameOverride: vm
-  fullnameOverride: vm
 
   # ── VMSingle: the metric store ──────────────────────────────────────
   vmsingle:
@@ -35,7 +47,9 @@ vmStack:
     spec:
       replicaCount: 1
       scrapeInterval: 30s
-      externalLabels: {}            # cluster: rio etc → set in cluster overlay
+      externalLabels:
+        cluster: rio
+        datacenter: bristol-tn
       resources:
         requests: { cpu: 100m, memory: 256Mi }
         limits:   { cpu: 1000m, memory: 1Gi }
@@ -82,6 +96,12 @@ vmStack:
   # ── Grafana: queries vmsingle + victoria-logs ──────────────────────
   # Pangea-grafana / pangea-dashboards owns folders + dashboards via the
   # Grafana HTTP API. Sidecar dashboards/datasources are DISABLED.
+  #
+  # This base config DEEP-MERGES with the `global.grafanaSso` OIDC
+  # injection block at the bottom of this file (Helm merges two values
+  # under the same `victoria-metrics-k8s-stack.grafana` path): the
+  # `grafana.ini` + `envValueFrom` keys the SSO block contributes land
+  # ALONGSIDE the datasources/persistence/admin/sidecar config here.
   grafana:
     enabled: true
     replicas: 1
@@ -119,38 +139,25 @@ vmStack:
     plugins:
       - victoriametrics-logs-datasource
 
-  # ── Default scrape targets — K3s/embedded-only ─────────────────────
-  kubelet: { enabled: true }
-  kubeApiServer: { enabled: true }
-  coreDns: { enabled: true }
-  kubeControllerManager: { enabled: false }
-  kubeScheduler: { enabled: false }
-  kubeEtcd: { enabled: false }
-  kubeProxy: { enabled: false }
-  nodeExporter: { enabled: false }   # NixOS host runs node_exporter directly
-
-  defaultRules:
-    create: true
-
-# ── Grafana OIDC injection — driven by global.grafanaSso ───────────────
-#
-# CORRECT dependency key: the upstream subchart is declared with NO alias,
-# so subchart values flow under its real name `victoria-metrics-k8s-stack`
-# (NOT the dead `vmStack:` key above — see report). Grafana is a
-# sub-dependency, hence `.grafana.*`.
-#
-# Map leaf values are `tpl`-gated on `global.grafanaSso.enabled`. This block
-# DEEP-MERGES into grafana's own grafana.ini defaults (paths/analytics/log/
-# server.domain) — it adds sections, never clobbers them.
-#
-# Default-OFF footprint: a single inert `[auth.generic_oauth] enabled=false`
-# section (Grafana treats enabled=false as OAuth OFF → identical behavior:
-# login form present, no redirect). No client_secret env, no login-form
-# override, no server.root_url change when off. This inert section is the
-# minimal unavoidable static-values footprint; see report for why a true
-# byte-no-op is not reachable for a subchart-map gated by a parent flag.
-victoria-metrics-k8s-stack:
-  grafana:
+    # ── Grafana OIDC injection — driven by global.grafanaSso ───────────
+    #
+    # Grafana is a sub-dependency of this subchart, so this injection lives
+    # under `victoria-metrics-k8s-stack.grafana` and DEEP-MERGES with the
+    # base Grafana config above (Helm merges both definitions under the
+    # same path). It ADDS the `envValueFrom` + `grafana.ini` SSO sections;
+    # it does not clobber datasources/persistence/admin/sidecar.
+    #
+    # Map leaf values are `tpl`-gated on `global.grafanaSso.enabled`. This
+    # block DEEP-MERGES into grafana's own grafana.ini defaults
+    # (paths/analytics/log/server.domain) — it adds sections, never clobbers.
+    #
+    # Default-OFF footprint: a single inert `[auth.generic_oauth] enabled=false`
+    # section (Grafana treats enabled=false as OAuth OFF → identical behavior:
+    # login form present, no redirect). No client_secret env, no login-form
+    # override, no server.root_url change when off. This inert section is the
+    # minimal unavoidable static-values footprint; see report for why a true
+    # byte-no-op is not reachable for a subchart-map gated by a parent flag.
+    #
     # client_secret → env GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET, sourced from
     # the existing K8s Secret (NEVER in grafana.ini). `optional: true` so the
     # env is harmless when SSO is OFF (the [auth.generic_oauth] enabled=false
@@ -181,9 +188,34 @@ victoria-metrics-k8s-stack:
         role_attribute_path: '{{ if $.Values.global.grafanaSso.enabled }}{{ $.Values.global.grafanaSso.roleAttributePath }}{{ end }}'
         allowed_groups: '{{ if $.Values.global.grafanaSso.enabled }}{{ join "," $.Values.global.grafanaSso.allowedGroups }}{{ end }}'
 
+  # ── Default scrape targets — K3s/embedded-only ─────────────────────
+  kubelet: { enabled: true }
+  kubeApiServer: { enabled: true }
+  coreDns: { enabled: true }
+  kubeControllerManager: { enabled: false }
+  kubeScheduler: { enabled: false }
+  kubeEtcd: { enabled: false }
+  kubeProxy: { enabled: false }
+
+  # NixOS host runs node_exporter directly. The upstream toggle is the
+  # node-exporter SUBCHART's own condition `prometheus-node-exporter.enabled`
+  # (there is NO top-level `nodeExporter:` key upstream — the old
+  # `vmStack.nodeExporter` was doubly dead: wrong namespace AND wrong key).
+  prometheus-node-exporter:
+    enabled: false
+
+  defaultRules:
+    create: true
+
 # Grafana scale-to-zero — opt-in; requires lareira-keda-http installed.
 # When enabled, an HTTPScaledObject scales the Grafana Deployment 0→1
 # on first inbound request (cooldown 600s default).
+#
+# The Grafana Service/Deployment name is the grafana subchart default
+# `<release>-grafana` (e.g. `lareira-vm-stack-grafana`) — there is no
+# fullnameOverride forcing `vm-grafana` (that override never reached the
+# subchart and has been dropped). The scaledobject template targets the
+# release-derived name accordingly.
 grafanaBreathability:
   enabled: false
   scaling:
@@ -205,16 +237,15 @@ grafanaBreathability:
 # subchart. A Helm parent CANNOT inject computed values into a subchart, and a
 # parent's bare top-level value is invisible inside a subchart's `tpl` context —
 # only Helm `global.*` propagates parent→subchart. The subchart-side injection
-# below (under `victoria-metrics-k8s-stack.grafana`) reads `global.grafanaSso.*`
+# above (under `victoria-metrics-k8s-stack.grafana`) reads `global.grafanaSso.*`
 # via the grafana subchart's `tpl`-evaluated `grafana.ini` string values, so the
 # single switch `global.grafanaSso.enabled=true` is the only mechanism that
-# actually reaches the rendered Grafana. (The dead `vmStack:` key above is a
-# separate pre-existing passthrough bug — see report; left untouched here so as
-# not to change default behavior.)
+# actually reaches the rendered Grafana.
 #
-# When global.grafanaSso.enabled=false (default) NOTHING is injected — the
-# subchart grafana.ini section, env, and login-form overrides are all empty,
-# so rendered output is byte-identical to the no-SSO baseline.
+# When global.grafanaSso.enabled=false (default) NOTHING active is injected —
+# the [auth.generic_oauth] section renders enabled=false, root_url/client_id are
+# empty, no login-form override — so Grafana behaves identically to the no-SSO
+# baseline.
 global:
   grafanaSso:
     enabled: false
@@ -231,7 +262,7 @@ global:
     autoLogin: true            # disable_login_form=true + oauth_auto_login=true → straight to Authentik
     allowSignUp: true          # auto-create Grafana users on first OIDC login (Google-federated first logins)
     # client_secret is NEVER placed in grafana.ini — it is read from an existing
-    # K8s Secret via env GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET (envValueFrom below).
+    # K8s Secret via env GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET (envValueFrom above).
     clientSecret:
       secretName: grafana-oidc # existing Secret in the monitoring namespace
       key: client-secret

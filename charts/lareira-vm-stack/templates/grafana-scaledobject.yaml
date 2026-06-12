@@ -18,11 +18,14 @@ spec:
     - {{ . | quote }}
     {{- end }}
   pathPrefixes: ["/"]
+  # The grafana subchart names its Deployment + Service `<release>-grafana`
+  # (no fullnameOverride reaches the subchart — see values.yaml). Target that
+  # real name off the release name rather than the stale `vm-grafana` artifact.
   scaleTargetRef:
-    name: vm-grafana
+    name: {{ .Release.Name }}-grafana
     kind: Deployment
     apiVersion: apps/v1
-    service: vm-grafana
+    service: {{ .Release.Name }}-grafana
     port: 80
   replicas:
     min: {{ .Values.grafanaBreathability.scaling.minReplicas }}
