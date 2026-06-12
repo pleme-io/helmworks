@@ -12,7 +12,7 @@ monitoring.coreos.com/v1alpha1. We author against the REAL in-cluster CRD so the
 manifest is admission-valid. If/when the operator promotes AlertmanagerConfig to
 /v1 fleet-wide, bump the apiVersion here — the spec body is unchanged.
 */}}
-{{- if (.Values.ntfyRouting).enabled }}
+{{- if and (.Values.target).name (.Values.ntfyRouting).enabled }}
 {{- $r := .Values.ntfyRouting }}
 {{- $topic := $r.topic | default "" }}
 {{- if eq $topic "" }}

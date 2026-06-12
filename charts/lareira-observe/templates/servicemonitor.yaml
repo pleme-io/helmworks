@@ -12,7 +12,7 @@ emits. (When pleme-lib grows a target-parameterised servicemonitor helper —
 `pleme-lib.vmServiceScrape` per the recon — this template becomes a thin
 include passing target.* through; the rendered output is identical.)
 */}}
-{{- if (.Values.monitoring).enabled }}
+{{- if and (.Values.target).name (.Values.monitoring).enabled }}
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:

@@ -10,7 +10,7 @@ the PrometheusRule natively against target.* and pass the operator's `groups`
 through verbatim. We additionally STAMP a routing label (ntfy-topic) onto every
 rule when ntfyRouting is enabled, so the AlertmanagerConfig route can match them.
 */}}
-{{- if (.Values.alerts).enabled }}
+{{- if and (.Values.target).name (.Values.alerts).enabled }}
 {{- if (.Values.alerts).groups }}
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule

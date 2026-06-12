@@ -6,7 +6,7 @@ attach-local escape hatch only — a ConfigMap carrying the grafana_dashboard
 discovery label so a Grafana sidecar picks up a panel set scoped to this target.
 Disabled by default.
 */}}
-{{- if (.Values.dashboard).enabled }}
+{{- if and (.Values.target).name (.Values.dashboard).enabled }}
 {{- $d := .Values.dashboard }}
 apiVersion: v1
 kind: ConfigMap
