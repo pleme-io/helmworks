@@ -5,17 +5,15 @@ enabled: false
 victoria-logs-single:
   enabled: true
   server:
-    enabled: true
-    replicaCount: 1
+    # ONLY the mutable retention args are set here. The PVC (volumeClaimTemplate
+    # size + storageClassName) and other immutable StatefulSet fields are left at
+    # the subchart defaults — which is exactly what built the LIVE rio STS
+    # (10Gi PVC, empty storageClassName). Setting persistentVolume.size or
+    # storageClassName here re-keyed those immutable fields and the helm upgrade
+    # was Forbidden (StatefulSet spec immutability) → rollback (0.1.1, 0.1.2).
+    # Retention args live on the pod template (mutable) so they apply cleanly.
     retentionPeriod: 10d
     retentionDiskSpaceUsage: 8GiB
-    persistentVolume:
-      enabled: true
-      storageClassName: local-path
-      size: 10Gi
-    resources:
-      requests: { cpu: 100m, memory: 256Mi }
-      limits:   { cpu: 2000m, memory: 2Gi }
   serviceMonitor:
     enabled: true
 
