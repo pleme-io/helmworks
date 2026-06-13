@@ -108,7 +108,11 @@ spec:
    by another path). */}}
 {{- define "pleme-lib._observabilityBundle.dashboard" -}}
 {{- $d := .Values.observability.dashboard -}}
-{{- if not $d.json }}{{- fail "pleme-lib.observabilityBundle: dashboard.enabled requires `json` (the rendered Grafana dashboard)" }}{{- end }}
+{{/* the Grafana JSON comes from `json` (inline) OR `file` (a chart path read via
+   .Files.Get — for large pangea-generated dashboards that would bloat values). */}}
+{{- $json := $d.json -}}
+{{- if and (not $json) $d.file -}}{{- $json = .Files.Get $d.file -}}{{- end -}}
+{{- if not $json }}{{- fail "pleme-lib.observabilityBundle: dashboard.enabled requires `json` (inline) or `file` (a chart path)" }}{{- end }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -121,5 +125,5 @@ metadata:
     {{- end }}
 data:
   {{ $d.name | default "dashboard" }}.json: |
-    {{- $d.json | nindent 4 }}
+    {{- $json | nindent 4 }}
 {{- end -}}

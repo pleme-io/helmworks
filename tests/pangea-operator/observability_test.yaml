@@ -1,0 +1,57 @@
+suite: pangea-operator — observability via pleme-lib.observabilityBundle
+#
+# The chart no longer hand-authors observability: templates/observability.yaml is
+# one include of pleme-lib.observabilityBundle, fed the pangea-GENERATED rule
+# groups + dashboard JSON. Asserts the VM-native surface renders + the old
+# hand-authored grafana-dashboard ConfigMap is gone.
+templates:
+  - templates/observability.yaml
+release:
+  name: pangea-operator
+  namespace: pangea-system
+tests:
+  - it: "renders a VMServiceScrape (VM-native scrape, not ServiceMonitor)"
+    documentSelector:
+      path: kind
+      value: VMServiceScrape
+    asserts:
+      - equal:
+          path: apiVersion
+          value: operator.victoriametrics.com/v1beta1
+      - equal:
+          path: spec.endpoints[0].port
+          value: metrics
+
+  - it: "renders a VMRule with the 8 pangea-generated alerts incl the magma signal"
+    documentSelector:
+      path: kind
+      value: VMRule
+    asserts:
+      - equal:
+          path: apiVersion
+          value: operator.victoriametrics.com/v1beta1
+      - equal:
+          path: spec.groups[0].rules[0].alert
+          value: PangeaMagmaApplyFailing
+      - lengthEqual:
+          path: spec.groups[0].rules
+          count: 8
+      # the magma alert references the seeded metric + the renamed label
+      - matchRegex:
+          path: spec.groups[0].rules[0].expr
+          pattern: "pangea_magma_resources_failed"
+      - matchRegex:
+          path: spec.groups[0].rules[0].expr
+          pattern: "target_namespace"
+
+  - it: "renders the dashboard ConfigMap (grafana sidecar label) from the generated JSON file"
+    documentSelector:
+      path: kind
+      value: ConfigMap
+    asserts:
+      - equal:
+          path: metadata.labels["grafana_dashboard"]
+          value: "1"
+      - matchRegex:
+          path: data["pangea-operator.json"]
+          pattern: "pangea"

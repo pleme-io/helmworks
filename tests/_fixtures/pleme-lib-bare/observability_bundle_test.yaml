@@ -123,6 +123,29 @@ tests:
           path: data["pangea-operator.json"]
           pattern: "pangea-operator"
 
+  - it: "dashboard.file reads the Grafana JSON from a chart file (.Files.Get)"
+    set:
+      <<: *defaults
+      observability:
+        flavor: vm
+        scrape: { enabled: false }
+        rules: { enabled: false }
+        dashboard:
+          enabled: true
+          name: from-file
+          file: dashboards/test-dash.json
+          deploy: sidecar
+    documentSelector:
+      path: kind
+      value: ConfigMap
+    asserts:
+      - matchRegex:
+          path: data["from-file.json"]
+          pattern: "from-file"
+      - equal:
+          path: metadata.labels["grafana_dashboard"]
+          value: "1"
+
   - it: "prometheus flavor renders exactly 2 Prometheus docs + NO VM CRDs (mutual exclusion)"
     set:
       <<: *defaults
