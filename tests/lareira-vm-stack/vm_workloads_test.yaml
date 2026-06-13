@@ -19,12 +19,33 @@ tests:
       - hasDocuments:
           count: 0
 
-  - it: "enabled renders exactly VMSingle + VMAgent + VMAlert + VMRule"
+  - it: "enabled renders exactly VMSingle + VMAgent + VMAlert + VMAlertmanager + VMRule"
     set:
       enabled: true
     asserts:
       - hasDocuments:
-          count: 4
+          count: 5
+
+  - it: "VMAlertmanager uses a SHORT name (fixes the 63-char STS controller-revision-hash bug)"
+    set:
+      enabled: true
+    documentSelector:
+      path: kind
+      value: VMAlertmanager
+    asserts:
+      - equal:
+          path: metadata.name
+          value: lareira-vm-stack
+      # name (16) → STS `vmalertmanager-lareira-vm-stack` (31) + `-<10char hash>` = 42 ≤ 63
+      - matchRegex:
+          path: metadata.name
+          pattern: "^.{1,37}$"
+      - equal:
+          path: spec.retention
+          value: 120h
+      - matchRegex:
+          path: spec.configRawYaml
+          pattern: "receiver: blackhole"
 
   - it: "VMSingle adopts the upstream-derived name (no-op migration) + keeps store contract"
     set:
@@ -81,7 +102,7 @@ tests:
           value: http://vmsingle-lareira-vm-stack-victoria-metrics-k8s-stack.monitoring.svc.cluster.local.:8429
       - equal:
           path: spec.notifiers[0].url
-          value: http://vmalertmanager-lareira-vm-stack-victoria-metrics-k8s-stack-0.vmalertmanager-lareira-vm-stack-victoria-metrics-k8s-stack.monitoring.svc.cluster.local.:9093
+          value: http://vmalertmanager-lareira-vm-stack.monitoring.svc.cluster.local.:9093
 
   - it: "VMRule carries the metric-store alerts (replaces the disabled PrometheusRule)"
     set:
@@ -111,4 +132,4 @@ tests:
           enabled: false
     asserts:
       - hasDocuments:
-          count: 3
+          count: 4

@@ -77,15 +77,52 @@ vm:
     extraArgs:
       http.pathPrefix: "/"
       remoteWrite.disablePathAppend: "true"
-    # vestigial single `notifier` reproduced verbatim for a true no-op; the
-    # working route is `notifiers[]` (the operator-derived Alertmanager pod-DNS).
-    notifier:
-      url: http://vmalertmanager-vm.monitoring.svc:9093
+    # Notify the pleme-lib VMAlertmanager (below) via its Service DNS. The short
+    # name fixes the upstream's 63-char STS-label bug (the old CR name produced a
+    # 69-char controller-revision-hash label → the Alertmanager pod could never
+    # be created → the operator error-looped for 20h). Service-DNS (not pod-0
+    # StatefulSet DNS) is robust to pod identity.
     notifiers:
-      - url: http://vmalertmanager-lareira-vm-stack-victoria-metrics-k8s-stack-0.vmalertmanager-lareira-vm-stack-victoria-metrics-k8s-stack.monitoring.svc.cluster.local.:9093
+      - url: http://vmalertmanager-lareira-vm-stack.monitoring.svc.cluster.local.:9093
     resources:
       requests: { cpu: 50m, memory: 128Mi }
       limits:   { cpu: 1000m, memory: 512Mi }
+  # ── VMAlertmanager — the alert sink, expressed via pleme-lib ──────────────
+  # Migrated off the upstream subchart to FIX a pre-existing 20h outage: the
+  # upstream CR name `lareira-vm-stack-victoria-metrics-k8s-stack` (43 chars)
+  # made the StatefulSet pod's controller-revision-hash label exceed K8s's
+  # 63-char limit → FailedCreate, 0/1 forever. A short `name` (the pleme-lib
+  # 0.24.0 override) keeps the label well under 63. Config is the inline
+  # blackhole base (reproduces the live config; no ntfy target exists on rio
+  # yet — a future VMAlertmanagerConfig via pleme-lib.vmAlertmanagerConfig adds
+  # real routing). selectAllByDefault picks up any VMAlertmanagerConfig later.
+  alertmanager:
+    enabled: true
+    name: lareira-vm-stack
+    image: { tag: v0.27.0 }
+    port: "9093"
+    replicaCount: 1
+    retention: 120h
+    selectAllByDefault: true
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: local-path
+          accessModes: [ReadWriteOnce]
+          resources:
+            requests: { storage: 5Gi }
+    resources:
+      requests: { cpu: 10m, memory: 64Mi }
+      limits:   { cpu: 500m, memory: 256Mi }
+    configRawYaml: |
+      receivers:
+        - name: blackhole
+      route:
+        receiver: blackhole
+        group_by: [namespace, alertname]
+        group_wait: 30s
+        group_interval: 5m
+        repeat_interval: 12h
   # The alert WHAT, now a native VMRule (replaces the disabled PrometheusRule).
   # vmalert evaluates it via selectAllByDefault.
   rules:
@@ -193,9 +230,13 @@ victoria-metrics-k8s-stack:
       notifier:
         url: "http://vmalertmanager-vm.monitoring.svc:9093"
 
-  # ── Alertmanager: routing tree owned by AlertmanagerConfig CRDs ─────
+  # ── Alertmanager: MIGRATED to the pleme-lib VM primitive (top-level `vm:`
+  #    block) with a SHORT name that fixes the 63-char STS-label outage.
+  #    Disabled here so the upstream stops rendering the long-named (broken) CR;
+  #    helm deletes it + the operator GCs the failed 0/1 StatefulSet. The spec
+  #    below is retained as the reproduction source.
   alertmanager:
-    enabled: true
+    enabled: false
     spec:
       replicaCount: 1
       retention: 120h

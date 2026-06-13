@@ -38,6 +38,10 @@ helper is the destination for computing it).
 ---
 {{- include "pleme-lib.vmAlert" . }}
 {{- end }}
+{{- if ((.Values.vm).alertmanager).enabled }}
+---
+{{- include "pleme-lib.vmAlertmanager" . }}
+{{- end }}
 {{- if ((.Values.vm).rules).enabled }}
 ---
 {{- include "pleme-lib.vmRule" . }}
