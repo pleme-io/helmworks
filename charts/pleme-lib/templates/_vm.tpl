@@ -37,11 +37,19 @@ Values shape (illustrative):
 {{- (.Values.vm).apiVersion | default "operator.victoriametrics.com/v1beta1" -}}
 {{- end -}}
 
-{{/* internal: standard metadata block for a VM CR. arg = (dict "ctx" $ "name" "<suffix>") */}}
+{{/* internal: standard metadata block for a VM CR.
+   arg = (dict "ctx" $ "name" "<suffix>" "fullName" "<verbatim>")
+   - fullName (optional): the EXACT metadata.name, verbatim. Use when a CR must
+     adopt an operator-derived resource that already exists under a specific
+     name (the no-op-migration case — the VM operator keys its StatefulSet/
+     Deployment/Service/PVC off the CR name, so matching the name keeps the
+     existing data + service-DNS). Set per component via `vm.<kind>.name`.
+   - name (optional): a suffix appended to the chart fullname (the default
+     multi-CR disambiguator, e.g. "-agent"). Ignored when fullName is set. */}}
 {{- define "pleme-lib._vm.metadata" -}}
 {{- $ctx := .ctx -}}
 metadata:
-  name: {{ include "pleme-lib.fullname" $ctx }}{{ if .name }}-{{ .name }}{{ end }}
+  name: {{ if .fullName }}{{ .fullName }}{{ else }}{{ include "pleme-lib.fullname" $ctx }}{{ if .name }}-{{ .name }}{{ end }}{{ end }}
   namespace: {{ include "pleme-lib.namespace" $ctx }}
   labels:
     {{- include "pleme-lib.labels" $ctx | nindent 4 }}
@@ -67,9 +75,9 @@ metadata:
 {{- end }}
 apiVersion: {{ include "pleme-lib._vm.apiVersion" $ }}
 kind: VMSingle
-{{- include "pleme-lib._vm.metadata" (dict "ctx" $) | nindent 0 }}
+{{- include "pleme-lib._vm.metadata" (dict "ctx" $ "fullName" .name) | nindent 0 }}
 spec:
-  {{- toYaml (omit . "enabled") | nindent 2 }}
+  {{- toYaml (omit . "enabled" "name") | nindent 2 }}
 {{- end }}
 {{- end }}
 {{- end -}}
@@ -80,9 +88,9 @@ spec:
 {{- if .enabled }}
 apiVersion: {{ include "pleme-lib._vm.apiVersion" $ }}
 kind: VMCluster
-{{- include "pleme-lib._vm.metadata" (dict "ctx" $) | nindent 0 }}
+{{- include "pleme-lib._vm.metadata" (dict "ctx" $ "fullName" .name) | nindent 0 }}
 spec:
-  {{- toYaml (omit . "enabled") | nindent 2 }}
+  {{- toYaml (omit . "enabled" "name") | nindent 2 }}
 {{- end }}
 {{- end }}
 {{- end -}}
@@ -93,9 +101,9 @@ spec:
 {{- if .enabled }}
 apiVersion: {{ include "pleme-lib._vm.apiVersion" $ }}
 kind: VMAgent
-{{- include "pleme-lib._vm.metadata" (dict "ctx" $ "name" "agent") | nindent 0 }}
+{{- include "pleme-lib._vm.metadata" (dict "ctx" $ "name" "agent" "fullName" .name) | nindent 0 }}
 spec:
-  {{- toYaml (omit . "enabled") | nindent 2 }}
+  {{- toYaml (omit . "enabled" "name") | nindent 2 }}
 {{- end }}
 {{- end }}
 {{- end -}}
@@ -106,9 +114,9 @@ spec:
 {{- if .enabled }}
 apiVersion: {{ include "pleme-lib._vm.apiVersion" $ }}
 kind: VMAlert
-{{- include "pleme-lib._vm.metadata" (dict "ctx" $ "name" "alert") | nindent 0 }}
+{{- include "pleme-lib._vm.metadata" (dict "ctx" $ "name" "alert" "fullName" .name) | nindent 0 }}
 spec:
-  {{- toYaml (omit . "enabled") | nindent 2 }}
+  {{- toYaml (omit . "enabled" "name") | nindent 2 }}
 {{- end }}
 {{- end }}
 {{- end -}}
@@ -119,9 +127,9 @@ spec:
 {{- if .enabled }}
 apiVersion: {{ include "pleme-lib._vm.apiVersion" $ }}
 kind: VMAlertmanager
-{{- include "pleme-lib._vm.metadata" (dict "ctx" $) | nindent 0 }}
+{{- include "pleme-lib._vm.metadata" (dict "ctx" $ "fullName" .name) | nindent 0 }}
 spec:
-  {{- toYaml (omit . "enabled") | nindent 2 }}
+  {{- toYaml (omit . "enabled" "name") | nindent 2 }}
 {{- end }}
 {{- end }}
 {{- end -}}
@@ -132,9 +140,9 @@ spec:
 {{- if .enabled }}
 apiVersion: {{ include "pleme-lib._vm.apiVersion" $ }}
 kind: VMAuth
-{{- include "pleme-lib._vm.metadata" (dict "ctx" $) | nindent 0 }}
+{{- include "pleme-lib._vm.metadata" (dict "ctx" $ "fullName" .name) | nindent 0 }}
 spec:
-  {{- toYaml (omit . "enabled") | nindent 2 }}
+  {{- toYaml (omit . "enabled" "name") | nindent 2 }}
 {{- end }}
 {{- end }}
 {{- end -}}

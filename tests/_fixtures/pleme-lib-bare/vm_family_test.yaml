@@ -1,8 +1,15 @@
 suite: pleme-lib bare-fixture — VictoriaMetrics CRD family (_vm.tpl)
 templates:
   - templates/vm-single.yaml
+  - templates/vm-cluster.yaml
+  - templates/vm-agent.yaml
+  - templates/vm-alert.yaml
+  - templates/vm-alertmanager.yaml
+  - templates/vm-auth.yaml
   - templates/vm-rule.yaml
+  - templates/vm-amconfig.yaml
   - templates/vm-podscrape.yaml
+  - templates/vm-nodescrape.yaml
 release:
   name: t
   namespace: testns
@@ -12,15 +19,27 @@ defaults: &defaults
   serviceAccount.create: true
 
 tests:
-  - it: "renders nothing when vm.* is unset (no-op default)"
-    templates: [templates/vm-single.yaml]
+  # ── default no-op ───────────────────────────────────────────────────
+  - it: "renders nothing when vm.* is unset (no-op default — safe-by-default)"
+    templates:
+      - templates/vm-single.yaml
+      - templates/vm-cluster.yaml
+      - templates/vm-agent.yaml
+      - templates/vm-alert.yaml
+      - templates/vm-alertmanager.yaml
+      - templates/vm-auth.yaml
+      - templates/vm-rule.yaml
+      - templates/vm-amconfig.yaml
+      - templates/vm-podscrape.yaml
+      - templates/vm-nodescrape.yaml
     set:
       <<: *defaults
     asserts:
       - hasDocuments:
           count: 0
 
-  - it: "vmSingle renders a VMSingle with pleme-lib labels + passthrough spec"
+  # ── VMSingle ────────────────────────────────────────────────────────
+  - it: "vmSingle renders a VMSingle with pleme-lib labels + passthrough spec + default name"
     templates: [templates/vm-single.yaml]
     set:
       <<: *defaults
@@ -40,6 +59,12 @@ tests:
       - isKind:
           of: VMSingle
       - equal:
+          path: apiVersion
+          value: operator.victoriametrics.com/v1beta1
+      - equal:
+          path: metadata.name
+          value: t-pleme-lib-bare
+      - equal:
           path: spec.retentionPeriod
           value: "14d"
       - equal:
@@ -47,6 +72,29 @@ tests:
           value: 30Gi
       - isNotNullOrEmpty:
           path: metadata.labels
+      # the `name` override must NOT leak into spec
+      - notExists:
+          path: spec.name
+
+  - it: "vmSingle `name` override sets metadata.name VERBATIM (the no-op-migration capability)"
+    templates: [templates/vm-single.yaml]
+    set:
+      <<: *defaults
+      vm:
+        single:
+          enabled: true
+          name: lareira-vm-stack-victoria-metrics-k8s-stack
+          retentionPeriod: "14d"
+          storage:
+            resources:
+              requests:
+                storage: 30Gi
+    asserts:
+      - equal:
+          path: metadata.name
+          value: lareira-vm-stack-victoria-metrics-k8s-stack
+      - notExists:
+          path: spec.name
 
   - it: "vmSingle storage invariant — storageDataPath WITHOUT storage/volumes FAILS render (rio bug made unrepresentable)"
     templates: [templates/vm-single.yaml]
@@ -81,6 +129,147 @@ tests:
           path: spec.storageDataPath
           value: /vm-data
 
+  # ── VMAgent (suffix "-agent" by default; name override wins) ─────────
+  - it: "vmAgent renders VMAgent; default name carries the -agent suffix"
+    templates: [templates/vm-agent.yaml]
+    set:
+      <<: *defaults
+      vm:
+        agent:
+          enabled: true
+          selectAllByDefault: true
+          remoteWrite:
+            - url: http://vmsingle.monitoring.svc:8429/api/v1/write
+    asserts:
+      - isKind:
+          of: VMAgent
+      - equal:
+          path: metadata.name
+          value: t-pleme-lib-bare-agent
+      - equal:
+          path: spec.selectAllByDefault
+          value: true
+      - equal:
+          path: spec.remoteWrite[0].url
+          value: http://vmsingle.monitoring.svc:8429/api/v1/write
+      - notExists:
+          path: spec.name
+
+  - it: "vmAgent `name` override beats the -agent suffix (verbatim adoption name)"
+    templates: [templates/vm-agent.yaml]
+    set:
+      <<: *defaults
+      vm:
+        agent:
+          enabled: true
+          name: lareira-vm-stack-victoria-metrics-k8s-stack
+          selectAllByDefault: true
+    asserts:
+      - equal:
+          path: metadata.name
+          value: lareira-vm-stack-victoria-metrics-k8s-stack
+
+  # ── VMAlert ─────────────────────────────────────────────────────────
+  - it: "vmAlert renders VMAlert with datasource + notifiers passthrough"
+    templates: [templates/vm-alert.yaml]
+    set:
+      <<: *defaults
+      vm:
+        alert:
+          enabled: true
+          name: lareira-vm-stack-victoria-metrics-k8s-stack
+          datasource:
+            url: http://vmsingle.monitoring.svc:8429
+          notifiers:
+            - url: http://vmalertmanager.monitoring.svc:9093
+    asserts:
+      - isKind:
+          of: VMAlert
+      - equal:
+          path: metadata.name
+          value: lareira-vm-stack-victoria-metrics-k8s-stack
+      - equal:
+          path: spec.datasource.url
+          value: http://vmsingle.monitoring.svc:8429
+      - equal:
+          path: spec.notifiers[0].url
+          value: http://vmalertmanager.monitoring.svc:9093
+
+  # ── VMAlertmanager ──────────────────────────────────────────────────
+  - it: "vmAlertmanager renders VMAlertmanager (no suffix)"
+    templates: [templates/vm-alertmanager.yaml]
+    set:
+      <<: *defaults
+      vm:
+        alertmanager:
+          enabled: true
+          replicaCount: 1
+          selectAllByDefault: true
+    asserts:
+      - isKind:
+          of: VMAlertmanager
+      - equal:
+          path: metadata.name
+          value: t-pleme-lib-bare
+      - equal:
+          path: spec.selectAllByDefault
+          value: true
+
+  # ── VMAuth ──────────────────────────────────────────────────────────
+  - it: "vmAuth renders VMAuth with unauthorizedAccessConfig passthrough"
+    templates: [templates/vm-auth.yaml]
+    set:
+      <<: *defaults
+      vm:
+        auth:
+          enabled: true
+          unauthorizedAccessConfig:
+            - src_paths: ["/.*"]
+              url_prefix: ["http://vmsingle.monitoring.svc:8429"]
+    asserts:
+      - isKind:
+          of: VMAuth
+      - equal:
+          path: spec.unauthorizedAccessConfig[0].url_prefix[0]
+          value: http://vmsingle.monitoring.svc:8429
+
+  # ── VMCluster ───────────────────────────────────────────────────────
+  - it: "vmCluster renders VMCluster (HA topology) — off by default"
+    templates: [templates/vm-cluster.yaml]
+    set:
+      <<: *defaults
+      vm:
+        cluster:
+          enabled: true
+          retentionPeriod: "1"
+          vmstorage:
+            replicaCount: 2
+    asserts:
+      - isKind:
+          of: VMCluster
+      - equal:
+          path: spec.vmstorage.replicaCount
+          value: 2
+
+  # ── apiVersion override (family-wide) ───────────────────────────────
+  - it: "vm.apiVersion overrides the family apiVersion default"
+    templates: [templates/vm-single.yaml]
+    set:
+      <<: *defaults
+      vm:
+        apiVersion: operator.victoriametrics.com/v1
+        single:
+          enabled: true
+          storage:
+            resources:
+              requests:
+                storage: 1Gi
+    asserts:
+      - equal:
+          path: apiVersion
+          value: operator.victoriametrics.com/v1
+
+  # ── VMRule (the alert WHAT, as a CR) ────────────────────────────────
   - it: "vmRule requires non-empty groups"
     templates: [templates/vm-rule.yaml]
     set:
@@ -92,7 +281,7 @@ tests:
       - failedTemplate:
           errorMessage: "pleme-lib.vmRule: vm.rules.enabled requires non-empty `groups`"
 
-  - it: "vmRule renders a VMRule with its groups"
+  - it: "vmRule renders a VMRule with its groups + severity labels"
     templates: [templates/vm-rule.yaml]
     set:
       <<: *defaults
@@ -104,13 +293,59 @@ tests:
               rules:
                 - alert: VMSingleDown
                   expr: "up == 0"
+                  for: 2m
+                  labels:
+                    severity: critical
     asserts:
       - isKind:
           of: VMRule
       - equal:
           path: spec.groups[0].name
           value: vmsingle
+      - equal:
+          path: spec.groups[0].rules[0].labels.severity
+          value: critical
 
+  # ── VMAlertmanagerConfig (the routing tree, as a CR) ────────────────
+  - it: "vmAlertmanagerConfig requires a spec"
+    templates: [templates/vm-amconfig.yaml]
+    set:
+      <<: *defaults
+      vm:
+        alertmanagerConfig:
+          enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "pleme-lib.vmAlertmanagerConfig: vm.alertmanagerConfig.enabled requires a `spec` (route + receivers)"
+
+  - it: "vmAlertmanagerConfig renders the ntfy routing tree"
+    templates: [templates/vm-amconfig.yaml]
+    set:
+      <<: *defaults
+      vm:
+        alertmanagerConfig:
+          enabled: true
+          spec:
+            route:
+              receiver: ntfy-critical
+              routes:
+                - matchers: ["severity = critical"]
+                  receiver: ntfy-critical
+            receivers:
+              - name: ntfy-critical
+                webhook_configs:
+                  - url: http://ntfy.ntfy.svc/rio-critical
+    asserts:
+      - isKind:
+          of: VMAlertmanagerConfig
+      - equal:
+          path: spec.route.receiver
+          value: ntfy-critical
+      - equal:
+          path: spec.receivers[0].webhook_configs[0].url
+          value: http://ntfy.ntfy.svc/rio-critical
+
+  # ── scrape maps → N docs ────────────────────────────────────────────
   - it: "vmPodScrape fans a map out to N VMPodScrape docs"
     templates: [templates/vm-podscrape.yaml]
     set:
@@ -124,3 +359,20 @@ tests:
     asserts:
       - isKind:
           of: VMPodScrape
+
+  - it: "vmNodeScrape fans a map out to N VMNodeScrape docs"
+    templates: [templates/vm-nodescrape.yaml]
+    set:
+      <<: *defaults
+      vm:
+        nodeScrapes:
+          kubelet:
+            enabled: true
+            port: https-metrics
+            scheme: https
+    asserts:
+      - isKind:
+          of: VMNodeScrape
+      - equal:
+          path: spec.scheme
+          value: https
