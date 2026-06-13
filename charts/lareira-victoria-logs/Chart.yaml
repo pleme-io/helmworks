@@ -5,7 +5,7 @@ description: |
   Wraps victoriametrics/victoria-logs-single with retention defaults
   + ServiceMonitor + storage-elastic-friendly PVC labelling.
 type: application
-version: 0.1.0
+version: 0.1.1
 appVersion: "0.12.2"
 keywords: [logs, victorialogs, observability, lareira]
 maintainers:
@@ -18,4 +18,4 @@ dependencies:
   - name: victoria-logs-single
     version: "0.12.2"
     repository: "https://victoriametrics.github.io/helm-charts/"
-    condition: victoriaLogs.enabled
+    condition: victoria-logs-single.enabled

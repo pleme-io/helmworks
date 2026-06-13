@@ -30,7 +30,7 @@ vm:
     image: { tag: v1.113.0 }
     port: "8429"
     replicaCount: 1
-    retentionPeriod: "14d"
+    retentionPeriod: "10d"
     extraArgs:
       vmalert.proxyURL: http://vmalert-lareira-vm-stack-victoria-metrics-k8s-stack.monitoring.svc.cluster.local.:8080
     storage:
@@ -181,7 +181,7 @@ victoria-metrics-k8s-stack:
   vmsingle:
     enabled: false
     spec:
-      retentionPeriod: "14d"
+      retentionPeriod: "10d"
       # NO custom storageDataPath: the VM-operator mounts the `storage` PVC at
       # its default data path and serves from there. Setting a custom path
       # (was `/vm-data`) without a matching raw `volumes` entry makes the

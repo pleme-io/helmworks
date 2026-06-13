@@ -2,12 +2,12 @@
 
 enabled: false
 
-victoriaLogs:
+victoria-logs-single:
   enabled: true
   server:
     enabled: true
     replicaCount: 1
-    retentionPeriod: 30d
+    retentionPeriod: 10d
     retentionDiskSpaceUsage: 50GiB
     persistentVolume:
       enabled: true
