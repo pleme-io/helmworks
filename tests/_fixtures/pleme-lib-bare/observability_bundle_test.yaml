@@ -1,0 +1,208 @@
+suite: pleme-lib bare-fixture — pleme-lib.observabilityBundle composite
+#
+# Proves the one-border observability composite: vm flavor renders the VM-native
+# CRDs (VMServiceScrape + VMRule + VMAlertmanagerConfig) + the dashboard ConfigMap
+# and NO Prometheus CRDs; prometheus flavor renders the Prometheus CRDs and NO VM
+# CRDs (mutual exclusion → no double-scrape); the ATTACH target override; guards.
+templates:
+  - templates/observability-bundle.yaml
+release:
+  name: t
+  namespace: pangea-system
+defaults: &defaults
+  image.repository: ghcr.io/x/y
+  image.tag: "1.0.0"
+  serviceAccount.create: true
+  observability:
+    flavor: vm
+    scrape:
+      enabled: true
+      port: metrics
+      path: /metrics
+      name: pangea-operator
+      target:
+        selector:
+          app.kubernetes.io/name: pangea-operator
+        namespace: pangea-system
+    rules:
+      enabled: true
+      groups:
+        - name: pangea-operator
+          rules:
+            - alert: PangeaMagmaApplyFailing
+              expr: "max by(template,target_namespace)(pangea_magma_resources_failed) > 0"
+              for: 10m
+              labels: { severity: critical }
+    alertmanagerConfig:
+      enabled: true
+      spec:
+        route: { receiver: ntfy-critical }
+        receivers:
+          - name: ntfy-critical
+            webhook_configs:
+              - url: http://ntfy.ntfy.svc/rio-critical
+    dashboard:
+      enabled: true
+      name: pangea-operator
+      json: '{"title":"pangea-operator","panels":[]}'
+      deploy: sidecar
+
+tests:
+  - it: "renders nothing when observability is unset (no-op default)"
+    set:
+      image.repository: ghcr.io/x/y
+      image.tag: "1.0.0"
+      serviceAccount.create: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: "vm flavor renders exactly the 4 VM-native docs (scrape+rule+route+dashboard)"
+    set:
+      <<: *defaults
+    asserts:
+      - hasDocuments:
+          count: 4
+
+  - it: "vm flavor — VMServiceScrape with the ATTACH target + adopted name"
+    set:
+      <<: *defaults
+    documentSelector:
+      path: kind
+      value: VMServiceScrape
+    asserts:
+      - equal:
+          path: apiVersion
+          value: operator.victoriametrics.com/v1beta1
+      - equal:
+          path: metadata.name
+          value: pangea-operator
+      - equal:
+          path: spec.namespaceSelector.matchNames[0]
+          value: pangea-system
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/name"]
+          value: pangea-operator
+      - equal:
+          path: spec.endpoints[0].port
+          value: metrics
+
+  - it: "vm flavor — VMRule carries the generated groups"
+    set:
+      <<: *defaults
+    documentSelector:
+      path: kind
+      value: VMRule
+    asserts:
+      - equal:
+          path: spec.groups[0].rules[0].alert
+          value: PangeaMagmaApplyFailing
+
+  - it: "vm flavor — VMAlertmanagerConfig routes to ntfy"
+    set:
+      <<: *defaults
+    documentSelector:
+      path: kind
+      value: VMAlertmanagerConfig
+    asserts:
+      - equal:
+          path: spec.receivers[0].webhook_configs[0].url
+          value: http://ntfy.ntfy.svc/rio-critical
+
+  - it: "vm flavor — dashboard ConfigMap with the sidecar label + the JSON"
+    set:
+      <<: *defaults
+    documentSelector:
+      path: kind
+      value: ConfigMap
+    asserts:
+      - equal:
+          path: metadata.labels["grafana_dashboard"]
+          value: "1"
+      - matchRegex:
+          path: data["pangea-operator.json"]
+          pattern: "pangea-operator"
+
+  - it: "prometheus flavor renders exactly 2 Prometheus docs + NO VM CRDs (mutual exclusion)"
+    set:
+      <<: *defaults
+      observability:
+        flavor: prometheus
+        scrape: { enabled: true, port: metrics }
+        rules:
+          enabled: true
+          groups:
+            - name: g
+              rules: [{ alert: A, expr: "up == 0" }]
+    asserts:
+      - hasDocuments:
+          count: 2
+
+  - it: "prometheus flavor — the scrape is a ServiceMonitor (not VMServiceScrape)"
+    set:
+      <<: *defaults
+      observability:
+        flavor: prometheus
+        scrape: { enabled: true, port: metrics }
+        rules:
+          enabled: true
+          groups: [{ name: g, rules: [{ alert: A, expr: "up == 0" }] }]
+    documentSelector:
+      path: kind
+      value: ServiceMonitor
+    asserts:
+      - equal:
+          path: apiVersion
+          value: monitoring.coreos.com/v1
+
+  - it: "prometheus flavor — the rules are a PrometheusRule (not VMRule)"
+    set:
+      <<: *defaults
+      observability:
+        flavor: prometheus
+        scrape: { enabled: true, port: metrics }
+        rules:
+          enabled: true
+          groups: [{ name: g, rules: [{ alert: A, expr: "up == 0" }] }]
+    documentSelector:
+      path: kind
+      value: PrometheusRule
+    asserts:
+      - equal:
+          path: apiVersion
+          value: monitoring.coreos.com/v1
+      - equal:
+          path: spec.groups[0].rules[0].alert
+          value: A
+
+  - it: "vm flavor rules.enabled with empty groups FAILS render (delegates to vmRule guard)"
+    set:
+      <<: *defaults
+      observability:
+        flavor: vm
+        scrape: { enabled: false }
+        rules: { enabled: true }
+    asserts:
+      - failedTemplate:
+          errorMessage: "pleme-lib.vmRule: vm.rules.enabled requires non-empty `groups`"
+
+  - it: "prometheus flavor rules.enabled with empty groups FAILS render (bundle guard)"
+    set:
+      <<: *defaults
+      observability:
+        flavor: prometheus
+        scrape: { enabled: false }
+        rules: { enabled: true }
+    asserts:
+      - failedTemplate:
+          errorMessage: "pleme-lib.observabilityBundle: rules.enabled requires non-empty `groups`"
+
+  - it: "unknown flavor FAILS render (guard)"
+    set:
+      <<: *defaults
+      observability:
+        flavor: datadog
+        scrape: { enabled: true, port: metrics }
+    asserts:
+      - failedTemplate:
+          errorMessage: "pleme-lib.observabilityBundle: unknown flavor \"datadog\" (want vm|prometheus)"

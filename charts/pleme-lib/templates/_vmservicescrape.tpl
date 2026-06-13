@@ -21,14 +21,24 @@ Values:
     path: /metrics
     interval: 30s
     scrapeTimeout: 10s
+    # ATTACH case (optional): scrape a DIFFERENT service/namespace than the
+    # chart's own — e.g. lareira-observe attaching to pangea-operator. When
+    # `target.selector` is set it (and `target.namespace`) are used instead of
+    # the chart's own selectorLabels. `name` lets the CR ADOPT a specific
+    # existing name (so a migration converges onto it rather than forking a CR).
+    name: ""              # metadata.name override (default <fullname>)
+    target:
+      selector: {}        # matchLabels of the target Service
+      namespace: ""       # namespaceSelector.matchNames (the target's namespace)
 */}}
 
 {{- define "pleme-lib.vmServiceScrape" -}}
 {{- if (.Values.vmScrape).enabled }}
+{{- $target := (.Values.vmScrape).target }}
 apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMServiceScrape
 metadata:
-  name: {{ include "pleme-lib.fullname" . }}
+  name: {{ (.Values.vmScrape).name | default (include "pleme-lib.fullname" .) }}
   namespace: {{ include "pleme-lib.namespace" . }}
   labels:
     {{- include "pleme-lib.labels" . | nindent 4 }}
@@ -38,9 +48,20 @@ metadata:
     {{- $resAnnotations | nindent 4 }}
   {{- end }}
 spec:
+  {{- if and $target $target.selector }}
+  {{- with $target.namespace }}
+  namespaceSelector:
+    matchNames:
+      - {{ . }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- toYaml $target.selector | nindent 6 }}
+  {{- else }}
   selector:
     matchLabels:
       {{- include "pleme-lib.selectorLabels" . | nindent 6 }}
+  {{- end }}
   endpoints:
     - port: {{ (.Values.vmScrape).port | default "http" }}
       path: {{ (.Values.vmScrape).path | default "/metrics" }}
