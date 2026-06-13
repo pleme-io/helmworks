@@ -85,6 +85,13 @@ rbac:
     - apiGroups: ["pangea.pleme.io"]
       resources: ["pangeafleetstatuses", "pangeafleetstatuses/status"]
       verbs: ["get", "list", "watch", "create", "patch", "update"]
+    # ── 0.8.19: ReconciliationLoop (roda — the loop-granularity axis,
+    # theory/RECONCILIATION-TOPOLOGY.md §II). Cluster-scoped; the
+    # reconciliation_loop_controller lists InfrastructureTemplates fleet-wide
+    # to resolve each loop's membership + writes the loop's status.
+    - apiGroups: ["pangea.pleme.io"]
+      resources: ["reconciliationloops", "reconciliationloops/status", "reconciliationloops/finalizers"]
+      verbs: ["get", "list", "watch", "create", "patch", "update"]
     # ── Supporting resources ──
     # Events — operator emits Events on every controller's reconcile
     # transitions and on policy/escalation actions. Two API groups:

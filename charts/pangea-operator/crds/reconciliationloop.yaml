@@ -1,0 +1,281 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: reconciliationloops.pangea.pleme.io
+spec:
+  group: pangea.pleme.io
+  names:
+    categories:
+    - pangea
+    kind: ReconciliationLoop
+    plural: reconciliationloops
+    shortNames:
+    - roda
+    singular: reconciliationloop
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.cadence
+      name: Cadence
+      type: string
+    - jsonPath: .spec.concurrency
+      name: Concurrency
+      type: integer
+    - jsonPath: .status.matchedCount
+      name: Members
+      type: integer
+    - jsonPath: .spec.suspend
+      name: Suspended
+      type: boolean
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Auto-generated derived type for ReconciliationLoopSpec via `CustomResource`
+        properties:
+          spec:
+            properties:
+              anomalyPolicy:
+                description: Per-loop reactive/anomaly policy default (failure / timeout escalation).
+                nullable: true
+                properties:
+                  failureEscalation:
+                    description: What to do when consecutive Failed reconciles exceed threshold.
+                    nullable: true
+                    properties:
+                      maxConsecutiveFailures:
+                        default: 5
+                        description: Threshold. Default 5.
+                        format: uint32
+                        minimum: 0.0
+                        type: integer
+                      onExhaustion:
+                        default: alert
+                        description: What to do when threshold is reached.
+                        enum:
+                        - alert
+                        - suspend
+                        - page
+                        type: string
+                      routing:
+                        description: Where to route the notification.
+                        nullable: true
+                        properties:
+                          githubIssueTemplate:
+                            description: GitHub issue template name. Operator opens an issue in the workspace's source repo.
+                            nullable: true
+                            type: string
+                          ntfyTopic:
+                            description: ntfy topic name (homelab convention — see pleme-io alertmanager-ntfy module).
+                            nullable: true
+                            type: string
+                          slackChannel:
+                            description: Slack channel (SaaS convention — Datadog/Splunk-paired clusters).
+                            nullable: true
+                            type: string
+                        type: object
+                    type: object
+                  phaseTimeout:
+                    description: What to do when stuck in a non-terminal phase too long.
+                    nullable: true
+                    properties:
+                      applying:
+                        default: 30m
+                        description: '`Applying` threshold. Default `30m`.'
+                        type: string
+                      compiling:
+                        default: 5m
+                        description: How long can `Compiling` last before escalating. Format same as refreshInterval (`5m`, `30s`, `1h`). Default `5m`.
+                        type: string
+                      onTimeout:
+                        default: alert
+                        description: What to do when the threshold is exceeded.
+                        enum:
+                        - alert
+                        - suspend
+                        - page
+                        type: string
+                      planning:
+                        default: 10m
+                        description: '`Planning` threshold. Default `10m`.'
+                        type: string
+                      routing:
+                        description: Where to route the notification.
+                        nullable: true
+                        properties:
+                          githubIssueTemplate:
+                            description: GitHub issue template name. Operator opens an issue in the workspace's source repo.
+                            nullable: true
+                            type: string
+                          ntfyTopic:
+                            description: ntfy topic name (homelab convention — see pleme-io alertmanager-ntfy module).
+                            nullable: true
+                            type: string
+                          slackChannel:
+                            description: Slack channel (SaaS convention — Datadog/Splunk-paired clusters).
+                            nullable: true
+                            type: string
+                        type: object
+                    type: object
+                  verifiedBlocked:
+                    description: What to do when `Verified=False` persists past timeout.
+                    nullable: true
+                    properties:
+                      onBlocked:
+                        default: alert
+                        description: What to do when the threshold is exceeded.
+                        enum:
+                        - alert
+                        - suspend
+                        - page
+                        type: string
+                      routing:
+                        description: Where to route the notification.
+                        nullable: true
+                        properties:
+                          githubIssueTemplate:
+                            description: GitHub issue template name. Operator opens an issue in the workspace's source repo.
+                            nullable: true
+                            type: string
+                          ntfyTopic:
+                            description: ntfy topic name (homelab convention — see pleme-io alertmanager-ntfy module).
+                            nullable: true
+                            type: string
+                          slackChannel:
+                            description: Slack channel (SaaS convention — Datadog/Splunk-paired clusters).
+                            nullable: true
+                            type: string
+                        type: object
+                      timeout:
+                        default: 10m
+                        description: How long can `Verified=False` persist. Default `10m`.
+                        type: string
+                    type: object
+                type: object
+              cadence:
+                default: 5m
+                description: 'Base requeue interval for this loop''s tick (e.g. "5m", "30s"). The scheduling dual of the state axis: fine state, bounded loops.'
+                type: string
+              concurrency:
+                default: 4
+                description: Parallel reconciles within this one loop (the shigoto wave width).
+                format: uint32
+                minimum: 0.0
+                type: integer
+              selector:
+                description: Which workspaces (InfrastructureTemplates) this loop drives. A template is a member iff every label in `matchLabels` is present + equal on the template's `metadata.labels`. An empty selector matches nothing (never "everything" — a runaway loop is unrepresentable by default).
+                properties:
+                  matchLabels:
+                    additionalProperties:
+                      type: string
+                    default: {}
+                    description: All of these label key=value pairs must be present + equal on a template for it to be a member. Empty ⇒ matches nothing.
+                    type: object
+                type: object
+              settlingPolicy:
+                description: Per-loop settling policy default (drift-cycle exhaustion bound).
+                nullable: true
+                properties:
+                  maxConsecutiveDriftCycles:
+                    default: 4
+                    description: After this many consecutive drift cycles, take `onExhaustion` action.
+                    format: uint32
+                    minimum: 0.0
+                    type: integer
+                  onExhaustion:
+                    default: fail
+                    description: What to do when `maxConsecutiveDriftCycles` is hit.
+                    enum:
+                    - fail
+                    - alert
+                    - retry
+                    type: string
+                type: object
+              suspend:
+                default: false
+                description: Halt this loop's ticking until cleared.
+                type: boolean
+              workerBudget:
+                default: 16
+                description: shigoto scheduler budget bound for this loop's Dag.
+                format: uint32
+                minimum: 0.0
+                type: integer
+            required:
+            - selector
+            type: object
+          status:
+            nullable: true
+            properties:
+              conditions:
+                default: []
+                description: Standard typed conditions (Ready / Healthy), timestamp-stable.
+                items:
+                  description: Kubernetes-style condition.
+                  properties:
+                    lastTransitionTime:
+                      description: Last time the condition transitioned.
+                      format: date-time
+                      type: string
+                    message:
+                      description: Human-readable message.
+                      type: string
+                    reason:
+                      description: Machine-readable reason for the condition.
+                      type: string
+                    status:
+                      description: Status of the condition (True, False, Unknown).
+                      type: string
+                    type:
+                      description: Type of condition.
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              lastTickAt:
+                description: When this loop last completed a cadence tick.
+                format: date-time
+                nullable: true
+                type: string
+              matchedCount:
+                default: 0
+                description: Count of `matched_workspaces` (printer column).
+                format: uint32
+                minimum: 0.0
+                type: integer
+              matchedWorkspaces:
+                default: []
+                description: The `namespace/name` of every InfrastructureTemplate currently bound to this loop (the resolved membership — the observability half of `roda`).
+                items:
+                  type: string
+                type: array
+              observedGeneration:
+                default: 0
+                description: Generation this status reflects (diff-gate against spec mutations).
+                format: int64
+                type: integer
+              phase:
+                description: Lifecycle phase of the loop itself.
+                enum:
+                - Active
+                - Suspended
+                - Empty
+                nullable: true
+                type: string
+            type: object
+        required:
+        - spec
+        title: ReconciliationLoop
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
