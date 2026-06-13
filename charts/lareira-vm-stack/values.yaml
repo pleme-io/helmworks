@@ -28,7 +28,13 @@ victoria-metrics-k8s-stack:
     enabled: true
     spec:
       retentionPeriod: "14d"
-      storageDataPath: /vm-data
+      # NO custom storageDataPath: the VM-operator mounts the `storage` PVC at
+      # its default data path and serves from there. Setting a custom path
+      # (was `/vm-data`) without a matching raw `volumes` entry makes the
+      # operator's admission webhook reject the VMSingle ("spec.volumes must
+      # have at least 1 value for storageDataPath=/vm-data") — which left rio
+      # with NO metric store (vmsingle absent) + a wedged HR rollback loop.
+      # The 30Gi PVC below already provides persistence at the default path.
       storage:
         accessModes: [ReadWriteOnce]
         storageClassName: local-path
