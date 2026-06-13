@@ -923,7 +923,7 @@
           "refId": "A",
           "expr": "{namespace=\"pangea-system\",app=\"pangea-operator\"} | error",
           "datasource": {
-            "type": "prometheus",
+            "type": "VictoriaLogs",
             "uid": "vlogs"
           },
           "instant": true
@@ -954,7 +954,7 @@
           "refId": "A",
           "expr": "{namespace=\"pangea-system\",app=\"pangea-operator\"} | error | stats count() errors",
           "datasource": {
-            "type": "prometheus",
+            "type": "VictoriaLogs",
             "uid": "vlogs"
           }
         }
