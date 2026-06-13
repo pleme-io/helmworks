@@ -1,0 +1,120 @@
+suite: pleme-lib bare-fixture — Authentik OIDC SSO family (_authentik_oidc.tpl)
+#
+# Proves the reusable native-OIDC SSO primitives emit the COMPLETE working
+# pattern with BOTH non-obvious blockers baked in by construction:
+#   GOTCHA #1 — the groups scope mapping returns a DICT (not a bare list)
+#   GOTCHA #2 — the Grafana consumer config sets groups_attribute_path
+# plus the group/user/app shapes proven to actually apply on the cluster.
+release:
+  name: t
+  namespace: authentik
+defaults: &app
+  image.repository: ghcr.io/x/y
+  image.tag: "1.0.0"
+  serviceAccount.create: true
+  app:
+    name: "rio Grafana"
+    slug: grafana
+    clientId: grafana-rio
+    clientSecretEnv: GRAFANA_OIDC_CLIENT_SECRET
+    redirectUris:
+      - { matching_mode: strict, url: "https://grafana.quero.cloud/login/generic_oauth" }
+    launchUrl: https://grafana.quero.cloud
+    accessGroup: saguao
+  sso:
+    clientId: grafana-rio
+    authUrl: https://auth.quero.cloud/application/o/authorize/
+    tokenUrl: https://auth.quero.cloud/application/o/token/
+    apiUrl: https://auth.quero.cloud/application/o/userinfo/
+    allowedGroups: [saguao]
+    roleAttributePath: "contains(groups[*], 'authentik Admins') && 'Admin' || 'Viewer'"
+
+tests:
+  # ── GOTCHA #1: the groups scope mapping MUST return a dict ──────────────
+  - it: "groups scope mapping returns a DICT {'groups':[...]}, NOT a bare list (gotcha #1)"
+    template: templates/authentik-oidc.yaml
+    set:
+      <<: *app
+    asserts:
+      - matchRegex:
+          path: data["blueprint.yaml"]
+          pattern: "return \\{'groups': \\[group\\.name for group in user\\.ak_groups\\.all\\(\\)\\]\\}"
+      # the broken bare-list form must NOT appear
+      - notMatchRegex:
+          path: data["blueprint.yaml"]
+          pattern: "return \\[group\\.name for group"
+
+  # ── standalone group (no group-side users list — the shape that applies) ──
+  - it: "groups are standalone entries with is_superuser + no users list"
+    template: templates/authentik-oidc.yaml
+    set:
+      <<: *app
+    asserts:
+      - matchRegex:
+          path: data["blueprint.yaml"]
+          pattern: "model: authentik_core\\.group[\\s\\S]*name: saguao[\\s\\S]*is_superuser: false"
+      - notMatchRegex:
+          path: data["blueprint.yaml"]
+          pattern: "!KeyOf user-"
+
+  # ── user: state:present + user-side !Find membership ──────────────────
+  - it: "user is state:present with user-side !Find group membership"
+    template: templates/authentik-oidc.yaml
+    set:
+      <<: *app
+    asserts:
+      - matchRegex:
+          path: data["blueprint.yaml"]
+          pattern: "username: drzln[\\s\\S]*state: present|state: present[\\s\\S]*username: drzln"
+      - matchRegex:
+          path: data["blueprint.yaml"]
+          pattern: "!Find \\[authentik_core\\.group, \\[name, \"saguao\"\\]\\]"
+      - matchRegex:
+          path: data["blueprint.yaml"]
+          pattern: "password: !Env DRZLN_INITIAL_PASSWORD"
+
+  # ── OIDC app: provider + application + group access binding ────────────
+  - it: "OIDC app emits provider + application + group→app PolicyBinding"
+    template: templates/authentik-oidc.yaml
+    set:
+      <<: *app
+    asserts:
+      - matchRegex:
+          path: data["blueprint.yaml"]
+          pattern: "model: authentik_providers_oauth2\\.oauth2provider[\\s\\S]*client_id: grafana-rio"
+      - matchRegex:
+          path: data["blueprint.yaml"]
+          pattern: "client_secret: !Env GRAFANA_OIDC_CLIENT_SECRET"
+      - matchRegex:
+          path: data["blueprint.yaml"]
+          pattern: "model: authentik_core\\.application[\\s\\S]*slug: grafana"
+      # the provider references the shared groups scope mapping
+      - matchRegex:
+          path: data["blueprint.yaml"]
+          pattern: "scopemapping, \\[scope_name, groups\\]\\]"
+      # the access binding gates the app to the group
+      - matchRegex:
+          path: data["blueprint.yaml"]
+          pattern: "model: authentik_policies\\.PolicyBinding[\\s\\S]*target: !KeyOf grafana-app[\\s\\S]*name, saguao"
+      - matchRegex:
+          path: data["blueprint.yaml"]
+          pattern: "url: \"https://grafana\\.quero\\.cloud/login/generic_oauth\""
+
+  # ── GOTCHA #2: Grafana consumer config sets groups_attribute_path ──────
+  - it: "grafanaOidcIni ALWAYS sets groups_attribute_path (gotcha #2)"
+    template: templates/grafana-oidc.yaml
+    set:
+      <<: *app
+    asserts:
+      - matchRegex:
+          path: data["generic_oauth.yaml"]
+          pattern: "groups_attribute_path: groups"
+      - matchRegex:
+          path: data["generic_oauth.yaml"]
+          pattern: "allowed_groups: \"saguao\""
+      - matchRegex:
+          path: data["generic_oauth.yaml"]
+          pattern: "scopes: \"openid email profile groups\""
+      - matchRegex:
+          path: data["generic_oauth.yaml"]
+          pattern: "api_url: \"https://auth\\.quero\\.cloud/application/o/userinfo/\""

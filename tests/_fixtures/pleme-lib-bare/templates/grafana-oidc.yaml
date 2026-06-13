@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gini
+data:
+  generic_oauth.yaml: |
+{{ include "pleme-lib.grafanaOidcIni" (dict "sso" .Values.sso) | nindent 4 }}

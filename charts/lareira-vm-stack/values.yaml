@@ -358,6 +358,15 @@ victoria-metrics-k8s-stack:
         api_url: '{{ if $.Values.global.grafanaSso.enabled }}{{ $.Values.global.grafanaSso.apiUrl }}{{ end }}'
         role_attribute_path: '{{ if $.Values.global.grafanaSso.enabled }}{{ $.Values.global.grafanaSso.roleAttributePath }}{{ end }}'
         allowed_groups: '{{ if $.Values.global.grafanaSso.enabled }}{{ join "," $.Values.global.grafanaSso.allowedGroups }}{{ end }}'
+        # GOTCHA #2 (the second of the two non-obvious Authentik-OIDC blockers):
+        # Grafana extracts the user's groups for allowed_groups + role_attribute_path
+        # via THIS JMESPath. If unset, Grafana ignores the groups claim entirely →
+        # every SSO login fails "user not a member of one of the required groups"
+        # even when Authentik emits groups correctly. `groups` is the claim key the
+        # Authentik groups scope mapping emits. (GOTCHA #1, IdP-side: that scope
+        # mapping MUST return a dict {'groups': [...]} — a bare list is silently
+        # dropped by Authentik's userinfo endpoint. See pleme-lib.authentikGroupsScope.)
+        groups_attribute_path: '{{ if $.Values.global.grafanaSso.enabled }}groups{{ end }}'
 
   # ── Default scrape targets — K3s/embedded-only ─────────────────────
   kubelet: { enabled: true }

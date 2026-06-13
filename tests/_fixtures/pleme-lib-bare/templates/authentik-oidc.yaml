@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bp
+data:
+  blueprint.yaml: |
+    version: 1
+    metadata:
+      name: test-blueprint
+    entries:
+{{ include "pleme-lib.authentikGroupsScope" (dict) | nindent 6 }}
+{{ include "pleme-lib.authentikGroup" (dict "name" "saguao") | nindent 6 }}
+{{ include "pleme-lib.authentikGroup" (dict "name" "quero-users") | nindent 6 }}
+{{ include "pleme-lib.authentikUser" (dict "username" "drzln" "name" "Drzln" "email" "d@quero.cloud" "passwordEnv" "DRZLN_INITIAL_PASSWORD" "groups" (list "authentik Admins" "quero-users" "saguao")) | nindent 6 }}
+{{ include "pleme-lib.authentikOidcApp" (dict "ctx" . "app" .Values.app) | nindent 6 }}
