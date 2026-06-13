@@ -1,6 +1,6 @@
 dependencies:
 - name: pleme-lib
   repository: file://../../../charts/pleme-lib
-  version: 0.22.0
-digest: sha256:a1be16180a370de42e0555a8e0872c48798c50e548826382ce736bda88fd439e
-generated: "2026-06-13T11:08:13.726083-07:00"
+  version: 0.23.0
+digest: sha256:e00089c86df555990f168a23e62c9c975f95d59c4bcb81c247175d94f2c98a57
+generated: "2026-06-13T11:12:26.826843-07:00"

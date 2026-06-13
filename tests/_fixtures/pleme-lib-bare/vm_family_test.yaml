@@ -1,0 +1,126 @@
+suite: pleme-lib bare-fixture — VictoriaMetrics CRD family (_vm.tpl)
+templates:
+  - templates/vm-single.yaml
+  - templates/vm-rule.yaml
+  - templates/vm-podscrape.yaml
+release:
+  name: t
+  namespace: testns
+defaults: &defaults
+  image.repository: ghcr.io/x/y
+  image.tag: "1.0.0"
+  serviceAccount.create: true
+
+tests:
+  - it: "renders nothing when vm.* is unset (no-op default)"
+    templates: [templates/vm-single.yaml]
+    set:
+      <<: *defaults
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: "vmSingle renders a VMSingle with pleme-lib labels + passthrough spec"
+    templates: [templates/vm-single.yaml]
+    set:
+      <<: *defaults
+      vm:
+        single:
+          enabled: true
+          retentionPeriod: "14d"
+          storage:
+            accessModes: [ReadWriteOnce]
+            storageClassName: local-path
+            resources:
+              requests:
+                storage: 30Gi
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: VMSingle
+      - equal:
+          path: spec.retentionPeriod
+          value: "14d"
+      - equal:
+          path: spec.storage.resources.requests.storage
+          value: 30Gi
+      - isNotNullOrEmpty:
+          path: metadata.labels
+
+  - it: "vmSingle storage invariant — storageDataPath WITHOUT storage/volumes FAILS render (rio bug made unrepresentable)"
+    templates: [templates/vm-single.yaml]
+    set:
+      <<: *defaults
+      vm:
+        single:
+          enabled: true
+          storageDataPath: /vm-data
+    asserts:
+      - failedTemplate:
+          errorMessage: "pleme-lib.vmSingle: vm.single.storageDataPath is set without a matching `storage` (PVC) or `volumes` — the VM-operator admission webhook rejects this (no volume at the custom path). Provide `storage:` (a PVC) or drop storageDataPath to use the operator default path."
+
+  - it: "vmSingle storageDataPath WITH storage is allowed (explicit, paired contract)"
+    templates: [templates/vm-single.yaml]
+    set:
+      <<: *defaults
+      vm:
+        single:
+          enabled: true
+          storageDataPath: /vm-data
+          volumes:
+            - name: data
+              emptyDir: {}
+          volumeMounts:
+            - name: data
+              mountPath: /vm-data
+    asserts:
+      - isKind:
+          of: VMSingle
+      - equal:
+          path: spec.storageDataPath
+          value: /vm-data
+
+  - it: "vmRule requires non-empty groups"
+    templates: [templates/vm-rule.yaml]
+    set:
+      <<: *defaults
+      vm:
+        rules:
+          enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "pleme-lib.vmRule: vm.rules.enabled requires non-empty `groups`"
+
+  - it: "vmRule renders a VMRule with its groups"
+    templates: [templates/vm-rule.yaml]
+    set:
+      <<: *defaults
+      vm:
+        rules:
+          enabled: true
+          groups:
+            - name: vmsingle
+              rules:
+                - alert: VMSingleDown
+                  expr: "up == 0"
+    asserts:
+      - isKind:
+          of: VMRule
+      - equal:
+          path: spec.groups[0].name
+          value: vmsingle
+
+  - it: "vmPodScrape fans a map out to N VMPodScrape docs"
+    templates: [templates/vm-podscrape.yaml]
+    set:
+      <<: *defaults
+      vm:
+        podScrapes:
+          web:
+            enabled: true
+            podMetricsEndpoints:
+              - port: metrics
+    asserts:
+      - isKind:
+          of: VMPodScrape
