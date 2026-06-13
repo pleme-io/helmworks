@@ -7,7 +7,7 @@ description: |
   CronJob backups, common alert rules, and a default-off convention so
   every consumer chart is opt-in.
 type: library
-version: 0.1.0
+version: 0.2.0
 appVersion: "0.1.0"
 keywords:
   - homelab
@@ -23,5 +23,5 @@ sources:
   - https://github.com/pleme-io/helmworks
 dependencies:
   - name: pleme-lib
-    version: ">=0.18.0"
+    version: ">=0.23.0"
     repository: "file://../pleme-lib"

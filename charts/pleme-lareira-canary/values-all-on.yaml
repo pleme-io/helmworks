@@ -100,3 +100,25 @@ alerts:
     podDownForMinutes: 5
     restartsLastHourThreshold: 5
   ntfyTopic: rio-canary
+
+# vmStack exercise — the abstracted VictoriaMetrics primitive (M2).
+vm:
+  single:
+    enabled: true
+    retentionPeriod: "14d"
+    storage:
+      accessModes: [ReadWriteOnce]
+      storageClassName: local-path
+      resources:
+        requests:
+          storage: 30Gi
+  agent:
+    enabled: true
+    selectAllByDefault: true
+  rules:
+    enabled: true
+    groups:
+      - name: vmsingle
+        rules:
+          - alert: VMSingleDown
+            expr: "up == 0"
