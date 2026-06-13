@@ -1,0 +1,95 @@
+suite: pleme-lib bare-fixture — pleme-lib.statefulset named template
+templates:
+  - templates/statefulset.yaml
+release:
+  name: t
+  namespace: testns
+defaults: &defaults
+  image.repository: ghcr.io/x/y
+  image.tag: "1.0.0"
+  serviceAccount.create: true
+
+tests:
+  - it: "renders a StatefulSet with the default headless serviceName + replicas"
+    set:
+      <<: *defaults
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: StatefulSet
+      - equal:
+          path: spec.serviceName
+          value: t-pleme-lib-bare-headless
+      - equal:
+          path: spec.replicas
+          value: 1
+      - equal:
+          path: spec.podManagementPolicy
+          value: OrderedReady
+
+  - it: "enforces the pod + container security baseline (same as deployment)"
+    set:
+      <<: *defaults
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+
+  - it: "renders volumeClaimTemplates when supplied (the stateful storage contract)"
+    set:
+      <<: *defaults
+      volumeClaimTemplates:
+        - metadata:
+            name: data
+          spec:
+            accessModes: [ReadWriteOnce]
+            storageClassName: local-path
+            resources:
+              requests:
+                storage: 30Gi
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].metadata.name
+          value: data
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.resources.requests.storage
+          value: 30Gi
+
+  - it: "honors a custom serviceName + podManagementPolicy + updateStrategy"
+    set:
+      <<: *defaults
+      statefulset:
+        serviceName: vmsingle
+        podManagementPolicy: Parallel
+      updateStrategy:
+        type: RollingUpdate
+    asserts:
+      - equal:
+          path: spec.serviceName
+          value: vmsingle
+      - equal:
+          path: spec.podManagementPolicy
+          value: Parallel
+      - equal:
+          path: spec.updateStrategy.type
+          value: RollingUpdate
+
+  - it: "carries attestation annotations when attestation.enabled (compliance flows by construction)"
+    set:
+      <<: *defaults
+      attestation:
+        enabled: true
+        signature: "blake3:abc"
+    asserts:
+      - isNotNullOrEmpty:
+          path: metadata.annotations
