@@ -8,11 +8,11 @@ victoria-logs-single:
     enabled: true
     replicaCount: 1
     retentionPeriod: 10d
-    retentionDiskSpaceUsage: 50GiB
+    retentionDiskSpaceUsage: 8GiB
     persistentVolume:
       enabled: true
       storageClassName: local-path
-      size: 50Gi
+      size: 10Gi
     resources:
       requests: { cpu: 100m, memory: 256Mi }
       limits:   { cpu: 2000m, memory: 2Gi }
