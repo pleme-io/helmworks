@@ -6,6 +6,118 @@
 
 enabled: false
 
+# ── VM metric-path workloads — the pleme-io primitive (pleme-lib >= 0.24.0) ──
+#
+# VMSingle (store) + VMAgent (scrape) + VMAlert (rule-eval) + VMRule (the alert
+# WHAT) are rendered by templates/vm-workloads.yaml via the pleme-lib VM CRD
+# family — the abstracted "VictoriaMetrics expressed in pleme-io primitives"
+# surface. The upstream subchart's own vmsingle/vmagent/vmalert are DISABLED
+# (above); it keeps only the controller surface (operator + CRDs + Grafana +
+# kube-state-metrics + scrapes + VMAlertmanager).
+#
+# `name:` is verbatim and matches the upstream-release-derived CR name, so each
+# CR ADOPTS the existing operator-managed Deployment/Service/PVC in place — the
+# 30Gi metric PVC and every service-DNS the mesh depends on are preserved. The
+# specs below reproduce the live operator-effective spec field-for-field so the
+# operator no-ops (verified by a `helm template`-vs-live diff before merge).
+# Operator-injected fields (license:{}, configMaps:[], externalLabels:{}) are
+# re-added by the operator and intentionally omitted here.
+vm:
+  apiVersion: operator.victoriametrics.com/v1beta1
+  single:
+    enabled: true
+    name: lareira-vm-stack-victoria-metrics-k8s-stack
+    image: { tag: v1.113.0 }
+    port: "8429"
+    replicaCount: 1
+    retentionPeriod: "14d"
+    extraArgs:
+      vmalert.proxyURL: http://vmalert-lareira-vm-stack-victoria-metrics-k8s-stack.monitoring.svc.cluster.local.:8080
+    storage:
+      accessModes: [ReadWriteOnce]
+      storageClassName: local-path
+      resources:
+        requests: { storage: 30Gi }
+    resources:
+      requests: { cpu: 100m, memory: 512Mi }
+      limits:   { cpu: 2000m, memory: 2Gi }
+  agent:
+    enabled: true
+    name: lareira-vm-stack-victoria-metrics-k8s-stack
+    image: { tag: v1.113.0 }
+    port: "8429"
+    replicaCount: 1
+    scrapeInterval: 30s
+    selectAllByDefault: true
+    externalLabels:
+      cluster: rio
+      datacenter: bristol-tn
+    extraArgs:
+      promscrape.dropOriginalLabels: "true"
+      promscrape.streamParse: "true"
+    remoteWrite:
+      - url: http://vmsingle-lareira-vm-stack-victoria-metrics-k8s-stack.monitoring.svc.cluster.local.:8429/api/v1/write
+    resources:
+      requests: { cpu: 100m, memory: 256Mi }
+      limits:   { cpu: 1000m, memory: 1Gi }
+  alert:
+    enabled: true
+    name: lareira-vm-stack-victoria-metrics-k8s-stack
+    image: { tag: v1.113.0 }
+    port: "8080"
+    replicaCount: 1
+    selectAllByDefault: true
+    evaluationInterval: 30s
+    datasource:
+      url: http://vmsingle-lareira-vm-stack-victoria-metrics-k8s-stack.monitoring.svc.cluster.local.:8429
+    remoteRead:
+      url: http://vmsingle-lareira-vm-stack-victoria-metrics-k8s-stack.monitoring.svc.cluster.local.:8429
+    remoteWrite:
+      url: http://vmsingle-lareira-vm-stack-victoria-metrics-k8s-stack.monitoring.svc.cluster.local.:8429/api/v1/write
+    extraArgs:
+      http.pathPrefix: "/"
+      remoteWrite.disablePathAppend: "true"
+    # vestigial single `notifier` reproduced verbatim for a true no-op; the
+    # working route is `notifiers[]` (the operator-derived Alertmanager pod-DNS).
+    notifier:
+      url: http://vmalertmanager-vm.monitoring.svc:9093
+    notifiers:
+      - url: http://vmalertmanager-lareira-vm-stack-victoria-metrics-k8s-stack-0.vmalertmanager-lareira-vm-stack-victoria-metrics-k8s-stack.monitoring.svc.cluster.local.:9093
+    resources:
+      requests: { cpu: 50m, memory: 128Mi }
+      limits:   { cpu: 1000m, memory: 512Mi }
+  # The alert WHAT, now a native VMRule (replaces the disabled PrometheusRule).
+  # vmalert evaluates it via selectAllByDefault.
+  rules:
+    enabled: true
+    groups:
+      - name: lareira-vm-stack
+        interval: 30s
+        rules:
+          - alert: VMSingleDown
+            expr: |
+              absent(kube_statefulset_status_replicas_available{statefulset=~"vmsingle.*"})
+              or kube_statefulset_status_replicas_available{statefulset=~"vmsingle.*"} == 0
+            for: 2m
+            labels:
+              severity: critical
+              component: lareira-vm-stack
+            annotations:
+              summary: "VMSingle has 0 ready replicas — metric ingest broken"
+              description: "vmagent → VMSingle write path is down. New metrics aren't being persisted; existing ones still queryable from buffer if vmagent is still running."
+              runbook_url: "https://runbooks.pleme.io/lareira-vm-stack/vmsingle-down"
+          - alert: VMAgentScrapeErrors
+            expr: |
+              sum(rate(vm_promscrape_scrapes_failed_total[5m])) > 1
+            for: 10m
+            labels:
+              severity: warning
+              component: lareira-vm-stack
+            annotations:
+              summary: "vmagent failing >1 scrape/sec for 10m"
+              description: "Some scrape targets unreachable. Check ServiceMonitor selectors, network policies, or target pod readiness."
+              runbook_url: "https://runbooks.pleme.io/lareira-vm-stack/scrape-errors"
+
 # ── Upstream subchart overrides ────────────────────────────────────────
 #
 # The upstream dependency in Chart.yaml is declared with NO `alias:`, so
@@ -24,8 +136,13 @@ victoria-metrics-k8s-stack:
   enabled: true
 
   # ── VMSingle: the metric store ──────────────────────────────────────
+  # MIGRATED to the pleme-lib VM primitive (templates/vm-workloads.yaml + the
+  # top-level `vm:` block below). Disabled here so the upstream subchart stops
+  # rendering it; the pleme-lib VMSingle adopts the operator-managed
+  # Deployment/Service/PVC in place via the `vm.single.name` override (the 30Gi
+  # data PVC survives). The spec below is retained as the reproduction source.
   vmsingle:
-    enabled: true
+    enabled: false
     spec:
       retentionPeriod: "14d"
       # NO custom storageDataPath: the VM-operator mounts the `storage` PVC at
@@ -48,8 +165,9 @@ victoria-metrics-k8s-stack:
     enabled: false
 
   # ── VMAgent: scrape ServiceMonitor + PodMonitor + VMScrape ──────────
+  # MIGRATED to the pleme-lib VM primitive (see the top-level `vm:` block).
   vmagent:
-    enabled: true
+    enabled: false
     spec:
       replicaCount: 1
       scrapeInterval: 30s
@@ -62,8 +180,9 @@ victoria-metrics-k8s-stack:
       selectAllByDefault: true
 
   # ── VMAlert: evaluate rules → Alertmanager ─────────────────────────
+  # MIGRATED to the pleme-lib VM primitive (see the top-level `vm:` block).
   vmalert:
-    enabled: true
+    enabled: false
     spec:
       evaluationInterval: 30s
       replicaCount: 1
@@ -135,7 +254,12 @@ victoria-metrics-k8s-stack:
             type: prometheus
             uid: vm
             access: proxy
-            url: http://vmsingle-vm.monitoring.svc:8429
+            # The operator names the VMSingle Service `vmsingle-<CR name>`. The CR
+            # name is `lareira-vm-stack-victoria-metrics-k8s-stack` (the upstream
+            # release-derived name the pleme-lib VMSingle adopts). The previous
+            # `vmsingle-vm` target was a non-existent Service → Grafana's metric
+            # datasource silently could not reach VM. Fixed to the real Service.
+            url: http://vmsingle-lareira-vm-stack-victoria-metrics-k8s-stack.monitoring.svc:8429
             isDefault: true
           - name: VictoriaLogs
             type: VictoriaLogs

@@ -1,0 +1,114 @@
+suite: lareira-vm-stack — VM metric-path workloads via the pleme-lib primitive
+#
+# The DESTINATION half: VMSingle (store) + VMAgent (scrape) + VMAlert (rule-eval)
+# + VMRule (alert WHAT) rendered by the pleme-lib VM CRD family instead of the
+# upstream subchart. The load-bearing invariant is the ADOPTION NAME — each CR
+# must carry the exact upstream-release-derived name so the VM operator adopts
+# the existing Deployment/Service/PVC in place (the 30Gi metric PVC + the mesh's
+# service-DNS survive). These tests pin that name + the no-op-critical spec
+# fields; the `helm template`-vs-live spec diff (in the commit message) is the
+# full no-op proof the umbrella defeats helm-unittest from asserting directly.
+templates:
+  - templates/vm-workloads.yaml
+release:
+  name: lareira-vm-stack
+  namespace: monitoring
+tests:
+  - it: "default-off (master gate) renders no VM workloads (safe-by-default)"
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: "enabled renders exactly VMSingle + VMAgent + VMAlert + VMRule"
+    set:
+      enabled: true
+    asserts:
+      - hasDocuments:
+          count: 4
+
+  - it: "VMSingle adopts the upstream-derived name (no-op migration) + keeps store contract"
+    set:
+      enabled: true
+    documentSelector:
+      path: kind
+      value: VMSingle
+    asserts:
+      - equal:
+          path: metadata.name
+          value: lareira-vm-stack-victoria-metrics-k8s-stack
+      - equal:
+          path: spec.retentionPeriod
+          value: "14d"
+      - equal:
+          path: spec.storage.resources.requests.storage
+          value: 30Gi
+      - equal:
+          path: spec.storage.storageClassName
+          value: local-path
+
+  - it: "VMAgent adopts the name + remote-writes to the (preserved) VMSingle service-DNS"
+    set:
+      enabled: true
+    documentSelector:
+      path: kind
+      value: VMAgent
+    asserts:
+      - equal:
+          path: metadata.name
+          value: lareira-vm-stack-victoria-metrics-k8s-stack
+      - equal:
+          path: spec.selectAllByDefault
+          value: true
+      - equal:
+          path: spec.remoteWrite[0].url
+          value: http://vmsingle-lareira-vm-stack-victoria-metrics-k8s-stack.monitoring.svc.cluster.local.:8429/api/v1/write
+      - equal:
+          path: spec.externalLabels.cluster
+          value: rio
+
+  - it: "VMAlert adopts the name + queries VMSingle + notifies the (preserved) Alertmanager"
+    set:
+      enabled: true
+    documentSelector:
+      path: kind
+      value: VMAlert
+    asserts:
+      - equal:
+          path: metadata.name
+          value: lareira-vm-stack-victoria-metrics-k8s-stack
+      - equal:
+          path: spec.datasource.url
+          value: http://vmsingle-lareira-vm-stack-victoria-metrics-k8s-stack.monitoring.svc.cluster.local.:8429
+      - equal:
+          path: spec.notifiers[0].url
+          value: http://vmalertmanager-lareira-vm-stack-victoria-metrics-k8s-stack-0.vmalertmanager-lareira-vm-stack-victoria-metrics-k8s-stack.monitoring.svc.cluster.local.:9093
+
+  - it: "VMRule carries the metric-store alerts (replaces the disabled PrometheusRule)"
+    set:
+      enabled: true
+    documentSelector:
+      path: kind
+      value: VMRule
+    asserts:
+      - equal:
+          path: spec.groups[0].name
+          value: lareira-vm-stack
+      - equal:
+          path: spec.groups[0].rules[0].alert
+          value: VMSingleDown
+      - equal:
+          path: spec.groups[0].rules[0].labels.severity
+          value: critical
+      - equal:
+          path: spec.groups[0].rules[1].alert
+          value: VMAgentScrapeErrors
+
+  - it: "VMRule can be turned off independently (orthogonal gate)"
+    set:
+      enabled: true
+      vm:
+        rules:
+          enabled: false
+    asserts:
+      - hasDocuments:
+          count: 3

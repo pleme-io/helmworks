@@ -1,0 +1,45 @@
+{{- /*
+VM metric-path workloads — expressed via the pleme-lib VM CRD family.
+
+The DESTINATION half of lareira-vm-stack: the metric ingest → store → rule-eval
+path (VMSingle + VMAgent + VMAlert) and the alert rules (VMRule) are rendered by
+the pleme-io primitive (`pleme-lib.vm*`, pleme-lib >= 0.24.0) — NOT by the
+upstream victoria-metrics-k8s-stack subchart's templating (those three are
+disabled there; see values.yaml). The upstream subchart now provides only the
+controller surface: the VM operator + CRDs, Grafana, kube-state-metrics, the
+default scrape targets (kubelet/apiServer/coreDns), defaultRules, and the
+config-Secret-entangled VMAlertmanager.
+
+Adoption-in-place (no-op migration): each CR carries `vm.<kind>.name:
+lareira-vm-stack-victoria-metrics-k8s-stack` (verbatim, via the pleme-lib name
+override) so it ADOPTS the operator-managed Deployment/Service/PVC that already
+exists under the upstream-derived name. The VMSingle keeps its 30Gi data PVC;
+the service-DNS the mesh depends on (vmagent→vmsingle remoteWrite,
+vmalert→vmsingle datasource, vmalert→vmalertmanager notifiers, Grafana
+datasource) is unchanged. Specs reproduce the live operator-effective spec
+field-for-field — a clean `helm template`-vs-live diff is the merge gate.
+
+Gated on the chart master `.Values.enabled` (default-off), exactly like the
+chart's other templates. Inter-component URLs are service-DNS (deterministic
+from the matched names); the VMAlert→VMAlertmanager notifier pod-DNS is
+reproduced verbatim from the live spec (a future pleme-lib.vmStack auto-wiring
+helper is the destination for computing it).
+*/ -}}
+{{- if .Values.enabled }}
+{{- if ((.Values.vm).single).enabled }}
+---
+{{- include "pleme-lib.vmSingle" . }}
+{{- end }}
+{{- if ((.Values.vm).agent).enabled }}
+---
+{{- include "pleme-lib.vmAgent" . }}
+{{- end }}
+{{- if ((.Values.vm).alert).enabled }}
+---
+{{- include "pleme-lib.vmAlert" . }}
+{{- end }}
+{{- if ((.Values.vm).rules).enabled }}
+---
+{{- include "pleme-lib.vmRule" . }}
+{{- end }}
+{{- end }}
