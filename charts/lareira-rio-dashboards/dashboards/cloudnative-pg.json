@@ -1,0 +1,1354 @@
+{
+  "annotations": {
+    "list": [
+
+    ]
+  },
+  "description": "",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Status — what needs attention?",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "collapsed": false,
+      "panels": [
+
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Clusters unhealthy",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(cnpg_collector_up == 0) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1.0
+              },
+              {
+                "color": "red",
+                "value": 1.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "description": "CNPG instances whose metrics exporter / Postgres is down (cnpg_collector_up == 0). pangea-database is the operator's state store — a down instance freezes every reconcile. Red = an instance is unreachable NOW."
+    },
+    {
+      "id": 3,
+      "title": "Replicas not streaming",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "clamp_min(count(cnpg_pg_replication_in_recovery == 1) - max(cnpg_pg_replication_streaming_replicas), 0) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1.0
+              },
+              {
+                "color": "red",
+                "value": 1.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "description": "Standbys (in recovery) that the primary does not see as a streaming replica. CNPG exposes no expected-replicas metric, so this is standbys-present minus the primary's streaming-replica count. >0 = a standby fell off replication."
+    },
+    {
+      "id": 4,
+      "title": "Replication lag (s)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(cnpg_pg_replication_lag) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 5.0
+              },
+              {
+                "color": "red",
+                "value": 30.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "description": "Worst standby replay lag behind the primary. >5s = the replica is behind; >30s = a failover would lose meaningful committed work."
+    },
+    {
+      "id": 5,
+      "title": "Connections near max %",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(100 * sum by (pod)(cnpg_backends_total) / on(pod) cnpg_pg_settings_setting{name=\"max_connections\"}) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 80.0
+              },
+              {
+                "color": "red",
+                "value": 95.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "description": "Busiest instance's active+idle backends as a % of max_connections. >80% = the pool is near exhaustion; >95% = new connections (incl. the operator's) will start being refused."
+    },
+    {
+      "id": 6,
+      "title": "Deadlocks /s",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(cnpg_pg_stat_database_deadlocks[5m])) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.01
+              },
+              {
+                "color": "red",
+                "value": 0.01
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "description": "Rate of detected deadlocks across all databases. Any sustained >0 = transactions are colliding on lock order — an application contention bug, not a DB capacity issue."
+    },
+    {
+      "id": 7,
+      "title": "Storage near full %",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(100 * (1 - kubelet_volume_stats_available_bytes{namespace=\"pangea-system\"} / kubelet_volume_stats_capacity_bytes{namespace=\"pangea-system\"})) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 80.0
+              },
+              {
+                "color": "red",
+                "value": 90.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "description": "PG data-volume fullness. NOTE: rio's PVCs are local-path, whose kubelet_volume_stats report the WHOLE NODE FILESYSTEM, not the per-volume usage (the breathe MetricUnrepresentable finding) — both pangea-database PVCs read identical node-disk free, so this reflects node disk, not the PG volume itself."
+    },
+    {
+      "id": 8,
+      "type": "row",
+      "title": "Data presence",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "collapsed": false,
+      "panels": [
+
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Scrape targets — up (1) / down (0)",
+      "type": "table",
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "up{job=~\"pangea-system/pangea-database\"}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+      },
+      "description": "Per (job,instance) scrape health. 1 = scraped + healthy, 0 = target DOWN. A job absent from this table is NOT WIRED (no scrape config) — that is the real cause of its panels' no-data."
+    },
+    {
+      "id": 10,
+      "title": "Targets down",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 15
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(up{job=~\"pangea-system/pangea-database\"} == 0) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "description": "Number of expected scrape targets reporting up==0. >0 = a real target is failing (not \"no data yet\")."
+    },
+    {
+      "id": 11,
+      "title": "Expected jobs present (of 1)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 15
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(group by (job) (up{job=~\"pangea-system/pangea-database\"})) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1.0
+              },
+              {
+                "color": "green",
+                "value": 1.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "description": "Distinct jobs reporting `up` out of the 1 this dashboard depends on. Below target = an exporter is not deployed/scraped (e.g. node-exporter) — fix the scrape, do not wait for data."
+    },
+    {
+      "id": 12,
+      "type": "row",
+      "title": "Cluster health",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 19
+      },
+      "collapsed": false,
+      "panels": [
+
+      ]
+    },
+    {
+      "id": 13,
+      "title": "Instances up (cnpg_collector_up by pod)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 20
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "cnpg_collector_up",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "{{pod}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0.0,
+          "max": 1.0,
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 14,
+      "title": "Role — in recovery (1 = standby, 0 = primary)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 20
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "cnpg_pg_replication_in_recovery",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "{{pod}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0.0,
+          "max": 1.0,
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 15,
+      "title": "Postgres version + uptime",
+      "type": "table",
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 28
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "cnpg_collector_postgres_version",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "{{pod}}",
+          "instant": true
+        },
+        {
+          "refId": "B",
+          "expr": "time() - cnpg_pg_postmaster_start_time",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "uptime {{pod}}",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+      }
+    },
+    {
+      "id": 16,
+      "type": "row",
+      "title": "Connections & throughput",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 37
+      },
+      "collapsed": false,
+      "panels": [
+
+      ]
+    },
+    {
+      "id": 17,
+      "title": "Active backends (by state)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 38
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (state) (cnpg_backends_total)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "{{state}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 18,
+      "title": "Commits/s vs rollbacks/s",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 38
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(cnpg_pg_stat_database_xact_commit[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "commits/s"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(rate(cnpg_pg_stat_database_xact_rollback[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "rollbacks/s"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 19,
+      "title": "Tuple ops/s (fetched / returned / inserted / updated / deleted)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 46
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(cnpg_pg_stat_database_tup_fetched[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "fetched"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(rate(cnpg_pg_stat_database_tup_returned[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "returned"
+        },
+        {
+          "refId": "C",
+          "expr": "sum(rate(cnpg_pg_stat_database_tup_inserted[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "inserted"
+        },
+        {
+          "refId": "D",
+          "expr": "sum(rate(cnpg_pg_stat_database_tup_updated[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "updated"
+        },
+        {
+          "refId": "E",
+          "expr": "sum(rate(cnpg_pg_stat_database_tup_deleted[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "deleted"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 20,
+      "type": "row",
+      "title": "Replication & WAL",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 54
+      },
+      "collapsed": false,
+      "panels": [
+
+      ]
+    },
+    {
+      "id": 21,
+      "title": "Replication lag (s by pod)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 55
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "cnpg_pg_replication_lag",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "{{pod}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0.0,
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 22,
+      "title": "Streaming replicas (primary view)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 55
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (pod) (cnpg_pg_replication_streaming_replicas)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "{{pod}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0.0,
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 23,
+      "title": "WAL bytes/s + archive backlog",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 63
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(cnpg_collector_wal_bytes[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "WAL bytes/s"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(cnpg_collector_pg_wal_archive_status{value=\"ready\"})",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "segments waiting to archive"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 24,
+      "type": "row",
+      "title": "Storage & cache",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 71
+      },
+      "collapsed": false,
+      "panels": [
+
+      ]
+    },
+    {
+      "id": 25,
+      "title": "Database size (bytes by db)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 72
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (datname) (cnpg_pg_database_size_bytes)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "{{datname}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 26,
+      "title": "Cache hit ratio",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 72
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(cnpg_pg_stat_database_blks_hit) / (sum(cnpg_pg_stat_database_blks_hit) + sum(cnpg_pg_stat_database_blks_read))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.95
+              },
+              {
+                "color": "green",
+                "value": 0.99
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "area"
+      }
+    },
+    {
+      "id": 27,
+      "title": "Checkpoints/s (timed vs requested)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 80
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(cnpg_pg_stat_bgwriter_checkpoints_timed[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "timed"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(rate(cnpg_pg_stat_bgwriter_checkpoints_req[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "requested"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": [
+    "rio",
+    "postgres",
+    "cnpg",
+    "database"
+  ],
+  "templating": {
+    "list": [
+
+    ]
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {
+  },
+  "timezone": "utc",
+  "title": "rio · postgres (cnpg)",
+  "uid": "rio-cloudnative-pg",
+  "version": 1
+}

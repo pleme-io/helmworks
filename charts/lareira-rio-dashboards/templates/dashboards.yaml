@@ -1,0 +1,29 @@
+{{- /*
+  One grafana_dashboard-labelled ConfigMap per dashboards/*.json. The Grafana
+  sidecar (searchNamespace: ALL, label grafana_dashboard) loads each into the
+  rio folder. Adding a dashboard = dropping a rendered JSON into dashboards/ —
+  no template change. The JSONs are generated from the typed Ruby Monitorable
+  architectures (pangea-architectures), so this chart carries zero hand-authored
+  dashboard JSON of its own.
+*/ -}}
+{{- $root := . -}}
+{{- $folder := .Values.folder | default "rio" -}}
+{{- range $path, $_ := .Files.Glob "dashboards/*.json" }}
+{{- $name := base $path | trimSuffix ".json" }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $root.Release.Name }}-{{ $name }}
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/name: lareira-rio-dashboards
+    app.kubernetes.io/managed-by: {{ $root.Release.Service }}
+    pleme.io/dashboard-source: pangea-ruby
+  annotations:
+    grafana_folder: {{ $folder | quote }}
+data:
+  {{ $name }}.json: |-
+{{ $root.Files.Get $path | indent 4 }}
+{{- end }}

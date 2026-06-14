@@ -1,0 +1,1127 @@
+{
+  "annotations": {
+    "list": [
+
+    ]
+  },
+  "description": "",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Status — what needs attention?",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "collapsed": false,
+      "panels": [
+
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Filesystems near full",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count((node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay|squashfs|ramfs|devtmpfs|iso9660\"} / node_filesystem_size_bytes{fstype!~\"tmpfs|overlay|squashfs|ramfs|devtmpfs|iso9660\"}) < 0.10) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1.0
+              },
+              {
+                "color": "red",
+                "value": 1.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "description": "Mounts with <10% free. A full root/data fs wedges the node, CNPG, and containerd. Red = free space NOW."
+    },
+    {
+      "id": 3,
+      "title": "Read-only mounts",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(node_filesystem_readonly == 1) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1.0
+              },
+              {
+                "color": "red",
+                "value": 1.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "description": "Filesystems remounted read-only — usually a disk error or a full fs the kernel protected. Writes are failing silently."
+    },
+    {
+      "id": 4,
+      "title": "Memory pressure",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count((node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) < 0.10) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1.0
+              },
+              {
+                "color": "red",
+                "value": 1.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "description": "Nodes with <10% memory available — the OOM killer is near. breathe carves container limits; this is the host envelope."
+    },
+    {
+      "id": 5,
+      "title": "CPU saturation %",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[5m])))) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 85.0
+              },
+              {
+                "color": "red",
+                "value": 95.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "description": "Busiest node CPU utilisation. Sustained >85% = throttling; >95% = the node is the bottleneck."
+    },
+    {
+      "id": 6,
+      "title": "Load per core",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(node_load1 / on (instance) group_left count by (instance) (node_cpu_seconds_total{mode=\"idle\"})) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1.5
+              },
+              {
+                "color": "red",
+                "value": 4.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "description": "load1 ÷ cores. >1 = more runnable work than cores; >4 = severe contention (the node feels frozen)."
+    },
+    {
+      "id": 7,
+      "title": "Disk I/O saturation",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(rate(node_disk_io_time_seconds_total[5m])) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.8
+              },
+              {
+                "color": "red",
+                "value": 0.95
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "description": "Fraction of wall-time a disk was busy. →1.0 = the disk is the bottleneck (IO-bound DB/etcd, slow applies)."
+    },
+    {
+      "id": 8,
+      "type": "row",
+      "title": "Data presence",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "collapsed": false,
+      "panels": [
+
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Scrape targets — up (1) / down (0)",
+      "type": "table",
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "up{job=~\"node-exporter\"}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+      },
+      "description": "Per (job,instance) scrape health. 1 = scraped + healthy, 0 = target DOWN. A job absent from this table is NOT WIRED (no scrape config) — that is the real cause of its panels' no-data."
+    },
+    {
+      "id": 10,
+      "title": "Targets down",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 15
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(up{job=~\"node-exporter\"} == 0) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "description": "Number of expected scrape targets reporting up==0. >0 = a real target is failing (not \"no data yet\")."
+    },
+    {
+      "id": 11,
+      "title": "Expected jobs present (of 1)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 15
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(group by (job) (up{job=~\"node-exporter\"})) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1.0
+              },
+              {
+                "color": "green",
+                "value": 1.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "description": "Distinct jobs reporting `up` out of the 1 this dashboard depends on. Below target = an exporter is not deployed/scraped (e.g. node-exporter) — fix the scrape, do not wait for data."
+    },
+    {
+      "id": 12,
+      "type": "row",
+      "title": "CPU",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 19
+      },
+      "collapsed": false,
+      "panels": [
+
+      ]
+    },
+    {
+      "id": 13,
+      "title": "CPU utilisation % (by mode)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 20
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (mode) (rate(node_cpu_seconds_total{mode!=\"idle\"}[5m])) / on () group_left count(count by (cpu) (node_cpu_seconds_total)) * 100",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "{{mode}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0.0,
+          "max": 100.0,
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 14,
+      "title": "Load average (1 / 5 / 15m) vs cores",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 20
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_load1",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "load1"
+        },
+        {
+          "refId": "B",
+          "expr": "node_load5",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "load5"
+        },
+        {
+          "refId": "C",
+          "expr": "node_load15",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "load15"
+        },
+        {
+          "refId": "D",
+          "expr": "count(count by (cpu) (node_cpu_seconds_total))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "cores"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 15,
+      "type": "row",
+      "title": "Memory",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 28
+      },
+      "collapsed": false,
+      "panels": [
+
+      ]
+    },
+    {
+      "id": 16,
+      "title": "Memory available %",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 29
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "min(100 * node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 10.0
+              },
+              {
+                "color": "green",
+                "value": 25.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "area"
+      }
+    },
+    {
+      "id": 17,
+      "title": "Memory used / available / total",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 6,
+        "y": 29
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "used"
+        },
+        {
+          "refId": "B",
+          "expr": "node_memory_MemAvailable_bytes",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "available"
+        },
+        {
+          "refId": "C",
+          "expr": "node_memory_MemTotal_bytes",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "total"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 18,
+      "type": "row",
+      "title": "Filesystem",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 37
+      },
+      "collapsed": false,
+      "panels": [
+
+      ]
+    },
+    {
+      "id": 19,
+      "title": "Filesystem used % (by mount)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 38
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * (1 - node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay|squashfs|ramfs|devtmpfs|iso9660\"} / node_filesystem_size_bytes{fstype!~\"tmpfs|overlay|squashfs|ramfs|devtmpfs|iso9660\"})",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "{{mountpoint}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0.0,
+          "max": 100.0,
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 20,
+      "title": "Free space by mount (bytes)",
+      "type": "table",
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 46
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay|squashfs|ramfs|devtmpfs|iso9660\"}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "{{mountpoint}}",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+      }
+    },
+    {
+      "id": 21,
+      "type": "row",
+      "title": "Disk & network",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 55
+      },
+      "collapsed": false,
+      "panels": [
+
+      ]
+    },
+    {
+      "id": 22,
+      "title": "Disk throughput (read / write bytes/s by device)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 56
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (device) (rate(node_disk_read_bytes_total[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "read {{device}}"
+        },
+        {
+          "refId": "B",
+          "expr": "sum by (device) (rate(node_disk_written_bytes_total[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "write {{device}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 23,
+      "title": "Network throughput (rx / tx bytes/s by device)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 56
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (device) (rate(node_network_receive_bytes_total{device!=\"lo\"}[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "rx {{device}}"
+        },
+        {
+          "refId": "B",
+          "expr": "sum by (device) (rate(node_network_transmit_bytes_total{device!=\"lo\"}[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "tx {{device}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": [
+    "rio",
+    "node",
+    "host",
+    "node-exporter"
+  ],
+  "templating": {
+    "list": [
+
+    ]
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {
+  },
+  "timezone": "utc",
+  "title": "rio · nodes & host",
+  "uid": "rio-node-host",
+  "version": 1
+}

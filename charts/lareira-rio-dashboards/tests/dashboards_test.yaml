@@ -1,0 +1,48 @@
+suite: lareira-rio-dashboards
+templates:
+  - templates/dashboards.yaml
+tests:
+  - it: renders one grafana_dashboard ConfigMap per dashboards/*.json
+    asserts:
+      - hasDocuments:
+          count: 5
+
+  - it: every ConfigMap carries the grafana_dashboard sidecar label
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.labels["grafana_dashboard"]
+          value: "1"
+      - equal:
+          path: metadata.labels["pleme.io/dashboard-source"]
+          value: pangea-ruby
+
+  - it: lands dashboards in the rio folder by default
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: metadata.annotations["grafana_folder"]
+          value: rio
+
+  - it: the node-host dashboard CM embeds a valid dashboard JSON body
+    documentSelector:
+      path: metadata.name
+      value: RELEASE-NAME-node-host
+    asserts:
+      - matchRegex:
+          path: data["node-host.json"]
+          pattern: '"uid": ?"rio-node-host"'
+      - matchRegex:
+          path: data["node-host.json"]
+          pattern: 'Status — what needs attention\?'
+
+  - it: the folder is overridable
+    set:
+      folder: staging
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: metadata.annotations["grafana_folder"]
+          value: staging

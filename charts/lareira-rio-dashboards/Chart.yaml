@@ -1,0 +1,13 @@
+apiVersion: v2
+name: lareira-rio-dashboards
+description: |
+  rio infrastructure dashboards — the Ruby-authored (pangea-architectures
+  Monitorable) replacements for the upstream vm-k8s-stack / cnpg community
+  mixins. Every dashboard under dashboards/*.json is rendered from a typed
+  Ruby architecture (NodeHost / KubernetesCluster / VictoriaMetricsHealth /
+  CloudNativePg / VectorPipeline) and shipped as a grafana_dashboard-labelled
+  ConfigMap the Grafana sidecar loads. "Only our dashboards" — no bundled
+  upstream JSON, no Grafana HTTP API.
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

@@ -1,0 +1,1481 @@
+{
+  "annotations": {
+    "list": [
+
+    ]
+  },
+  "description": "",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Status — what needs attention?",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "collapsed": false,
+      "panels": [
+
+      ]
+    },
+    {
+      "id": 2,
+      "title": "vmagent scrape failures /s",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(vm_promscrape_scrapes_failed_total[5m])) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.01
+              },
+              {
+                "color": "red",
+                "value": 0.1
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "description": "Scrapes that failed across all vmagent targets. >0 = some exporter is unreachable or erroring; that target is going dark in the TSDB right now."
+    },
+    {
+      "id": 3,
+      "title": "vmagent send errors /s",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(vmagent_remotewrite_errors_total[5m])) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.01
+              },
+              {
+                "color": "red",
+                "value": 0.1
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "description": "Remote-write requests vmagent could not deliver to vmsingle. Sustained >0 = the write path is broken; data backs up and is eventually dropped."
+    },
+    {
+      "id": 4,
+      "title": "Pending remote-write",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(vmagent_remotewrite_pending_data_bytes) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 100000000.0
+              },
+              {
+                "color": "red",
+                "value": 500000000.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "description": "Bytes queued in vmagent waiting to be sent downstream. A growing backlog = vmsingle is stalled or unreachable; once the buffer fills, samples are dropped."
+    },
+    {
+      "id": 5,
+      "title": "vmalert exec errors /s",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(vmalert_execution_errors_total[5m])) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.01
+              },
+              {
+                "color": "red",
+                "value": 0.01
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "description": "Alerting/recording rule evaluations that errored. >0 = a rule is broken (bad PromQL, datasource down) — those alerts are silently NOT being evaluated."
+    },
+    {
+      "id": 6,
+      "title": "Insert rows rejected /s",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(vm_rows_ignored_total[5m])) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.01
+              },
+              {
+                "color": "red",
+                "value": 0.01
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "description": "Rows vmsingle refused at insert (bad timestamps, NaN, malformed labels). >0 = a producer is sending bad data and those samples never land."
+    },
+    {
+      "id": 7,
+      "title": "Active alerts firing",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(vmalert_alerts_firing) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1.0
+              },
+              {
+                "color": "red",
+                "value": 1.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "description": "Alerts currently in the firing state — not a defect of VM itself but the headline of what VM is telling you. >0 = something the rules watch is wrong."
+    },
+    {
+      "id": 8,
+      "type": "row",
+      "title": "Data presence",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "collapsed": false,
+      "panels": [
+
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Scrape targets — up (1) / down (0)",
+      "type": "table",
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "up{job=~\"vmsingle-lareira-vm-stack-victoria-metrics-k8s-stack|vmagent-lareira-vm-stack-victoria-metrics-k8s-stack|vmalert-lareira-vm-stack-victoria-metrics-k8s-stack\"}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+      },
+      "description": "Per (job,instance) scrape health. 1 = scraped + healthy, 0 = target DOWN. A job absent from this table is NOT WIRED (no scrape config) — that is the real cause of its panels' no-data."
+    },
+    {
+      "id": 10,
+      "title": "Targets down",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 15
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(up{job=~\"vmsingle-lareira-vm-stack-victoria-metrics-k8s-stack|vmagent-lareira-vm-stack-victoria-metrics-k8s-stack|vmalert-lareira-vm-stack-victoria-metrics-k8s-stack\"} == 0) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "description": "Number of expected scrape targets reporting up==0. >0 = a real target is failing (not \"no data yet\")."
+    },
+    {
+      "id": 11,
+      "title": "Expected jobs present (of 3)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 15
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(group by (job) (up{job=~\"vmsingle-lareira-vm-stack-victoria-metrics-k8s-stack|vmagent-lareira-vm-stack-victoria-metrics-k8s-stack|vmalert-lareira-vm-stack-victoria-metrics-k8s-stack\"})) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1.0
+              },
+              {
+                "color": "green",
+                "value": 3.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "description": "Distinct jobs reporting `up` out of the 3 this dashboard depends on. Below target = an exporter is not deployed/scraped (e.g. node-exporter) — fix the scrape, do not wait for data."
+    },
+    {
+      "id": 12,
+      "type": "row",
+      "title": "Ingestion",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 19
+      },
+      "collapsed": false,
+      "panels": [
+
+      ]
+    },
+    {
+      "id": 13,
+      "title": "Rows inserted /s",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 20
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(vm_rows_inserted_total[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "inserted"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(rate(vm_rows_inserted_total[5m])) by (type)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "{{type}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "wps",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 14,
+      "title": "Active time series",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 20
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(vm_cache_entries{type=\"storage/tsid\"})",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "area"
+      }
+    },
+    {
+      "id": 15,
+      "title": "Scrape targets up",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 20
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(up == 1)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "area"
+      }
+    },
+    {
+      "id": 16,
+      "title": "Scrape duration p99",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 28
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "quantile(0.99, scrape_duration_seconds)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "p99"
+        },
+        {
+          "refId": "B",
+          "expr": "quantile(0.50, scrape_duration_seconds)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "p50"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 17,
+      "type": "row",
+      "title": "Storage",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 36
+      },
+      "collapsed": false,
+      "panels": [
+
+      ]
+    },
+    {
+      "id": 18,
+      "title": "Data size on disk",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 37
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(vm_data_size_bytes)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "area"
+      }
+    },
+    {
+      "id": 19,
+      "title": "Free disk space",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 37
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "min(vm_free_disk_space_bytes)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 5000000000.0
+              },
+              {
+                "color": "green",
+                "value": 20000000000.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "area"
+      }
+    },
+    {
+      "id": 20,
+      "title": "Rows on disk (storage / index)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 37
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(vm_rows{type=~\"storage.*\"})",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "storage rows"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(vm_rows{type=~\"indexdb.*\"})",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "indexdb rows"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 21,
+      "title": "Merge / dedup rate /s",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 45
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(vm_rows_merged_total[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "merged"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(rate(vm_deduplicated_samples_total[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "deduplicated"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "wps",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 22,
+      "type": "row",
+      "title": "vmagent",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 53
+      },
+      "collapsed": false,
+      "panels": [
+
+      ]
+    },
+    {
+      "id": 23,
+      "title": "Scrape rate /s",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 54
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(vm_promscrape_scrapes_total[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "scrapes"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 24,
+      "title": "Failed scrapes /s",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 54
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(vm_promscrape_scrapes_failed_total[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "failed"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 25,
+      "title": "Remote-write rate /s (blocks sent / errors)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 62
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(vmagent_remotewrite_blocks_sent_total[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "blocks sent"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(rate(vmagent_remotewrite_errors_total[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "errors"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 26,
+      "title": "Pending remote-write bytes",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 62
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(vmagent_remotewrite_pending_data_bytes)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "pending"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 27,
+      "type": "row",
+      "title": "vmalert",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 70
+      },
+      "collapsed": false,
+      "panels": [
+
+      ]
+    },
+    {
+      "id": 28,
+      "title": "Rules evaluated /s",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 71
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(vmalert_execution_total[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "evaluated"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 29,
+      "title": "Execution errors /s",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 71
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(vmalert_execution_errors_total[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "errors"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 30,
+      "title": "Alerts firing / pending",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 79
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(vmalert_alerts_firing)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "firing"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(vmalert_alerts_pending)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "pending"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": [
+    "rio",
+    "victoria-metrics",
+    "vmagent",
+    "vmalert",
+    "storage"
+  ],
+  "templating": {
+    "list": [
+
+    ]
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {
+  },
+  "timezone": "utc",
+  "title": "rio · victoria-metrics",
+  "uid": "rio-victoria-metrics",
+  "version": 1
+}

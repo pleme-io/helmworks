@@ -1,0 +1,1331 @@
+{
+  "annotations": {
+    "list": [
+
+    ]
+  },
+  "description": "",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Status — what needs attention?",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "collapsed": false,
+      "panels": [
+
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Vector down",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(up{job=~\".*vector.*\"} == 0) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1.0
+              },
+              {
+                "color": "red",
+                "value": 1.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "description": "Vector scrape targets reporting up==0. On rio the `vector-pleme-vector` self-metrics target (:9090/metrics) is DOWN — so the agent is shipping logs but its internal metrics are unscrapeable. Red = a vector target is failing NOW."
+    },
+    {
+      "id": 3,
+      "title": "Self-metrics absent",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "absent(vector_component_received_events_total)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1.0
+              },
+              {
+                "color": "red",
+                "value": 1.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "description": "INTENDED defect surface for \"events dropped / sink errors / buffer near full\" is gone because no vector_* series exist. absent()==1 means Vector's internal_metrics source / prometheus_exporter on :9090 is not scraping — enable + heal that scrape to light up component-level ingest defects."
+    },
+    {
+      "id": 4,
+      "title": "Pod restarts (15m)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(kube_pod_container_status_restarts_total{namespace=\"monitoring\",pod=~\"vector-pleme-vector-.*\"}[15m])) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1.0
+              },
+              {
+                "color": "red",
+                "value": 3.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "description": "Vector container restarts in the last 15m. A crash-loop means logs stop shipping each time it dies. Substitutes for the absent vector OOM/panic self-metric. >0 = investigate."
+    },
+    {
+      "id": 5,
+      "title": "Memory near limit %",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(100 * container_memory_working_set_bytes{namespace=\"monitoring\",pod=~\"vector-pleme-vector-.*\",container=\"vector\"} / on(pod) kube_pod_container_resource_limits{namespace=\"monitoring\",pod=~\"vector-pleme-vector-.*\",resource=\"memory\"}) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 80.0
+              },
+              {
+                "color": "red",
+                "value": 95.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "description": "Vector working-set as a % of its memory limit (512Mi on rio). >95% = the cgroup OOM killer is near — Vector dies and log shipping stalls. Substitutes for the absent vector_buffer_* back-pressure metric."
+    },
+    {
+      "id": 6,
+      "title": "CPU near limit %",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(100 * rate(container_cpu_usage_seconds_total{namespace=\"monitoring\",pod=~\"vector-pleme-vector-.*\",container=\"vector\"}[5m]) / on(pod) (kube_pod_container_resource_limits{namespace=\"monitoring\",pod=~\"vector-pleme-vector-.*\",resource=\"cpu\"} > 0)) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 85.0
+              },
+              {
+                "color": "red",
+                "value": 95.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "description": "Vector CPU usage as a % of its CPU limit. Sustained >85% = the agent is throttled and falls behind on the log tail (ingest lag). Tile reads green/no-data if no CPU limit is set."
+    },
+    {
+      "id": 7,
+      "title": "Filesystem writes /s",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(container_fs_writes_bytes_total{namespace=\"monitoring\",pod=~\"vector-pleme-vector-.*\"}[5m])) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 50000000.0
+              },
+              {
+                "color": "red",
+                "value": 200000000.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "description": "Bytes/s Vector writes to its container filesystem — chiefly disk-buffer + checkpoint I/O. A sustained climb is the only available proxy for buffer growth while vector_buffer_byte_size is absent. Thresholds are coarse (50/200 MB/s) — tune once real buffer metrics exist."
+    },
+    {
+      "id": 8,
+      "type": "row",
+      "title": "Data presence",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "collapsed": false,
+      "panels": [
+
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Scrape targets — up (1) / down (0)",
+      "type": "table",
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "up{job=~\"vector-pleme-vector\"}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+      },
+      "description": "Per (job,instance) scrape health. 1 = scraped + healthy, 0 = target DOWN. A job absent from this table is NOT WIRED (no scrape config) — that is the real cause of its panels' no-data."
+    },
+    {
+      "id": 10,
+      "title": "Targets down",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 15
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(up{job=~\"vector-pleme-vector\"} == 0) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "description": "Number of expected scrape targets reporting up==0. >0 = a real target is failing (not \"no data yet\")."
+    },
+    {
+      "id": 11,
+      "title": "Expected jobs present (of 1)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 15
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(group by (job) (up{job=~\"vector-pleme-vector\"})) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1.0
+              },
+              {
+                "color": "green",
+                "value": 1.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "description": "Distinct jobs reporting `up` out of the 1 this dashboard depends on. Below target = an exporter is not deployed/scraped (e.g. node-exporter) — fix the scrape, do not wait for data."
+    },
+    {
+      "id": 12,
+      "type": "row",
+      "title": "Self-metrics gap",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 19
+      },
+      "collapsed": false,
+      "panels": [
+
+      ]
+    },
+    {
+      "id": 13,
+      "title": "Why there are no per-component throughput / buffer / sink panels",
+      "type": "text",
+      "gridPos": {
+        "h": 5,
+        "w": 24,
+        "x": 0,
+        "y": 20
+      },
+      "targets": [
+
+      ],
+      "fieldConfig": {
+        "defaults": {
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**Vector's internal metrics are not available on rio.** The\n`vector-pleme-vector` self-metrics scrape target (Service\n`vector-pleme-vector` → `:9090/metrics`, Prometheus job\n`vector-pleme-vector`) is **DOWN** (`up == 0`), so **zero**\n`vector_*` series exist in VictoriaMetrics\n(`count by(__name__)({__name__=~\"vector_.+\"})` → empty).\n\nThe richer panels this dashboard would otherwise draw —\n`vector_component_received_events_total` /\n`vector_component_sent_events_total` (throughput),\n`vector_buffer_byte_size` / `vector_buffer_max_byte_size`\n(buffer fullness), `vector_component_errors_total` /\n`vector_component_discarded_events_total` (errors & drops),\n`vector_utilization` — are therefore **unobservable** until\nthat scrape is healthy.\n\n**To light them up:** ensure Vector's `internal_metrics` source\n+ a `prometheus_exporter` sink are enabled on `:9090`, and that\nthe scrape target reports `up == 1`. Until then this dashboard\ndraws the agent-liveness + cAdvisor `container_*` surface that\n*does* exist (rows below).\n"
+      }
+    },
+    {
+      "id": 14,
+      "type": "row",
+      "title": "Throughput (container I/O proxy — vector_* absent)",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 25
+      },
+      "collapsed": false,
+      "panels": [
+
+      ]
+    },
+    {
+      "id": 15,
+      "title": "Network throughput — rx / tx bytes/s (proxy for events shipped)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 26
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(container_network_receive_bytes_total{namespace=\"monitoring\",pod=~\"vector-pleme-vector-.*\"}[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "rx (ingest)"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(rate(container_network_transmit_bytes_total{namespace=\"monitoring\",pod=~\"vector-pleme-vector-.*\"}[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "tx (ship to VLogs/VM)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      },
+      "description": "Intended: sum by(component_id)(rate(vector_component_received_events_total)) and _sent_events_total — ABSENT on rio. Shown instead: the vector pod's container network I/O. tx ≈ events shipped to VLogs/VM."
+    },
+    {
+      "id": 16,
+      "title": "Filesystem write throughput (bytes/s) — buffer/checkpoint proxy",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 26
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(container_fs_writes_bytes_total{namespace=\"monitoring\",pod=~\"vector-pleme-vector-.*\"}[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "fs writes"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      },
+      "description": "Intended: bytes received/sent by component. ABSENT (no vector_*). Shown instead: container_fs_writes_bytes_total — Vector's disk-buffer + checkpoint write rate, the only available bytes-moved signal."
+    },
+    {
+      "id": 17,
+      "type": "row",
+      "title": "Sources & sinks (populates when :9090 self-metrics scrape is healthy)",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 34
+      },
+      "collapsed": false,
+      "panels": [
+
+      ]
+    },
+    {
+      "id": 18,
+      "title": "Events/s by component_kind (source / transform / sink)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 35
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (component_kind) (rate(vector_component_received_events_total[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "{{component_kind}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "eps",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      },
+      "description": "Requires vector_* self-metrics (endpoint down on rio → no-data). sum by(component_kind)(rate(vector_component_received_events_total[5m]))."
+    },
+    {
+      "id": 19,
+      "title": "Sink events/s by component_id (VLogs / VM)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 35
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (component_id) (rate(vector_component_sent_events_total{component_kind=\"sink\"}[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "{{component_id}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "eps",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      },
+      "description": "Requires vector_* self-metrics (endpoint down on rio → no-data). Events accepted by each sink — the VLogs + VM forwarders."
+    },
+    {
+      "id": 20,
+      "type": "row",
+      "title": "Errors & drops (populates when :9090 self-metrics scrape is healthy)",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 43
+      },
+      "collapsed": false,
+      "panels": [
+
+      ]
+    },
+    {
+      "id": 21,
+      "title": "Component errors/s by component_id",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 44
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (component_id) (rate(vector_component_errors_total[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "{{component_id}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      },
+      "description": "Requires vector_* self-metrics (endpoint down on rio → no-data). sum by(component_id)(rate(vector_component_errors_total[5m])). Observable error proxy meanwhile: pod restarts (Status row)."
+    },
+    {
+      "id": 22,
+      "title": "Discarded events/s by component_id",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 44
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (component_id) (rate(vector_component_discarded_events_total[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "{{component_id}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "eps",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      },
+      "description": "Requires vector_* self-metrics (endpoint down on rio → no-data). rate(vector_component_discarded_events_total) — events Vector dropped (over-capacity buffer, parse failure)."
+    },
+    {
+      "id": 23,
+      "title": "HTTP client 4xx/5xx responses/s (sink send failures)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 52
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (status) (rate(vector_http_client_responses_total{status=~\"4..|5..\"}[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "{{status}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      },
+      "description": "Requires vector_* self-metrics (endpoint down on rio → no-data). rate(vector_http_client_responses_total{status=~\"4..|5..\"}) — failed sends from the VLogs/VM HTTP sinks."
+    },
+    {
+      "id": 24,
+      "type": "row",
+      "title": "Resources (vector container — observable)",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 60
+      },
+      "collapsed": false,
+      "panels": [
+
+      ]
+    },
+    {
+      "id": 25,
+      "title": "CPU usage (cores) vs limit",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 61
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"monitoring\",pod=~\"vector-pleme-vector-.*\",container=\"vector\"}[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "cpu cores"
+        },
+        {
+          "refId": "B",
+          "expr": "max(kube_pod_container_resource_limits{namespace=\"monitoring\",pod=~\"vector-pleme-vector-.*\",resource=\"cpu\"})",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "cpu limit"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      },
+      "description": "Vector container CPU from cAdvisor. process_cpu_seconds_total is absent (no vector self-metrics) — container_cpu_usage is the live signal."
+    },
+    {
+      "id": 26,
+      "title": "Memory working set vs limit",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 61
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(container_memory_working_set_bytes{namespace=\"monitoring\",pod=~\"vector-pleme-vector-.*\",container=\"vector\"})",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "working set"
+        },
+        {
+          "refId": "B",
+          "expr": "max(kube_pod_container_resource_limits{namespace=\"monitoring\",pod=~\"vector-pleme-vector-.*\",resource=\"memory\"})",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "mem limit"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      },
+      "description": "Vector container working-set from cAdvisor vs its memory limit (512Mi on rio). process_resident_memory_bytes is absent (no vector self-metrics) — container_memory_working_set_bytes is the live signal."
+    },
+    {
+      "id": 27,
+      "title": "Memory used % of limit",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 69
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(100 * container_memory_working_set_bytes{namespace=\"monitoring\",pod=~\"vector-pleme-vector-.*\",container=\"vector\"} / on(pod) kube_pod_container_resource_limits{namespace=\"monitoring\",pod=~\"vector-pleme-vector-.*\",resource=\"memory\"})",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 80.0
+              },
+              {
+                "color": "red",
+                "value": 95.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "area"
+      }
+    },
+    {
+      "id": 28,
+      "title": "Buffer fullness % + component utilization (self-metrics)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 6,
+        "y": 69
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(100 * vector_buffer_byte_size / vector_buffer_max_byte_size)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "buffer full %"
+        },
+        {
+          "refId": "B",
+          "expr": "max(100 * vector_utilization)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "utilization %"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0.0,
+          "max": 100.0,
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      },
+      "description": "Requires vector_* self-metrics (endpoint down on rio → no-data). 100*vector_buffer_byte_size/vector_buffer_max_byte_size and 100*vector_utilization. Populates when the :9090 scrape heals."
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": [
+    "rio",
+    "vector",
+    "ingest",
+    "logs"
+  ],
+  "templating": {
+    "list": [
+
+    ]
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {
+  },
+  "timezone": "utc",
+  "title": "rio · vector pipeline",
+  "uid": "rio-vector-pipeline",
+  "version": 1
+}

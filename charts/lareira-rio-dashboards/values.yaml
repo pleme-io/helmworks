@@ -1,0 +1,3 @@
+# lareira-rio-dashboards — the Grafana folder every rendered Ruby dashboard
+# lands in. Override per-cluster if the folder differs.
+folder: rio

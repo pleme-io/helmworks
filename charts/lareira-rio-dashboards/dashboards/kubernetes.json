@@ -1,0 +1,1587 @@
+{
+  "annotations": {
+    "list": [
+
+    ]
+  },
+  "description": "",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Status — what needs attention?",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "collapsed": false,
+      "panels": [
+
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Pods not ready",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(kube_pod_status_ready{condition=\"false\"} == 1) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1.0
+              },
+              {
+                "color": "red",
+                "value": 5.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "description": "Pods whose Ready condition is false — crashlooping, failing probes, or stuck pulling. Red = workloads are degraded NOW."
+    },
+    {
+      "id": 3,
+      "title": "Container restarts (5m)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(kube_pod_container_status_restarts_total[5m])) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1.0
+              },
+              {
+                "color": "red",
+                "value": 5.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "description": "Container restarts across the cluster in the last 5m. A steady climb = a crashlooping container; cross-reference Workloads."
+    },
+    {
+      "id": 4,
+      "title": "Pods pending",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(kube_pod_status_phase{phase=\"Pending\"} == 1) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1.0
+              },
+              {
+                "color": "red",
+                "value": 3.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "description": "Pods stuck in Pending — unschedulable (no node fits), waiting on a PVC, or image pull. The scheduler cannot place them."
+    },
+    {
+      "id": 5,
+      "title": "Nodes not ready",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(kube_node_status_condition{condition=\"Ready\",status=\"true\"} == 0) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1.0
+              },
+              {
+                "color": "red",
+                "value": 1.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "description": "Nodes whose Ready=true condition is NOT firing (inverted) — the node is NotReady/unknown. Pods on it are about to be evicted."
+    },
+    {
+      "id": 6,
+      "title": "API server error rate %",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * sum(rate(apiserver_request_total{code=~\"5..\"}[5m])) / sum(rate(apiserver_request_total[5m])) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1.0
+              },
+              {
+                "color": "red",
+                "value": 5.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "description": "Fraction of apiserver requests returning 5xx. >1% = the control plane is erroring; controllers + kubectl feel it first."
+    },
+    {
+      "id": 7,
+      "title": "Workloads degraded",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(kube_deployment_status_replicas_unavailable > 0) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1.0
+              },
+              {
+                "color": "red",
+                "value": 3.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "description": "Deployments with >0 unavailable replicas — not at desired count. A rollout stuck, OOMing, or unschedulable. (Chosen over PVC-full: on rio local-path PVCs report whole-node-fs, so volume-fill % is noisy — see kubelet_volume_stats caveat in the Nodes row.)"
+    },
+    {
+      "id": 8,
+      "type": "row",
+      "title": "Data presence",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "collapsed": false,
+      "panels": [
+
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Scrape targets — up (1) / down (0)",
+      "type": "table",
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "up{job=~\"apiserver|kubelet|kube-state-metrics|core-dns\"}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+      },
+      "description": "Per (job,instance) scrape health. 1 = scraped + healthy, 0 = target DOWN. A job absent from this table is NOT WIRED (no scrape config) — that is the real cause of its panels' no-data."
+    },
+    {
+      "id": 10,
+      "title": "Targets down",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 15
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(up{job=~\"apiserver|kubelet|kube-state-metrics|core-dns\"} == 0) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "description": "Number of expected scrape targets reporting up==0. >0 = a real target is failing (not \"no data yet\")."
+    },
+    {
+      "id": 11,
+      "title": "Expected jobs present (of 4)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 15
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(group by (job) (up{job=~\"apiserver|kubelet|kube-state-metrics|core-dns\"})) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1.0
+              },
+              {
+                "color": "green",
+                "value": 4.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "description": "Distinct jobs reporting `up` out of the 4 this dashboard depends on. Below target = an exporter is not deployed/scraped (e.g. node-exporter) — fix the scrape, do not wait for data."
+    },
+    {
+      "id": 12,
+      "type": "row",
+      "title": "Workloads",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 19
+      },
+      "collapsed": false,
+      "panels": [
+
+      ]
+    },
+    {
+      "id": 13,
+      "title": "Pods by phase",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 20
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (phase) (kube_pod_status_phase)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "{{phase}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0.0,
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 14,
+      "title": "Deployment replicas — available vs desired",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 20
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(kube_deployment_status_replicas_available)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "available"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(kube_deployment_spec_replicas)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "desired"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0.0,
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 15,
+      "title": "Container restarts /s (by namespace)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 28
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (namespace) (rate(kube_pod_container_status_restarts_total[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "{{namespace}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "cps",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 16,
+      "title": "Top restarting pods (5m)",
+      "type": "table",
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 36
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(10, sum by (namespace, pod) (increase(kube_pod_container_status_restarts_total[5m])))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "{{namespace}}/{{pod}}",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+      }
+    },
+    {
+      "id": 17,
+      "type": "row",
+      "title": "Namespaces",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 45
+      },
+      "collapsed": false,
+      "panels": [
+
+      ]
+    },
+    {
+      "id": 18,
+      "title": "Pods per namespace",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 46
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (namespace) (kube_pod_info)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "{{namespace}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0.0,
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 19,
+      "title": "CPU usage by namespace (cores)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 46
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (namespace) (rate(container_cpu_usage_seconds_total{container!=\"\"}[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "{{namespace}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 20,
+      "title": "Memory working set by namespace",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 54
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (namespace) (container_memory_working_set_bytes{container!=\"\"})",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "{{namespace}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 21,
+      "type": "row",
+      "title": "Nodes",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 62
+      },
+      "collapsed": false,
+      "panels": [
+
+      ]
+    },
+    {
+      "id": 22,
+      "title": "Nodes",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 63
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(kube_node_info)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "area"
+      }
+    },
+    {
+      "id": 23,
+      "title": "Nodes ready",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 63
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(kube_node_status_condition{condition=\"Ready\",status=\"true\"} == 1)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "area"
+      }
+    },
+    {
+      "id": 24,
+      "title": "CPU — allocatable vs requested (cores)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 63
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(kube_node_status_allocatable{resource=\"cpu\"})",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "allocatable"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(kube_pod_container_resource_requests{resource=\"cpu\"})",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "requested"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0.0,
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 25,
+      "title": "Memory — allocatable vs requested",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 71
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(kube_node_status_allocatable{resource=\"memory\"})",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "allocatable"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(kube_pod_container_resource_requests{resource=\"memory\"})",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "requested"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "min": 0.0,
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 26,
+      "type": "row",
+      "title": "API server",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 79
+      },
+      "collapsed": false,
+      "panels": [
+
+      ]
+    },
+    {
+      "id": 27,
+      "title": "Request rate by verb",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 80
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (verb) (rate(apiserver_request_total[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "{{verb}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 28,
+      "title": "Request latency p99 by verb",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 80
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.99, sum by (le, verb) (rate(apiserver_request_duration_seconds_bucket[5m])))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "{{verb}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 29,
+      "title": "Error rate by code (4xx / 5xx)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 88
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (code) (rate(apiserver_request_total{code=~\"[45]..\"}[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "{{code}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 30,
+      "type": "row",
+      "title": "CoreDNS",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 96
+      },
+      "collapsed": false,
+      "panels": [
+
+      ]
+    },
+    {
+      "id": 31,
+      "title": "DNS request rate",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 97
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(coredns_dns_requests_total[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "requests/s"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 32,
+      "title": "DNS SERVFAIL rate",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 97
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(coredns_dns_responses_total{rcode=\"SERVFAIL\"}[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "SERVFAIL/s"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 33,
+      "title": "DNS latency p99",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 105
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(coredns_dns_request_duration_seconds_bucket[5m])))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "p99"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": [
+    "rio",
+    "kubernetes",
+    "k8s",
+    "cluster"
+  ],
+  "templating": {
+    "list": [
+
+    ]
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {
+  },
+  "timezone": "utc",
+  "title": "rio · kubernetes",
+  "uid": "rio-kubernetes",
+  "version": 1
+}
