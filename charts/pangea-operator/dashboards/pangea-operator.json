@@ -16,7 +16,7 @@
     {
       "id": 1,
       "type": "row",
-      "title": "Reconcile health",
+      "title": "Data presence",
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -30,13 +30,168 @@
     },
     {
       "id": 2,
+      "title": "Scrape targets — up (1) / down (0)",
+      "type": "table",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "up{job=~\"pangea-operator\"}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+      },
+      "description": "Per (job,instance) scrape health. 1 = scraped + healthy, 0 = target DOWN. A job absent from this table is NOT WIRED (no scrape config) — that is the real cause of its panels' no-data."
+    },
+    {
+      "id": 3,
+      "title": "Targets down",
+      "type": "stat",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(up{job=~\"pangea-operator\"} == 0) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "description": "Number of expected scrape targets reporting up==0. >0 = a real target is failing (not \"no data yet\")."
+    },
+    {
+      "id": 4,
+      "title": "Expected jobs present (of 1)",
+      "type": "stat",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 6,
+        "y": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(group by (job) (up{job=~\"pangea-operator\"})) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1.0
+              },
+              {
+                "color": "green",
+                "value": 1.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "description": "Distinct jobs reporting `up` out of the 1 this dashboard depends on. Below target = an exporter is not deployed/scraped (e.g. node-exporter) — fix the scrape, do not wait for data."
+    },
+    {
+      "id": 5,
+      "type": "row",
+      "title": "Reconcile health",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 17
+      },
+      "collapsed": false,
+      "panels": [
+
+      ]
+    },
+    {
+      "id": 6,
       "title": "Reconciliations per second (by controller + result)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 1
+        "y": 18
       },
       "targets": [
         {
@@ -73,14 +228,14 @@
       }
     },
     {
-      "id": 3,
+      "id": 7,
       "title": "Active reconciliations",
       "type": "stat",
       "gridPos": {
         "h": 8,
         "w": 6,
         "x": 12,
-        "y": 1
+        "y": 18
       },
       "targets": [
         {
@@ -111,14 +266,14 @@
       }
     },
     {
-      "id": 4,
+      "id": 8,
       "title": "p95 reconciliation duration (by phase)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 9
+        "y": 26
       },
       "targets": [
         {
@@ -155,14 +310,14 @@
       }
     },
     {
-      "id": 5,
+      "id": 9,
       "type": "row",
       "title": "Template phases",
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 17
+        "y": 34
       },
       "collapsed": false,
       "panels": [
@@ -170,14 +325,14 @@
       ]
     },
     {
-      "id": 6,
+      "id": 10,
       "title": "InfrastructureTemplates by phase",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 18
+        "y": 35
       },
       "targets": [
         {
@@ -213,14 +368,14 @@
       }
     },
     {
-      "id": 7,
+      "id": 11,
       "title": "Settled templates",
       "type": "stat",
       "gridPos": {
         "h": 8,
         "w": 6,
         "x": 12,
-        "y": 18
+        "y": 35
       },
       "targets": [
         {
@@ -264,14 +419,14 @@
       }
     },
     {
-      "id": 8,
+      "id": 12,
       "title": "Max consecutive drift cycles",
       "type": "stat",
       "gridPos": {
         "h": 8,
         "w": 6,
         "x": 18,
-        "y": 18
+        "y": 35
       },
       "targets": [
         {
@@ -315,14 +470,14 @@
       }
     },
     {
-      "id": 9,
+      "id": 13,
       "type": "row",
       "title": "Magma apply outcomes",
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 26
+        "y": 43
       },
       "collapsed": false,
       "panels": [
@@ -330,14 +485,14 @@
       ]
     },
     {
-      "id": 10,
+      "id": 14,
       "title": "Resources FAILED in last magma apply (by template)",
       "type": "table",
       "gridPos": {
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 27
+        "y": 44
       },
       "targets": [
         {
@@ -374,14 +529,14 @@
       }
     },
     {
-      "id": 11,
+      "id": 15,
       "title": "Resources applied in last magma apply (by template)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 35
+        "y": 52
       },
       "targets": [
         {
@@ -417,14 +572,14 @@
       }
     },
     {
-      "id": 12,
+      "id": 16,
       "title": "Magma apply runs/sec — Failed phase (by template)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 35
+        "y": 52
       },
       "targets": [
         {
@@ -461,14 +616,14 @@
       }
     },
     {
-      "id": 13,
+      "id": 17,
       "title": "Failed-change churn/sec (by template)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 43
+        "y": 60
       },
       "targets": [
         {
@@ -505,14 +660,14 @@
       }
     },
     {
-      "id": 14,
+      "id": 18,
       "type": "row",
       "title": "Drift",
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 51
+        "y": 68
       },
       "collapsed": false,
       "panels": [
@@ -520,14 +675,14 @@
       ]
     },
     {
-      "id": 15,
+      "id": 19,
       "title": "Drift detections per second",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 52
+        "y": 69
       },
       "targets": [
         {
@@ -563,14 +718,14 @@
       }
     },
     {
-      "id": 16,
+      "id": 20,
       "title": "Pending changes (by template · action · risk)",
       "type": "table",
       "gridPos": {
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 60
+        "y": 77
       },
       "targets": [
         {
@@ -594,14 +749,14 @@
       }
     },
     {
-      "id": 17,
+      "id": 21,
       "type": "row",
       "title": "Compile & escalation",
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 68
+        "y": 85
       },
       "collapsed": false,
       "panels": [
@@ -609,14 +764,14 @@
       ]
     },
     {
-      "id": 18,
+      "id": 22,
       "title": "Compile failures per second (by template)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 69
+        "y": 86
       },
       "targets": [
         {
@@ -653,14 +808,14 @@
       }
     },
     {
-      "id": 19,
+      "id": 23,
       "title": "Max consecutive compile failures",
       "type": "stat",
       "gridPos": {
         "h": 8,
         "w": 6,
         "x": 12,
-        "y": 69
+        "y": 86
       },
       "targets": [
         {
@@ -708,14 +863,14 @@
       }
     },
     {
-      "id": 20,
+      "id": 24,
       "title": "Recommended escalation rung depth (by template)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 77
+        "y": 94
       },
       "targets": [
         {
@@ -751,14 +906,14 @@
       }
     },
     {
-      "id": 21,
+      "id": 25,
       "title": "Escalation actions recommended/sec (by action)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 77
+        "y": 94
       },
       "targets": [
         {
@@ -795,14 +950,14 @@
       }
     },
     {
-      "id": 22,
+      "id": 26,
       "title": "Settling-failure escalations/sec (by reason)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 85
+        "y": 102
       },
       "targets": [
         {
@@ -839,14 +994,14 @@
       }
     },
     {
-      "id": 23,
+      "id": 27,
       "title": "Compile dispatcher queue depth",
       "type": "stat",
       "gridPos": {
         "h": 8,
         "w": 6,
         "x": 12,
-        "y": 85
+        "y": 102
       },
       "targets": [
         {
@@ -894,14 +1049,14 @@
       }
     },
     {
-      "id": 24,
+      "id": 28,
       "type": "row",
       "title": "Logs",
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 93
+        "y": 110
       },
       "collapsed": false,
       "panels": [
@@ -909,21 +1064,21 @@
       ]
     },
     {
-      "id": 25,
-      "title": "pangea-operator errors (last window)",
+      "id": 29,
+      "title": "pangea-operator logs (last window)",
       "type": "table",
       "gridPos": {
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 94
+        "y": 111
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "{namespace=\"pangea-system\",app=\"pangea-operator\"} | error",
+          "expr": "{namespace=\"pangea-system\",app=\"pangea-operator\"}",
           "datasource": {
-            "type": "VictoriaLogs",
+            "type": "victoriametrics-logs-datasource",
             "uid": "vlogs"
           },
           "instant": true
@@ -937,24 +1092,57 @@
         ]
       },
       "options": {
-      }
+      },
+      "description": "All log lines for this workload — full context. Use the ERROR window below for fast triage."
     },
     {
-      "id": 26,
-      "title": "Error log lines / sec",
+      "id": 30,
+      "title": "pangea-operator — ERROR logs (last window)",
+      "type": "table",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 119
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{namespace=\"pangea-system\",app=\"pangea-operator\"} level:error OR level:fatal OR level:critical OR level:panic",
+          "datasource": {
+            "type": "victoriametrics-logs-datasource",
+            "uid": "vlogs"
+          },
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+      },
+      "description": "Error-class log lines only (level:error OR level:fatal OR level:critical OR level:panic) — the fast-triage window. Empty = no errors."
+    },
+    {
+      "id": 31,
+      "title": "pangea-operator — error log lines / sec",
       "type": "stat",
       "gridPos": {
         "h": 8,
         "w": 6,
         "x": 0,
-        "y": 102
+        "y": 127
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "{namespace=\"pangea-system\",app=\"pangea-operator\"} | error | stats count() errors",
+          "expr": "{namespace=\"pangea-system\",app=\"pangea-operator\"} level:error OR level:fatal OR level:critical OR level:panic | stats count() errors",
           "datasource": {
-            "type": "VictoriaLogs",
+            "type": "victoriametrics-logs-datasource",
             "uid": "vlogs"
           }
         }
@@ -993,7 +1181,8 @@
           "values": false
         },
         "textMode": "auto"
-      }
+      },
+      "description": "Rate of error-class log lines. Green = none."
     }
   ],
   "schemaVersion": 39,

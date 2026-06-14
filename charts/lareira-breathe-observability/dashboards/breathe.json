@@ -16,7 +16,7 @@
     {
       "id": 1,
       "type": "row",
-      "title": "Fleet",
+      "title": "Data presence",
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -30,13 +30,168 @@
     },
     {
       "id": 2,
+      "title": "Scrape targets — up (1) / down (0)",
+      "type": "table",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "up{job=~\"breathe-controller-metrics|breathe-system/breathe-host-agent\"}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+      },
+      "description": "Per (job,instance) scrape health. 1 = scraped + healthy, 0 = target DOWN. A job absent from this table is NOT WIRED (no scrape config) — that is the real cause of its panels' no-data."
+    },
+    {
+      "id": 3,
+      "title": "Targets down",
+      "type": "stat",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(up{job=~\"breathe-controller-metrics|breathe-system/breathe-host-agent\"} == 0) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "description": "Number of expected scrape targets reporting up==0. >0 = a real target is failing (not \"no data yet\")."
+    },
+    {
+      "id": 4,
+      "title": "Expected jobs present (of 2)",
+      "type": "stat",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 6,
+        "y": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(group by (job) (up{job=~\"breathe-controller-metrics|breathe-system/breathe-host-agent\"})) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1.0
+              },
+              {
+                "color": "green",
+                "value": 2.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "description": "Distinct jobs reporting `up` out of the 2 this dashboard depends on. Below target = an exporter is not deployed/scraped (e.g. node-exporter) — fix the scrape, do not wait for data."
+    },
+    {
+      "id": 5,
+      "type": "row",
+      "title": "Fleet",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 17
+      },
+      "collapsed": false,
+      "panels": [
+
+      ]
+    },
+    {
+      "id": 6,
       "title": "Bands enrolled",
       "type": "stat",
       "gridPos": {
         "h": 8,
         "w": 6,
         "x": 0,
-        "y": 1
+        "y": 18
       },
       "targets": [
         {
@@ -67,14 +222,14 @@
       }
     },
     {
-      "id": 3,
+      "id": 7,
       "title": "Live bands (carving)",
       "type": "stat",
       "gridPos": {
         "h": 8,
         "w": 6,
         "x": 6,
-        "y": 1
+        "y": 18
       },
       "targets": [
         {
@@ -114,14 +269,14 @@
       }
     },
     {
-      "id": 4,
+      "id": 8,
       "title": "Shadow bands (observing)",
       "type": "stat",
       "gridPos": {
         "h": 8,
         "w": 6,
         "x": 12,
-        "y": 1
+        "y": 18
       },
       "targets": [
         {
@@ -161,14 +316,14 @@
       }
     },
     {
-      "id": 5,
+      "id": 9,
       "title": "Reconciles per second",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 9
+        "y": 26
       },
       "targets": [
         {
@@ -205,14 +360,14 @@
       }
     },
     {
-      "id": 6,
+      "id": 10,
       "title": "Controller",
       "type": "stat",
       "gridPos": {
         "h": 8,
         "w": 6,
         "x": 12,
-        "y": 9
+        "y": 26
       },
       "targets": [
         {
@@ -257,14 +412,14 @@
       }
     },
     {
-      "id": 7,
+      "id": 11,
       "type": "row",
       "title": "Utilization band (80/20)",
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 17
+        "y": 34
       },
       "collapsed": false,
       "panels": [
@@ -272,14 +427,14 @@
       ]
     },
     {
-      "id": 8,
+      "id": 12,
       "title": "Memory band utilization (used / limit)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 18
+        "y": 35
       },
       "targets": [
         {
@@ -327,14 +482,14 @@
       }
     },
     {
-      "id": 9,
+      "id": 13,
       "title": "CPU band utilization (used / limit)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 18
+        "y": 35
       },
       "targets": [
         {
@@ -382,14 +537,14 @@
       }
     },
     {
-      "id": 10,
+      "id": 14,
       "title": "Bands furthest from setpoint (|util − setpoint|)",
       "type": "table",
       "gridPos": {
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 26
+        "y": 43
       },
       "targets": [
         {
@@ -414,14 +569,14 @@
       }
     },
     {
-      "id": 11,
+      "id": 15,
       "type": "row",
       "title": "Carving",
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 34
+        "y": 51
       },
       "collapsed": false,
       "panels": [
@@ -429,14 +584,14 @@
       ]
     },
     {
-      "id": 12,
+      "id": 16,
       "title": "Carves per second (grow vs shrink)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 35
+        "y": 52
       },
       "targets": [
         {
@@ -473,14 +628,14 @@
       }
     },
     {
-      "id": 13,
+      "id": 17,
       "title": "Carves per second by restart class",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 35
+        "y": 52
       },
       "targets": [
         {
@@ -517,14 +672,14 @@
       }
     },
     {
-      "id": 14,
+      "id": 18,
       "title": "Deferred crossings per second (would-restart, backed off)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 43
+        "y": 60
       },
       "targets": [
         {
@@ -561,14 +716,14 @@
       }
     },
     {
-      "id": 15,
+      "id": 19,
       "title": "Memory: carved limit riding inside floor/ceiling",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 43
+        "y": 60
       },
       "targets": [
         {
@@ -623,14 +778,14 @@
       }
     },
     {
-      "id": 16,
+      "id": 20,
       "type": "row",
       "title": "Health",
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 51
+        "y": 68
       },
       "collapsed": false,
       "panels": [
@@ -638,14 +793,14 @@
       ]
     },
     {
-      "id": 17,
+      "id": 21,
       "title": "Conflicts per second (single-writer guard tripping)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 52
+        "y": 69
       },
       "targets": [
         {
@@ -682,14 +837,14 @@
       }
     },
     {
-      "id": 18,
+      "id": 22,
       "title": "Errors + stale ticks per second",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 52
+        "y": 69
       },
       "targets": [
         {
@@ -735,14 +890,14 @@
       }
     },
     {
-      "id": 19,
+      "id": 23,
       "title": "Driving-metric staleness per band (s)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 60
+        "y": 77
       },
       "targets": [
         {
@@ -779,14 +934,14 @@
       }
     },
     {
-      "id": 20,
+      "id": 24,
       "title": "Cooldown remaining per band (s)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 60
+        "y": 77
       },
       "targets": [
         {
@@ -823,14 +978,14 @@
       }
     },
     {
-      "id": 21,
+      "id": 25,
       "type": "row",
       "title": "Logs",
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 68
+        "y": 85
       },
       "collapsed": false,
       "panels": [
@@ -838,21 +993,21 @@
       ]
     },
     {
-      "id": 22,
-      "title": "breathe-controller log (last window)",
+      "id": 26,
+      "title": "breathe-controller logs (last window)",
       "type": "table",
       "gridPos": {
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 69
+        "y": 86
       },
       "targets": [
         {
           "refId": "A",
           "expr": "{namespace=\"pangea-system\",app=\"pleme-breathe\"}",
           "datasource": {
-            "type": "VictoriaLogs",
+            "type": "victoriametrics-logs-datasource",
             "uid": "vlogs"
           },
           "instant": true
@@ -866,24 +1021,57 @@
         ]
       },
       "options": {
-      }
+      },
+      "description": "All log lines for this workload — full context. Use the ERROR window below for fast triage."
     },
     {
-      "id": 23,
-      "title": "Error log lines / sec",
+      "id": 27,
+      "title": "breathe-controller — ERROR logs (last window)",
+      "type": "table",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 94
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{namespace=\"pangea-system\",app=\"pleme-breathe\"} level:error OR level:fatal OR level:critical OR level:panic",
+          "datasource": {
+            "type": "victoriametrics-logs-datasource",
+            "uid": "vlogs"
+          },
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+      },
+      "description": "Error-class log lines only (level:error OR level:fatal OR level:critical OR level:panic) — the fast-triage window. Empty = no errors."
+    },
+    {
+      "id": 28,
+      "title": "breathe-controller — error log lines / sec",
       "type": "stat",
       "gridPos": {
         "h": 8,
         "w": 6,
         "x": 0,
-        "y": 77
+        "y": 102
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "{namespace=\"pangea-system\",app=\"pleme-breathe\"} | error | stats count() errors",
+          "expr": "{namespace=\"pangea-system\",app=\"pleme-breathe\"} level:error OR level:fatal OR level:critical OR level:panic | stats count() errors",
           "datasource": {
-            "type": "VictoriaLogs",
+            "type": "victoriametrics-logs-datasource",
             "uid": "vlogs"
           }
         }
@@ -922,7 +1110,8 @@
           "values": false
         },
         "textMode": "auto"
-      }
+      },
+      "description": "Rate of error-class log lines. Green = none."
     }
   ],
   "schemaVersion": 39,
