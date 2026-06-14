@@ -1,0 +1,84 @@
+suite: namespaces → PangeaNamespace
+templates:
+  - templates/namespaces.yaml
+tests:
+  - it: renders nothing when namespaces is empty
+    set:
+      namespaces: []
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders one PangeaNamespace per namespaces[] entry
+    set:
+      namespaces:
+        - name: rio-infra
+          backend:
+            type: pg
+            pg:
+              host: pangea-database-rw.pangea-system.svc
+              database: pangea
+              secretRef: { name: pangea-db-credentials }
+        - name: rio-edge
+          backend:
+            type: pg
+            pg:
+              host: pangea-database-rw.pangea-system.svc
+              database: pangea
+              secretRef: { name: pangea-db-credentials }
+    asserts:
+      - hasDocuments:
+          count: 2
+      - isKind:
+          of: PangeaNamespace
+
+  - it: maps the typed namespace fields onto PangeaNamespaceSpec
+    set:
+      namespaces:
+        - name: rio-infra
+          description: rio infrastructure state
+          backend:
+            type: pg
+            pg:
+              host: pangea-database-rw.pangea-system.svc
+              database: pangea
+              schemaPrefix: pangea_
+              secretRef: { name: pangea-db-credentials }
+          defaultTags:
+            env: rio
+          suspend: false
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: apiVersion
+          value: pangea.pleme.io/v1alpha1
+      - equal:
+          path: metadata.name
+          value: rio-infra
+      - equal:
+          path: spec.description
+          value: rio infrastructure state
+      - equal:
+          path: spec.backend.type
+          value: pg
+      - equal:
+          path: spec.backend.pg.host
+          value: pangea-database-rw.pangea-system.svc
+      - equal:
+          path: spec.defaultTags.env
+          value: rio
+      - equal:
+          path: spec.suspend
+          value: false
+      - equal:
+          path: metadata.labels["pleme.io/pangea-kind"]
+          value: namespace
+
+  # backend is required both by values.schema.json (fires first) and by the
+  # template's own fail() guard (defense-in-depth). Either way render fails.
+  - it: fails when a namespaces[] entry omits backend
+    set:
+      namespaces:
+        - name: broken
+    asserts:
+      - failedTemplate: {}

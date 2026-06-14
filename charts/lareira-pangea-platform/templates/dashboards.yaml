@@ -1,0 +1,56 @@
+{{- /*
+dashboards: → PangeaDashboard CRs (namespaced).
+
+Dashboard-as-code. Each entry is one Grafana dashboard declared as inline
+Pangea Ruby that calls a Pangea::Dashboards::Library mixin (or a configMapRef).
+The operator's DashboardController compiles the Ruby → Grafana JSON and
+delivers it as a sidecar-labelled ConfigMap (rio's bundled Grafana sidecar:
+searchNamespace ALL, label grafana_dashboard="1").
+
+This values shape is pass-through-compatible with the sibling
+lareira-pangea-dashboards chart's helper; rendered here directly so the
+platform chart stands alone. Fields map 1:1 onto PangeaDashboardSpec
+(crd/pangea_dashboard.rs); `source` is the externally-tagged DashboardSource
+enum (`inline: { ruby }` | `configMapRef: { name, key }`).
+
+See pangea-operator/docs/DASHBOARD-AS-CODE.md.
+*/ -}}
+{{- $root := . -}}
+{{- range $dash := .Values.dashboards }}
+{{- if not $dash.name }}{{ fail "lareira-pangea-platform: every dashboards[] entry requires a `name`" }}{{ end }}
+{{- if not $dash.source }}{{ fail (printf "lareira-pangea-platform: dashboards[%s] requires a `source`" $dash.name) }}{{ end }}
+{{- $dashNamespace := include "lareira-pangea-platform.ns" (dict "cr" $dash "root" $root) }}
+---
+apiVersion: pangea.pleme.io/v1alpha1
+kind: PangeaDashboard
+metadata:
+  name: {{ $dash.name }}
+  namespace: {{ $dashNamespace }}
+  labels:
+    {{- include "lareira-pangea-platform.labels" $root | nindent 4 }}
+    pleme.io/pangea-kind: dashboard
+    {{- with $dash.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  source:
+    {{- toYaml $dash.source | nindent 4 }}
+  {{- with $dash.grafanaInstanceSelector }}
+  grafanaInstanceSelector:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $dash.folder }}
+  folder: {{ . | quote }}
+  {{- end }}
+  {{- if hasKey $dash "overwrite" }}
+  overwrite: {{ $dash.overwrite }}
+  {{- end }}
+  {{- with $dash.extendModules }}
+  extendModules:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $dash.message }}
+  message: {{ . | quote }}
+  {{- end }}
+  suspend: {{ $dash.suspend | default false }}
+{{- end }}

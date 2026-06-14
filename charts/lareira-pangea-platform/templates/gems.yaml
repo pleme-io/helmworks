@@ -1,0 +1,47 @@
+{{- /*
+gems: → ArchitectureGem CRs (cluster-scoped).
+
+Each entry registers a Pangea-Ruby gem the operator loads + smoke-tests
+before any template referencing its classes may advance past Verified.
+The values element fields map 1:1 onto ArchitectureGemSpec
+(crd/architecture_gem.rs).
+*/ -}}
+{{- $root := . -}}
+{{- range $gem := .Values.gems }}
+{{- if not $gem.name }}{{ fail "lareira-pangea-platform: every gems[] entry requires a `name`" }}{{ end }}
+{{- if not $gem.gemName }}{{ fail (printf "lareira-pangea-platform: gems[%s] requires a `gemName`" $gem.name) }}{{ end }}
+{{- if not $gem.version }}{{ fail (printf "lareira-pangea-platform: gems[%s] requires a `version`" $gem.name) }}{{ end }}
+{{- if not $gem.source }}{{ fail (printf "lareira-pangea-platform: gems[%s] requires a `source`" $gem.name) }}{{ end }}
+---
+apiVersion: pangea.pleme.io/v1alpha1
+kind: ArchitectureGem
+metadata:
+  name: {{ $gem.name }}
+  labels:
+    {{- include "lareira-pangea-platform.labels" $root | nindent 4 }}
+    pleme.io/pangea-kind: gem
+    {{- with $gem.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  gemName: {{ $gem.gemName | quote }}
+  version: {{ $gem.version | quote }}
+  source:
+    {{- toYaml $gem.source | nindent 4 }}
+  {{- with $gem.expectedClasses }}
+  expectedClasses:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $gem.fixtures }}
+  fixtures:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $gem.policy }}
+  policy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $gem.refreshInterval }}
+  refreshInterval: {{ . | quote }}
+  {{- end }}
+  suspend: {{ $gem.suspend | default false }}
+{{- end }}

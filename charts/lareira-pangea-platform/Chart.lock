@@ -1,0 +1,9 @@
+dependencies:
+- name: pleme-lib
+  repository: file://../pleme-lib
+  version: 0.27.0
+- name: pangea-operator
+  repository: file://../pangea-operator
+  version: 0.8.25
+digest: sha256:730b08d154250ee1b16965f99f28424b0efa9dc90143b89228dcd300cad10ada
+generated: "2026-06-14T11:54:16.083126-07:00"

@@ -1,0 +1,132 @@
+suite: dashboards → PangeaDashboard
+templates:
+  - templates/dashboards.yaml
+tests:
+  - it: renders nothing when dashboards is empty
+    set:
+      dashboards: []
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders one PangeaDashboard per dashboards[] entry
+    set:
+      dashboards:
+        - name: payments
+          folder: rio
+          source:
+            inline:
+              ruby: "DashboardBuilder.build"
+        - name: orders
+          folder: rio
+          source:
+            inline:
+              ruby: "DashboardBuilder.build"
+    asserts:
+      - hasDocuments:
+          count: 2
+      - isKind:
+          of: PangeaDashboard
+
+  - it: maps the typed dashboard fields onto PangeaDashboardSpec (inline)
+    set:
+      namespace: monitoring
+      dashboards:
+        - name: payments
+          folder: rio
+          overwrite: true
+          message: "initial"
+          extendModules:
+            - Pangea::Grafana
+          source:
+            inline:
+              ruby: |
+                Pangea::Dashboards::Library::WorkloadOverview
+                  .build(name: "payments")
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: apiVersion
+          value: pangea.pleme.io/v1alpha1
+      - equal:
+          path: metadata.name
+          value: payments
+      - equal:
+          path: metadata.namespace
+          value: monitoring
+      - equal:
+          path: spec.folder
+          value: rio
+      - equal:
+          path: spec.overwrite
+          value: true
+      - equal:
+          path: spec.message
+          value: initial
+      - equal:
+          path: spec.extendModules[0]
+          value: Pangea::Grafana
+      - matchRegex:
+          path: spec.source.inline.ruby
+          pattern: 'WorkloadOverview'
+      - equal:
+          path: spec.suspend
+          value: false
+      - equal:
+          path: metadata.labels["pleme.io/pangea-kind"]
+          value: dashboard
+
+  - it: supports the configMapRef source variant
+    set:
+      dashboards:
+        - name: from-cm
+          source:
+            configMapRef:
+              name: my-dashboard-ruby
+              key: dashboard.rb
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.source.configMapRef.name
+          value: my-dashboard-ruby
+      - equal:
+          path: spec.source.configMapRef.key
+          value: dashboard.rb
+
+  - it: defaults the namespace to .Values.namespace
+    set:
+      namespace: obs-system
+      dashboards:
+        - name: payments
+          source:
+            inline:
+              ruby: "x"
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: obs-system
+
+  - it: a dashboard namespace overrides .Values.namespace
+    set:
+      namespace: obs-system
+      dashboards:
+        - name: payments
+          namespace: explicit-ns
+          source:
+            inline:
+              ruby: "x"
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: explicit-ns
+
+  # source is required both by values.schema.json (fires first) and by the
+  # template's own fail() guard (defense-in-depth). Either way render fails.
+  - it: fails when a dashboards[] entry omits source
+    set:
+      dashboards:
+        - name: broken
+    asserts:
+      - failedTemplate: {}

@@ -1,0 +1,95 @@
+# Example values exercising every list — used for manual `helm template`
+# verification. The helm-unittest suites under tests/*_test.yaml drive their
+# own inline `set:` values; this file is a complete worked example.
+pangea-operator:
+  enabled: false  # render the CRD layer only for a fast standalone template
+
+namespace: pangea-system
+commonLabels:
+  pleme.io/cluster: rio
+
+gems:
+  - name: pangea-architectures
+    gemName: pangea-architectures
+    version: "0.x"
+    source:
+      gitRepository:
+        url: https://github.com/pleme-io/pangea-architectures
+        ref: main
+        path: lib
+    expectedClasses:
+      - Pangea::Architectures::CloudflareTunnel
+      - Pangea::Architectures::CloudflareDomain
+    fixtures:
+      - className: Pangea::Architectures::CloudflareTunnel
+        fixturePath: spec/fixtures/cloudflare_tunnel.yaml
+        description: rio-shaped tunnel smoke
+    policy:
+      destroyProtection: true
+      driftReaction: requireApproval
+    refreshInterval: 5m
+
+namespaces:
+  - name: rio-infra
+    description: rio infrastructure state
+    backend:
+      type: pg
+      pg:
+        host: pangea-database-rw.pangea-system.svc
+        database: pangea
+        schemaPrefix: pangea_
+        secretRef:
+          name: pangea-db-credentials
+
+workspaces:
+  - name: rio-architectures
+    namespace: rio-architectures
+    source:
+      gitRepository:
+        url: https://github.com/pleme-io/k8s.git
+        ref: main
+        path: clusters/rio/architectures
+    requiredGems:
+      - pangea-architectures
+    policy:
+      driftReaction: autoApply
+    templates:
+      - name: rio-arc-github
+        pangeaNamespace: rio-infra
+        autoApprove: true
+        destroyProtection: true
+        refreshInterval: "30m"
+        executor: magma
+        importPolicy:
+          autoOnConflict: true
+        policies:
+          - name: refuse-app-uninstall
+            match:
+              resourceTypes: ["github_app_installation_repositories"]
+              actions: ["delete", "replace"]
+            decision: refuse
+        settlingPolicy:
+          maxConsecutiveDriftCycles: 4
+          onExhaustion: fail
+        source:
+          inline: |
+            template :rio_arc_github do
+              self.extend(Pangea::Resources::Github)
+            end
+
+dashboards:
+  - name: payments
+    namespace: monitoring
+    folder: rio
+    source:
+      inline:
+        ruby: |
+          Pangea::Dashboards::Library::WorkloadOverview
+            .build(name: "payments", jobs: ["payments"])
+            .then { |d| Pangea::Dashboards::Render::Grafana.render(d) }
+  - name: from-configmap
+    folder: rio
+    source:
+      configMapRef:
+        name: my-dashboard-ruby
+        key: dashboard.rb

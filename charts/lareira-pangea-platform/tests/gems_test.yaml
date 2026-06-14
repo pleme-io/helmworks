@@ -1,0 +1,104 @@
+suite: gems → ArchitectureGem
+templates:
+  - templates/gems.yaml
+tests:
+  - it: renders nothing when gems is empty
+    set:
+      gems: []
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders one ArchitectureGem per gems[] entry
+    set:
+      gems:
+        - name: pangea-architectures
+          gemName: pangea-architectures
+          version: "0.x"
+          source:
+            gitRepository:
+              url: https://github.com/pleme-io/pangea-architectures
+              ref: main
+              path: lib
+        - name: pangea-aws
+          gemName: pangea-aws
+          version: "0.x"
+          source:
+            gitRepository:
+              url: https://github.com/pleme-io/pangea-aws
+              ref: main
+              path: lib
+    asserts:
+      - hasDocuments:
+          count: 2
+      - isKind:
+          of: ArchitectureGem
+
+  - it: maps the typed gem fields onto ArchitectureGemSpec
+    set:
+      gems:
+        - name: pangea-architectures
+          gemName: pangea-architectures
+          version: "0.x"
+          source:
+            gitRepository:
+              url: https://github.com/pleme-io/pangea-architectures
+              ref: main
+              path: lib
+          expectedClasses:
+            - Pangea::Architectures::CloudflareTunnel
+          fixtures:
+            - className: Pangea::Architectures::CloudflareTunnel
+              fixturePath: spec/fixtures/cloudflare_tunnel.yaml
+              description: rio-shaped tunnel smoke
+          policy:
+            destroyProtection: true
+            driftReaction: requireApproval
+          refreshInterval: 5m
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: apiVersion
+          value: pangea.pleme.io/v1alpha1
+      - equal:
+          path: metadata.name
+          value: pangea-architectures
+      - equal:
+          path: spec.gemName
+          value: pangea-architectures
+      - equal:
+          path: spec.version
+          value: "0.x"
+      - equal:
+          path: spec.source.gitRepository.url
+          value: https://github.com/pleme-io/pangea-architectures
+      - equal:
+          path: spec.expectedClasses[0]
+          value: Pangea::Architectures::CloudflareTunnel
+      - equal:
+          path: spec.fixtures[0].className
+          value: Pangea::Architectures::CloudflareTunnel
+      - equal:
+          path: spec.policy.driftReaction
+          value: requireApproval
+      - equal:
+          path: spec.refreshInterval
+          value: "5m"
+      - equal:
+          path: spec.suspend
+          value: false
+      - equal:
+          path: metadata.labels["pleme.io/pangea-kind"]
+          value: gem
+
+  # gemName is required both by values.schema.json (fires first) and by the
+  # template's own fail() guard (defense-in-depth). Either way render fails.
+  - it: fails when a gems[] entry omits gemName
+    set:
+      gems:
+        - name: broken
+          version: "0.x"
+          source:
+            gitRepository: { url: x, ref: main, path: lib }
+    asserts:
+      - failedTemplate: {}

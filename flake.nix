@@ -123,6 +123,7 @@
             { name = "pleme-sui"; chartDir = ./charts/pleme-sui; }
             { name = "convergence-controller"; chartDir = ./charts/convergence-controller; }
             { name = "pangea-operator"; chartDir = ./charts/pangea-operator; }
+            { name = "lareira-pangea-platform"; chartDir = ./charts/lareira-pangea-platform; }
             { name = "pleme-garage"; chartDir = ./charts/pleme-garage; }
             { name = "pleme-ocis"; chartDir = ./charts/pleme-ocis; }
             { name = "pleme-cnpg"; chartDir = ./charts/pleme-cnpg; }

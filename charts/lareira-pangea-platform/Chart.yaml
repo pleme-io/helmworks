@@ -1,0 +1,34 @@
+apiVersion: v2
+name: lareira-pangea-platform
+description: |
+  The CORE pangea platform chart. Deploys + fully manages pangea-operator
+  (as a subchart) and exposes a SINGLE typed values interface to layer
+  "workspaces of various kinds" onto the operator's CRD vocabulary:
+
+    gems:       → ArchitectureGem CRs        (typed gem registry + smoke gate)
+    namespaces: → PangeaNamespace CRs        (state-storage isolation boundary)
+    workspaces: → WorkspaceCatalog + N InfrastructureTemplate CRs (policy cascade)
+    dashboards: → PangeaDashboard CRs        (dashboard-as-code, sidecar delivery)
+
+  A workspace KIND is the unit of extension: a cloud-IaC kind, a DNS kind, a
+  secrets kind, and a dashboard kind all share this chart's shape and the
+  operator's CRD vocabulary — a new kind is a new values entry, never a new
+  control plane. The dashboards list is pass-through-compatible with the
+  sibling lareira-pangea-dashboards chart's helper; rendered here directly as
+  PangeaDashboard CRs so the platform chart stands alone (per
+  pangea-operator/docs/DASHBOARD-AS-CODE.md).
+type: application
+version: 0.1.0
+appVersion: "0.8.25"
+keywords: [pangea, operator, iac, crd, dashboard, workspace, lareira, platform]
+maintainers:
+  - name: drzzln
+    email: drzzln@protonmail.com
+dependencies:
+  - name: pleme-lib
+    version: ">=0.27.0"
+    repository: "file://../pleme-lib"
+  - name: pangea-operator
+    version: ">=0.8.25"
+    repository: "file://../pangea-operator"
+    condition: pangea-operator.enabled

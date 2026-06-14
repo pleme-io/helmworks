@@ -1,0 +1,173 @@
+suite: workspaces → WorkspaceCatalog + InfrastructureTemplate
+templates:
+  - templates/workspaces.yaml
+tests:
+  - it: renders nothing when workspaces is empty
+    set:
+      workspaces: []
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders one WorkspaceCatalog + N InfrastructureTemplates per workspace
+    set:
+      namespace: pangea-system
+      workspaces:
+        - name: rio-architectures
+          source:
+            gitRepository:
+              url: https://github.com/pleme-io/k8s.git
+              ref: main
+              path: clusters/rio/architectures
+          requiredGems: [pangea-architectures]
+          policy:
+            driftReaction: autoApply
+          templates:
+            - name: rio-arc-github
+              pangeaNamespace: rio-infra
+              source:
+                inline: |
+                  template :rio_arc_github do
+                  end
+            - name: rio-drive
+              pangeaNamespace: rio-infra
+              source:
+                inline: |
+                  template :rio_drive do
+                  end
+    asserts:
+      # 1 catalog + 2 templates
+      - hasDocuments:
+          count: 3
+
+  - it: renders the WorkspaceCatalog with the typed cascade policy
+    set:
+      workspaces:
+        - name: rio-architectures
+          source:
+            gitRepository:
+              url: https://github.com/pleme-io/k8s.git
+              ref: main
+              path: clusters/rio/architectures
+          requiredGems: [pangea-architectures]
+          policy:
+            driftReaction: autoApply
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: WorkspaceCatalog
+      - equal:
+          path: metadata.name
+          value: rio-architectures
+      - equal:
+          path: spec.requiredGems[0]
+          value: pangea-architectures
+      - equal:
+          path: spec.policy.driftReaction
+          value: autoApply
+      - equal:
+          path: spec.source.gitRepository.path
+          value: clusters/rio/architectures
+      - equal:
+          path: metadata.labels["pleme.io/pangea-kind"]
+          value: workspace
+
+  - it: auto-labels child templates with the workspace name and inherits its namespace
+    set:
+      namespace: pangea-system
+      workspaces:
+        - name: rio-architectures
+          namespace: rio-architectures
+          source:
+            gitRepository:
+              url: https://github.com/pleme-io/k8s.git
+              ref: main
+              path: clusters/rio/architectures
+          templates:
+            - name: rio-arc-github
+              pangeaNamespace: rio-infra
+              autoApprove: true
+              destroyProtection: true
+              executor: magma
+              source:
+                inline: |
+                  template :rio_arc_github do
+                  end
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: InfrastructureTemplate
+      - equal:
+          path: metadata.name
+          value: rio-arc-github
+      - equal:
+          path: metadata.namespace
+          value: rio-architectures
+      - equal:
+          path: metadata.labels["pangea.pleme.io/workspace"]
+          value: rio-architectures
+      - equal:
+          path: metadata.labels["pleme.io/pangea-kind"]
+          value: template
+      - equal:
+          path: spec.pangeaNamespace
+          value: rio-infra
+      - equal:
+          path: spec.autoApprove
+          value: true
+      - equal:
+          path: spec.destroyProtection
+          value: true
+      - equal:
+          path: spec.executor
+          value: magma
+      - matchRegex:
+          path: spec.source.inline
+          pattern: 'template :rio_arc_github'
+
+  - it: a template namespace overrides the workspace namespace
+    set:
+      namespace: pangea-system
+      workspaces:
+        - name: ws
+          namespace: ws-ns
+          source:
+            gitRepository: { url: x, ref: main, path: p }
+          templates:
+            - name: t
+              namespace: custom-ns
+              pangeaNamespace: rio-infra
+              source:
+                inline: "template :t do; end"
+    documentIndex: 1
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: custom-ns
+
+  # pangeaNamespace is required both by values.schema.json (fires first) and by
+  # the template's own fail() guard (defense-in-depth). Either way render fails.
+  - it: fails when a template omits pangeaNamespace
+    set:
+      workspaces:
+        - name: ws
+          source:
+            gitRepository: { url: x, ref: main, path: p }
+          templates:
+            - name: broken
+              source:
+                inline: "x"
+    asserts:
+      - failedTemplate: {}
+
+  - it: a workspace with no templates renders only its catalog
+    set:
+      workspaces:
+        - name: empty-ws
+          source:
+            gitRepository: { url: x, ref: main, path: p }
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: WorkspaceCatalog

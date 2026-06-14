@@ -1,0 +1,123 @@
+{{- /*
+workspaces: → WorkspaceCatalog (cluster-scoped) + N InfrastructureTemplate
+(namespaced) CRs.
+
+This is the generic "a workspace of some kind" sub-pattern. Each entry renders
+ONE WorkspaceCatalog plus its child templates. Templates are auto-labelled
+`pangea.pleme.io/workspace=<name>` so they opt into the catalog's policy
+cascade (gem → workspace → template → resource).
+
+WorkspaceCatalogSpec → crd/workspace_catalog.rs
+InfrastructureTemplateSpec → crd/infrastructure_template.rs
+*/ -}}
+{{- $root := . -}}
+{{- range $ws := .Values.workspaces }}
+{{- if not $ws.name }}{{ fail "lareira-pangea-platform: every workspaces[] entry requires a `name`" }}{{ end }}
+{{- if not $ws.source }}{{ fail (printf "lareira-pangea-platform: workspaces[%s] requires a `source`" $ws.name) }}{{ end }}
+{{- $wsNamespace := default (default $root.Release.Namespace $root.Values.namespace) $ws.namespace }}
+---
+apiVersion: pangea.pleme.io/v1alpha1
+kind: WorkspaceCatalog
+metadata:
+  name: {{ $ws.name }}
+  labels:
+    {{- include "lareira-pangea-platform.labels" $root | nindent 4 }}
+    pleme.io/pangea-kind: workspace
+    {{- with $ws.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  source:
+    {{- toYaml $ws.source | nindent 4 }}
+  {{- with $ws.requiredGems }}
+  requiredGems:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $ws.policy }}
+  policy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  suspend: {{ $ws.suspend | default false }}
+{{- range $tpl := ($ws.templates | default list) }}
+{{- if not $tpl.name }}{{ fail (printf "lareira-pangea-platform: workspaces[%s].templates[] entry requires a `name`" $ws.name) }}{{ end }}
+{{- if not $tpl.pangeaNamespace }}{{ fail (printf "lareira-pangea-platform: workspaces[%s].templates[%s] requires a `pangeaNamespace`" $ws.name $tpl.name) }}{{ end }}
+{{- if not $tpl.source }}{{ fail (printf "lareira-pangea-platform: workspaces[%s].templates[%s] requires a `source`" $ws.name $tpl.name) }}{{ end }}
+{{- $tplNamespace := default $wsNamespace $tpl.namespace }}
+---
+apiVersion: pangea.pleme.io/v1alpha1
+kind: InfrastructureTemplate
+metadata:
+  name: {{ $tpl.name }}
+  namespace: {{ $tplNamespace }}
+  labels:
+    {{- include "lareira-pangea-platform.labels" $root | nindent 4 }}
+    pleme.io/pangea-kind: template
+    pangea.pleme.io/workspace: {{ $ws.name }}
+    {{- with $tpl.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  source:
+    {{- toYaml $tpl.source | nindent 4 }}
+  pangeaNamespace: {{ $tpl.pangeaNamespace | quote }}
+  {{- with $tpl.templateName }}
+  templateName: {{ . | quote }}
+  {{- end }}
+  {{- with $tpl.variables }}
+  variables:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- if hasKey $tpl "autoApprove" }}
+  autoApprove: {{ $tpl.autoApprove }}
+  {{- end }}
+  {{- with $tpl.refreshInterval }}
+  refreshInterval: {{ . | quote }}
+  {{- end }}
+  {{- if hasKey $tpl "destroyProtection" }}
+  destroyProtection: {{ $tpl.destroyProtection }}
+  {{- end }}
+  {{- with $tpl.executor }}
+  executor: {{ . | quote }}
+  {{- end }}
+  {{- with $tpl.variableRefs }}
+  variableRefs:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $tpl.providerCredentials }}
+  providerCredentials:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $tpl.complianceProfiles }}
+  complianceProfiles:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $tpl.policies }}
+  policies:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $tpl.defaultDecision }}
+  defaultDecision: {{ . | quote }}
+  {{- end }}
+  {{- with $tpl.settlingPolicy }}
+  settlingPolicy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $tpl.reactivePolicy }}
+  reactivePolicy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $tpl.importPolicy }}
+  importPolicy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $tpl.importHints }}
+  importHints:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $tpl.outputBindings }}
+  outputBindings:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  suspend: {{ $tpl.suspend | default false }}
+{{- end }}
+{{- end }}

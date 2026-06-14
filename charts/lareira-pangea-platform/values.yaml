@@ -1,0 +1,137 @@
+# lareira-pangea-platform — the CORE pangea platform values interface.
+#
+# Four typed lists declare "workspaces of various kinds" onto the operator's
+# CRD vocabulary. Each list element is a typed values object the chart
+# renders mechanically into the matching operator CRD. Everything the
+# operator manages flows from this one surface.
+
+# ── pangea-operator subchart ────────────────────────────────────────────
+# The core chart DEPLOYS the operator (depends on charts/pangea-operator).
+# Tune the operator itself under the `pangea-operator:` key (subchart values
+# are namespaced by the subchart name). Set `enabled: false` to render only
+# the CRD layer (gems/namespaces/workspaces/dashboards) against an operator
+# deployed out-of-band.
+pangea-operator:
+  enabled: true
+  # All pangea-operator chart values are valid here, e.g.:
+  # useEmbeddedRuby: true
+  # image:
+  #   tag: "embedded-amd64-3d545c3"
+
+# Namespace every rendered CR lands in unless the CR sets its own.
+# Cluster-scoped CRs (ArchitectureGem, WorkspaceCatalog, PangeaNamespace)
+# ignore this; namespaced CRs (InfrastructureTemplate, PangeaDashboard)
+# default to it.
+namespace: ""
+
+# Common labels merged onto every rendered CR.
+commonLabels: {}
+
+# ── gems: → ArchitectureGem (cluster-scoped) ────────────────────────────
+# Each entry registers a Pangea-Ruby gem the operator loads + smoke-tests
+# before any template referencing its classes may advance past Verified.
+#
+#   - name: pangea-architectures           # metadata.name (required)
+#     gemName: pangea-architectures        # Bundler/require name (required)
+#     version: "0.x"                       # semver constraint (required)
+#     source:                              # GemSource — gitRepository (required)
+#       gitRepository:
+#         url: https://github.com/pleme-io/pangea-architectures
+#         ref: main
+#         path: lib
+#     expectedClasses:                     # FQ Ruby class names the gem exposes
+#       - Pangea::Architectures::CloudflareTunnel
+#     fixtures:                            # optional smoke fixtures
+#       - className: Pangea::Architectures::CloudflareTunnel
+#         fixturePath: spec/fixtures/cloudflare_tunnel.yaml
+#         description: rio-shaped tunnel smoke
+#     policy:                              # GemPolicy — cascade root (optional)
+#       destroyProtection: true
+#       driftReaction: requireApproval
+#     refreshInterval: 5m                  # optional
+#     suspend: false                       # optional
+#     labels: {}                           # optional extra metadata.labels
+gems: []
+
+# ── namespaces: → PangeaNamespace (cluster-scoped) ──────────────────────
+# Each entry declares a state-storage isolation boundary (Postgres schema).
+#
+#   - name: rio-infra                      # metadata.name (required)
+#     description: rio infrastructure state
+#     backend:                             # BackendConfig (required)
+#       type: pg                           # pg | s3 | local
+#       pg:
+#         host: pangea-database-rw.pangea-system.svc
+#         database: pangea
+#         schemaPrefix: pangea_
+#         secretRef:
+#           name: pangea-db-credentials
+#     defaultTags: {}
+#     suspend: false
+#     labels: {}
+namespaces: []
+
+# ── workspaces: → WorkspaceCatalog + InfrastructureTemplate ─────────────
+# Each entry is one workspace of some kind. The chart renders ONE
+# WorkspaceCatalog (cluster-scoped) plus N InfrastructureTemplates
+# (namespaced) — the generic "a workspace of some kind" sub-pattern.
+# Templates are auto-labelled `pangea.pleme.io/workspace=<name>` so they
+# opt into the catalog's policy cascade.
+#
+#   - name: rio-architectures              # catalog metadata.name (required)
+#     namespace: rio-architectures         # ns templates land in (defaults to .Values.namespace)
+#     source:                              # WorkspaceSource (required)
+#       gitRepository:
+#         url: https://github.com/pleme-io/k8s.git
+#         ref: main
+#         path: clusters/rio/architectures
+#     requiredGems: [pangea-architectures] # gems that must be Loaded
+#     policy:                              # WorkspacePolicy (optional)
+#       driftReaction: autoApply
+#     suspend: false
+#     labels: {}
+#     templates:                           # N InfrastructureTemplates (optional)
+#       - name: rio-arc-github             # template metadata.name (required)
+#         pangeaNamespace: rio-infra       # state isolation (required)
+#         source:                          # TemplateSource (required: one of inline | configMapRef | gitRepository)
+#           inline: |
+#             template :rio_arc_github do
+#               # ... Pangea Ruby DSL ...
+#             end
+#         variables: {}                    # optional
+#         autoApprove: true                # optional
+#         destroyProtection: true          # optional
+#         refreshInterval: "30m"           # optional
+#         executor: magma                  # optional: magma | tofu
+#         policies: []                     # optional per-resource PolicyRules
+#         defaultDecision: autoApply       # optional
+#         settlingPolicy:                  # optional
+#           maxConsecutiveDriftCycles: 4
+#           onExhaustion: fail
+#         importPolicy:                    # optional
+#           autoOnConflict: true
+#         labels: {}                       # optional extra metadata.labels
+workspaces: []
+
+# ── dashboards: → PangeaDashboard (namespaced) ──────────────────────────
+# Dashboard-as-code. Each entry is one Grafana dashboard, declared as inline
+# Pangea Ruby that calls a Pangea::Dashboards::Library mixin (or a raw Ruby
+# body). Shape is pass-through-compatible with the sibling
+# lareira-pangea-dashboards chart.
+#
+#   - name: payments                       # metadata.name (required)
+#     namespace: monitoring                # ns it lands in (defaults to .Values.namespace)
+#     folder: rio                          # Grafana folder (optional)
+#     source:                              # one of inline.ruby | configMapRef (required)
+#       inline:
+#         ruby: |
+#           Pangea::Dashboards::Library::WorkloadOverview
+#             .build(name: "payments", jobs: ["payments"])
+#             .then { |d| Pangea::Dashboards::Render::Grafana.render(d) }
+#     grafanaInstanceSelector: {}          # optional label selector
+#     overwrite: true                      # optional (default true)
+#     extendModules: []                    # optional Ruby modules to extend
+#     message: ""                          # optional Grafana version-track msg
+#     suspend: false                       # optional
+#     labels: {}                           # optional extra metadata.labels
+dashboards: []

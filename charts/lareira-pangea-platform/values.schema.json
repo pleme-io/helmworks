@@ -1,0 +1,234 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "lareira-pangea-platform values",
+  "description": "The CORE pangea platform values interface — four typed lists projected onto the operator's CRD vocabulary.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "pangea-operator": {
+      "type": "object",
+      "description": "pangea-operator subchart values. `enabled: false` renders only the CRD layer.",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": { "type": "boolean" }
+      }
+    },
+    "namespace": {
+      "type": "string",
+      "description": "Default namespace for namespaced CRs (InfrastructureTemplate, PangeaDashboard) when the CR sets none."
+    },
+    "commonLabels": {
+      "type": "object",
+      "description": "Labels merged onto every rendered CR.",
+      "additionalProperties": { "type": "string" }
+    },
+    "nameOverride": { "type": "string" },
+
+    "gems": {
+      "type": "array",
+      "description": "ArchitectureGem CRs (cluster-scoped) — typed gem registry + smoke gate.",
+      "items": {
+        "type": "object",
+        "required": ["name", "gemName", "version", "source"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "gemName": { "type": "string" },
+          "version": { "type": "string" },
+          "source": {
+            "type": "object",
+            "description": "GemSource — gitRepository mode.",
+            "additionalProperties": true
+          },
+          "expectedClasses": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "fixtures": {
+            "type": "array",
+            "items": { "type": "object", "additionalProperties": true }
+          },
+          "policy": { "type": "object", "additionalProperties": true },
+          "refreshInterval": { "type": "string" },
+          "suspend": { "type": "boolean" },
+          "labels": {
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          }
+        }
+      }
+    },
+
+    "namespaces": {
+      "type": "array",
+      "description": "PangeaNamespace CRs (cluster-scoped) — state-storage isolation boundaries.",
+      "items": {
+        "type": "object",
+        "required": ["name", "backend"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "backend": {
+            "type": "object",
+            "required": ["type"],
+            "additionalProperties": true,
+            "properties": {
+              "type": { "type": "string", "enum": ["pg", "s3", "local"] }
+            }
+          },
+          "defaultTags": {
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          },
+          "defaultProviders": { "type": "object", "additionalProperties": true },
+          "defaultComplianceProfiles": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "suspend": { "type": "boolean" },
+          "labels": {
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          }
+        }
+      }
+    },
+
+    "workspaces": {
+      "type": "array",
+      "description": "WorkspaceCatalog (cluster-scoped) + N InfrastructureTemplate (namespaced) CRs.",
+      "items": {
+        "type": "object",
+        "required": ["name", "source"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "namespace": { "type": "string" },
+          "source": {
+            "type": "object",
+            "description": "WorkspaceSource — gitRepository + optional path.",
+            "additionalProperties": true
+          },
+          "requiredGems": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "policy": { "type": "object", "additionalProperties": true },
+          "suspend": { "type": "boolean" },
+          "labels": {
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          },
+          "templates": {
+            "type": "array",
+            "description": "InfrastructureTemplate CRs under this workspace.",
+            "items": {
+              "type": "object",
+              "required": ["name", "pangeaNamespace", "source"],
+              "additionalProperties": false,
+              "properties": {
+                "name": { "type": "string" },
+                "namespace": { "type": "string" },
+                "pangeaNamespace": { "type": "string" },
+                "source": {
+                  "type": "object",
+                  "description": "TemplateSource — one of inline | configMapRef | gitRepository.",
+                  "additionalProperties": true
+                },
+                "templateName": { "type": "string" },
+                "variables": { "type": "object", "additionalProperties": true },
+                "autoApprove": { "type": "boolean" },
+                "refreshInterval": { "type": "string" },
+                "destroyProtection": { "type": "boolean" },
+                "executor": { "type": "string", "enum": ["magma", "tofu"] },
+                "variableRefs": { "type": "object", "additionalProperties": true },
+                "providerCredentials": { "type": "object", "additionalProperties": true },
+                "complianceProfiles": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                },
+                "policies": {
+                  "type": "array",
+                  "items": { "type": "object", "additionalProperties": true }
+                },
+                "defaultDecision": {
+                  "type": "string",
+                  "enum": ["autoApply", "requireApproval", "refuse"]
+                },
+                "settlingPolicy": { "type": "object", "additionalProperties": true },
+                "reactivePolicy": { "type": "object", "additionalProperties": true },
+                "importPolicy": { "type": "object", "additionalProperties": true },
+                "importHints": {
+                  "type": "object",
+                  "additionalProperties": { "type": "string" }
+                },
+                "outputBindings": {
+                  "type": "array",
+                  "items": { "type": "object", "additionalProperties": true }
+                },
+                "suspend": { "type": "boolean" },
+                "labels": {
+                  "type": "object",
+                  "additionalProperties": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "dashboards": {
+      "type": "array",
+      "description": "PangeaDashboard CRs (namespaced) — dashboard-as-code via inline Pangea Ruby.",
+      "items": {
+        "type": "object",
+        "required": ["name", "source"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "namespace": { "type": "string" },
+          "folder": { "type": "string" },
+          "source": {
+            "type": "object",
+            "description": "DashboardSource — externally-tagged enum: inline.ruby | configMapRef.{name,key}.",
+            "additionalProperties": false,
+            "properties": {
+              "inline": {
+                "type": "object",
+                "required": ["ruby"],
+                "additionalProperties": false,
+                "properties": { "ruby": { "type": "string" } }
+              },
+              "configMapRef": {
+                "type": "object",
+                "required": ["name", "key"],
+                "additionalProperties": false,
+                "properties": {
+                  "name": { "type": "string" },
+                  "key": { "type": "string" }
+                }
+              }
+            }
+          },
+          "grafanaInstanceSelector": {
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          },
+          "overwrite": { "type": "boolean" },
+          "extendModules": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "message": { "type": "string" },
+          "suspend": { "type": "boolean" },
+          "labels": {
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

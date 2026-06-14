@@ -1,0 +1,42 @@
+{{- /*
+namespaces: → PangeaNamespace CRs (cluster-scoped).
+
+Each entry declares a state-storage isolation boundary (a Postgres schema
+or S3 prefix) referenced by templates via spec.pangeaNamespace. Fields map
+1:1 onto PangeaNamespaceSpec (crd/pangea_namespace.rs).
+*/ -}}
+{{- $root := . -}}
+{{- range $ns := .Values.namespaces }}
+{{- if not $ns.name }}{{ fail "lareira-pangea-platform: every namespaces[] entry requires a `name`" }}{{ end }}
+{{- if not $ns.backend }}{{ fail (printf "lareira-pangea-platform: namespaces[%s] requires a `backend`" $ns.name) }}{{ end }}
+---
+apiVersion: pangea.pleme.io/v1alpha1
+kind: PangeaNamespace
+metadata:
+  name: {{ $ns.name }}
+  labels:
+    {{- include "lareira-pangea-platform.labels" $root | nindent 4 }}
+    pleme.io/pangea-kind: namespace
+    {{- with $ns.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- with $ns.description }}
+  description: {{ . | quote }}
+  {{- end }}
+  backend:
+    {{- toYaml $ns.backend | nindent 4 }}
+  {{- with $ns.defaultTags }}
+  defaultTags:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $ns.defaultProviders }}
+  defaultProviders:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $ns.defaultComplianceProfiles }}
+  defaultComplianceProfiles:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  suspend: {{ $ns.suspend | default false }}
+{{- end }}
