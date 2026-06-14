@@ -1,0 +1,53 @@
+suite: lareira-breathe-observability — observability layer over breathe
+#
+# ONE pleme-lib.observabilityBundle include (templates/observability.yaml) fed
+# the pangea-GENERATED breathe alert groups + dashboard JSON. Asserts the VM
+# alerts + Grafana dashboard render, and that NO scrape is re-declared here (the
+# breathe chart owns the breathe-controller VMServiceScrape).
+templates:
+  - templates/observability.yaml
+release:
+  name: breathe-obs
+  namespace: monitoring
+tests:
+  - it: "renders the breathe VMRule with the 6 generated alerts (controller-down first)"
+    documentSelector:
+      path: kind
+      value: VMRule
+    asserts:
+      - equal:
+          path: apiVersion
+          value: operator.victoriametrics.com/v1beta1
+      - equal:
+          path: spec.groups[0].name
+          value: breathe
+      - equal:
+          path: spec.groups[0].rules[0].alert
+          value: BreatheControllerStalled
+      - lengthEqual:
+          path: spec.groups[0].rules
+          count: 6
+      # alerts key on breathe's real metric surface (dim/dry_run shadow-vs-live)
+      - matchRegex:
+          path: spec.groups[0].rules[0].expr
+          pattern: "breathe_reconciles_total"
+      - matchRegex:
+          path: spec.groups[0].rules[5].expr
+          pattern: "breathe_band_dry_run == 0"
+
+  - it: "renders the dashboard ConfigMap (grafana sidecar label) from the generated breathe JSON"
+    documentSelector:
+      path: kind
+      value: ConfigMap
+    asserts:
+      - equal:
+          path: metadata.labels["grafana_dashboard"]
+          value: "1"
+      - matchRegex:
+          path: data["breathe.json"]
+          pattern: "breathe_band_util_ratio"
+
+  - it: "does NOT re-declare a scrape (breathe chart owns the VMServiceScrape)"
+    asserts:
+      - hasDocuments:
+          count: 2

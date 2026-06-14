@@ -145,6 +145,8 @@
             { name = "lareira-mesh-spec"; chartDir = ./charts/lareira-mesh-spec; }
             # ── connector charts ──
             { name = "lareira-cloudflared"; chartDir = ./charts/lareira-cloudflared; }
+            # ── breathe observability layer (dashboards + alerts over breathe) ──
+            { name = "lareira-breathe-observability"; chartDir = ./charts/lareira-breathe-observability; }
           ];
 
           # Use substrate's mkHelmAllApps for all chart lifecycle apps

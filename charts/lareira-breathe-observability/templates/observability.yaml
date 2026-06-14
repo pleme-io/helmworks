@@ -1,0 +1,7 @@
+{{- /*
+  The whole chart: ONE pleme-lib.observabilityBundle border → the breathe
+  VMRule + Grafana dashboard ConfigMap. Scrape is disabled here (the breathe
+  chart owns the breathe-controller VMServiceScrape); this layer adds only the
+  interpretation (alerts + dashboard) over breathe's metrics.
+*/ -}}
+{{- include "pleme-lib.observabilityBundle" . }}
