@@ -303,7 +303,7 @@ victoria-metrics-k8s-stack:
             url: http://vmsingle-lareira-vm-stack-victoria-metrics-k8s-stack.monitoring.svc:8429
             isDefault: true
           - name: VictoriaLogs
-            type: VictoriaLogs
+            type: victoriametrics-logs-datasource
             uid: vlogs
             access: proxy
             url: http://victoria-logs.monitoring.svc:9428
