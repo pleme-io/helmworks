@@ -1,0 +1,219 @@
+suite: lareira-pangea-dashboards — dashboard-as-code workspace kind
+#
+# A `dashboards:` values list of N entries → N PangeaDashboard CRs, each carrying
+# inline Pangea Ruby that calls Pangea::Architectures::GrafanaDashboardWorkspace
+# with the right architecture, params (JSON-through-Ruby), and folder.
+templates:
+  - templates/dashboards.yaml
+release:
+  name: rio-dashboards
+  namespace: monitoring
+tests:
+  - it: "emits one PangeaDashboard CR per dashboards[] entry (N → N)"
+    set:
+      folder: rio
+      dashboards:
+        - { name: payments, architecture: WorkloadOverview, params: { name: payments, jobs: [payments] } }
+        - { name: ingress, architecture: WorkloadOverview, params: { name: ingress-nginx } }
+        - { name: tend, architecture: ControllerRuntimeDashboard, params: { name: tend } }
+    asserts:
+      - hasDocuments:
+          count: 3
+
+  - it: "the last emitted document is also a PangeaDashboard on the right apiVersion"
+    set:
+      folder: rio
+      dashboards:
+        - { name: payments, architecture: WorkloadOverview, params: { name: payments } }
+        - { name: ingress, architecture: WorkloadOverview, params: { name: ingress-nginx } }
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: PangeaDashboard
+      - equal:
+          path: apiVersion
+          value: pangea.pleme.io/v1alpha1
+      - equal:
+          path: metadata.name
+          value: ingress
+
+  - it: "the first CR carries the right name, namespace, folder, and architecture label"
+    set:
+      folder: rio
+      dashboards:
+        - name: payments
+          architecture: WorkloadOverview
+          params: { name: payments, jobs: [payments], namespace: payments }
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: PangeaDashboard
+      - equal:
+          path: metadata.name
+          value: payments
+      - equal:
+          path: metadata.namespace
+          value: monitoring
+      - equal:
+          path: spec.folder
+          value: rio
+      - equal:
+          path: metadata.labels["pleme.io/dashboard-architecture"]
+          value: WorkloadOverview
+
+  - it: "the inline ruby requires the library and calls the typed seam"
+    set:
+      folder: rio
+      dashboards:
+        - name: payments
+          architecture: WorkloadOverview
+          params: { name: payments, jobs: [payments], namespace: payments }
+    documentIndex: 0
+    asserts:
+      - matchRegex:
+          path: spec.source.inline.ruby
+          pattern: "require 'pangea-dashboards'"
+      - matchRegex:
+          path: spec.source.inline.ruby
+          pattern: 'Pangea::Architectures::GrafanaDashboardWorkspace\.render_json'
+      - matchRegex:
+          path: spec.source.inline.ruby
+          pattern: 'architecture: "WorkloadOverview"'
+      - matchRegex:
+          path: spec.source.inline.ruby
+          pattern: 'folder: "rio"'
+      # params travel as JSON parsed in a single-quoted squiggly heredoc
+      - matchRegex:
+          path: spec.source.inline.ruby
+          pattern: "JSON\\.parse\\(<<~'PANGEA_PARAMS', symbolize_names: true\\)"
+      - matchRegex:
+          path: spec.source.inline.ruby
+          pattern: '"name":"payments"'
+      - matchRegex:
+          path: spec.source.inline.ruby
+          pattern: '"jobs":\["payments"\]'
+
+  - it: "per-dashboard folder overrides the top-level folder (CR spec + inline ruby)"
+    set:
+      folder: rio
+      dashboards:
+        - name: ingress
+          folder: rio-platform
+          architecture: WorkloadOverview
+          params: { name: ingress-nginx }
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.folder
+          value: rio-platform
+      - matchRegex:
+          path: spec.source.inline.ruby
+          pattern: 'folder: "rio-platform"'
+
+  - it: "top-level folder is the fallback when a dashboard omits its own"
+    set:
+      folder: rio-fleet
+      dashboards:
+        - name: payments
+          architecture: WorkloadOverview
+          params: { name: payments }
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.folder
+          value: rio-fleet
+
+  - it: "folder defaults to rio when nothing sets it"
+    set:
+      dashboards:
+        - name: payments
+          architecture: WorkloadOverview
+          params: { name: payments }
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.folder
+          value: rio
+
+  - it: "suspend: true sets spec.suspend: true"
+    set:
+      dashboards:
+        - name: paused
+          architecture: WorkloadOverview
+          suspend: true
+          params: { name: paused }
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.suspend
+          value: true
+
+  - it: "suspend omitted leaves spec.suspend unset"
+    set:
+      dashboards:
+        - name: active
+          architecture: WorkloadOverview
+          params: { name: active }
+    documentIndex: 0
+    asserts:
+      - notExists:
+          path: spec.suspend
+
+  - it: "message is emitted when set"
+    set:
+      dashboards:
+        - name: with-msg
+          architecture: WorkloadOverview
+          message: "payments — workload overview"
+          params: { name: payments }
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.message
+          value: "payments — workload overview"
+
+  - it: "message is absent when not set"
+    set:
+      dashboards:
+        - name: no-msg
+          architecture: WorkloadOverview
+          params: { name: payments }
+    documentIndex: 0
+    asserts:
+      - notExists:
+          path: spec.message
+
+  - it: "per-dashboard namespace overrides the release namespace"
+    set:
+      dashboards:
+        - name: scoped
+          architecture: WorkloadOverview
+          namespace: payments
+          params: { name: payments }
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: payments
+
+  - it: "empty params still render valid inline ruby (empty JSON object)"
+    set:
+      dashboards:
+        - name: noparams
+          architecture: WorkloadOverview
+    documentIndex: 0
+    asserts:
+      - matchRegex:
+          path: spec.source.inline.ruby
+          pattern: 'JSON\.parse\(<<~'
+      - matchRegex:
+          path: spec.source.inline.ruby
+          pattern: '\{\}'
+
+  - it: "a missing architecture is rejected (not silently rendered)"
+    set:
+      dashboards:
+        - name: broken
+          params: { name: broken }
+    asserts:
+      - failedTemplate: {}

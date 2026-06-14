@@ -147,6 +147,8 @@
             { name = "lareira-cloudflared"; chartDir = ./charts/lareira-cloudflared; }
             # ── breathe observability layer (dashboards + alerts over breathe) ──
             { name = "lareira-breathe-observability"; chartDir = ./charts/lareira-breathe-observability; }
+            # ── dashboard-as-code workspace kind (PangeaDashboard CRs from values) ──
+            { name = "lareira-pangea-dashboards"; chartDir = ./charts/lareira-pangea-dashboards; }
           ];
 
           # Use substrate's mkHelmAllApps for all chart lifecycle apps

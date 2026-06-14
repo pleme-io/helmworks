@@ -1,0 +1,15 @@
+apiVersion: v2
+name: lareira-pangea-dashboards
+description: |
+  Dashboard-as-code workspace KIND — from a `dashboards:` values list, emits one
+  PangeaDashboard CR per dashboard. Each CR carries inline Pangea Ruby that calls
+  Pangea::Architectures::GrafanaDashboardWorkspace.render_json(architecture:,
+  params:, folder:) against a Pangea::Dashboards::Library mixin (e.g.
+  WorkloadOverview), which pangea-operator's DashboardController compiles to
+  Grafana JSON and delivers as a sidecar-labelled ConfigMap. A dashboard becomes
+  one entry in a values list — no hand-authored JSON, no kubectl apply, no
+  Grafana UI clicking. The "dashboard kind" of the lareira-pangea-* workspace
+  family; full design at pangea-operator/docs/DASHBOARD-AS-CODE.md.
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

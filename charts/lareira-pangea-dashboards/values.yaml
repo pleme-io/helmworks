@@ -1,0 +1,33 @@
+# lareira-pangea-dashboards — declare Grafana dashboards as code.
+#
+# Each entry in `dashboards` emits one PangeaDashboard CR. pangea-operator's
+# DashboardController evals its inline Pangea Ruby (calling a
+# Pangea::Dashboards::Library mixin through
+# Pangea::Architectures::GrafanaDashboardWorkspace) into Grafana JSON and
+# delivers it as a sidecar-labelled ConfigMap.
+
+# Default Grafana folder for every dashboard that doesn't set its own `folder`.
+folder: rio
+
+dashboards:
+  # A single workload-overview dashboard for the "payments" service.
+  - name: payments
+    # Grafana folder (overrides the top-level `folder` for this dashboard).
+    folder: rio
+    # A Pangea::Dashboards::Library mixin/architecture name.
+    architecture: WorkloadOverview
+    # Optional Grafana version-tracking commit message.
+    message: "payments — workload overview"
+    # YAML hash passed verbatim to the mixin (emitted as JSON, parsed in Ruby
+    # with symbolize_names: true). Shape is mixin-specific — see the component
+    # library catalog (pangea-dashboards/docs/COMPONENT-LIBRARY.md).
+    params:
+      name: payments
+      jobs: [payments]
+      namespace: payments
+      rate_metric: http_requests_total
+      error_metric: http_requests_total
+      error_selector: 'status=~"5.."'
+      latency_metric: http_request_duration_seconds_bucket
+    # suspend: false       # when true, the operator skips synthesis + publish
+    # namespace: payments  # defaults to the release namespace

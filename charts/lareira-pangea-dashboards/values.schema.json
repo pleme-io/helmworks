@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["dashboards"],
+  "properties": {
+    "folder": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Default Grafana folder for dashboards that don't set their own folder."
+    },
+    "dashboards": {
+      "type": "array",
+      "description": "One PangeaDashboard CR is emitted per entry.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "architecture"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+            "description": "CR metadata.name (RFC 1123 DNS label)."
+          },
+          "folder": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Grafana folder; overrides the top-level folder for this dashboard."
+          },
+          "architecture": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A Pangea::Dashboards::Library mixin name, e.g. WorkloadOverview."
+          },
+          "params": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "YAML hash passed to the mixin (shape is mixin-specific)."
+          },
+          "message": {
+            "type": "string",
+            "description": "Optional Grafana version-tracking commit message."
+          },
+          "suspend": {
+            "type": "boolean",
+            "description": "When true, the operator skips synthesis + publish for this dashboard."
+          },
+          "namespace": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+            "description": "Namespace for the CR; defaults to the release namespace."
+          }
+        }
+      }
+    }
+  }
+}

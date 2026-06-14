@@ -1,0 +1,95 @@
+# rio-workload-overview.values.yaml — a worked, applies-as-is example for the
+# lareira-pangea-dashboards chart.
+#
+# ONE real WorkloadOverview dashboard for rio's tend-operator (the fleet
+# flake-update controller), built from its actual exported metric families
+# (tend_operator_*, exposed at tend-operator.tend-system:9090/metrics, scraped
+# by vmagent via the chart's ServiceMonitor). Apply it on rio by referencing
+# this file from a FluxCD HelmRelease — see the chart README,
+# "Wire it on rio (FluxCD HelmRelease)".
+#
+# Pipeline (full design: pangea-operator/docs/DASHBOARD-AS-CODE.md):
+#   this values list
+#     → lareira-pangea-dashboards renders one PangeaDashboard CR per entry
+#     → the CR's spec.source.inline.ruby calls
+#       Pangea::Architectures::GrafanaDashboardWorkspace.render_json(
+#         architecture: "WorkloadOverview", params: <below>, folder: <below>)
+#       which dispatches to Pangea::Dashboards::Library::WorkloadOverview.build
+#     → pangea-operator's DashboardController evals it → Grafana JSON
+#     → sidecar-labelled ConfigMap (grafana_dashboard="1", grafana_folder=rio-fleet)
+#     → rio's vm-stack Grafana sidecar loads it → live on grafana.quero.cloud
+#
+# Observe convergence:
+#   kubectl get pangeadashboard -n tend-system tend-operator
+#     → PHASE should reach Ready; DASHBOARD shows the dashboardUid
+#   kubectl get pangeadashboard -n tend-system tend-operator \
+#     -o jsonpath='{.status.conditions}'   # typed conditions
+#   (or query the grafana-rio MCP: search_dashboards "tend operator")
+
+# Default Grafana folder for any dashboard below that omits its own `folder`.
+folder: rio-fleet
+
+dashboards:
+  # ── tend-operator — fleet update controller telemetry ────────────────────
+  - name: tend-operator
+    # Land it in the rio-fleet folder (inherits the top-level `folder`, shown
+    # explicitly here for clarity).
+    folder: rio-fleet
+    # The full-dashboard mixin to dispatch to. One of WorkloadOverview |
+    # ControllerRuntimeDashboard | LogExplorerDashboard
+    # (GrafanaDashboardWorkspace::KNOWN_ARCHITECTURES — an unknown name is
+    # rejected at synthesis, never silently rendered empty).
+    architecture: WorkloadOverview
+    # Grafana's built-in version-tracking commit message.
+    message: "rio tend-operator — fleet update controller (WorkloadOverview)"
+    # params is a YAML hash emitted verbatim as JSON and parsed back in Ruby
+    # (JSON.parse(..., symbolize_names: true)) → splatted into
+    # WorkloadOverview.build(**params). The shape is mixin-specific; for
+    # WorkloadOverview the required keys are id / name / datasource / jobs /
+    # signals (see pangea-dashboards/docs/COMPONENT-LIBRARY.md and the module
+    # header in library/workload_overview.rb).
+    params:
+      # Stable dashboard identity (drives the uid). String is fine — symbolized
+      # on the Ruby side.
+      id: rio-tend-operator
+      # Human title + the workload's logical name (used in panel titles + the
+      # log-window panels).
+      name: tend-operator
+      # Prometheus-protocol datasource uid. On rio the VictoriaMetrics single
+      # datasource is uid "vm" (see the rio observability datasources).
+      datasource: vm
+      # Scrape job(s) that back the presence/up panels. tend-operator's
+      # ServiceMonitor surfaces the target under this job name.
+      jobs: [tend-operator]
+      # Namespace → enables the Resources row (pod cpu/mem/restarts/count).
+      namespace: tend-system
+      # Defects-first status signals (StatusOverview). Each is a typed tile:
+      # name + PromQL expr + warn/crit thresholds. These read tend-operator's
+      # real counter families.
+      signals:
+        - name: "Reconcile errors (1h)"
+          expr: 'sum(increase(tend_operator_reconcile_errors_total[1h]))'
+          warn: 1
+          crit: 5
+        - name: "Applies failed (24h)"
+          expr: 'sum(increase(tend_operator_applies_total{outcome="failed"}[24h]))'
+          warn: 1
+          crit: 3
+        - name: "Gate failures (1h)"
+          expr: 'sum(increase(tend_operator_gates_total{outcome="failed"}[1h]))'
+          warn: 1
+          crit: 5
+    # No `rate_metric`/`latency_metric` here: tend-operator is an event-driven
+    # reconcile controller, not a request-serving HTTP workload, so it exports
+    # no *_requests_total / *_duration_seconds_bucket. WorkloadOverview treats
+    # the golden-signals (RED) row as all-or-nothing and simply omits it — the
+    # presence → status → resources story still renders. (Supplying exactly one
+    # of the pair would raise at synthesis, surfacing as the CR's Failed phase.)
+    #
+    # No `stream` here either: tend-operator's logs go to VictoriaLogs but a
+    # per-workload LogsQL stream selector is left out of this minimal example;
+    # add `stream: '{namespace="tend-system",app="tend-operator"}'` +
+    # `logs_datasource: vlogs` to light up the Logs row.
+
+    # suspend: false       # set true to have the operator skip synthesis+publish
+    # namespace: tend-system  # CR namespace; defaults to the release namespace

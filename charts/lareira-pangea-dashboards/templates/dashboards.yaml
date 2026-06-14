@@ -1,0 +1,53 @@
+{{- /*
+  Dashboard-as-code: one PangeaDashboard CR per `.Values.dashboards` entry.
+
+  Each entry { name, folder, architecture, params, suspend?, namespace? } renders
+  a PangeaDashboard whose spec.source.inline.ruby calls the typed seam
+  Pangea::Architectures::GrafanaDashboardWorkspace.render_json(architecture:,
+  params:, folder:) against a Pangea::Dashboards::Library mixin. pangea-operator's
+  DashboardController evals that Ruby → Grafana JSON → sidecar-labelled ConfigMap.
+
+  params (a YAML hash) is emitted as JSON and parsed back in Ruby via
+  JSON.parse(<json>, symbolize_names: true) — the JSON-through-Ruby path. It is
+  robust: no Ruby-hash-literal escaping, and a HEREDOC body (<<~PANGEA_PARAMS)
+  carries the JSON with zero delimiter-collision risk (any { } ( ) " inside a
+  param value is inert inside a heredoc, unlike %q{} / %q() delimiters).
+*/ -}}
+{{- $root := . -}}
+{{- range $i, $d := .Values.dashboards }}
+{{- if not $d.name }}{{ fail (printf "dashboards[%d]: .name is required" $i) }}{{ end }}
+{{- if not $d.architecture }}{{ fail (printf "dashboards[%s]: .architecture is required" $d.name) }}{{ end }}
+{{- $folder := $d.folder | default $root.Values.folder | default "rio" -}}
+{{- $ns := $d.namespace | default $root.Release.Namespace -}}
+{{- $params := $d.params | default dict }}
+---
+apiVersion: pangea.pleme.io/v1alpha1
+kind: PangeaDashboard
+metadata:
+  name: {{ $d.name }}
+  namespace: {{ $ns }}
+  labels:
+    app.kubernetes.io/name: lareira-pangea-dashboards
+    app.kubernetes.io/managed-by: {{ $root.Release.Service }}
+    app.kubernetes.io/instance: {{ $root.Release.Name }}
+    pleme.io/dashboard-architecture: {{ $d.architecture | quote }}
+spec:
+  folder: {{ $folder | quote }}
+  {{- if $d.message }}
+  message: {{ $d.message | quote }}
+  {{- end }}
+  {{- if $d.suspend }}
+  suspend: true
+  {{- end }}
+  source:
+    inline:
+      ruby: |
+        require 'pangea-dashboards'
+        Pangea::Architectures::GrafanaDashboardWorkspace.render_json(
+          architecture: {{ $d.architecture | quote }},
+          params: JSON.parse(<<~'PANGEA_PARAMS', symbolize_names: true),
+        {{ $params | toJson | indent 8 }}
+        PANGEA_PARAMS
+          folder: {{ $folder | quote }},
+        )
+{{- end }}
