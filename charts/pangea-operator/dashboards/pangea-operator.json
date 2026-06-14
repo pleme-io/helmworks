@@ -16,7 +16,7 @@
     {
       "id": 1,
       "type": "row",
-      "title": "Data presence",
+      "title": "Status — what needs attention?",
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -30,13 +30,394 @@
     },
     {
       "id": 2,
+      "title": "Operator down",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(up{job=\"pangea-operator\"} == 0) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1.0
+              },
+              {
+                "color": "red",
+                "value": 1.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "description": "1 = the operator metrics endpoint is down. Nothing reconciles. Red = page. (Not-wired vs down: see Data presence below.)"
+    },
+    {
+      "id": 3,
+      "title": "Templates not settled",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(pangea_settled == 0) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1.0
+              },
+              {
+                "color": "red",
+                "value": 3.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "description": "Templates whose Settled condition is False — still converging, drifting, or stuck. The headline SLI: 0 = the whole fleet is at rest."
+    },
+    {
+      "id": 4,
+      "title": "Resources failing apply",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(pangea_magma_resources_failed) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1.0
+              },
+              {
+                "color": "red",
+                "value": 1.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "description": "Max resources failed in the last magma apply across templates. Any >0 = a template is not fully applying — see Magma apply outcomes."
+    },
+    {
+      "id": 5,
+      "title": "Consecutive compile fails",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(pangea_template_consecutive_compile_failures) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1.0
+              },
+              {
+                "color": "red",
+                "value": 5.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "description": "Worst per-template consecutive compile-failure streak. Rising = a template's Ruby/gem source is broken; at 5 it escalates (settling)."
+    },
+    {
+      "id": 6,
+      "title": "Reconcile errors /s",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(pangea_controller_reconciliations_total{result=\"error\"}[5m])) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.1
+              },
+              {
+                "color": "red",
+                "value": 0.5
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "description": "Reconcile error rate across all controllers. Green 0 = clean. See the ERROR logs window at the bottom for the cause."
+    },
+    {
+      "id": 7,
+      "title": "Reconcile loop (rate)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(sum by (controller) (rate(pangea_controller_reconciliations_total[1m]))) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1.0
+              },
+              {
+                "color": "red",
+                "value": 5.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "description": "Busiest controller's reconcile/s. >1/s sustained = a self-trigger status-write loop (the rio firefighting class) burning CPU + etcd."
+    },
+    {
+      "id": 8,
+      "type": "row",
+      "title": "Data presence",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "collapsed": false,
+      "panels": [
+
+      ]
+    },
+    {
+      "id": 9,
       "title": "Scrape targets — up (1) / down (0)",
       "type": "table",
       "gridPos": {
-        "h": 8,
+        "h": 9,
         "w": 24,
         "x": 0,
-        "y": 1
+        "y": 6
       },
       "targets": [
         {
@@ -61,14 +442,14 @@
       "description": "Per (job,instance) scrape health. 1 = scraped + healthy, 0 = target DOWN. A job absent from this table is NOT WIRED (no scrape config) — that is the real cause of its panels' no-data."
     },
     {
-      "id": 3,
+      "id": 10,
       "title": "Targets down",
       "type": "stat",
       "gridPos": {
-        "h": 8,
+        "h": 4,
         "w": 6,
         "x": 0,
-        "y": 9
+        "y": 15
       },
       "targets": [
         {
@@ -108,19 +489,23 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "area"
       },
       "description": "Number of expected scrape targets reporting up==0. >0 = a real target is failing (not \"no data yet\")."
     },
     {
-      "id": 4,
+      "id": 11,
       "title": "Expected jobs present (of 1)",
       "type": "stat",
       "gridPos": {
-        "h": 8,
+        "h": 4,
         "w": 6,
         "x": 6,
-        "y": 9
+        "y": 15
       },
       "targets": [
         {
@@ -164,19 +549,23 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "area"
       },
       "description": "Distinct jobs reporting `up` out of the 1 this dashboard depends on. Below target = an exporter is not deployed/scraped (e.g. node-exporter) — fix the scrape, do not wait for data."
     },
     {
-      "id": 5,
+      "id": 12,
       "type": "row",
       "title": "Reconcile health",
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 17
+        "y": 19
       },
       "collapsed": false,
       "panels": [
@@ -184,14 +573,14 @@
       ]
     },
     {
-      "id": 6,
+      "id": 13,
       "title": "Reconciliations per second (by controller + result)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 18
+        "y": 20
       },
       "targets": [
         {
@@ -208,8 +597,13 @@
         "defaults": {
           "unit": "reqps",
           "custom": {
-            "fillOpacity": 10,
-            "lineWidth": 2
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
           }
         },
         "overrides": [
@@ -219,23 +613,28 @@
       "options": {
         "tooltip": {
           "mode": "multi",
-          "sort": "none"
+          "sort": "desc"
         },
         "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
         }
       }
     },
     {
-      "id": 7,
+      "id": 14,
       "title": "Active reconciliations",
       "type": "stat",
       "gridPos": {
-        "h": 8,
+        "h": 4,
         "w": 6,
         "x": 12,
-        "y": 18
+        "y": 20
       },
       "targets": [
         {
@@ -262,18 +661,22 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "area"
       }
     },
     {
-      "id": 8,
+      "id": 15,
       "title": "p95 reconciliation duration (by phase)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 26
+        "y": 28
       },
       "targets": [
         {
@@ -290,8 +693,13 @@
         "defaults": {
           "unit": "s",
           "custom": {
-            "fillOpacity": 10,
-            "lineWidth": 2
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
           }
         },
         "overrides": [
@@ -301,23 +709,28 @@
       "options": {
         "tooltip": {
           "mode": "multi",
-          "sort": "none"
+          "sort": "desc"
         },
         "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
         }
       }
     },
     {
-      "id": 9,
+      "id": 16,
       "type": "row",
       "title": "Template phases",
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 34
+        "y": 36
       },
       "collapsed": false,
       "panels": [
@@ -325,14 +738,14 @@
       ]
     },
     {
-      "id": 10,
+      "id": 17,
       "title": "InfrastructureTemplates by phase",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 35
+        "y": 37
       },
       "targets": [
         {
@@ -348,8 +761,13 @@
       "fieldConfig": {
         "defaults": {
           "custom": {
-            "fillOpacity": 10,
-            "lineWidth": 2
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
           }
         },
         "overrides": [
@@ -359,23 +777,28 @@
       "options": {
         "tooltip": {
           "mode": "multi",
-          "sort": "none"
+          "sort": "desc"
         },
         "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
         }
       }
     },
     {
-      "id": 11,
+      "id": 18,
       "title": "Settled templates",
       "type": "stat",
       "gridPos": {
-        "h": 8,
+        "h": 4,
         "w": 6,
         "x": 12,
-        "y": 35
+        "y": 37
       },
       "targets": [
         {
@@ -415,18 +838,22 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "area"
       }
     },
     {
-      "id": 12,
+      "id": 19,
       "title": "Max consecutive drift cycles",
       "type": "stat",
       "gridPos": {
-        "h": 8,
+        "h": 4,
         "w": 6,
         "x": 18,
-        "y": 35
+        "y": 37
       },
       "targets": [
         {
@@ -466,18 +893,22 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "area"
       }
     },
     {
-      "id": 13,
+      "id": 20,
       "type": "row",
       "title": "Magma apply outcomes",
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 43
+        "y": 45
       },
       "collapsed": false,
       "panels": [
@@ -485,14 +916,14 @@
       ]
     },
     {
-      "id": 14,
+      "id": 21,
       "title": "Resources FAILED in last magma apply (by template)",
       "type": "table",
       "gridPos": {
-        "h": 8,
+        "h": 9,
         "w": 24,
         "x": 0,
-        "y": 44
+        "y": 46
       },
       "targets": [
         {
@@ -529,14 +960,14 @@
       }
     },
     {
-      "id": 15,
+      "id": 22,
       "title": "Resources applied in last magma apply (by template)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 52
+        "y": 55
       },
       "targets": [
         {
@@ -552,8 +983,13 @@
       "fieldConfig": {
         "defaults": {
           "custom": {
-            "fillOpacity": 10,
-            "lineWidth": 2
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
           }
         },
         "overrides": [
@@ -563,23 +999,28 @@
       "options": {
         "tooltip": {
           "mode": "multi",
-          "sort": "none"
+          "sort": "desc"
         },
         "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
         }
       }
     },
     {
-      "id": 16,
+      "id": 23,
       "title": "Magma apply runs/sec — Failed phase (by template)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 52
+        "y": 55
       },
       "targets": [
         {
@@ -596,8 +1037,13 @@
         "defaults": {
           "unit": "reqps",
           "custom": {
-            "fillOpacity": 10,
-            "lineWidth": 2
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
           }
         },
         "overrides": [
@@ -607,23 +1053,28 @@
       "options": {
         "tooltip": {
           "mode": "multi",
-          "sort": "none"
+          "sort": "desc"
         },
         "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
         }
       }
     },
     {
-      "id": 17,
+      "id": 24,
       "title": "Failed-change churn/sec (by template)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 60
+        "y": 63
       },
       "targets": [
         {
@@ -640,8 +1091,13 @@
         "defaults": {
           "unit": "reqps",
           "custom": {
-            "fillOpacity": 10,
-            "lineWidth": 2
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
           }
         },
         "overrides": [
@@ -651,23 +1107,28 @@
       "options": {
         "tooltip": {
           "mode": "multi",
-          "sort": "none"
+          "sort": "desc"
         },
         "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
         }
       }
     },
     {
-      "id": 18,
+      "id": 25,
       "type": "row",
       "title": "Drift",
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 68
+        "y": 71
       },
       "collapsed": false,
       "panels": [
@@ -675,14 +1136,14 @@
       ]
     },
     {
-      "id": 19,
+      "id": 26,
       "title": "Drift detections per second",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 69
+        "y": 72
       },
       "targets": [
         {
@@ -698,8 +1159,13 @@
         "defaults": {
           "unit": "reqps",
           "custom": {
-            "fillOpacity": 10,
-            "lineWidth": 2
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
           }
         },
         "overrides": [
@@ -709,23 +1175,28 @@
       "options": {
         "tooltip": {
           "mode": "multi",
-          "sort": "none"
+          "sort": "desc"
         },
         "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
         }
       }
     },
     {
-      "id": 20,
+      "id": 27,
       "title": "Pending changes (by template · action · risk)",
       "type": "table",
       "gridPos": {
-        "h": 8,
+        "h": 9,
         "w": 24,
         "x": 0,
-        "y": 77
+        "y": 80
       },
       "targets": [
         {
@@ -749,14 +1220,14 @@
       }
     },
     {
-      "id": 21,
+      "id": 28,
       "type": "row",
       "title": "Compile & escalation",
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 85
+        "y": 89
       },
       "collapsed": false,
       "panels": [
@@ -764,14 +1235,14 @@
       ]
     },
     {
-      "id": 22,
+      "id": 29,
       "title": "Compile failures per second (by template)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 86
+        "y": 90
       },
       "targets": [
         {
@@ -788,8 +1259,13 @@
         "defaults": {
           "unit": "reqps",
           "custom": {
-            "fillOpacity": 10,
-            "lineWidth": 2
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
           }
         },
         "overrides": [
@@ -799,23 +1275,28 @@
       "options": {
         "tooltip": {
           "mode": "multi",
-          "sort": "none"
+          "sort": "desc"
         },
         "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
         }
       }
     },
     {
-      "id": 23,
+      "id": 30,
       "title": "Max consecutive compile failures",
       "type": "stat",
       "gridPos": {
-        "h": 8,
+        "h": 4,
         "w": 6,
         "x": 12,
-        "y": 86
+        "y": 90
       },
       "targets": [
         {
@@ -859,18 +1340,22 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "area"
       }
     },
     {
-      "id": 24,
+      "id": 31,
       "title": "Recommended escalation rung depth (by template)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 94
+        "y": 98
       },
       "targets": [
         {
@@ -886,8 +1371,13 @@
       "fieldConfig": {
         "defaults": {
           "custom": {
-            "fillOpacity": 10,
-            "lineWidth": 2
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
           }
         },
         "overrides": [
@@ -897,23 +1387,28 @@
       "options": {
         "tooltip": {
           "mode": "multi",
-          "sort": "none"
+          "sort": "desc"
         },
         "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
         }
       }
     },
     {
-      "id": 25,
+      "id": 32,
       "title": "Escalation actions recommended/sec (by action)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 94
+        "y": 98
       },
       "targets": [
         {
@@ -930,8 +1425,13 @@
         "defaults": {
           "unit": "reqps",
           "custom": {
-            "fillOpacity": 10,
-            "lineWidth": 2
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
           }
         },
         "overrides": [
@@ -941,23 +1441,28 @@
       "options": {
         "tooltip": {
           "mode": "multi",
-          "sort": "none"
+          "sort": "desc"
         },
         "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
         }
       }
     },
     {
-      "id": 26,
+      "id": 33,
       "title": "Settling-failure escalations/sec (by reason)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 102
+        "y": 106
       },
       "targets": [
         {
@@ -974,8 +1479,13 @@
         "defaults": {
           "unit": "reqps",
           "custom": {
-            "fillOpacity": 10,
-            "lineWidth": 2
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
           }
         },
         "overrides": [
@@ -985,23 +1495,28 @@
       "options": {
         "tooltip": {
           "mode": "multi",
-          "sort": "none"
+          "sort": "desc"
         },
         "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
         }
       }
     },
     {
-      "id": 27,
+      "id": 34,
       "title": "Compile dispatcher queue depth",
       "type": "stat",
       "gridPos": {
-        "h": 8,
+        "h": 4,
         "w": 6,
         "x": 12,
-        "y": 102
+        "y": 106
       },
       "targets": [
         {
@@ -1045,18 +1560,22 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "area"
       }
     },
     {
-      "id": 28,
+      "id": 35,
       "type": "row",
       "title": "Logs",
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 110
+        "y": 114
       },
       "collapsed": false,
       "panels": [
@@ -1064,14 +1583,14 @@
       ]
     },
     {
-      "id": 29,
+      "id": 36,
       "title": "pangea-operator logs (last window)",
       "type": "table",
       "gridPos": {
-        "h": 8,
+        "h": 9,
         "w": 24,
         "x": 0,
-        "y": 111
+        "y": 115
       },
       "targets": [
         {
@@ -1096,14 +1615,14 @@
       "description": "All log lines for this workload — full context. Use the ERROR window below for fast triage."
     },
     {
-      "id": 30,
+      "id": 37,
       "title": "pangea-operator — ERROR logs (last window)",
       "type": "table",
       "gridPos": {
-        "h": 8,
+        "h": 9,
         "w": 24,
         "x": 0,
-        "y": 119
+        "y": 124
       },
       "targets": [
         {
@@ -1128,14 +1647,14 @@
       "description": "Error-class log lines only (level:error OR level:fatal OR level:critical OR level:panic) — the fast-triage window. Empty = no errors."
     },
     {
-      "id": 31,
+      "id": 38,
       "title": "pangea-operator — error log lines / sec",
       "type": "stat",
       "gridPos": {
-        "h": 8,
+        "h": 4,
         "w": 6,
         "x": 0,
-        "y": 127
+        "y": 133
       },
       "targets": [
         {
@@ -1180,7 +1699,11 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "area"
       },
       "description": "Rate of error-class log lines. Green = none."
     }

@@ -12,7 +12,7 @@ description: >-
   (Pangea::Architectures::Breathe) — re-gen via pangea-architectures
   workspaces/breathe-observability/render.rb (CLOSED-LOOP persistent spec).
 type: application
-version: 0.1.1
+version: 0.1.2
 appVersion: "0.1.0"
 dependencies:
   - name: pleme-lib
