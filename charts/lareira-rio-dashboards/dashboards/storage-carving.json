@@ -30,7 +30,7 @@
     },
     {
       "id": 2,
-      "title": "Vector pods not ready",
+      "title": "Node disk near full %",
       "type": "stat",
       "gridPos": {
         "h": 4,
@@ -41,7 +41,68 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "count(kube_pod_status_ready{namespace=\"monitoring\",pod=~\"vector-pleme-vector-.*\",condition=\"true\"} == 0) or vector(0)",
+          "expr": "max(100 * (1 - node_filesystem_avail_bytes{mountpoint=\"/\",fstype=\"ext4\"} / node_filesystem_size_bytes{mountpoint=\"/\",fstype=\"ext4\"})) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 80.0
+              },
+              {
+                "color": "red",
+                "value": 90.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "description": "The REAL shared envelope: rio's root ext4 disk (/dev/nvme1n1p2). Single-node local-path means EVERY PVC carves from this one disk — a full node disk wedges ALL volumes at once (postgres, garage, authentik, the lot). This is the number that actually matters; the per-PVC stats below are misleading on local-path."
+    },
+    {
+      "id": 3,
+      "title": "Filesystems near full",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count((node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay|squashfs|ramfs|devtmpfs|iso9660\"} / node_filesystem_size_bytes{fstype!~\"tmpfs|overlay|squashfs|ramfs|devtmpfs|iso9660\"}) < 0.10) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
@@ -87,72 +148,11 @@
         "colorMode": "background",
         "graphMode": "area"
       },
-      "description": "Vector DaemonSet pods with the Ready condition false. This is the TRUE \"vector down\" — the agent itself is not serving, so logs stop shipping off that node. (Distinct from a metrics-scrape blip: pod-readiness is the workload, not the :9090 endpoint.) Red = a vector pod is down NOW."
-    },
-    {
-      "id": 3,
-      "title": "Component errors /s",
-      "type": "stat",
-      "gridPos": {
-        "h": 4,
-        "w": 4,
-        "x": 4,
-        "y": 1
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum(rate(vector_component_errors_total[5m])) or vector(0)",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "vm"
-          }
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "reqps",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "orange",
-                "value": 0.01
-              },
-              {
-                "color": "red",
-                "value": 0.1
-              }
-            ]
-          }
-        },
-        "overrides": [
-
-        ]
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "auto",
-        "justifyMode": "auto",
-        "wideLayout": true,
-        "colorMode": "background",
-        "graphMode": "area"
-      },
-      "description": "Errors/s summed across every Vector component (source/transform/sink). vector_component_errors_total has no series until the first error fires, so the floored tile reads a green 0 today and lights up the moment Vector errors. Any sustained rate = drop the per-component breakdown in the Errors & drops row."
+      "description": "Real mounts with <10% free. Counts every managed filesystem (root, the zfs pools) under 10% headroom — any one wedges the workloads that write to it. Red = free space NOW."
     },
     {
       "id": 4,
-      "title": "Events discarded /s",
+      "title": "Read-only mounts",
       "type": "stat",
       "gridPos": {
         "h": 4,
@@ -163,7 +163,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(rate(vector_component_discarded_events_total[5m])) or vector(0)",
+          "expr": "count(node_filesystem_readonly == 1) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
@@ -172,7 +172,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "reqps",
+          "unit": "short",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -182,7 +182,7 @@
               },
               {
                 "color": "orange",
-                "value": 0.01
+                "value": 1.0
               },
               {
                 "color": "red",
@@ -209,11 +209,11 @@
         "colorMode": "background",
         "graphMode": "area"
       },
-      "description": "Events/s Vector DISCARDED (over-capacity buffer, parse failure, route drop) — data loss. Absent until the first discard, so the floored tile reads a green 0 today. >0 = logs are being dropped on the floor; investigate immediately."
+      "description": "Filesystems remounted read-only — usually a disk error or a full fs the kernel protected. Writes (incl. every PVC on that disk) are failing silently."
     },
     {
       "id": 5,
-      "title": "Buffer fullness %",
+      "title": "Postgres DB size (bytes)",
       "type": "stat",
       "gridPos": {
         "h": 4,
@@ -224,7 +224,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "max(100 * vector_buffer_byte_size / vector_buffer_max_byte_size) or vector(0)",
+          "expr": "max(cnpg_pg_database_size_bytes) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
@@ -233,7 +233,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "percent",
+          "unit": "bytes",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -243,11 +243,11 @@
               },
               {
                 "color": "orange",
-                "value": 70.0
+                "value": 5000000000.0
               },
               {
                 "color": "red",
-                "value": 90.0
+                "value": 10000000000.0
               }
             ]
           }
@@ -270,11 +270,11 @@
         "colorMode": "background",
         "graphMode": "area"
       },
-      "description": "Fullest sink buffer as a % of its max (the loki sink uses a 512Mi disk buffer). A climbing buffer = the sink (VictoriaLogs) can't keep up with ingest and Vector is queueing on disk; →100% = the buffer overflows and events get discarded."
+      "description": "The HONEST storage signal: the largest CNPG database's real size (cnpg_pg_database_size_bytes), NOT the local-path PVC stats. This is what postgres actually consumes on the node disk. Tiny today (~8-11 MB); amber/red if a DB grows large enough to threaten the shared envelope."
     },
     {
       "id": 6,
-      "title": "Component utilization %",
+      "title": "Storage bands not carving (unrepresentable)",
       "type": "stat",
       "gridPos": {
         "h": 4,
@@ -285,7 +285,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "max(100 * vector_utilization) or vector(0)",
+          "expr": "count(breathe_band_dry_run{dim=\"storage\"}) - count(breathe_band_util_ratio{dim=\"storage\"}) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
@@ -294,7 +294,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "percent",
+          "unit": "short",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -304,11 +304,11 @@
               },
               {
                 "color": "orange",
-                "value": 85.0
+                "value": 1.0
               },
               {
                 "color": "red",
-                "value": 95.0
+                "value": 1.0
               }
             ]
           }
@@ -331,11 +331,11 @@
         "colorMode": "background",
         "graphMode": "area"
       },
-      "description": "Busiest component's utilization (vector_utilization is 0..1 per component). High = that source/transform/sink is saturated and applying back-pressure upstream; sustained >95% = the bottleneck stage that is throttling the whole pipeline."
+      "description": "Storage bands ENROLLED (have dry_run) but producing NO util_ratio — the local-path MetricUnrepresentable case: breathe can't compute a per-volume util from a whole-node-fs metric. On rio this is nats-jetstream (enrolled, no util series). Expected >0 while storage carving is parked on local-path; the Carving row below explains why."
     },
     {
       "id": 7,
-      "title": "Memory near limit %",
+      "title": "Storage bands at ceiling",
       "type": "stat",
       "gridPos": {
         "h": 4,
@@ -346,7 +346,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "max(100 * max by(pod)(container_memory_working_set_bytes{namespace=\"monitoring\",pod=~\"vector-pleme-vector-.*\",container=\"vector\"}) / on(pod) max by(pod)(kube_pod_container_resource_limits{namespace=\"monitoring\",pod=~\"vector-pleme-vector-.*\",resource=\"memory\"})) or vector(0)",
+          "expr": "count((breathe_band_util_ratio{dim=\"storage\"} >= breathe_band_grow_above_ratio{dim=\"storage\"}) and on (dim, namespace, name) (breathe_band_current_limit{dim=\"storage\"} >= breathe_band_ceiling{dim=\"storage\"})) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
@@ -355,7 +355,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "percent",
+          "unit": "short",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -365,11 +365,11 @@
               },
               {
                 "color": "orange",
-                "value": 80.0
+                "value": 1.0
               },
               {
                 "color": "red",
-                "value": 95.0
+                "value": 1.0
               }
             ]
           }
@@ -392,7 +392,7 @@
         "colorMode": "background",
         "graphMode": "area"
       },
-      "description": "Vector working-set as a % of its memory limit. The max by(pod) on BOTH sides dedupes rio's dual container scrape (kubelet + cAdvisor) so the join doesn't error. >95% = the cgroup OOM killer is near — Vector dies and log shipping stalls."
+      "description": "Storage bands wanting to grow (util past grow-above) but pinned at their ceiling. NOTE: only meaningful once storage bands actually carve — on local-path the util_ratio is the whole-node-fs ratio, not the volume's, so treat any hit here with the local-path caveat in mind (the util is shared, not per-volume)."
     },
     {
       "id": 8,
@@ -422,7 +422,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "up{job=~\"vector-pleme-vector\"}",
+          "expr": "up{job=~\"node-exporter|kubelet|pangea-system/pangea-database\"}",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
@@ -454,7 +454,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "count(up{job=~\"vector-pleme-vector\"} == 0) or vector(0)",
+          "expr": "count(up{job=~\"node-exporter|kubelet|pangea-system/pangea-database\"} == 0) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
@@ -499,7 +499,7 @@
     },
     {
       "id": 11,
-      "title": "Expected jobs present (of 1)",
+      "title": "Expected jobs present (of 3)",
       "type": "stat",
       "gridPos": {
         "h": 4,
@@ -510,7 +510,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "count(group by (job) (up{job=~\"vector-pleme-vector\"})) or vector(0)",
+          "expr": "count(group by (job) (up{job=~\"node-exporter|kubelet|pangea-system/pangea-database\"})) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
@@ -532,7 +532,7 @@
               },
               {
                 "color": "green",
-                "value": 1.0
+                "value": 3.0
               }
             ]
           }
@@ -555,12 +555,12 @@
         "colorMode": "value",
         "graphMode": "area"
       },
-      "description": "Distinct jobs reporting `up` out of the 1 this dashboard depends on. Below target = an exporter is not deployed/scraped (e.g. node-exporter) — fix the scrape, do not wait for data."
+      "description": "Distinct jobs reporting `up` out of the 3 this dashboard depends on. Below target = an exporter is not deployed/scraped (e.g. node-exporter) — fix the scrape, do not wait for data."
     },
     {
       "id": 12,
       "type": "row",
-      "title": "Throughput",
+      "title": "Node disk (the shared envelope)",
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -574,83 +574,55 @@
     },
     {
       "id": 13,
-      "title": "Events received/s by component",
-      "type": "timeseries",
+      "title": "The shared envelope",
+      "type": "text",
       "gridPos": {
-        "h": 8,
-        "w": 12,
+        "h": 3,
+        "w": 24,
         "x": 0,
         "y": 20
       },
       "targets": [
-        {
-          "refId": "A",
-          "expr": "sum by (component_id) (rate(vector_component_received_events_total[5m]))",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "vm"
-          },
-          "legendFormat": "{{component_id}}"
-        }
+
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "eps",
-          "custom": {
-            "fillOpacity": 12,
-            "gradientMode": "opacity",
-            "lineWidth": 2,
-            "showPoints": "never",
-            "lineInterpolation": "linear",
-            "pointSize": 5,
-            "axisBorderShow": false
-          }
         },
         "overrides": [
 
         ]
       },
       "options": {
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "lastNotNull",
-            "max",
-            "mean"
-          ]
-        }
-      },
-      "description": "sum by(component_id)(rate(vector_component_received_events_total[5m])) — events each component (source/transform/sink) ingested. The kubernetes_logs source rate is the raw log-line ingest off the node."
+        "mode": "markdown",
+        "content": "**rio is a single node with local-path PVCs.** This node disk is the\n**physical pool every PVC below carves from.** local-path has **no\nper-volume quota** — so a full node disk wedges **ALL PVCs at once**.\nThe root `/` (ext4, `/dev/nvme1n1p2`) is the data envelope; the zfs\npools (`/srv/pool/*`, `/var/lib/k3s-storage`) are the host’s bulk\nstorage. Watch *this* row for the truth — the PVC row below is\nmisleading on local-path (it reads this same whole-node fs).\n"
+      }
     },
     {
       "id": 14,
-      "title": "Events sent/s by component",
+      "title": "Filesystem used % (by mount) — the real fs",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
-        "y": 20
+        "x": 0,
+        "y": 23
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (component_id) (rate(vector_component_sent_events_total[5m]))",
+          "expr": "100 * (1 - node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay|squashfs|ramfs|devtmpfs|iso9660\"} / node_filesystem_size_bytes{fstype!~\"tmpfs|overlay|squashfs|ramfs|devtmpfs|iso9660\"})",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
           },
-          "legendFormat": "{{component_id}}"
+          "legendFormat": "{{mountpoint}}"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "eps",
+          "unit": "percent",
+          "min": 0.0,
+          "max": 100.0,
           "custom": {
             "fillOpacity": 12,
             "gradientMode": "opacity",
@@ -680,714 +652,79 @@
           ]
         }
       },
-      "description": "sum by(component_id)(rate(vector_component_sent_events_total[5m])) — events each component emitted downstream. The loki sink rate is events shipped to VictoriaLogs."
+      "description": "100 * (1 - avail/size) per real mount. The root `/` line is the local-path envelope every PVC shares."
     },
     {
       "id": 15,
-      "title": "Event bytes received/s by component",
-      "type": "timeseries",
+      "title": "Free space by mount (bytes)",
+      "type": "table",
       "gridPos": {
-        "h": 8,
-        "w": 12,
+        "h": 9,
+        "w": 24,
         "x": 0,
-        "y": 28
+        "y": 31
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (component_id) (rate(vector_component_received_event_bytes_total[5m]))",
+          "expr": "node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay|squashfs|ramfs|devtmpfs|iso9660\"}",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
           },
-          "legendFormat": "{{component_id}}"
+          "legendFormat": "{{mountpoint}}",
+          "instant": true
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "Bps",
-          "custom": {
-            "fillOpacity": 12,
-            "gradientMode": "opacity",
-            "lineWidth": 2,
-            "showPoints": "never",
-            "lineInterpolation": "linear",
-            "pointSize": 5,
-            "axisBorderShow": false
-          }
+          "unit": "bytes"
         },
         "overrides": [
 
         ]
       },
       "options": {
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "lastNotNull",
-            "max",
-            "mean"
-          ]
-        }
       },
-      "description": "sum by(component_id)(rate(vector_component_received_event_bytes_total[5m])) — in-memory event payload bytes ingested per component."
+      "description": "Instantaneous free bytes per real mount — the headroom each physical filesystem has left."
     },
     {
       "id": 16,
-      "title": "Event bytes sent/s by component",
-      "type": "timeseries",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 28
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum by (component_id) (rate(vector_component_sent_event_bytes_total[5m]))",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "vm"
-          },
-          "legendFormat": "{{component_id}}"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "Bps",
-          "custom": {
-            "fillOpacity": 12,
-            "gradientMode": "opacity",
-            "lineWidth": 2,
-            "showPoints": "never",
-            "lineInterpolation": "linear",
-            "pointSize": 5,
-            "axisBorderShow": false
-          }
-        },
-        "overrides": [
-
-        ]
-      },
-      "options": {
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "lastNotNull",
-            "max",
-            "mean"
-          ]
-        }
-      },
-      "description": "sum by(component_id)(rate(vector_component_sent_event_bytes_total[5m])) — event payload bytes emitted downstream per component (sink send volume)."
-    },
-    {
-      "id": 17,
-      "type": "row",
-      "title": "By component kind (source / transform / sink)",
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 36
-      },
-      "collapsed": false,
-      "panels": [
-
-      ]
-    },
-    {
-      "id": 18,
-      "title": "Events received/s by kind",
+      "title": "Data mount: total vs used vs available (bytes)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 37
+        "y": 40
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (component_kind) (rate(vector_component_received_events_total[5m]))",
+          "expr": "node_filesystem_size_bytes{mountpoint=\"/\",fstype=\"ext4\"}",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
           },
-          "legendFormat": "{{component_kind}}"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "eps",
-          "custom": {
-            "fillOpacity": 12,
-            "gradientMode": "opacity",
-            "lineWidth": 2,
-            "showPoints": "never",
-            "lineInterpolation": "linear",
-            "pointSize": 5,
-            "axisBorderShow": false
-          }
-        },
-        "overrides": [
-
-        ]
-      },
-      "options": {
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "lastNotNull",
-            "max",
-            "mean"
-          ]
-        }
-      },
-      "description": "sum by(component_kind)(rate(vector_component_received_events_total[5m])). source = raw ingest, transform = remap throughput, sink = handed to each sink."
-    },
-    {
-      "id": 19,
-      "title": "Events sent/s by kind",
-      "type": "timeseries",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 37
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum by (component_kind) (rate(vector_component_sent_events_total[5m]))",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "vm"
-          },
-          "legendFormat": "{{component_kind}}"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "eps",
-          "custom": {
-            "fillOpacity": 12,
-            "gradientMode": "opacity",
-            "lineWidth": 2,
-            "showPoints": "never",
-            "lineInterpolation": "linear",
-            "pointSize": 5,
-            "axisBorderShow": false
-          }
-        },
-        "overrides": [
-
-        ]
-      },
-      "options": {
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "lastNotNull",
-            "max",
-            "mean"
-          ]
-        }
-      },
-      "description": "sum by(component_kind)(rate(vector_component_sent_events_total[5m])). sink sent/s is the pipeline's real egress (events landed in VictoriaLogs + the prometheus exporter)."
-    },
-    {
-      "id": 20,
-      "type": "row",
-      "title": "Errors & drops",
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 45
-      },
-      "collapsed": false,
-      "panels": [
-
-      ]
-    },
-    {
-      "id": 21,
-      "title": "Component errors/s by component",
-      "type": "timeseries",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 46
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum by (component_id) (rate(vector_component_errors_total[5m]))",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "vm"
-          },
-          "legendFormat": "{{component_id}}"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "reqps",
-          "custom": {
-            "fillOpacity": 12,
-            "gradientMode": "opacity",
-            "lineWidth": 2,
-            "showPoints": "never",
-            "lineInterpolation": "linear",
-            "pointSize": 5,
-            "axisBorderShow": false
-          }
-        },
-        "overrides": [
-
-        ]
-      },
-      "options": {
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "lastNotNull",
-            "max",
-            "mean"
-          ]
-        }
-      },
-      "description": "sum by(component_id)(rate(vector_component_errors_total[5m])). ABSENT until the first error fires (none on rio yet) — no-data = \"none yet\", not broken. Populates on the first error."
-    },
-    {
-      "id": 22,
-      "title": "Discarded events/s by component",
-      "type": "timeseries",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 46
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum by (component_id) (rate(vector_component_discarded_events_total[5m]))",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "vm"
-          },
-          "legendFormat": "{{component_id}}"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "eps",
-          "custom": {
-            "fillOpacity": 12,
-            "gradientMode": "opacity",
-            "lineWidth": 2,
-            "showPoints": "never",
-            "lineInterpolation": "linear",
-            "pointSize": 5,
-            "axisBorderShow": false
-          }
-        },
-        "overrides": [
-
-        ]
-      },
-      "options": {
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "lastNotNull",
-            "max",
-            "mean"
-          ]
-        }
-      },
-      "description": "sum by(component_id)(rate(vector_component_discarded_events_total[5m])) — events Vector dropped (over-capacity buffer, parse failure). ABSENT until the first discard (none on rio yet); any series here is data loss."
-    },
-    {
-      "id": 23,
-      "title": "Sink HTTP 4xx/5xx responses/s by status",
-      "type": "timeseries",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 54
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum by (status) (rate(vector_http_client_responses_total{status=~\"4..|5..\"}[5m]))",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "vm"
-          },
-          "legendFormat": "{{status}}"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "reqps",
-          "custom": {
-            "fillOpacity": 12,
-            "gradientMode": "opacity",
-            "lineWidth": 2,
-            "showPoints": "never",
-            "lineInterpolation": "linear",
-            "pointSize": 5,
-            "axisBorderShow": false
-          }
-        },
-        "overrides": [
-
-        ]
-      },
-      "options": {
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "lastNotNull",
-            "max",
-            "mean"
-          ]
-        }
-      },
-      "description": "sum by(status)(rate(vector_http_client_responses_total{status=~\"4..|5..\"}[5m])) — failed sends from the HTTP sinks (the VictoriaLogs forwarder). vector_http_client_responses_total carries a `status` label."
-    },
-    {
-      "id": 24,
-      "type": "row",
-      "title": "Buffer & utilization",
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 62
-      },
-      "collapsed": false,
-      "panels": [
-
-      ]
-    },
-    {
-      "id": 25,
-      "title": "Buffer fullness % by sink",
-      "type": "timeseries",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 63
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "100 * vector_buffer_byte_size / vector_buffer_max_byte_size",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "vm"
-          },
-          "legendFormat": "{{component_id}} ({{buffer_type}})"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "min": 0.0,
-          "max": 100.0,
-          "custom": {
-            "fillOpacity": 12,
-            "gradientMode": "opacity",
-            "lineWidth": 2,
-            "showPoints": "never",
-            "lineInterpolation": "linear",
-            "pointSize": 5,
-            "axisBorderShow": false
-          }
-        },
-        "overrides": [
-
-        ]
-      },
-      "options": {
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "lastNotNull",
-            "max",
-            "mean"
-          ]
-        }
-      },
-      "description": "100 * vector_buffer_byte_size / vector_buffer_max_byte_size per component_id — how full each sink's buffer is (loki = 512Mi disk buffer). Climbing = the sink can't keep up; →100% = overflow/drops."
-    },
-    {
-      "id": 26,
-      "title": "Buffered events by sink",
-      "type": "timeseries",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 63
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "max by (component_id) (vector_buffer_events)",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "vm"
-          },
-          "legendFormat": "{{component_id}}"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "custom": {
-            "fillOpacity": 12,
-            "gradientMode": "opacity",
-            "lineWidth": 2,
-            "showPoints": "never",
-            "lineInterpolation": "linear",
-            "pointSize": 5,
-            "axisBorderShow": false
-          }
-        },
-        "overrides": [
-
-        ]
-      },
-      "options": {
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "lastNotNull",
-            "max",
-            "mean"
-          ]
-        }
-      },
-      "description": "max by(component_id)(vector_buffer_events) — events currently queued in each sink buffer. A growing queue is the leading indicator of a slow/backpressured sink."
-    },
-    {
-      "id": 27,
-      "title": "Component utilization % by component",
-      "type": "timeseries",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 71
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "100 * vector_utilization",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "vm"
-          },
-          "legendFormat": "{{component_id}}"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "min": 0.0,
-          "max": 100.0,
-          "custom": {
-            "fillOpacity": 12,
-            "gradientMode": "opacity",
-            "lineWidth": 2,
-            "showPoints": "never",
-            "lineInterpolation": "linear",
-            "pointSize": 5,
-            "axisBorderShow": false
-          }
-        },
-        "overrides": [
-
-        ]
-      },
-      "options": {
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "lastNotNull",
-            "max",
-            "mean"
-          ]
-        }
-      },
-      "description": "100 * vector_utilization per component_id (0..1 → 0..100%). High = that stage is saturated and applying back-pressure; the highest line is the pipeline bottleneck."
-    },
-    {
-      "id": 28,
-      "type": "row",
-      "title": "Resources (vector container)",
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 79
-      },
-      "collapsed": false,
-      "panels": [
-
-      ]
-    },
-    {
-      "id": 29,
-      "title": "CPU cores used vs limit",
-      "type": "timeseries",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 80
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"monitoring\",pod=~\"vector-pleme-vector-.*\",container=\"vector\",metrics_path=\"/metrics/cadvisor\"}[5m]))",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "vm"
-          },
-          "legendFormat": "cpu cores"
+          "legendFormat": "total"
         },
         {
           "refId": "B",
-          "expr": "max(kube_pod_container_resource_limits{namespace=\"monitoring\",pod=~\"vector-pleme-vector-.*\",resource=\"cpu\"})",
+          "expr": "node_filesystem_size_bytes{mountpoint=\"/\",fstype=\"ext4\"} - node_filesystem_avail_bytes{mountpoint=\"/\",fstype=\"ext4\"}",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
           },
-          "legendFormat": "cpu limit"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "custom": {
-            "fillOpacity": 12,
-            "gradientMode": "opacity",
-            "lineWidth": 2,
-            "showPoints": "never",
-            "lineInterpolation": "linear",
-            "pointSize": 5,
-            "axisBorderShow": false
-          }
-        },
-        "overrides": [
-
-        ]
-      },
-      "options": {
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "lastNotNull",
-            "max",
-            "mean"
-          ]
-        }
-      },
-      "description": "Vector container CPU from cAdvisor (cadvisor-only selector to dedupe the dual scrape) vs its CPU limit."
-    },
-    {
-      "id": 30,
-      "title": "Memory working set vs limit",
-      "type": "timeseries",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 80
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "max(container_memory_working_set_bytes{namespace=\"monitoring\",pod=~\"vector-pleme-vector-.*\",container=\"vector\",metrics_path=\"/metrics/cadvisor\"})",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "vm"
-          },
-          "legendFormat": "working set"
+          "legendFormat": "used"
         },
         {
-          "refId": "B",
-          "expr": "max(kube_pod_container_resource_limits{namespace=\"monitoring\",pod=~\"vector-pleme-vector-.*\",resource=\"memory\"})",
+          "refId": "C",
+          "expr": "node_filesystem_avail_bytes{mountpoint=\"/\",fstype=\"ext4\"}",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
           },
-          "legendFormat": "mem limit"
+          "legendFormat": "available"
         }
       ],
       "fieldConfig": {
@@ -1422,32 +759,106 @@
           ]
         }
       },
-      "description": "Vector container working-set from cAdvisor (cadvisor-only selector to dedupe the dual scrape) vs its memory limit."
+      "description": "The root `/` envelope broken into total / used / available. Used climbing toward total = the shared pool filling — every local-path PVC is competing for what's left here."
     },
     {
-      "id": 31,
-      "title": "Container filesystem writes (bytes/s)",
+      "id": 17,
+      "type": "row",
+      "title": "PVC allocation (the local-path caveat)",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 48
+      },
+      "collapsed": false,
+      "panels": [
+
+      ]
+    },
+    {
+      "id": 18,
+      "title": "WARNING — local-path PVC stats are NOT per-volume",
+      "type": "text",
+      "gridPos": {
+        "h": 3,
+        "w": 24,
+        "x": 0,
+        "y": 49
+      },
+      "targets": [
+
+      ],
+      "fieldConfig": {
+        "defaults": {
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**WARNING — on local-path these read the WHOLE NODE FS, not the\nvolume.** Every PVC below reports the *same* capacity/used numbers\n(the node disk), because local-path has no per-volume accounting.\nThe honest per-DB size is in the **Postgres row below**\n(`cnpg_pg_database_size_bytes`). This is the breathe\n**MetricUnrepresentable** finding: when `used > capacity` for a PVC,\nor when every PVC shows an identical capacity, that *proves* the\nmetric isn’t per-volume.\n"
+      }
+    },
+    {
+      "id": 19,
+      "title": "PVC capacity by claim (bytes) — identical = whole-node-fs",
+      "type": "table",
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 52
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (persistentvolumeclaim, namespace) (kubelet_volume_stats_capacity_bytes{job=\"kubelet\"})",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "{{namespace}}/{{persistentvolumeclaim}}",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+      },
+      "description": "kubelet_volume_stats_capacity_bytes per PVC, pinned to job=\"kubelet\" to dedupe rio's kubelet+apiserver dual scrape. On local-path EVERY row shows the SAME ~905 GiB node-fs size — the proof these are not per-volume."
+    },
+    {
+      "id": 20,
+      "title": "PVC used bytes by claim (whole-node-fs)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 88
+        "y": 61
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(rate(container_fs_writes_bytes_total{namespace=\"monitoring\",pod=~\"vector-pleme-vector-.*\",metrics_path=\"/metrics/cadvisor\"}[5m]))",
+          "expr": "max by (persistentvolumeclaim, namespace) (kubelet_volume_stats_used_bytes{job=\"kubelet\"})",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
           },
-          "legendFormat": "fs writes"
+          "legendFormat": "{{namespace}}/{{persistentvolumeclaim}}"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "Bps",
+          "unit": "bytes",
           "custom": {
             "fillOpacity": 12,
             "gradientMode": "opacity",
@@ -1477,41 +888,365 @@
           ]
         }
       },
-      "description": "sum(rate(container_fs_writes_bytes_total)) for the vector pod (cadvisor-only selector) — chiefly disk-buffer + checkpoint I/O."
+      "description": "kubelet_volume_stats_used_bytes per PVC (job=\"kubelet\" dedupe). These lines move together because they all track the same node filesystem usage — NOT each volume's real footprint."
     },
     {
-      "id": 32,
-      "title": "Container network rx / tx (bytes/s)",
+      "id": 21,
+      "type": "row",
+      "title": "Postgres storage (the honest signal)",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 69
+      },
+      "collapsed": false,
+      "panels": [
+
+      ]
+    },
+    {
+      "id": 22,
+      "title": "The honest postgres footprint",
+      "type": "text",
+      "gridPos": {
+        "h": 3,
+        "w": 24,
+        "x": 0,
+        "y": 70
+      },
+      "targets": [
+
+      ],
+      "fieldConfig": {
+        "defaults": {
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**This is the REAL postgres footprint** — `cnpg_pg_database_size_bytes`,\nthe actual per-database size reported by CloudNativePG. It is what\n*actually* consumes the node disk, vs the misleading local-path PVC\nstats above (which all read the whole node fs). When you ask “how\nmuch storage is postgres using?”, **this row is the answer**, not the\nPVC row. (Two pods — the CNPG HA pair `pangea-database-1/-2` — so the\nqueries `max by(datname)` to dedupe the replicas.)\n"
+      }
+    },
+    {
+      "id": 23,
+      "title": "Database size by datname (the real DB size)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 73
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (datname) (cnpg_pg_database_size_bytes)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "{{datname}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      },
+      "description": "max by(datname)(cnpg_pg_database_size_bytes) — the honest per-database size, deduped across the CNPG HA pair. This is the true postgres disk consumption, not the local-path PVC stats."
+    },
+    {
+      "id": 24,
+      "title": "Total PG data size",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 73
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(max by (datname) (cnpg_pg_database_size_bytes))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 5000000000.0
+              },
+              {
+                "color": "red",
+                "value": 10000000000.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "description": "Sum of the real per-database sizes (deduped across replicas) — the whole postgres data footprint on rio."
+    },
+    {
+      "id": 25,
+      "title": "WAL bytes (cnpg_collector_wal_bytes)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 81
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "cnpg_collector_wal_bytes",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "{{pod}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      },
+      "description": "Write-ahead-log volume per pod. WAL is real disk the postgres volume holds beyond the database files — a growing WAL (e.g. a stalled archiver) silently eats the shared node disk."
+    },
+    {
+      "id": 26,
+      "type": "row",
+      "title": "Breathe storage carving",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 89
+      },
+      "collapsed": false,
+      "panels": [
+
+      ]
+    },
+    {
+      "id": 27,
+      "title": "Why storage carving is parked on local-path",
+      "type": "text",
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 90
+      },
+      "targets": [
+
+      ],
+      "fieldConfig": {
+        "defaults": {
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**breathe carves storage by growing `spec.storage.size` before a\nvolume fills** — BUT on local-path the per-volume metric is\n**unrepresentable**: `kubelet_volume_stats` reports the\n**whole-node-fs**, so every storage band reads the *same* `used`\n(≈459 GB on rio for authentik-postgresql / garage-data /\npangea-database alike). With no per-volume signal, the storage\nbands sit **MetricUnrepresentable / Conflict and DON’T carve** —\nall are `dry_run=1` (SHADOW), and `nats-jetstream` produces no\n`util_ratio` at all. (The util that *does* appear is on a 0–100\nscale while `setpoint_ratio`=0.8 / `grow_above_ratio`=0.85 are\n0–1 — the scale mismatch is itself part of the unrepresentable\nstate.) **Storage carving goes live on a CSI with per-volume\naccounting (Longhorn / Ceph / EBS).** The\n`cnpg_pg_database_size_bytes` above is what breathe *would* carve\nagainst if it could see per-volume.\n"
+      }
+    },
+    {
+      "id": 28,
+      "title": "Storage band util vs setpoint (local-path = shared, not per-volume)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 94
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "breathe_band_util_ratio{dim=\"storage\"}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "util {{exported_namespace}}/{{name}}"
+        },
+        {
+          "refId": "B",
+          "expr": "100 * breathe_band_setpoint_ratio{dim=\"storage\"}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "setpoint×100 {{exported_namespace}}/{{name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      },
+      "description": "breathe_band_util_ratio{dim=\"storage\"} (the whole-node-fs ratio, reported 0-100) against setpoint_ratio (0-1). The scale mismatch + the shared util ARE the unrepresentable state. nats-jetstream has no util line at all."
+    },
+    {
+      "id": 29,
+      "title": "Storage carved limit riding floor / ceiling (bytes)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 88
+        "y": 94
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(rate(container_network_receive_bytes_total{namespace=\"monitoring\",pod=~\"vector-pleme-vector-.*\",metrics_path=\"/metrics/cadvisor\"}[5m]))",
+          "expr": "breathe_band_current_limit{dim=\"storage\"}",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
           },
-          "legendFormat": "rx"
+          "legendFormat": "limit {{exported_namespace}}/{{name}}"
         },
         {
           "refId": "B",
-          "expr": "sum(rate(container_network_transmit_bytes_total{namespace=\"monitoring\",pod=~\"vector-pleme-vector-.*\",metrics_path=\"/metrics/cadvisor\"}[5m]))",
+          "expr": "breathe_band_floor{dim=\"storage\"}",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
           },
-          "legendFormat": "tx (ship to VLogs)"
+          "legendFormat": "floor {{exported_namespace}}/{{name}}"
+        },
+        {
+          "refId": "C",
+          "expr": "breathe_band_ceiling{dim=\"storage\"}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "ceiling {{exported_namespace}}/{{name}}"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "Bps",
+          "unit": "bytes",
           "custom": {
             "fillOpacity": 12,
             "gradientMode": "opacity",
@@ -1541,15 +1276,49 @@
           ]
         }
       },
-      "description": "Container network I/O for the vector pod (cadvisor-only selector). rx ≈ data pulled, tx ≈ events shipped to VictoriaLogs."
+      "description": "breathe_band_current_limit{dim=\"storage\"} between floor and ceiling. On local-path the limit never moves (no per-volume util to carve against), so the line sits flat between its bounds."
+    },
+    {
+      "id": 30,
+      "title": "Storage bands (enrolled / shadow / util present?)",
+      "type": "table",
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 102
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "breathe_band_dry_run{dim=\"storage\"}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "{{exported_namespace}}/{{name}} (dry_run)",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+      },
+      "description": "Every enrolled storage band (dry_run present). dry_run=1 = SHADOW (observing, not carving). A band here with NO util_ratio (e.g. nats-jetstream) is the fully-unrepresentable case."
     }
   ],
   "schemaVersion": 39,
   "tags": [
     "rio",
-    "vector",
-    "ingest",
-    "logs"
+    "storage",
+    "disk",
+    "carving",
+    "breathability"
   ],
   "templating": {
     "list": [
@@ -1563,7 +1332,7 @@
   "timepicker": {
   },
   "timezone": "utc",
-  "title": "rio · vector pipeline",
-  "uid": "rio-vector-pipeline",
+  "title": "rio · storage & carving",
+  "uid": "rio-storage-carving",
   "version": 1
 }

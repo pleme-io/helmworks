@@ -5,7 +5,7 @@ tests:
   - it: renders one grafana_dashboard ConfigMap per dashboards/*.json
     asserts:
       - hasDocuments:
-          count: 5
+          count: 6
 
   - it: every ConfigMap carries the grafana_dashboard sidecar label
     documentIndex: 0

@@ -861,7 +861,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (namespace) (rate(container_cpu_usage_seconds_total{container!=\"\"}[5m]))",
+          "expr": "sum by (namespace) (rate(container_cpu_usage_seconds_total{container!=\"\",metrics_path=\"/metrics/cadvisor\"}[5m]))",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
@@ -915,7 +915,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (namespace) (container_memory_working_set_bytes{container!=\"\"})",
+          "expr": "sum by (namespace) (container_memory_working_set_bytes{container!=\"\",metrics_path=\"/metrics/cadvisor\"})",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
