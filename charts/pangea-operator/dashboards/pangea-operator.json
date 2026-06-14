@@ -473,7 +473,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (template) (rate(pangea_magma_failed_changes_total[5m]))",
+          "expr": "sum by (template) (rate(pangea_magma_failed_changes_total[5m])) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
@@ -621,7 +621,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (target_namespace, name) (rate(pangea_compile_failures_total[5m]))",
+          "expr": "sum by (target_namespace, name) (rate(pangea_compile_failures_total[5m])) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
@@ -763,7 +763,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (action) (rate(pangea_escalation_actions_total[5m]))",
+          "expr": "sum by (action) (rate(pangea_escalation_actions_total[5m])) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
@@ -807,7 +807,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (reason) (rate(pangea_settling_failures_total[5m]))",
+          "expr": "sum by (reason) (rate(pangea_settling_failures_total[5m])) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
