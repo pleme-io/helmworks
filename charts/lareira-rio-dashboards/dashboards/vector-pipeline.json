@@ -574,18 +574,18 @@
     },
     {
       "id": 13,
-      "title": "Events received/s by component",
+      "title": "Throughput by component · received/s",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
-        "w": 12,
+        "w": 6,
         "x": 0,
         "y": 20
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (component_id) (rate(vector_component_received_events_total[5m]))",
+          "expr": "sum by (component_id)(rate(vector_component_received_events_total[5m])) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
@@ -595,7 +595,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "eps",
+          "unit": "cps",
           "custom": {
             "fillOpacity": 12,
             "gradientMode": "opacity",
@@ -624,78 +624,76 @@
             "mean"
           ]
         }
-      },
-      "description": "sum by(component_id)(rate(vector_component_received_events_total[5m])) — events each component (source/transform/sink) ingested. The kubernetes_logs source rate is the raw log-line ingest off the node."
+      }
     },
     {
       "id": 14,
-      "title": "Events sent/s by component",
+      "title": "Throughput by component · sent/s",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
-        "w": 12,
+        "w": 6,
+        "x": 6,
+        "y": 20
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (component_id)(rate(vector_component_sent_events_total[5m])) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "{{component_id}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "cps",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 15,
+      "title": "Throughput by component · received bytes/s",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
         "x": 12,
         "y": 20
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (component_id) (rate(vector_component_sent_events_total[5m]))",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "vm"
-          },
-          "legendFormat": "{{component_id}}"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "eps",
-          "custom": {
-            "fillOpacity": 12,
-            "gradientMode": "opacity",
-            "lineWidth": 2,
-            "showPoints": "never",
-            "lineInterpolation": "linear",
-            "pointSize": 5,
-            "axisBorderShow": false
-          }
-        },
-        "overrides": [
-
-        ]
-      },
-      "options": {
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "lastNotNull",
-            "max",
-            "mean"
-          ]
-        }
-      },
-      "description": "sum by(component_id)(rate(vector_component_sent_events_total[5m])) — events each component emitted downstream. The loki sink rate is events shipped to VictoriaLogs."
-    },
-    {
-      "id": 15,
-      "title": "Event bytes received/s by component",
-      "type": "timeseries",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 28
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum by (component_id) (rate(vector_component_received_event_bytes_total[5m]))",
+          "expr": "sum by (component_id)(rate(vector_component_received_event_bytes_total[5m])) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
@@ -734,23 +732,22 @@
             "mean"
           ]
         }
-      },
-      "description": "sum by(component_id)(rate(vector_component_received_event_bytes_total[5m])) — in-memory event payload bytes ingested per component."
+      }
     },
     {
       "id": 16,
-      "title": "Event bytes sent/s by component",
+      "title": "Throughput by component · sent bytes/s",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 28
+        "w": 6,
+        "x": 18,
+        "y": 20
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (component_id) (rate(vector_component_sent_event_bytes_total[5m]))",
+          "expr": "sum by (component_id)(rate(vector_component_sent_event_bytes_total[5m])) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
@@ -789,8 +786,7 @@
             "mean"
           ]
         }
-      },
-      "description": "sum by(component_id)(rate(vector_component_sent_event_bytes_total[5m])) — event payload bytes emitted downstream per component (sink send volume)."
+      }
     },
     {
       "id": 17,
@@ -800,7 +796,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 36
+        "y": 28
       },
       "collapsed": false,
       "panels": [
@@ -809,18 +805,18 @@
     },
     {
       "id": 18,
-      "title": "Events received/s by kind",
+      "title": "By kind · received/s",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 37
+        "y": 29
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (component_kind) (rate(vector_component_received_events_total[5m]))",
+          "expr": "sum by (component_kind)(rate(vector_component_received_events_total[5m])) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
@@ -830,7 +826,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "eps",
+          "unit": "cps",
           "custom": {
             "fillOpacity": 12,
             "gradientMode": "opacity",
@@ -859,23 +855,22 @@
             "mean"
           ]
         }
-      },
-      "description": "sum by(component_kind)(rate(vector_component_received_events_total[5m])). source = raw ingest, transform = remap throughput, sink = handed to each sink."
+      }
     },
     {
       "id": 19,
-      "title": "Events sent/s by kind",
+      "title": "By kind · sent/s",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 37
+        "y": 29
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (component_kind) (rate(vector_component_sent_events_total[5m]))",
+          "expr": "sum by (component_kind)(rate(vector_component_sent_events_total[5m])) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
@@ -885,7 +880,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "eps",
+          "unit": "cps",
           "custom": {
             "fillOpacity": 12,
             "gradientMode": "opacity",
@@ -914,8 +909,7 @@
             "mean"
           ]
         }
-      },
-      "description": "sum by(component_kind)(rate(vector_component_sent_events_total[5m])). sink sent/s is the pipeline's real egress (events landed in VictoriaLogs + the prometheus exporter)."
+      }
     },
     {
       "id": 20,
@@ -925,7 +919,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 45
+        "y": 37
       },
       "collapsed": false,
       "panels": [
@@ -940,12 +934,12 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 46
+        "y": 38
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (component_id) (rate(vector_component_errors_total[5m]))",
+          "expr": "sum by (component_id)(rate(vector_component_errors_total[5m])) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
@@ -984,8 +978,7 @@
             "mean"
           ]
         }
-      },
-      "description": "sum by(component_id)(rate(vector_component_errors_total[5m])). ABSENT until the first error fires (none on rio yet) — no-data = \"none yet\", not broken. Populates on the first error."
+      }
     },
     {
       "id": 22,
@@ -995,12 +988,12 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 46
+        "y": 38
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (component_id) (rate(vector_component_discarded_events_total[5m]))",
+          "expr": "sum by (component_id)(rate(vector_component_discarded_events_total[5m])) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
@@ -1039,8 +1032,7 @@
             "mean"
           ]
         }
-      },
-      "description": "sum by(component_id)(rate(vector_component_discarded_events_total[5m])) — events Vector dropped (over-capacity buffer, parse failure). ABSENT until the first discard (none on rio yet); any series here is data loss."
+      }
     },
     {
       "id": 23,
@@ -1050,12 +1042,12 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 54
+        "y": 46
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (status) (rate(vector_http_client_responses_total{status=~\"4..|5..\"}[5m]))",
+          "expr": "sum by (status)(rate(vector_http_client_responses_total{status=~\"4..|5..\"}[5m])) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
@@ -1094,8 +1086,7 @@
             "mean"
           ]
         }
-      },
-      "description": "sum by(status)(rate(vector_http_client_responses_total{status=~\"4..|5..\"}[5m])) — failed sends from the HTTP sinks (the VictoriaLogs forwarder). vector_http_client_responses_total carries a `status` label."
+      }
     },
     {
       "id": 24,
@@ -1105,7 +1096,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 62
+        "y": 54
       },
       "collapsed": false,
       "panels": [
@@ -1120,7 +1111,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 63
+        "y": 55
       },
       "targets": [
         {
@@ -1171,68 +1162,13 @@
     },
     {
       "id": 26,
-      "title": "Buffered events by sink",
+      "title": "Components · utilization",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 63
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "max by (component_id) (vector_buffer_events)",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "vm"
-          },
-          "legendFormat": "{{component_id}}"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "custom": {
-            "fillOpacity": 12,
-            "gradientMode": "opacity",
-            "lineWidth": 2,
-            "showPoints": "never",
-            "lineInterpolation": "linear",
-            "pointSize": 5,
-            "axisBorderShow": false
-          }
-        },
-        "overrides": [
-
-        ]
-      },
-      "options": {
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "lastNotNull",
-            "max",
-            "mean"
-          ]
-        }
-      },
-      "description": "max by(component_id)(vector_buffer_events) — events currently queued in each sink buffer. A growing queue is the leading indicator of a slow/backpressured sink."
-    },
-    {
-      "id": 27,
-      "title": "Component utilization % by component",
-      "type": "timeseries",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 71
+        "y": 55
       },
       "targets": [
         {
@@ -1241,8 +1177,7 @@
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
-          },
-          "legendFormat": "{{component_id}}"
+          }
         }
       ],
       "fieldConfig": {
@@ -1258,6 +1193,23 @@
             "lineInterpolation": "linear",
             "pointSize": 5,
             "axisBorderShow": false
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 85.0
+              },
+              {
+                "color": "red",
+                "value": 95.0
+              }
+            ]
           }
         },
         "overrides": [
@@ -1278,8 +1230,61 @@
             "mean"
           ]
         }
+      }
+    },
+    {
+      "id": 27,
+      "title": "Components · saturation",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 63
       },
-      "description": "100 * vector_utilization per component_id (0..1 → 0..100%). High = that stage is saturated and applying back-pressure; the highest line is the pipeline bottleneck."
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (component_id) (vector_buffer_events)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0.0,
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
     },
     {
       "id": 28,
@@ -1289,7 +1294,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 79
+        "y": 71
       },
       "collapsed": false,
       "panels": [
@@ -1304,7 +1309,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 80
+        "y": 72
       },
       "targets": [
         {
@@ -1368,7 +1373,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 80
+        "y": 72
       },
       "targets": [
         {
@@ -1432,7 +1437,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 88
+        "y": 80
       },
       "targets": [
         {
@@ -1487,7 +1492,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 88
+        "y": 80
       },
       "targets": [
         {

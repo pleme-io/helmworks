@@ -574,18 +574,18 @@
     },
     {
       "id": 13,
-      "title": "Bands enrolled",
+      "title": "Bands (enrolled)",
       "type": "stat",
       "gridPos": {
         "h": 4,
-        "w": 6,
+        "w": 8,
         "x": 0,
         "y": 20
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "count(breathe_band_dry_run)",
+          "expr": "count(breathe_band_dry_run) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
@@ -594,48 +594,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-        },
-        "overrides": [
-
-        ]
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "auto",
-        "justifyMode": "auto",
-        "wideLayout": true,
-        "colorMode": "value",
-        "graphMode": "area"
-      }
-    },
-    {
-      "id": 14,
-      "title": "Live bands (carving)",
-      "type": "stat",
-      "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 6,
-        "y": 20
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "count(breathe_band_dry_run == 0)",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "vm"
-          }
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
+          "unit": "short",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -663,22 +622,23 @@
         "wideLayout": true,
         "colorMode": "value",
         "graphMode": "area"
-      }
+      },
+      "description": "Entities enrolled in the shadow/live controller."
     },
     {
-      "id": 15,
-      "title": "Shadow bands (observing)",
+      "id": 14,
+      "title": "Live",
       "type": "stat",
       "gridPos": {
         "h": 4,
-        "w": 6,
-        "x": 12,
+        "w": 8,
+        "x": 8,
         "y": 20
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "count(breathe_band_dry_run == 1)",
+          "expr": "count(breathe_band_dry_run == 0) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
@@ -687,6 +647,60 @@
       ],
       "fieldConfig": {
         "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "description": "Entities the controller is acting on (dry_run = 0)."
+    },
+    {
+      "id": 15,
+      "title": "Shadow",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 16,
+        "y": 20
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(breathe_band_dry_run == 1) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -714,7 +728,8 @@
         "wideLayout": true,
         "colorMode": "value",
         "graphMode": "area"
-      }
+      },
+      "description": "Entities the controller is only observing (dry_run = 1)."
     },
     {
       "id": 16,
@@ -729,7 +744,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(rate(breathe_reconciles_total[5m]))",
+          "expr": "sum(rate(breathe_reconciles_total[5m])) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
@@ -772,18 +787,18 @@
     },
     {
       "id": 17,
-      "title": "Controller",
+      "title": "breathe up",
       "type": "stat",
       "gridPos": {
         "h": 4,
-        "w": 6,
+        "w": 8,
         "x": 12,
         "y": 24
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "max by (version) (breathe_build_info{binary=\"breathe-controller\"})",
+          "expr": "max by (version)(breathe_build_info{binary=\"breathe-controller\"})",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
@@ -793,6 +808,7 @@
       ],
       "fieldConfig": {
         "defaults": {
+          "unit": "short",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -822,9 +838,10 @@
         "textMode": "auto",
         "justifyMode": "auto",
         "wideLayout": true,
-        "colorMode": "value",
+        "colorMode": "background",
         "graphMode": "area"
-      }
+      },
+      "description": "breathe liveness: max by(version) of breathe_build_info. A green 1 = the controller is exporting (alive); the value carries the running build. Red 0/absent = the controller is down."
     },
     {
       "id": 18,
@@ -1031,7 +1048,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (dir) (rate(breathe_carves_total[10m]))",
+          "expr": "sum by (dir)(rate(breathe_carves_total[10m])) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
@@ -1085,7 +1102,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (class) (rate(breathe_carves_total[10m]))",
+          "expr": "sum by (class)(rate(breathe_carves_total[10m])) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
@@ -1139,7 +1156,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (class) (rate(breathe_deferred_total[10m]))",
+          "expr": "sum by (class)(rate(breathe_deferred_total[10m])) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
@@ -1222,6 +1239,7 @@
       "fieldConfig": {
         "defaults": {
           "unit": "bytes",
+          "min": 0.0,
           "custom": {
             "fillOpacity": 12,
             "gradientMode": "opacity",
@@ -1280,7 +1298,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (namespace, name) (rate(breathe_conflicts_total[10m]))",
+          "expr": "sum by (namespace, name)(rate(breathe_conflicts_total[10m])) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"

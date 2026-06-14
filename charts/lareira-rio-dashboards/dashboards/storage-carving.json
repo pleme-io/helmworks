@@ -1159,21 +1159,23 @@
             "type": "prometheus",
             "uid": "vm"
           },
-          "legendFormat": "util {{exported_namespace}}/{{name}}"
+          "legendFormat": "{{exported_namespace}}/{{name}}"
         },
         {
           "refId": "B",
-          "expr": "100 * breathe_band_setpoint_ratio{dim=\"storage\"}",
+          "expr": "avg(breathe_band_setpoint_ratio{dim=\"storage\"})",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
           },
-          "legendFormat": "setpoint×100 {{exported_namespace}}/{{name}}"
+          "legendFormat": "setpoint"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "percent",
+          "min": 0.0,
+          "max": 100.0,
           "custom": {
             "fillOpacity": 12,
             "gradientMode": "opacity",
@@ -1202,8 +1204,7 @@
             "mean"
           ]
         }
-      },
-      "description": "breathe_band_util_ratio{dim=\"storage\"} (the whole-node-fs ratio, reported 0-100) against setpoint_ratio (0-1). The scale mismatch + the shared util ARE the unrepresentable state. nats-jetstream has no util line at all."
+      }
     },
     {
       "id": 29,
@@ -1247,6 +1248,7 @@
       "fieldConfig": {
         "defaults": {
           "unit": "bytes",
+          "min": 0.0,
           "custom": {
             "fillOpacity": 12,
             "gradientMode": "opacity",
@@ -1275,8 +1277,7 @@
             "mean"
           ]
         }
-      },
-      "description": "breathe_band_current_limit{dim=\"storage\"} between floor and ceiling. On local-path the limit never moves (no per-volume util to carve against), so the line sits flat between its bounds."
+      }
     },
     {
       "id": 30,

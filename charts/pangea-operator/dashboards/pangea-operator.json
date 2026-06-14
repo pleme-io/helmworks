@@ -585,7 +585,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (controller, result) (rate(pangea_controller_reconciliations_total[5m]))",
+          "expr": "sum by (controller, result)(rate(pangea_controller_reconciliations_total[5m])) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
@@ -681,7 +681,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.95, sum by (phase, le) (rate(pangea_reconciliation_duration_seconds_bucket[5m])))",
+          "expr": "histogram_quantile(0.95, sum by (phase, le)(rate(pangea_reconciliation_duration_seconds_bucket[5m])))",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
@@ -692,6 +692,7 @@
       "fieldConfig": {
         "defaults": {
           "unit": "s",
+          "min": 0.0,
           "custom": {
             "fillOpacity": 12,
             "gradientMode": "opacity",
@@ -743,14 +744,14 @@
       "type": "timeseries",
       "gridPos": {
         "h": 8,
-        "w": 12,
+        "w": 16,
         "x": 0,
         "y": 37
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (phase) (pangea_templates_by_phase)",
+          "expr": "sum by (phase)(pangea_templates_by_phase)",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
@@ -761,18 +762,12 @@
       "fieldConfig": {
         "defaults": {
           "custom": {
-            "fillOpacity": 12,
-            "gradientMode": "opacity",
-            "lineWidth": 2,
-            "showPoints": "never",
-            "lineInterpolation": "linear",
-            "pointSize": 5,
-            "axisBorderShow": false
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
           }
-        },
-        "overrides": [
-
-        ]
+        }
       },
       "options": {
         "tooltip": {
@@ -796,8 +791,8 @@
       "type": "stat",
       "gridPos": {
         "h": 4,
-        "w": 6,
-        "x": 12,
+        "w": 8,
+        "x": 16,
         "y": 37
       },
       "targets": [
@@ -812,6 +807,7 @@
       ],
       "fieldConfig": {
         "defaults": {
+          "unit": "short",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -841,9 +837,10 @@
         "textMode": "auto",
         "justifyMode": "auto",
         "wideLayout": true,
-        "colorMode": "value",
+        "colorMode": "background",
         "graphMode": "area"
-      }
+      },
+      "description": "Entities that reached the good terminal phase. Green = converged."
     },
     {
       "id": 19,
@@ -852,8 +849,8 @@
       "gridPos": {
         "h": 4,
         "w": 6,
-        "x": 18,
-        "y": 37
+        "x": 0,
+        "y": 45
       },
       "targets": [
         {
@@ -908,7 +905,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 45
+        "y": 49
       },
       "collapsed": false,
       "panels": [
@@ -923,12 +920,12 @@
         "h": 9,
         "w": 24,
         "x": 0,
-        "y": 46
+        "y": 50
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (template, target_namespace) (pangea_magma_resources_failed) > 0",
+          "expr": "sum by (template, target_namespace)(pangea_magma_resources_failed) > 0",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
@@ -957,7 +954,8 @@
         ]
       },
       "options": {
-      }
+      },
+      "description": "Each row is a resource currently failing. Empty = all healthy."
     },
     {
       "id": 22,
@@ -967,7 +965,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 55
+        "y": 59
       },
       "targets": [
         {
@@ -1020,12 +1018,12 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 55
+        "y": 59
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (template) (rate(pangea_magma_apply_total{phase=\"Failed\"}[5m]))",
+          "expr": "sum by (template)(rate(pangea_magma_apply_total{phase=\"Failed\"}[5m])) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
@@ -1074,12 +1072,12 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 63
+        "y": 67
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (template) (rate(pangea_magma_failed_changes_total[5m])) or vector(0)",
+          "expr": "sum by (template)(rate(pangea_magma_failed_changes_total[5m])) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
@@ -1128,7 +1126,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 71
+        "y": 75
       },
       "collapsed": false,
       "panels": [
@@ -1143,16 +1141,17 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 72
+        "y": 76
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "rate(pangea_drift_detected_total[5m])",
+          "expr": "sum(rate(pangea_drift_detected_total[5m])) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
-          }
+          },
+          "legendFormat": "drift/s"
         }
       ],
       "fieldConfig": {
@@ -1196,12 +1195,12 @@
         "h": 9,
         "w": 24,
         "x": 0,
-        "y": 80
+        "y": 84
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (template, action, risk) (pangea_template_drift_detail) > 0",
+          "expr": "sum by (template, action, risk)(pangea_template_drift_detail) > 0",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
@@ -1211,13 +1210,27 @@
       ],
       "fieldConfig": {
         "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1.0
+              }
+            ]
+          }
         },
         "overrides": [
 
         ]
       },
       "options": {
-      }
+      },
+      "description": "Each row is a resource currently failing. Empty = all healthy."
     },
     {
       "id": 28,
@@ -1227,7 +1240,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 89
+        "y": 93
       },
       "collapsed": false,
       "panels": [
@@ -1242,12 +1255,12 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 90
+        "y": 94
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (target_namespace, name) (rate(pangea_compile_failures_total[5m])) or vector(0)",
+          "expr": "sum by (target_namespace, name)(rate(pangea_compile_failures_total[5m])) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
@@ -1296,7 +1309,7 @@
         "h": 4,
         "w": 6,
         "x": 12,
-        "y": 90
+        "y": 94
       },
       "targets": [
         {
@@ -1355,7 +1368,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 98
+        "y": 102
       },
       "targets": [
         {
@@ -1408,12 +1421,12 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 98
+        "y": 102
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (action) (rate(pangea_escalation_actions_total[5m])) or vector(0)",
+          "expr": "sum by (action)(rate(pangea_escalation_actions_total[5m])) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
@@ -1462,12 +1475,12 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 106
+        "y": 110
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (reason) (rate(pangea_settling_failures_total[5m])) or vector(0)",
+          "expr": "sum by (reason)(rate(pangea_settling_failures_total[5m])) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
@@ -1516,7 +1529,7 @@
         "h": 4,
         "w": 6,
         "x": 12,
-        "y": 106
+        "y": 110
       },
       "targets": [
         {
@@ -1575,7 +1588,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 114
+        "y": 118
       },
       "collapsed": false,
       "panels": [
@@ -1590,7 +1603,7 @@
         "h": 9,
         "w": 24,
         "x": 0,
-        "y": 115
+        "y": 119
       },
       "targets": [
         {
@@ -1622,7 +1635,7 @@
         "h": 9,
         "w": 24,
         "x": 0,
-        "y": 124
+        "y": 128
       },
       "targets": [
         {
@@ -1654,7 +1667,7 @@
         "h": 4,
         "w": 6,
         "x": 0,
-        "y": 133
+        "y": 137
       },
       "targets": [
         {

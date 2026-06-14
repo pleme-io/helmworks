@@ -560,7 +560,7 @@
     {
       "id": 12,
       "type": "row",
-      "title": "Ingestion",
+      "title": "Pipeline RED — rates & errors",
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -574,13 +574,601 @@
     },
     {
       "id": 13,
-      "title": "Rows inserted /s",
+      "title": "Scrape rate /s",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
         "y": 20
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(vm_promscrape_scrapes_total[5m])) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "scrapes"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 14,
+      "title": "Failed scrapes /s",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 20
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(vm_promscrape_scrapes_failed_total[5m])) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "failed"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 15,
+      "title": "Remote-write blocks sent /s",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 28
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(vmagent_remotewrite_blocks_sent_total[5m])) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "blocks sent"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 16,
+      "title": "Remote-write errors /s",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 28
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(vmagent_remotewrite_errors_total[5m])) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "errors"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 17,
+      "title": "Rules evaluated /s",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 36
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(vmalert_execution_total[5m])) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "evaluated"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 18,
+      "title": "Rule execution errors /s",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 36
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(vmalert_execution_errors_total[5m])) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "errors"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 19,
+      "title": "Rows rejected at insert /s",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 44
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(vm_rows_ignored_total[5m])) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "rejected"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 20,
+      "type": "row",
+      "title": "vmagent send path",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 52
+      },
+      "collapsed": false,
+      "panels": [
+
+      ]
+    },
+    {
+      "id": 21,
+      "title": "Remote-write · utilization",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 53
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * sum(rate(vmagent_remotewrite_errors_total[5m])) / clamp_min(sum(rate(vmagent_remotewrite_blocks_sent_total[5m])), 1)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0.0,
+          "max": 100.0,
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1.0
+              },
+              {
+                "color": "red",
+                "value": 5.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 22,
+      "title": "Remote-write · saturation",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 53
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(vmagent_remotewrite_pending_data_bytes)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "min": 0.0,
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 23,
+      "title": "Remote-write · errors",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 53
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(vmagent_remotewrite_errors_total[5m])) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0.0,
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 24,
+      "type": "row",
+      "title": "Ingestion",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 61
+      },
+      "collapsed": false,
+      "panels": [
+
+      ]
+    },
+    {
+      "id": 25,
+      "title": "Rows inserted /s",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 62
       },
       "targets": [
         {
@@ -636,14 +1224,14 @@
       }
     },
     {
-      "id": 14,
+      "id": 26,
       "title": "Active time series",
       "type": "stat",
       "gridPos": {
         "h": 4,
         "w": 6,
         "x": 12,
-        "y": 20
+        "y": 62
       },
       "targets": [
         {
@@ -679,14 +1267,14 @@
       }
     },
     {
-      "id": 15,
+      "id": 27,
       "title": "Scrape targets up",
       "type": "stat",
       "gridPos": {
         "h": 4,
         "w": 6,
         "x": 18,
-        "y": 20
+        "y": 62
       },
       "targets": [
         {
@@ -722,14 +1310,14 @@
       }
     },
     {
-      "id": 16,
+      "id": 28,
       "title": "Scrape duration p99",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 28
+        "y": 70
       },
       "targets": [
         {
@@ -785,14 +1373,14 @@
       }
     },
     {
-      "id": 17,
+      "id": 29,
       "type": "row",
       "title": "Storage",
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 36
+        "y": 78
       },
       "collapsed": false,
       "panels": [
@@ -800,57 +1388,14 @@
       ]
     },
     {
-      "id": 18,
-      "title": "Data size on disk",
-      "type": "stat",
-      "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 0,
-        "y": 37
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum(vm_data_size_bytes)",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "vm"
-          }
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "bytes"
-        },
-        "overrides": [
-
-        ]
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "auto",
-        "justifyMode": "auto",
-        "wideLayout": true,
-        "colorMode": "value",
-        "graphMode": "area"
-      }
-    },
-    {
-      "id": 19,
+      "id": 30,
       "title": "Free disk space",
       "type": "stat",
       "gridPos": {
         "h": 4,
         "w": 6,
-        "x": 6,
-        "y": 37
+        "x": 0,
+        "y": 79
       },
       "targets": [
         {
@@ -898,19 +1443,62 @@
         "textMode": "auto",
         "justifyMode": "auto",
         "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "area"
+      }
+    },
+    {
+      "id": 31,
+      "title": "Data size on disk",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 79
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(vm_data_size_bytes)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
         "colorMode": "value",
         "graphMode": "area"
       }
     },
     {
-      "id": 20,
+      "id": 32,
       "title": "Rows on disk (storage / index)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 37
+        "y": 79
       },
       "targets": [
         {
@@ -966,14 +1554,14 @@
       }
     },
     {
-      "id": 21,
+      "id": 33,
       "title": "Merge / dedup rate /s",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 45
+        "y": 87
       },
       "targets": [
         {
@@ -1029,254 +1617,14 @@
       }
     },
     {
-      "id": 22,
-      "type": "row",
-      "title": "vmagent",
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 53
-      },
-      "collapsed": false,
-      "panels": [
-
-      ]
-    },
-    {
-      "id": 23,
-      "title": "Scrape rate /s",
-      "type": "timeseries",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 54
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum(rate(vm_promscrape_scrapes_total[5m]))",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "vm"
-          },
-          "legendFormat": "scrapes"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "reqps",
-          "custom": {
-            "fillOpacity": 12,
-            "gradientMode": "opacity",
-            "lineWidth": 2,
-            "showPoints": "never",
-            "lineInterpolation": "linear",
-            "pointSize": 5,
-            "axisBorderShow": false
-          }
-        },
-        "overrides": [
-
-        ]
-      },
-      "options": {
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "lastNotNull",
-            "max",
-            "mean"
-          ]
-        }
-      }
-    },
-    {
-      "id": 24,
-      "title": "Failed scrapes /s",
-      "type": "timeseries",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 54
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum(rate(vm_promscrape_scrapes_failed_total[5m]))",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "vm"
-          },
-          "legendFormat": "failed"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "reqps",
-          "custom": {
-            "fillOpacity": 12,
-            "gradientMode": "opacity",
-            "lineWidth": 2,
-            "showPoints": "never",
-            "lineInterpolation": "linear",
-            "pointSize": 5,
-            "axisBorderShow": false
-          }
-        },
-        "overrides": [
-
-        ]
-      },
-      "options": {
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "lastNotNull",
-            "max",
-            "mean"
-          ]
-        }
-      }
-    },
-    {
-      "id": 25,
-      "title": "Remote-write rate /s (blocks sent / errors)",
-      "type": "timeseries",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 62
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum(rate(vmagent_remotewrite_blocks_sent_total[5m]))",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "vm"
-          },
-          "legendFormat": "blocks sent"
-        },
-        {
-          "refId": "B",
-          "expr": "sum(rate(vmagent_remotewrite_errors_total[5m]))",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "vm"
-          },
-          "legendFormat": "errors"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "reqps",
-          "custom": {
-            "fillOpacity": 12,
-            "gradientMode": "opacity",
-            "lineWidth": 2,
-            "showPoints": "never",
-            "lineInterpolation": "linear",
-            "pointSize": 5,
-            "axisBorderShow": false
-          }
-        },
-        "overrides": [
-
-        ]
-      },
-      "options": {
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "lastNotNull",
-            "max",
-            "mean"
-          ]
-        }
-      }
-    },
-    {
-      "id": 26,
-      "title": "Pending remote-write bytes",
-      "type": "timeseries",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 62
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum(vmagent_remotewrite_pending_data_bytes)",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "vm"
-          },
-          "legendFormat": "pending"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "bytes",
-          "custom": {
-            "fillOpacity": 12,
-            "gradientMode": "opacity",
-            "lineWidth": 2,
-            "showPoints": "never",
-            "lineInterpolation": "linear",
-            "pointSize": 5,
-            "axisBorderShow": false
-          }
-        },
-        "overrides": [
-
-        ]
-      },
-      "options": {
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "lastNotNull",
-            "max",
-            "mean"
-          ]
-        }
-      }
-    },
-    {
-      "id": 27,
+      "id": 34,
       "type": "row",
       "title": "vmalert",
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 70
+        "y": 95
       },
       "collapsed": false,
       "panels": [
@@ -1284,122 +1632,14 @@
       ]
     },
     {
-      "id": 28,
-      "title": "Rules evaluated /s",
-      "type": "timeseries",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 71
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum(rate(vmalert_execution_total[5m]))",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "vm"
-          },
-          "legendFormat": "evaluated"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "reqps",
-          "custom": {
-            "fillOpacity": 12,
-            "gradientMode": "opacity",
-            "lineWidth": 2,
-            "showPoints": "never",
-            "lineInterpolation": "linear",
-            "pointSize": 5,
-            "axisBorderShow": false
-          }
-        },
-        "overrides": [
-
-        ]
-      },
-      "options": {
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "lastNotNull",
-            "max",
-            "mean"
-          ]
-        }
-      }
-    },
-    {
-      "id": 29,
-      "title": "Execution errors /s",
-      "type": "timeseries",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 71
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum(rate(vmalert_execution_errors_total[5m]))",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "vm"
-          },
-          "legendFormat": "errors"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "reqps",
-          "custom": {
-            "fillOpacity": 12,
-            "gradientMode": "opacity",
-            "lineWidth": 2,
-            "showPoints": "never",
-            "lineInterpolation": "linear",
-            "pointSize": 5,
-            "axisBorderShow": false
-          }
-        },
-        "overrides": [
-
-        ]
-      },
-      "options": {
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "lastNotNull",
-            "max",
-            "mean"
-          ]
-        }
-      }
-    },
-    {
-      "id": 30,
+      "id": 35,
       "title": "Alerts firing / pending",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 79
+        "y": 96
       },
       "targets": [
         {

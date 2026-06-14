@@ -951,7 +951,7 @@
     {
       "id": 20,
       "type": "row",
-      "title": "Replication & WAL",
+      "title": "Replication health",
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -965,13 +965,217 @@
     },
     {
       "id": 21,
-      "title": "Replication lag (s by pod)",
+      "title": "Replication · lag",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
         "y": 55
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(cnpg_pg_replication_lag{cnpg_pg_replication_in_recovery=\"1\"})",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "lag"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0.0,
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 5.0
+              },
+              {
+                "color": "red",
+                "value": 30.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      },
+      "description": "Standby replication lag in seconds. Amber/red as it crosses the warn/crit thresholds."
+    },
+    {
+      "id": 22,
+      "title": "Replication · streaming replicas",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 12,
+        "y": 55
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(cnpg_pg_replication_streaming_replicas)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "description": "Standbys actively streaming WAL. Red when none are streaming."
+    },
+    {
+      "id": 23,
+      "title": "Replication · cache hit",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 0,
+        "y": 63
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * (sum(cnpg_pg_stat_database_blks_hit) / (sum(cnpg_pg_stat_database_blks_hit) + sum(cnpg_pg_stat_database_blks_read)))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0.0,
+          "max": 100.0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 99.0
+              }
+            ]
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "description": "Buffer-cache hit ratio. Red when the working set spills to disk."
+    },
+    {
+      "id": 24,
+      "type": "row",
+      "title": "WAL",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 67
+      },
+      "collapsed": false,
+      "panels": [
+
+      ]
+    },
+    {
+      "id": 25,
+      "title": "Replication lag (s by pod)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 68
       },
       "targets": [
         {
@@ -1019,14 +1223,14 @@
       }
     },
     {
-      "id": 22,
-      "title": "Streaming replicas (primary view)",
+      "id": 26,
+      "title": "Streaming replicas (primary view by pod)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 55
+        "y": 68
       },
       "targets": [
         {
@@ -1074,14 +1278,14 @@
       }
     },
     {
-      "id": 23,
+      "id": 27,
       "title": "WAL bytes/s + archive backlog",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 63
+        "y": 76
       },
       "targets": [
         {
@@ -1137,14 +1341,14 @@
       }
     },
     {
-      "id": 24,
+      "id": 28,
       "type": "row",
       "title": "Storage & cache",
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 71
+        "y": 84
       },
       "collapsed": false,
       "panels": [
@@ -1152,14 +1356,14 @@
       ]
     },
     {
-      "id": 25,
+      "id": 29,
       "title": "Database size (bytes by db)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 72
+        "y": 85
       },
       "targets": [
         {
@@ -1206,14 +1410,14 @@
       }
     },
     {
-      "id": 26,
+      "id": 30,
       "title": "Cache hit ratio",
       "type": "stat",
       "gridPos": {
         "h": 4,
         "w": 6,
         "x": 12,
-        "y": 72
+        "y": 85
       },
       "targets": [
         {
@@ -1266,14 +1470,14 @@
       }
     },
     {
-      "id": 27,
+      "id": 31,
       "title": "Checkpoints/s (timed vs requested)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 80
+        "y": 93
       },
       "targets": [
         {

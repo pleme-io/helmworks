@@ -578,14 +578,14 @@
       "type": "timeseries",
       "gridPos": {
         "h": 8,
-        "w": 12,
+        "w": 24,
         "x": 0,
         "y": 20
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (phase) (kube_pod_status_phase)",
+          "expr": "sum by (phase)(kube_pod_status_phase)",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
@@ -595,21 +595,13 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
-          "min": 0.0,
           "custom": {
-            "fillOpacity": 12,
-            "gradientMode": "opacity",
-            "lineWidth": 2,
-            "showPoints": "never",
-            "lineInterpolation": "linear",
-            "pointSize": 5,
-            "axisBorderShow": false
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
           }
-        },
-        "overrides": [
-
-        ]
+        }
       },
       "options": {
         "tooltip": {
@@ -634,8 +626,8 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
-        "y": 20
+        "x": 0,
+        "y": 28
       },
       "targets": [
         {
@@ -693,60 +685,6 @@
     },
     {
       "id": 15,
-      "title": "Container restarts /s (by namespace)",
-      "type": "timeseries",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 28
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum by (namespace) (rate(kube_pod_container_status_restarts_total[5m]))",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "vm"
-          },
-          "legendFormat": "{{namespace}}"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "cps",
-          "custom": {
-            "fillOpacity": 12,
-            "gradientMode": "opacity",
-            "lineWidth": 2,
-            "showPoints": "never",
-            "lineInterpolation": "linear",
-            "pointSize": 5,
-            "axisBorderShow": false
-          }
-        },
-        "overrides": [
-
-        ]
-      },
-      "options": {
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "lastNotNull",
-            "max",
-            "mean"
-          ]
-        }
-      }
-    },
-    {
-      "id": 16,
       "title": "Top restarting pods (5m)",
       "type": "table",
       "gridPos": {
@@ -758,18 +696,16 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "topk(10, sum by (namespace, pod) (increase(kube_pod_container_status_restarts_total[5m])))",
+          "expr": "topk(10, sum by (namespace, pod)(increase(kube_pod_container_status_restarts_total[5m])))",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
           },
-          "legendFormat": "{{namespace}}/{{pod}}",
           "instant": true
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "short"
         },
         "overrides": [
 
@@ -779,9 +715,9 @@
       }
     },
     {
-      "id": 17,
+      "id": 16,
       "type": "row",
-      "title": "Namespaces",
+      "title": "By namespace",
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -794,19 +730,19 @@
       ]
     },
     {
-      "id": 18,
-      "title": "Pods per namespace",
+      "id": 17,
+      "title": "By namespace · CPU (cores)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
-        "w": 12,
+        "w": 8,
         "x": 0,
         "y": 46
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (namespace) (kube_pod_info)",
+          "expr": "sum by (namespace)(rate(container_cpu_usage_seconds_total{metrics_path=\"/metrics/cadvisor\"}[5m])) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
@@ -849,19 +785,74 @@
       }
     },
     {
-      "id": 19,
-      "title": "CPU usage by namespace (cores)",
+      "id": 18,
+      "title": "By namespace · memory",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
-        "w": 12,
-        "x": 12,
+        "w": 8,
+        "x": 8,
         "y": 46
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (namespace) (rate(container_cpu_usage_seconds_total{container!=\"\",metrics_path=\"/metrics/cadvisor\"}[5m]))",
+          "expr": "sum by (namespace)(container_memory_working_set_bytes{metrics_path=\"/metrics/cadvisor\"})",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "{{namespace}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "min": 0.0,
+          "custom": {
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "lineInterpolation": "linear",
+            "pointSize": 5,
+            "axisBorderShow": false
+          }
+        },
+        "overrides": [
+
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 19,
+      "title": "By namespace · restarts",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 46
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (namespace)(rate(kube_pod_container_status_restarts_total[5m])) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
@@ -872,6 +863,7 @@
       "fieldConfig": {
         "defaults": {
           "unit": "short",
+          "min": 0.0,
           "custom": {
             "fillOpacity": 12,
             "gradientMode": "opacity",
@@ -904,18 +896,18 @@
     },
     {
       "id": 20,
-      "title": "Memory working set by namespace",
+      "title": "By namespace · pod count",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
-        "w": 12,
+        "w": 8,
         "x": 0,
         "y": 54
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (namespace) (container_memory_working_set_bytes{container!=\"\",metrics_path=\"/metrics/cadvisor\"})",
+          "expr": "count by (namespace)(kube_pod_info)",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
@@ -925,7 +917,8 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "bytes",
+          "unit": "short",
+          "min": 0.0,
           "custom": {
             "fillOpacity": 12,
             "gradientMode": "opacity",
@@ -1224,18 +1217,18 @@
     },
     {
       "id": 27,
-      "title": "Request rate by verb",
+      "title": "apiserver · Rate",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
-        "w": 12,
+        "w": 8,
         "x": 0,
         "y": 80
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (verb) (rate(apiserver_request_total[5m]))",
+          "expr": "sum by (verb)(rate(apiserver_request_total[5m])) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
@@ -1278,28 +1271,38 @@
     },
     {
       "id": 28,
-      "title": "Request latency p99 by verb",
+      "title": "apiserver · Errors",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
-        "w": 12,
-        "x": 12,
+        "w": 8,
+        "x": 8,
         "y": 80
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.99, sum by (le, verb) (rate(apiserver_request_duration_seconds_bucket[5m])))",
+          "expr": "sum by (verb)(rate(apiserver_request_total{code=~\"5..\"}[5m])) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
           },
           "legendFormat": "{{verb}}"
+        },
+        {
+          "refId": "B",
+          "expr": "100 * sum(rate(apiserver_request_total{code=~\"5..\"}[5m])) / sum(rate(apiserver_request_total[5m])) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "error %"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "s",
+          "unit": "reqps",
+          "min": 0.0,
           "custom": {
             "fillOpacity": 12,
             "gradientMode": "opacity",
@@ -1332,28 +1335,38 @@
     },
     {
       "id": 29,
-      "title": "Error rate by code (4xx / 5xx)",
+      "title": "apiserver · Latency",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 88
+        "w": 8,
+        "x": 16,
+        "y": 80
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (code) (rate(apiserver_request_total{code=~\"[45]..\"}[5m]))",
+          "expr": "histogram_quantile(0.95, sum by (verb, le)(rate(apiserver_request_duration_seconds_bucket[5m])))",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
           },
-          "legendFormat": "{{code}}"
+          "legendFormat": "p95 {{verb}}"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.99, sum by (verb, le)(rate(apiserver_request_duration_seconds_bucket[5m])))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vm"
+          },
+          "legendFormat": "p99 {{verb}}"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "reqps",
+          "unit": "s",
+          "min": 0.0,
           "custom": {
             "fillOpacity": 12,
             "gradientMode": "opacity",
@@ -1392,7 +1405,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 96
+        "y": 88
       },
       "collapsed": false,
       "panels": [
@@ -1407,7 +1420,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 97
+        "y": 89
       },
       "targets": [
         {
@@ -1461,7 +1474,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 97
+        "y": 89
       },
       "targets": [
         {
@@ -1515,12 +1528,12 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 105
+        "y": 97
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.99, sum by (le) (rate(coredns_dns_request_duration_seconds_bucket[5m])))",
+          "expr": "histogram_quantile(0.99, sum by (le)(rate(coredns_dns_request_duration_seconds_bucket[5m])))",
           "datasource": {
             "type": "prometheus",
             "uid": "vm"
@@ -1531,6 +1544,7 @@
       "fieldConfig": {
         "defaults": {
           "unit": "s",
+          "min": 0.0,
           "custom": {
             "fillOpacity": 12,
             "gradientMode": "opacity",
