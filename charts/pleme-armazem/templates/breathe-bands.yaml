@@ -1,0 +1,108 @@
+{{- /*
+Breathability for armázem — the carving homeostasis that makes the gateway a
+fully breathable, infinitely-expandable S3 interface (theory/BREATHABILITY.md).
+
+  • MemoryBand / CpuBand hold the gateway pods in the 80/20 utilization band by
+    carving their resource limits (breathe is the sole writer when live).
+  • StorageBand (GrowOnly) grows the fs-backend PVC before it fills — the
+    "S3 store ran out of disk" outage becomes a non-event. This is what makes
+    the PVC-backed S3 endpoint *infinitely expandable*: breathe claims a bigger
+    slice of the node disk as the bucket grows, bounded by the ceiling.
+
+SHADOW-first by default (dryRun: true): observe + attest every tick, prove
+convergence, then promote to live (dryRun: false) per workload. Requires the
+breathe controller + CRDs (breathe.pleme.io/v1) and, for StorageBand,
+allowVolumeExpansion on the StorageClass.
+*/ -}}
+{{- if .Values.breathe.enabled }}
+{{- $fullname := include "pleme-lib.fullname" . }}
+{{- $ns := include "pleme-lib.namespace" . }}
+{{- if .Values.breathe.memory.enabled }}
+---
+apiVersion: breathe.pleme.io/v1
+kind: MemoryBand
+metadata:
+  name: {{ $fullname }}
+  namespace: {{ $ns }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+  annotations:
+    breathe.pleme.io/promotion: {{ .Values.breathe.memory.promotion | default "promote-candidate" }}
+spec:
+  targetRef:
+    kind: StatefulSet
+    name: {{ $fullname }}
+    apiVersion: apps/v1
+  setpoint: {{ .Values.breathe.memory.setpoint | default 0.80 }}
+  growAbove: {{ .Values.breathe.memory.growAbove | default 0.85 }}
+  shrinkBelow: {{ .Values.breathe.memory.shrinkBelow | default 0.70 }}
+  growFactor: {{ .Values.breathe.memory.growFactor | default 1.25 }}
+  shrinkFactor: {{ .Values.breathe.memory.shrinkFactor | default 0.90 }}
+  floor: {{ .Values.breathe.memory.floor | default "64Mi" | quote }}
+  ceiling: {{ .Values.breathe.memory.ceiling | default "512Mi" | quote }}
+  cooldownSeconds: {{ .Values.breathe.memory.cooldownSeconds | default 300 }}
+  maxStalenessSeconds: {{ .Values.breathe.memory.maxStalenessSeconds | default 120 }}
+  dryRun: {{ .Values.breathe.memory.dryRun }}
+  disruptionPolicy: {{ .Values.breathe.memory.disruptionPolicy | default "allowRestart" }}
+{{- end }}
+{{- if .Values.breathe.cpu.enabled }}
+---
+apiVersion: breathe.pleme.io/v1
+kind: CpuBand
+metadata:
+  name: {{ $fullname }}
+  namespace: {{ $ns }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+  annotations:
+    breathe.pleme.io/promotion: {{ .Values.breathe.cpu.promotion | default "promote-candidate" }}
+spec:
+  targetRef:
+    kind: StatefulSet
+    name: {{ $fullname }}
+    apiVersion: apps/v1
+  setpoint: {{ .Values.breathe.cpu.setpoint | default 0.80 }}
+  growAbove: {{ .Values.breathe.cpu.growAbove | default 0.85 }}
+  shrinkBelow: {{ .Values.breathe.cpu.shrinkBelow | default 0.70 }}
+  growFactor: {{ .Values.breathe.cpu.growFactor | default 1.25 }}
+  shrinkFactor: {{ .Values.breathe.cpu.shrinkFactor | default 0.90 }}
+  floor: {{ .Values.breathe.cpu.floor | default "25m" | quote }}
+  ceiling: {{ .Values.breathe.cpu.ceiling | default "2000m" | quote }}
+  cooldownSeconds: {{ .Values.breathe.cpu.cooldownSeconds | default 300 }}
+  maxStalenessSeconds: {{ .Values.breathe.cpu.maxStalenessSeconds | default 120 }}
+  dryRun: {{ .Values.breathe.cpu.dryRun }}
+  disruptionPolicy: {{ .Values.breathe.cpu.disruptionPolicy | default "allowRestart" }}
+{{- end }}
+{{- if and .Values.breathe.storage.enabled .Values.persistence.enabled }}
+---
+apiVersion: breathe.pleme.io/v1
+kind: StorageBand
+metadata:
+  name: {{ $fullname }}
+  namespace: {{ $ns }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+  annotations:
+    breathe.pleme.io/promotion: {{ .Values.breathe.storage.promotion | default "promote-candidate" }}
+spec:
+  # Target the StatefulSet's volumeClaimTemplate-backed PVC(s). GrowOnly: data
+  # persists, never shrinks — the PVC claims a bigger slice of the node disk as
+  # the S3 store fills. This is the "infinitely expandable" lever.
+  targetRef:
+    kind: StatefulSet
+    name: {{ $fullname }}
+    apiVersion: apps/v1
+  setpoint: {{ .Values.breathe.storage.setpoint | default 0.80 }}
+  growAbove: {{ .Values.breathe.storage.growAbove | default 0.85 }}
+  shrinkBelow: {{ .Values.breathe.storage.shrinkBelow | default 0.70 }}
+  growFactor: {{ .Values.breathe.storage.growFactor | default 1.25 }}
+  shrinkFactor: {{ .Values.breathe.storage.shrinkFactor | default 0.90 }}
+  floor: {{ .Values.breathe.storage.floor | default .Values.persistence.size | quote }}
+  ceiling: {{ .Values.breathe.storage.ceiling | default "500Gi" | quote }}
+  cooldownSeconds: {{ .Values.breathe.storage.cooldownSeconds | default 600 }}
+  maxStalenessSeconds: {{ .Values.breathe.storage.maxStalenessSeconds | default 300 }}
+  dryRun: {{ .Values.breathe.storage.dryRun }}
+  # Online CSI resize ⇒ no pod roll when the StorageClass supports expansion.
+  disruptionPolicy: {{ .Values.breathe.storage.disruptionPolicy | default "restartFreeOnly" }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,48 @@
+{{- if .Values.tests.enabled }}
+# `helm test` hook — exercises the full S3 lifecycle against the live gateway
+# Service: CreateBucket → PutObject → GetObject (verify bytes) → ListObjectsV2
+# → DeleteObject → GET 404. M0's data plane is anonymous on the cluster
+# network, so a plain curl drives the S3 verbs (no SigV4 needed). A non-zero
+# exit fails `helm test`, gating the release on a working gateway.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}-test-s3
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+    app.kubernetes.io/component: test
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  restartPolicy: Never
+  securityContext:
+    {{- include "pleme-lib.podSecurityContext" . | nindent 4 }}
+  containers:
+    - name: s3-lifecycle
+      image: {{ .Values.tests.image | quote }}
+      securityContext:
+        {{- include "pleme-lib.containerSecurityContext" . | nindent 8 }}
+      env:
+        - name: BASE
+          value: "http://{{ include "pleme-lib.fullname" . }}.{{ include "pleme-lib.namespace" . }}.svc:{{ .Values.services.s3.port }}"
+      command: ["/bin/sh", "-c"]
+      args:
+        - |
+          set -eu
+          B="$BASE/armazem-helm-test"
+          K="$B/probe/index.html"
+          BODY='<!doctype html><h1>armazem helm test</h1>'
+          echo "→ CreateBucket"; curl -fsS -X PUT "$B" -o /dev/null
+          echo "→ PutObject";    printf '%s' "$BODY" | curl -fsS -X PUT --data-binary @- "$K" -o /dev/null
+          echo "→ GetObject";    GOT="$(curl -fsS "$K")"
+          test "$GOT" = "$BODY" || { echo "FAIL: body mismatch: [$GOT]"; exit 1; }
+          echo "→ ListObjectsV2"; curl -fsS "$B?list-type=2&prefix=probe/" | grep -q 'probe/index.html' \
+            || { echo "FAIL: list did not contain the key"; exit 1; }
+          echo "→ DeleteObject"; curl -fsS -X DELETE "$K" -o /dev/null
+          echo "→ Get after delete should 404"
+          code="$(curl -s -o /dev/null -w '%{http_code}' "$K")"
+          test "$code" = "404" || { echo "FAIL: expected 404 after delete, got $code"; exit 1; }
+          echo "OK: full S3 lifecycle passed against the live gateway"
+{{- end }}

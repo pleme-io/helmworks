@@ -1,0 +1,27 @@
+armázem — the any-storage→S3 gateway — is installed.
+
+  Release:   {{ .Release.Name }}
+  Namespace: {{ include "pleme-lib.namespace" . }}
+  Backend:   {{ .Values.armazem.backend.type }} (root {{ .Values.armazem.backend.root }})
+  S3 API:    http://{{ include "pleme-lib.fullname" . }}.{{ include "pleme-lib.namespace" . }}.svc:{{ .Values.services.s3.port }}
+  Health:    http://{{ include "pleme-lib.fullname" . }}-health.{{ include "pleme-lib.namespace" . }}.svc:{{ .Values.services.health.port }}/health/ready
+
+Breathability:
+{{- if .Values.breathe.enabled }}
+  memory band:  {{ if .Values.breathe.memory.enabled }}{{ if .Values.breathe.memory.dryRun }}SHADOW{{ else }}LIVE{{ end }} [{{ .Values.breathe.memory.floor }}…{{ .Values.breathe.memory.ceiling }}]{{ else }}off{{ end }}
+  cpu band:     {{ if .Values.breathe.cpu.enabled }}{{ if .Values.breathe.cpu.dryRun }}SHADOW{{ else }}LIVE{{ end }} [{{ .Values.breathe.cpu.floor }}…{{ .Values.breathe.cpu.ceiling }}]{{ else }}off{{ end }}
+  storage band: {{ if .Values.breathe.storage.enabled }}{{ if .Values.breathe.storage.dryRun }}SHADOW{{ else }}LIVE{{ end }} GrowOnly → {{ .Values.breathe.storage.ceiling }} (infinitely-expandable lever){{ else }}off{{ end }}
+{{- else }}
+  disabled
+{{- end }}
+
+Verify it works:
+  helm test {{ .Release.Name }} -n {{ include "pleme-lib.namespace" . }}
+
+Point a consumer at it (e.g. hanabi's WebappS3Source.endpoint):
+  endpoint: http://{{ include "pleme-lib.fullname" . }}.{{ include "pleme-lib.namespace" . }}.svc:{{ .Values.services.s3.port }}
+
+Promote a breathe band from SHADOW to LIVE (let breathe own the limit/size):
+  set breathe.<memory|cpu|storage>.dryRun=false  +  cede that field from this chart's values.
+
+Doctrine: theory/ARMAZEM.md.

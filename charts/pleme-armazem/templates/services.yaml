@@ -1,0 +1,40 @@
+{{- if .Values.services.s3.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+    app.kubernetes.io/component: s3-api
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "pleme-lib.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: s3
+      port: {{ .Values.services.s3.port }}
+      targetPort: s3
+      protocol: TCP
+{{- end }}
+{{- if .Values.services.health.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}-health
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+    app.kubernetes.io/component: health
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "pleme-lib.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: health
+      port: {{ .Values.services.health.port }}
+      targetPort: health
+      protocol: TCP
+{{- end }}

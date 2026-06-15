@@ -1,0 +1,23 @@
+apiVersion: v2
+name: pleme-armazem
+description: |
+  armázem — the any-storage→S3 platform gateway. Puts the S3 API in front of
+  any Kubernetes storage backend (PVC/fs · node-disk · upstream-S3 ·
+  Postgres-blob · CAS) behind one StorageBackend trait. The storage substrate
+  of Pangea Cloud and the terminus of the Tela frontend SDLC. See
+  theory/ARMAZEM.md. Wraps the Rust gateway in pleme-io conventions:
+  pleme-lib templates, enforced security baseline, NetworkPolicy,
+  ServiceMonitor, dual-port (S3 + health), PVC-backed fs store.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - s3
+  - storage
+  - gateway
+  - rust
+  - pleme-io
+dependencies:
+  - name: pleme-lib
+    version: ">=0.27.0"
+    repository: "file://../pleme-lib"
