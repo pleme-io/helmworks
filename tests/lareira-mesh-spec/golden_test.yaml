@@ -1,0 +1,52 @@
+# Render goldens for lareira-mesh-spec.
+#
+# Full-document snapshots (helm-unittest `matchSnapshot`) of the rendered
+# output for the load-bearing value scenarios. The committed
+# `__snapshot__/golden_test.yaml.snap` IS the golden; re-rendering must
+# produce byte-identical output. A drift (template logic change, dep bump
+# that shifts a default) fails this suite — run `helm unittest -u` to
+# regenerate intentionally.
+#
+# Deterministic: the chart injects no timestamps / random values, so the
+# render is stable across runs.
+suite: lareira-mesh-spec render goldens
+release:
+  name: openclaw-mesh
+  namespace: mesh-system
+templates:
+  - templates/clusterspiffeids.yaml
+  - templates/configmaps.yaml
+  - templates/networkpolicy.yaml
+  - templates/rbac.yaml
+  - templates/serviceaccounts.yaml
+tests:
+  # ── default values (the rio openclaw mesh) ───────────────────────────────
+  - it: golden — default values render the full openclaw mesh
+    asserts:
+      - matchSnapshot: {}
+
+  # ── master toggle off → everything tears down in lockstep ────────────────
+  - it: golden — enabled=false renders an empty mesh
+    set:
+      enabled: false
+    asserts:
+      - matchSnapshot: {}
+
+  # ── NetworkPolicy disabled (mesh trust at SPIFFE-ID layer only) ──────────
+  - it: golden — networkPolicy.enabled=false drops the NetworkPolicies
+    set:
+      networkPolicy.enabled: false
+    asserts:
+      - matchSnapshot: {}
+
+  # ── minimal mesh: one home Servico, no cross-namespace participants ──────
+  - it: golden — minimal single-Servico mesh
+    set:
+      servicos:
+        - name: solo
+          serviceAccount: solo
+          podSelector:
+            app: solo
+      participants: []
+    asserts:
+      - matchSnapshot: {}

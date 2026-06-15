@@ -1,0 +1,133 @@
+suite: lareira-enxerto Service + ServiceAccount + Namespace
+# Fills the gap left by deployment / certificate / webhook suites: the
+# three small structural resources (webhook Service, ServiceAccount, and
+# the optional Namespace) the webhook deployment depends on. Asserts the
+# default render shape + every enable/create toggle.
+templates:
+  - templates/service.yaml
+  - templates/serviceaccount.yaml
+  - templates/namespace.yaml
+release:
+  namespace: mesh-system
+tests:
+  # ── Service ──────────────────────────────────────────────────────────
+  - it: renders a ClusterIP webhook Service in the mesh namespace
+    template: templates/service.yaml
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: enxerto
+      - equal:
+          path: metadata.namespace
+          value: mesh-system
+      - equal:
+          path: spec.type
+          value: ClusterIP
+
+  - it: Service exposes the webhook port targeting the webhook container port
+    template: templates/service.yaml
+    asserts:
+      - equal:
+          path: spec.ports[0].name
+          value: webhook
+      - equal:
+          path: spec.ports[0].port
+          value: 8443
+      - equal:
+          path: spec.ports[0].targetPort
+          value: webhook
+      - equal:
+          path: spec.ports[0].protocol
+          value: TCP
+
+  - it: Service port follows webhook.port override
+    template: templates/service.yaml
+    set:
+      webhook.port: 9443
+    asserts:
+      - equal:
+          path: spec.ports[0].port
+          value: 9443
+
+  - it: Service absent when the chart is disabled
+    template: templates/service.yaml
+    set:
+      enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # ── ServiceAccount ───────────────────────────────────────────────────
+  - it: renders the enxerto ServiceAccount by default
+    template: templates/serviceaccount.yaml
+    asserts:
+      - isKind:
+          of: ServiceAccount
+      - equal:
+          path: metadata.name
+          value: enxerto
+      - equal:
+          path: metadata.namespace
+          value: mesh-system
+
+  - it: ServiceAccount name follows serviceAccount.name override
+    template: templates/serviceaccount.yaml
+    set:
+      serviceAccount.name: enxerto-custom
+    asserts:
+      - equal:
+          path: metadata.name
+          value: enxerto-custom
+
+  - it: ServiceAccount absent when serviceAccount.create=false
+    template: templates/serviceaccount.yaml
+    set:
+      serviceAccount.create: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: ServiceAccount absent when the chart is disabled
+    template: templates/serviceaccount.yaml
+    set:
+      enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # ── Namespace ────────────────────────────────────────────────────────
+  - it: renders the mesh-system Namespace by default (create=true)
+    template: templates/namespace.yaml
+    asserts:
+      - isKind:
+          of: Namespace
+      - equal:
+          path: metadata.name
+          value: mesh-system
+
+  - it: Namespace name follows namespace.name override
+    template: templates/namespace.yaml
+    set:
+      namespace.name: mesh-staging
+    asserts:
+      - equal:
+          path: metadata.name
+          value: mesh-staging
+
+  - it: Namespace absent when namespace.create=false
+    template: templates/namespace.yaml
+    set:
+      namespace.create: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: Namespace absent when the chart is disabled
+    template: templates/namespace.yaml
+    set:
+      enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0

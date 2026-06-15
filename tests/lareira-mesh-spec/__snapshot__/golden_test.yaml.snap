@@ -1,0 +1,903 @@
+golden — default values render the full openclaw mesh:
+  1: |
+    apiVersion: spire.spiffe.io/v1alpha1
+    kind: ClusterSPIFFEID
+    metadata:
+      labels:
+        app: openclaw-mesh-lareira-mesh-spec
+        app.kubernetes.io/instance: openclaw-mesh
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-mesh-spec
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.3.0
+        helm.sh/chart: lareira-mesh-spec-0.3.1
+        mesh.pleme.io/spec: openclaw-mesh
+      name: openclaw-mesh-cartorio
+    spec:
+      className: spire-system-spire
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: openclaw
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/instance: openclaw-stack
+          app.kubernetes.io/name: cartorio
+      spiffeIDTemplate: spiffe://{{ .TrustDomain }}/ns/{{ .PodMeta.Namespace }}/sa/{{ .PodSpec.ServiceAccountName }}
+  2: |
+    apiVersion: spire.spiffe.io/v1alpha1
+    kind: ClusterSPIFFEID
+    metadata:
+      labels:
+        app: openclaw-mesh-lareira-mesh-spec
+        app.kubernetes.io/instance: openclaw-mesh
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-mesh-spec
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.3.0
+        helm.sh/chart: lareira-mesh-spec-0.3.1
+        mesh.pleme.io/spec: openclaw-mesh
+      name: openclaw-mesh-lacre
+    spec:
+      className: spire-system-spire
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: openclaw
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/instance: openclaw-stack
+          app.kubernetes.io/name: lacre
+      spiffeIDTemplate: spiffe://{{ .TrustDomain }}/ns/{{ .PodMeta.Namespace }}/sa/{{ .PodSpec.ServiceAccountName }}
+  3: |
+    apiVersion: spire.spiffe.io/v1alpha1
+    kind: ClusterSPIFFEID
+    metadata:
+      labels:
+        app: openclaw-mesh-lareira-mesh-spec
+        app.kubernetes.io/instance: openclaw-mesh
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-mesh-spec
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.3.0
+        helm.sh/chart: lareira-mesh-spec-0.3.1
+        mesh.pleme.io/spec: openclaw-mesh
+      name: openclaw-mesh-openclaw-publisher-pki
+    spec:
+      className: spire-system-spire
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: openclaw
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/instance: openclaw-stack
+          app.kubernetes.io/name: openclaw-publisher-pki
+      spiffeIDTemplate: spiffe://{{ .TrustDomain }}/ns/{{ .PodMeta.Namespace }}/sa/{{ .PodSpec.ServiceAccountName }}
+  4: |
+    apiVersion: spire.spiffe.io/v1alpha1
+    kind: ClusterSPIFFEID
+    metadata:
+      labels:
+        app: openclaw-mesh-lareira-mesh-spec
+        app.kubernetes.io/instance: openclaw-mesh
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-mesh-spec
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.3.0
+        helm.sh/chart: lareira-mesh-spec-0.3.1
+        mesh.pleme.io/spec: openclaw-mesh
+      name: openclaw-mesh-openclaw-scanner
+    spec:
+      className: spire-system-spire
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: openclaw
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/instance: openclaw-stack
+          app.kubernetes.io/name: openclaw-scanner
+      spiffeIDTemplate: spiffe://{{ .TrustDomain }}/ns/{{ .PodMeta.Namespace }}/sa/{{ .PodSpec.ServiceAccountName }}
+  5: |
+    apiVersion: spire.spiffe.io/v1alpha1
+    kind: ClusterSPIFFEID
+    metadata:
+      labels:
+        app: openclaw-mesh-lareira-mesh-spec
+        app.kubernetes.io/instance: openclaw-mesh
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-mesh-spec
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.3.0
+        helm.sh/chart: lareira-mesh-spec-0.3.1
+        mesh.pleme.io/spec: openclaw-mesh
+      name: openclaw-mesh-openclaw-skill-store
+    spec:
+      className: spire-system-spire
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: openclaw
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/instance: openclaw-stack
+          app.kubernetes.io/name: openclaw-skill-store
+      spiffeIDTemplate: spiffe://{{ .TrustDomain }}/ns/{{ .PodMeta.Namespace }}/sa/{{ .PodSpec.ServiceAccountName }}
+  6: |
+    apiVersion: spire.spiffe.io/v1alpha1
+    kind: ClusterSPIFFEID
+    metadata:
+      labels:
+        app: openclaw-mesh-lareira-mesh-spec
+        app.kubernetes.io/instance: openclaw-mesh
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-mesh-spec
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.3.0
+        helm.sh/chart: lareira-mesh-spec-0.3.1
+        mesh.pleme.io/spec: openclaw-mesh
+      name: openclaw-mesh-openclaw-web
+    spec:
+      className: spire-system-spire
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: openclaw
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/instance: openclaw-stack
+          app.kubernetes.io/name: openclaw-web
+      spiffeIDTemplate: spiffe://{{ .TrustDomain }}/ns/{{ .PodMeta.Namespace }}/sa/{{ .PodSpec.ServiceAccountName }}
+  7: |
+    apiVersion: spire.spiffe.io/v1alpha1
+    kind: ClusterSPIFFEID
+    metadata:
+      labels:
+        app: openclaw-mesh-lareira-mesh-spec
+        app.kubernetes.io/instance: openclaw-mesh
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-mesh-spec
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.3.0
+        helm.sh/chart: lareira-mesh-spec-0.3.1
+        mesh.pleme.io/spec: openclaw-mesh
+      name: openclaw-mesh-backing-registry
+    spec:
+      className: spire-system-spire
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: openclaw
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/instance: openclaw-stack
+          app.kubernetes.io/name: backing-registry
+      spiffeIDTemplate: spiffe://{{ .TrustDomain }}/ns/{{ .PodMeta.Namespace }}/sa/{{ .PodSpec.ServiceAccountName }}
+  8: |
+    apiVersion: spire.spiffe.io/v1alpha1
+    kind: ClusterSPIFFEID
+    metadata:
+      labels:
+        app: openclaw-mesh-lareira-mesh-spec
+        app.kubernetes.io/instance: openclaw-mesh
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-mesh-spec
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.3.0
+        helm.sh/chart: lareira-mesh-spec-0.3.1
+        mesh.pleme.io/spec: openclaw-mesh
+      name: openclaw-mesh-cloudflared
+    spec:
+      className: spire-system-spire
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: cloudflared
+      podSelector:
+        matchLabels:
+          app: cloudflared
+      spiffeIDTemplate: spiffe://{{ .TrustDomain }}/ns/{{ .PodMeta.Namespace }}/sa/{{ .PodSpec.ServiceAccountName }}
+  9: |
+    apiVersion: v1
+    data:
+      config.yaml: |
+        identity:
+          peer_allowlist:
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-cartorio"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-lacre"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-openclaw-publisher-pki"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-openclaw-scanner"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-openclaw-skill-store"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-openclaw-web"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-backing-registry"
+            - "spiffe://pleme.io/ns/cloudflared/sa/cloudflared"
+          upstream_allowlist:
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-cartorio"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-lacre"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-openclaw-publisher-pki"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-openclaw-scanner"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-openclaw-skill-store"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-openclaw-web"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-backing-registry"
+            - "spiffe://pleme.io/ns/cloudflared/sa/cloudflared"
+          workload_api_socket: null
+          # SVID lifecycle. `oneshot` (default) fetches once at startup;
+          # `streaming` subscribes to the SPIFFE Workload API stream and
+          # hot-swaps the TLS contexts on every rotation update from the
+          # agent, eliminating the daily cert-expiry restart cycle.
+          rotation: "oneshot"
+        inbound_addr: "0.0.0.0:15001"
+        outbound_addr: "0.0.0.0:15006"
+        probe_addr: "0.0.0.0:4191"
+        observability:
+          log_format: "json"
+          metrics_addr: "0.0.0.0:9090"
+        policy:
+          circuit_breaker_max_failures: 10
+          max_retries: 3
+          request_timeout: "30s"
+        upstream_addr: "127.0.0.1:8080"
+    kind: ConfigMap
+    metadata:
+      labels:
+        app: openclaw-mesh-lareira-mesh-spec
+        app.kubernetes.io/instance: openclaw-mesh
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-mesh-spec
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.3.0
+        helm.sh/chart: lareira-mesh-spec-0.3.1
+        mesh.pleme.io/spec: openclaw-mesh
+      name: openclaw-mesh-aresta-config
+      namespace: openclaw
+  10: |
+    apiVersion: v1
+    data:
+      config.yaml: |
+        identity:
+          peer_allowlist:
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-cartorio"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-lacre"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-openclaw-publisher-pki"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-openclaw-scanner"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-openclaw-skill-store"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-openclaw-web"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-backing-registry"
+            - "spiffe://pleme.io/ns/cloudflared/sa/cloudflared"
+          upstream_allowlist:
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-cartorio"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-lacre"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-openclaw-publisher-pki"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-openclaw-scanner"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-openclaw-skill-store"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-openclaw-web"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-backing-registry"
+            - "spiffe://pleme.io/ns/cloudflared/sa/cloudflared"
+          workload_api_socket: null
+          # SVID lifecycle. `oneshot` (default) fetches once at startup;
+          # `streaming` subscribes to the SPIFFE Workload API stream and
+          # hot-swaps the TLS contexts on every rotation update from the
+          # agent, eliminating the daily cert-expiry restart cycle.
+          rotation: "oneshot"
+        inbound_addr: "0.0.0.0:15001"
+        outbound_addr: "0.0.0.0:15006"
+        probe_addr: "0.0.0.0:4191"
+        observability:
+          log_format: "json"
+          metrics_addr: "0.0.0.0:9090"
+        policy:
+          circuit_breaker_max_failures: 10
+          max_retries: 3
+          request_timeout: "30s"
+        upstream_addr: "127.0.0.1:8080"
+    kind: ConfigMap
+    metadata:
+      labels:
+        app: openclaw-mesh-lareira-mesh-spec
+        app.kubernetes.io/instance: openclaw-mesh
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-mesh-spec
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.3.0
+        helm.sh/chart: lareira-mesh-spec-0.3.1
+        mesh.pleme.io/spec: openclaw-mesh
+      name: openclaw-mesh-aresta-config
+      namespace: cloudflared
+  11: |
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      labels:
+        app: openclaw-mesh-lareira-mesh-spec
+        app.kubernetes.io/instance: openclaw-mesh
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-mesh-spec
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.3.0
+        helm.sh/chart: lareira-mesh-spec-0.3.1
+        mesh.pleme.io/spec: openclaw-mesh
+      name: openclaw-mesh-allow-all-ingress
+      namespace: openclaw
+    spec:
+      ingress:
+        - {}
+      podSelector:
+        matchLabels:
+          mesh.pleme.io/inject: "true"
+      policyTypes:
+        - Ingress
+  12: |
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      labels:
+        app: openclaw-mesh-lareira-mesh-spec
+        app.kubernetes.io/instance: openclaw-mesh
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-mesh-spec
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.3.0
+        helm.sh/chart: lareira-mesh-spec-0.3.1
+        mesh.pleme.io/spec: openclaw-mesh
+      name: openclaw-mesh-allow-all-ingress
+      namespace: cloudflared
+    spec:
+      ingress:
+        - {}
+      podSelector:
+        matchLabels:
+          mesh.pleme.io/inject: "true"
+      policyTypes:
+        - Ingress
+  13: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata:
+      labels:
+        app: openclaw-mesh-lareira-mesh-spec
+        app.kubernetes.io/instance: openclaw-mesh
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-mesh-spec
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.3.0
+        helm.sh/chart: lareira-mesh-spec-0.3.1
+        mesh.pleme.io/component: aresta-resolver
+        mesh.pleme.io/spec: openclaw-mesh
+      name: openclaw-mesh-resolver-openclaw
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: aresta-resolver
+    subjects:
+      - apiGroup: rbac.authorization.k8s.io
+        kind: Group
+        name: system:serviceaccounts:openclaw
+  14: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata:
+      labels:
+        app: openclaw-mesh-lareira-mesh-spec
+        app.kubernetes.io/instance: openclaw-mesh
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-mesh-spec
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.3.0
+        helm.sh/chart: lareira-mesh-spec-0.3.1
+        mesh.pleme.io/component: aresta-resolver
+        mesh.pleme.io/spec: openclaw-mesh
+      name: openclaw-mesh-resolver-cloudflared
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: aresta-resolver
+    subjects:
+      - apiGroup: rbac.authorization.k8s.io
+        kind: Group
+        name: system:serviceaccounts:cloudflared
+  15: |
+    apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      labels:
+        app: openclaw-mesh-lareira-mesh-spec
+        app.kubernetes.io/instance: openclaw-mesh
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-mesh-spec
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.3.0
+        helm.sh/chart: lareira-mesh-spec-0.3.1
+        mesh.pleme.io/spec: openclaw-mesh
+      name: openclaw-stack-openclaw-web
+      namespace: openclaw
+  16: |
+    apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      labels:
+        app: openclaw-mesh-lareira-mesh-spec
+        app.kubernetes.io/instance: openclaw-mesh
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-mesh-spec
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.3.0
+        helm.sh/chart: lareira-mesh-spec-0.3.1
+        mesh.pleme.io/spec: openclaw-mesh
+      name: cloudflared
+      namespace: cloudflared
+golden — minimal single-Servico mesh:
+  1: |
+    apiVersion: spire.spiffe.io/v1alpha1
+    kind: ClusterSPIFFEID
+    metadata:
+      labels:
+        app: openclaw-mesh-lareira-mesh-spec
+        app.kubernetes.io/instance: openclaw-mesh
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-mesh-spec
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.3.0
+        helm.sh/chart: lareira-mesh-spec-0.3.1
+        mesh.pleme.io/spec: openclaw-mesh
+      name: openclaw-mesh-solo
+    spec:
+      className: spire-system-spire
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: openclaw
+      podSelector:
+        matchLabels:
+          app: solo
+      spiffeIDTemplate: spiffe://{{ .TrustDomain }}/ns/{{ .PodMeta.Namespace }}/sa/{{ .PodSpec.ServiceAccountName }}
+  2: |
+    apiVersion: v1
+    data:
+      config.yaml: |
+        identity:
+          peer_allowlist:
+            - "spiffe://pleme.io/ns/openclaw/sa/solo"
+          upstream_allowlist:
+            - "spiffe://pleme.io/ns/openclaw/sa/solo"
+          workload_api_socket: null
+          # SVID lifecycle. `oneshot` (default) fetches once at startup;
+          # `streaming` subscribes to the SPIFFE Workload API stream and
+          # hot-swaps the TLS contexts on every rotation update from the
+          # agent, eliminating the daily cert-expiry restart cycle.
+          rotation: "oneshot"
+        inbound_addr: "0.0.0.0:15001"
+        outbound_addr: "0.0.0.0:15006"
+        probe_addr: "0.0.0.0:4191"
+        observability:
+          log_format: "json"
+          metrics_addr: "0.0.0.0:9090"
+        policy:
+          circuit_breaker_max_failures: 10
+          max_retries: 3
+          request_timeout: "30s"
+        upstream_addr: "127.0.0.1:8080"
+    kind: ConfigMap
+    metadata:
+      labels:
+        app: openclaw-mesh-lareira-mesh-spec
+        app.kubernetes.io/instance: openclaw-mesh
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-mesh-spec
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.3.0
+        helm.sh/chart: lareira-mesh-spec-0.3.1
+        mesh.pleme.io/spec: openclaw-mesh
+      name: openclaw-mesh-aresta-config
+      namespace: openclaw
+  3: |
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      labels:
+        app: openclaw-mesh-lareira-mesh-spec
+        app.kubernetes.io/instance: openclaw-mesh
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-mesh-spec
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.3.0
+        helm.sh/chart: lareira-mesh-spec-0.3.1
+        mesh.pleme.io/spec: openclaw-mesh
+      name: openclaw-mesh-allow-all-ingress
+      namespace: openclaw
+    spec:
+      ingress:
+        - {}
+      podSelector:
+        matchLabels:
+          mesh.pleme.io/inject: "true"
+      policyTypes:
+        - Ingress
+  4: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata:
+      labels:
+        app: openclaw-mesh-lareira-mesh-spec
+        app.kubernetes.io/instance: openclaw-mesh
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-mesh-spec
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.3.0
+        helm.sh/chart: lareira-mesh-spec-0.3.1
+        mesh.pleme.io/component: aresta-resolver
+        mesh.pleme.io/spec: openclaw-mesh
+      name: openclaw-mesh-resolver-openclaw
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: aresta-resolver
+    subjects:
+      - apiGroup: rbac.authorization.k8s.io
+        kind: Group
+        name: system:serviceaccounts:openclaw
+golden — networkPolicy.enabled=false drops the NetworkPolicies:
+  1: |
+    apiVersion: spire.spiffe.io/v1alpha1
+    kind: ClusterSPIFFEID
+    metadata:
+      labels:
+        app: openclaw-mesh-lareira-mesh-spec
+        app.kubernetes.io/instance: openclaw-mesh
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-mesh-spec
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.3.0
+        helm.sh/chart: lareira-mesh-spec-0.3.1
+        mesh.pleme.io/spec: openclaw-mesh
+      name: openclaw-mesh-cartorio
+    spec:
+      className: spire-system-spire
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: openclaw
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/instance: openclaw-stack
+          app.kubernetes.io/name: cartorio
+      spiffeIDTemplate: spiffe://{{ .TrustDomain }}/ns/{{ .PodMeta.Namespace }}/sa/{{ .PodSpec.ServiceAccountName }}
+  2: |
+    apiVersion: spire.spiffe.io/v1alpha1
+    kind: ClusterSPIFFEID
+    metadata:
+      labels:
+        app: openclaw-mesh-lareira-mesh-spec
+        app.kubernetes.io/instance: openclaw-mesh
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-mesh-spec
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.3.0
+        helm.sh/chart: lareira-mesh-spec-0.3.1
+        mesh.pleme.io/spec: openclaw-mesh
+      name: openclaw-mesh-lacre
+    spec:
+      className: spire-system-spire
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: openclaw
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/instance: openclaw-stack
+          app.kubernetes.io/name: lacre
+      spiffeIDTemplate: spiffe://{{ .TrustDomain }}/ns/{{ .PodMeta.Namespace }}/sa/{{ .PodSpec.ServiceAccountName }}
+  3: |
+    apiVersion: spire.spiffe.io/v1alpha1
+    kind: ClusterSPIFFEID
+    metadata:
+      labels:
+        app: openclaw-mesh-lareira-mesh-spec
+        app.kubernetes.io/instance: openclaw-mesh
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-mesh-spec
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.3.0
+        helm.sh/chart: lareira-mesh-spec-0.3.1
+        mesh.pleme.io/spec: openclaw-mesh
+      name: openclaw-mesh-openclaw-publisher-pki
+    spec:
+      className: spire-system-spire
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: openclaw
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/instance: openclaw-stack
+          app.kubernetes.io/name: openclaw-publisher-pki
+      spiffeIDTemplate: spiffe://{{ .TrustDomain }}/ns/{{ .PodMeta.Namespace }}/sa/{{ .PodSpec.ServiceAccountName }}
+  4: |
+    apiVersion: spire.spiffe.io/v1alpha1
+    kind: ClusterSPIFFEID
+    metadata:
+      labels:
+        app: openclaw-mesh-lareira-mesh-spec
+        app.kubernetes.io/instance: openclaw-mesh
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-mesh-spec
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.3.0
+        helm.sh/chart: lareira-mesh-spec-0.3.1
+        mesh.pleme.io/spec: openclaw-mesh
+      name: openclaw-mesh-openclaw-scanner
+    spec:
+      className: spire-system-spire
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: openclaw
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/instance: openclaw-stack
+          app.kubernetes.io/name: openclaw-scanner
+      spiffeIDTemplate: spiffe://{{ .TrustDomain }}/ns/{{ .PodMeta.Namespace }}/sa/{{ .PodSpec.ServiceAccountName }}
+  5: |
+    apiVersion: spire.spiffe.io/v1alpha1
+    kind: ClusterSPIFFEID
+    metadata:
+      labels:
+        app: openclaw-mesh-lareira-mesh-spec
+        app.kubernetes.io/instance: openclaw-mesh
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-mesh-spec
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.3.0
+        helm.sh/chart: lareira-mesh-spec-0.3.1
+        mesh.pleme.io/spec: openclaw-mesh
+      name: openclaw-mesh-openclaw-skill-store
+    spec:
+      className: spire-system-spire
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: openclaw
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/instance: openclaw-stack
+          app.kubernetes.io/name: openclaw-skill-store
+      spiffeIDTemplate: spiffe://{{ .TrustDomain }}/ns/{{ .PodMeta.Namespace }}/sa/{{ .PodSpec.ServiceAccountName }}
+  6: |
+    apiVersion: spire.spiffe.io/v1alpha1
+    kind: ClusterSPIFFEID
+    metadata:
+      labels:
+        app: openclaw-mesh-lareira-mesh-spec
+        app.kubernetes.io/instance: openclaw-mesh
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-mesh-spec
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.3.0
+        helm.sh/chart: lareira-mesh-spec-0.3.1
+        mesh.pleme.io/spec: openclaw-mesh
+      name: openclaw-mesh-openclaw-web
+    spec:
+      className: spire-system-spire
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: openclaw
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/instance: openclaw-stack
+          app.kubernetes.io/name: openclaw-web
+      spiffeIDTemplate: spiffe://{{ .TrustDomain }}/ns/{{ .PodMeta.Namespace }}/sa/{{ .PodSpec.ServiceAccountName }}
+  7: |
+    apiVersion: spire.spiffe.io/v1alpha1
+    kind: ClusterSPIFFEID
+    metadata:
+      labels:
+        app: openclaw-mesh-lareira-mesh-spec
+        app.kubernetes.io/instance: openclaw-mesh
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-mesh-spec
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.3.0
+        helm.sh/chart: lareira-mesh-spec-0.3.1
+        mesh.pleme.io/spec: openclaw-mesh
+      name: openclaw-mesh-backing-registry
+    spec:
+      className: spire-system-spire
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: openclaw
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/instance: openclaw-stack
+          app.kubernetes.io/name: backing-registry
+      spiffeIDTemplate: spiffe://{{ .TrustDomain }}/ns/{{ .PodMeta.Namespace }}/sa/{{ .PodSpec.ServiceAccountName }}
+  8: |
+    apiVersion: spire.spiffe.io/v1alpha1
+    kind: ClusterSPIFFEID
+    metadata:
+      labels:
+        app: openclaw-mesh-lareira-mesh-spec
+        app.kubernetes.io/instance: openclaw-mesh
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-mesh-spec
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.3.0
+        helm.sh/chart: lareira-mesh-spec-0.3.1
+        mesh.pleme.io/spec: openclaw-mesh
+      name: openclaw-mesh-cloudflared
+    spec:
+      className: spire-system-spire
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: cloudflared
+      podSelector:
+        matchLabels:
+          app: cloudflared
+      spiffeIDTemplate: spiffe://{{ .TrustDomain }}/ns/{{ .PodMeta.Namespace }}/sa/{{ .PodSpec.ServiceAccountName }}
+  9: |
+    apiVersion: v1
+    data:
+      config.yaml: |
+        identity:
+          peer_allowlist:
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-cartorio"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-lacre"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-openclaw-publisher-pki"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-openclaw-scanner"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-openclaw-skill-store"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-openclaw-web"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-backing-registry"
+            - "spiffe://pleme.io/ns/cloudflared/sa/cloudflared"
+          upstream_allowlist:
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-cartorio"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-lacre"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-openclaw-publisher-pki"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-openclaw-scanner"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-openclaw-skill-store"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-openclaw-web"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-backing-registry"
+            - "spiffe://pleme.io/ns/cloudflared/sa/cloudflared"
+          workload_api_socket: null
+          # SVID lifecycle. `oneshot` (default) fetches once at startup;
+          # `streaming` subscribes to the SPIFFE Workload API stream and
+          # hot-swaps the TLS contexts on every rotation update from the
+          # agent, eliminating the daily cert-expiry restart cycle.
+          rotation: "oneshot"
+        inbound_addr: "0.0.0.0:15001"
+        outbound_addr: "0.0.0.0:15006"
+        probe_addr: "0.0.0.0:4191"
+        observability:
+          log_format: "json"
+          metrics_addr: "0.0.0.0:9090"
+        policy:
+          circuit_breaker_max_failures: 10
+          max_retries: 3
+          request_timeout: "30s"
+        upstream_addr: "127.0.0.1:8080"
+    kind: ConfigMap
+    metadata:
+      labels:
+        app: openclaw-mesh-lareira-mesh-spec
+        app.kubernetes.io/instance: openclaw-mesh
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-mesh-spec
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.3.0
+        helm.sh/chart: lareira-mesh-spec-0.3.1
+        mesh.pleme.io/spec: openclaw-mesh
+      name: openclaw-mesh-aresta-config
+      namespace: openclaw
+  10: |
+    apiVersion: v1
+    data:
+      config.yaml: |
+        identity:
+          peer_allowlist:
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-cartorio"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-lacre"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-openclaw-publisher-pki"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-openclaw-scanner"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-openclaw-skill-store"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-openclaw-web"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-backing-registry"
+            - "spiffe://pleme.io/ns/cloudflared/sa/cloudflared"
+          upstream_allowlist:
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-cartorio"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-lacre"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-openclaw-publisher-pki"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-openclaw-scanner"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-openclaw-skill-store"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-openclaw-web"
+            - "spiffe://pleme.io/ns/openclaw/sa/openclaw-stack-backing-registry"
+            - "spiffe://pleme.io/ns/cloudflared/sa/cloudflared"
+          workload_api_socket: null
+          # SVID lifecycle. `oneshot` (default) fetches once at startup;
+          # `streaming` subscribes to the SPIFFE Workload API stream and
+          # hot-swaps the TLS contexts on every rotation update from the
+          # agent, eliminating the daily cert-expiry restart cycle.
+          rotation: "oneshot"
+        inbound_addr: "0.0.0.0:15001"
+        outbound_addr: "0.0.0.0:15006"
+        probe_addr: "0.0.0.0:4191"
+        observability:
+          log_format: "json"
+          metrics_addr: "0.0.0.0:9090"
+        policy:
+          circuit_breaker_max_failures: 10
+          max_retries: 3
+          request_timeout: "30s"
+        upstream_addr: "127.0.0.1:8080"
+    kind: ConfigMap
+    metadata:
+      labels:
+        app: openclaw-mesh-lareira-mesh-spec
+        app.kubernetes.io/instance: openclaw-mesh
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-mesh-spec
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.3.0
+        helm.sh/chart: lareira-mesh-spec-0.3.1
+        mesh.pleme.io/spec: openclaw-mesh
+      name: openclaw-mesh-aresta-config
+      namespace: cloudflared
+  11: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata:
+      labels:
+        app: openclaw-mesh-lareira-mesh-spec
+        app.kubernetes.io/instance: openclaw-mesh
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-mesh-spec
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.3.0
+        helm.sh/chart: lareira-mesh-spec-0.3.1
+        mesh.pleme.io/component: aresta-resolver
+        mesh.pleme.io/spec: openclaw-mesh
+      name: openclaw-mesh-resolver-openclaw
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: aresta-resolver
+    subjects:
+      - apiGroup: rbac.authorization.k8s.io
+        kind: Group
+        name: system:serviceaccounts:openclaw
+  12: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata:
+      labels:
+        app: openclaw-mesh-lareira-mesh-spec
+        app.kubernetes.io/instance: openclaw-mesh
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-mesh-spec
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.3.0
+        helm.sh/chart: lareira-mesh-spec-0.3.1
+        mesh.pleme.io/component: aresta-resolver
+        mesh.pleme.io/spec: openclaw-mesh
+      name: openclaw-mesh-resolver-cloudflared
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: aresta-resolver
+    subjects:
+      - apiGroup: rbac.authorization.k8s.io
+        kind: Group
+        name: system:serviceaccounts:cloudflared
+  13: |
+    apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      labels:
+        app: openclaw-mesh-lareira-mesh-spec
+        app.kubernetes.io/instance: openclaw-mesh
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-mesh-spec
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.3.0
+        helm.sh/chart: lareira-mesh-spec-0.3.1
+        mesh.pleme.io/spec: openclaw-mesh
+      name: openclaw-stack-openclaw-web
+      namespace: openclaw
+  14: |
+    apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      labels:
+        app: openclaw-mesh-lareira-mesh-spec
+        app.kubernetes.io/instance: openclaw-mesh
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-mesh-spec
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.3.0
+        helm.sh/chart: lareira-mesh-spec-0.3.1
+        mesh.pleme.io/spec: openclaw-mesh
+      name: cloudflared
+      namespace: cloudflared
