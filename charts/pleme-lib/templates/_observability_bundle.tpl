@@ -79,9 +79,18 @@ Usage — the consuming chart's templates/observability.yaml is one line:
 {{- else -}}
 {{- fail (printf "pleme-lib.observabilityBundle: unknown flavor %q (want vm|prometheus)" $flavor) -}}
 {{- end -}}
+{{/* singular dashboard (back-compat) — one CM named <fullname>-dashboard */}}
 {{- if $dash.enabled }}
 ---
-{{ include "pleme-lib._observabilityBundle.dashboard" . -}}
+{{ include "pleme-lib._observabilityBundle.dashboardCM" (dict "d" $dash "root" . "suffix" "dashboard") -}}
+{{- end }}
+{{/* plural dashboards: a LIST → one CM per entry, named <fullname>-<name>. A
+   chart that ships several Grafana dashboards (a service + its breathability,
+   an operator + per-CRD views) declares them all here instead of one chart per
+   dashboard or a hand-wired second ConfigMap. Composes with the singular form. */}}
+{{- range $i, $entry := ($obs.dashboards | default list) }}
+---
+{{ include "pleme-lib._observabilityBundle.dashboardCM" (dict "d" $entry "root" $ "suffix" ($entry.name | default (printf "dashboard-%d" $i))) -}}
 {{- end }}
 {{- end -}}
 
@@ -102,27 +111,32 @@ spec:
     {{- toYaml $r.groups | nindent 4 }}
 {{- end -}}
 
-{{/* internal: Grafana dashboard ConfigMap (pangea-generated JSON). The
-   `grafana_dashboard` sidecar label is applied only for deploy: sidecar; for
-   provisioning/external the ConfigMap is emitted unlabelled (mounted / pushed
-   by another path). */}}
-{{- define "pleme-lib._observabilityBundle.dashboard" -}}
-{{- $d := .Values.observability.dashboard -}}
-{{/* the Grafana JSON comes from `json` (inline) OR `file` (a chart path read via
-   .Files.Get — for large pangea-generated dashboards that would bloat values). */}}
+{{/* internal: ONE Grafana dashboard ConfigMap (pangea-generated JSON), from a
+   `{d, root, suffix}` dict so it serves BOTH the singular `dashboard:` and each
+   entry of the plural `dashboards:` list. The `grafana_dashboard` sidecar label
+   is applied only for deploy: sidecar; an optional `folder:` becomes the
+   `grafana_folder` annotation the sidecar reads. JSON comes from `json` (inline)
+   OR `file` (a chart path via .Files.Get — for large generated dashboards). */}}
+{{- define "pleme-lib._observabilityBundle.dashboardCM" -}}
+{{- $d := .d -}}
+{{- $root := .root -}}
 {{- $json := $d.json -}}
-{{- if and (not $json) $d.file -}}{{- $json = .Files.Get $d.file -}}{{- end -}}
-{{- if not $json }}{{- fail "pleme-lib.observabilityBundle: dashboard.enabled requires `json` (inline) or `file` (a chart path)" }}{{- end }}
+{{- if and (not $json) $d.file -}}{{- $json = $root.Files.Get $d.file -}}{{- end -}}
+{{- if not $json }}{{- fail "pleme-lib.observabilityBundle: a dashboard requires `json` (inline) or `file` (a chart path)" }}{{- end }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "pleme-lib.fullname" . }}-dashboard
-  namespace: {{ include "pleme-lib.namespace" . }}
+  name: {{ include "pleme-lib.fullname" $root }}-{{ .suffix }}
+  namespace: {{ include "pleme-lib.namespace" $root }}
   labels:
-    {{- include "pleme-lib.labels" . | nindent 4 }}
+    {{- include "pleme-lib.labels" $root | nindent 4 }}
     {{- if eq ($d.deploy | default "sidecar") "sidecar" }}
     grafana_dashboard: "1"
     {{- end }}
+  {{- with $d.folder }}
+  annotations:
+    grafana_folder: {{ . | quote }}
+  {{- end }}
 data:
   {{ $d.name | default "dashboard" }}.json: |
     {{- $json | nindent 4 }}

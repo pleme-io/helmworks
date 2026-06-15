@@ -1,17 +1,13 @@
 {
   "annotations": {
-    "list": [
-
-    ]
+    "list": []
   },
   "description": "",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
   "id": null,
-  "links": [
-
-  ],
+  "links": [],
   "panels": [
     {
       "id": 1,
@@ -24,9 +20,7 @@
         "y": 0
       },
       "collapsed": false,
-      "panels": [
-
-      ]
+      "panels": []
     },
     {
       "id": 2,
@@ -69,9 +63,7 @@
             ]
           }
         },
-        "overrides": [
-
-        ]
+        "overrides": []
       },
       "options": {
         "reduceOptions": {
@@ -130,9 +122,7 @@
             ]
           }
         },
-        "overrides": [
-
-        ]
+        "overrides": []
       },
       "options": {
         "reduceOptions": {
@@ -191,9 +181,7 @@
             ]
           }
         },
-        "overrides": [
-
-        ]
+        "overrides": []
       },
       "options": {
         "reduceOptions": {
@@ -252,9 +240,7 @@
             ]
           }
         },
-        "overrides": [
-
-        ]
+        "overrides": []
       },
       "options": {
         "reduceOptions": {
@@ -313,9 +299,7 @@
             ]
           }
         },
-        "overrides": [
-
-        ]
+        "overrides": []
       },
       "options": {
         "reduceOptions": {
@@ -374,9 +358,7 @@
             ]
           }
         },
-        "overrides": [
-
-        ]
+        "overrides": []
       },
       "options": {
         "reduceOptions": {
@@ -405,9 +387,7 @@
         "y": 5
       },
       "collapsed": false,
-      "panels": [
-
-      ]
+      "panels": []
     },
     {
       "id": 9,
@@ -431,14 +411,10 @@
         }
       ],
       "fieldConfig": {
-        "defaults": {
-        },
-        "overrides": [
-
-        ]
+        "defaults": {},
+        "overrides": []
       },
-      "options": {
-      },
+      "options": {},
       "description": "Per (job,instance) scrape health. 1 = scraped + healthy, 0 = target DOWN. A job absent from this table is NOT WIRED (no scrape config) — that is the real cause of its panels' no-data."
     },
     {
@@ -477,9 +453,7 @@
             ]
           }
         },
-        "overrides": [
-
-        ]
+        "overrides": []
       },
       "options": {
         "reduceOptions": {
@@ -537,9 +511,7 @@
             ]
           }
         },
-        "overrides": [
-
-        ]
+        "overrides": []
       },
       "options": {
         "reduceOptions": {
@@ -568,9 +540,7 @@
         "y": 19
       },
       "collapsed": false,
-      "panels": [
-
-      ]
+      "panels": []
     },
     {
       "id": 13,
@@ -605,9 +575,7 @@
             ]
           }
         },
-        "overrides": [
-
-        ]
+        "overrides": []
       },
       "options": {
         "reduceOptions": {
@@ -658,9 +626,7 @@
             ]
           }
         },
-        "overrides": [
-
-        ]
+        "overrides": []
       },
       "options": {
         "reduceOptions": {
@@ -711,9 +677,7 @@
             ]
           }
         },
-        "overrides": [
-
-        ]
+        "overrides": []
       },
       "options": {
         "reduceOptions": {
@@ -765,9 +729,7 @@
             "axisBorderShow": false
           }
         },
-        "overrides": [
-
-        ]
+        "overrides": []
       },
       "options": {
         "tooltip": {
@@ -823,9 +785,7 @@
             ]
           }
         },
-        "overrides": [
-
-        ]
+        "overrides": []
       },
       "options": {
         "reduceOptions": {
@@ -854,9 +814,7 @@
         "y": 32
       },
       "collapsed": false,
-      "panels": [
-
-      ]
+      "panels": []
     },
     {
       "id": 19,
@@ -903,9 +861,7 @@
             "axisBorderShow": false
           }
         },
-        "overrides": [
-
-        ]
+        "overrides": []
       },
       "options": {
         "tooltip": {
@@ -968,9 +924,7 @@
             "axisBorderShow": false
           }
         },
-        "overrides": [
-
-        ]
+        "overrides": []
       },
       "options": {
         "tooltip": {
@@ -1011,14 +965,10 @@
         }
       ],
       "fieldConfig": {
-        "defaults": {
-        },
-        "overrides": [
-
-        ]
+        "defaults": {},
+        "overrides": []
       },
-      "options": {
-      }
+      "options": {}
     },
     {
       "id": 22,
@@ -1031,9 +981,7 @@
         "y": 50
       },
       "collapsed": false,
-      "panels": [
-
-      ]
+      "panels": []
     },
     {
       "id": 23,
@@ -1069,9 +1017,7 @@
             "axisBorderShow": false
           }
         },
-        "overrides": [
-
-        ]
+        "overrides": []
       },
       "options": {
         "tooltip": {
@@ -1123,9 +1069,7 @@
             "axisBorderShow": false
           }
         },
-        "overrides": [
-
-        ]
+        "overrides": []
       },
       "options": {
         "tooltip": {
@@ -1177,9 +1121,7 @@
             "axisBorderShow": false
           }
         },
-        "overrides": [
-
-        ]
+        "overrides": []
       },
       "options": {
         "tooltip": {
@@ -1250,9 +1192,7 @@
             "axisBorderShow": false
           }
         },
-        "overrides": [
-
-        ]
+        "overrides": []
       },
       "options": {
         "tooltip": {
@@ -1281,9 +1221,7 @@
         "y": 67
       },
       "collapsed": false,
-      "panels": [
-
-      ]
+      "panels": []
     },
     {
       "id": 28,
@@ -1319,9 +1257,7 @@
             "axisBorderShow": false
           }
         },
-        "overrides": [
-
-        ]
+        "overrides": []
       },
       "options": {
         "tooltip": {
@@ -1382,9 +1318,7 @@
             "axisBorderShow": false
           }
         },
-        "overrides": [
-
-        ]
+        "overrides": []
       },
       "options": {
         "tooltip": {
@@ -1436,9 +1370,7 @@
             "axisBorderShow": false
           }
         },
-        "overrides": [
-
-        ]
+        "overrides": []
       },
       "options": {
         "tooltip": {
@@ -1490,9 +1422,7 @@
             "axisBorderShow": false
           }
         },
-        "overrides": [
-
-        ]
+        "overrides": []
       },
       "options": {
         "tooltip": {
@@ -1521,9 +1451,7 @@
         "y": 84
       },
       "collapsed": false,
-      "panels": [
-
-      ]
+      "panels": []
     },
     {
       "id": 33,
@@ -1547,14 +1475,10 @@
         }
       ],
       "fieldConfig": {
-        "defaults": {
-        },
-        "overrides": [
-
-        ]
+        "defaults": {},
+        "overrides": []
       },
-      "options": {
-      },
+      "options": {},
       "description": "All log lines for this workload — full context. Use the ERROR window below for fast triage."
     },
     {
@@ -1579,14 +1503,10 @@
         }
       ],
       "fieldConfig": {
-        "defaults": {
-        },
-        "overrides": [
-
-        ]
+        "defaults": {},
+        "overrides": []
       },
-      "options": {
-      },
+      "options": {},
       "description": "Error-class log lines only (level:error OR level:fatal OR level:critical OR level:panic) — the fast-triage window. Empty = no errors."
     },
     {
@@ -1630,9 +1550,7 @@
             ]
           }
         },
-        "overrides": [
-
-        ]
+        "overrides": []
       },
       "options": {
         "reduceOptions": {
@@ -1659,16 +1577,13 @@
     "breathability"
   ],
   "templating": {
-    "list": [
-
-    ]
+    "list": []
   },
   "time": {
     "from": "now-1h",
     "to": "now"
   },
-  "timepicker": {
-  },
+  "timepicker": {},
   "timezone": "utc",
   "title": "breathe — resource homeostasis",
   "uid": "breathe",
