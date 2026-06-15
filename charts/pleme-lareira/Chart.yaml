@@ -7,7 +7,7 @@ description: |
   CronJob backups, common alert rules, and a default-off convention so
   every consumer chart is opt-in.
 type: library
-version: 0.2.0
+version: 0.2.1
 appVersion: "0.1.0"
 keywords:
   - homelab

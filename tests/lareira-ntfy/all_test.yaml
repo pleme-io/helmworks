@@ -1,0 +1,176 @@
+suite: lareira-ntfy — pleme-lareira allResources render + toggles
+# lareira-ntfy is a pure pleme-lareira consumer: its single template
+# (all.yaml) delegates to pleme-lareira.allResources, which fans the chart's
+# values out into Deployment + Service + ServiceAccount + NetworkPolicy and
+# the optional ServiceMonitor / PVC / Ingress / PDB resources. These tests
+# pin the default-OFF master toggle and every per-feature toggle.
+templates:
+  - templates/all.yaml
+release:
+  name: ntfy
+  namespace: ntfy
+tests:
+  # ── master toggle ────────────────────────────────────────────────────
+  - it: default-OFF (enabled=false) renders nothing
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: enabled=true renders the four core workload resources
+    set:
+      enabled: true
+    asserts:
+      - hasDocuments:
+          count: 4
+
+  - it: enabled=true emits a Deployment
+    set:
+      enabled: true
+    documentSelector:
+      path: kind
+      value: Deployment
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: apiVersion
+          value: apps/v1
+
+  - it: enabled=true emits a ServiceAccount
+    set:
+      enabled: true
+    documentSelector:
+      path: kind
+      value: ServiceAccount
+    asserts:
+      - isKind:
+          of: ServiceAccount
+
+  - it: enabled=true emits a NetworkPolicy (on by default)
+    set:
+      enabled: true
+    documentSelector:
+      path: kind
+      value: NetworkPolicy
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+
+  # ── Deployment shape ─────────────────────────────────────────────────
+  - it: Deployment runs the pinned ntfy image with the serve command
+    set:
+      enabled: true
+    documentSelector:
+      path: kind
+      value: Deployment
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].image
+          pattern: ^docker\.io/binwiederhier/ntfy:v[0-9.]+$
+      - equal:
+          path: spec.template.spec.containers[0].command
+          value:
+            - /usr/bin/ntfy
+            - serve
+
+  - it: Deployment image tag is overridable
+    set:
+      enabled: true
+      image.tag: "v3.0.0"
+    documentSelector:
+      path: kind
+      value: Deployment
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].image
+          pattern: :v3\.0\.0$
+
+  - it: Deployment carries the ntfy env (deny-all default access + behind-proxy)
+    set:
+      enabled: true
+    documentSelector:
+      path: kind
+      value: Deployment
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NTFY_AUTH_DEFAULT_ACCESS
+            value: "deny-all"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NTFY_BEHIND_PROXY
+            value: "true"
+
+  # ── Service ──────────────────────────────────────────────────────────
+  - it: Service is ClusterIP exposing the http port
+    set:
+      enabled: true
+    documentSelector:
+      path: kind
+      value: Service
+    asserts:
+      - equal:
+          path: spec.type
+          value: ClusterIP
+      - equal:
+          path: spec.ports[0].port
+          value: 80
+
+  # ── NetworkPolicy toggle ─────────────────────────────────────────────
+  - it: networkPolicy.enabled=false drops the NetworkPolicy (3 docs)
+    set:
+      enabled: true
+      networkPolicy.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 3
+
+  # ── ServiceMonitor toggle ────────────────────────────────────────────
+  - it: monitoring.enabled adds a ServiceMonitor
+    set:
+      enabled: true
+      monitoring.enabled: true
+    documentSelector:
+      path: kind
+      value: ServiceMonitor
+    asserts:
+      - isKind:
+          of: ServiceMonitor
+
+  # ── persistence toggle ───────────────────────────────────────────────
+  - it: persistence.enabled adds a PersistentVolumeClaim
+    set:
+      enabled: true
+      persistence.enabled: true
+    documentSelector:
+      path: kind
+      value: PersistentVolumeClaim
+    asserts:
+      - isKind:
+          of: PersistentVolumeClaim
+
+  # ── ingress toggle ───────────────────────────────────────────────────
+  - it: ingress.enabled adds an Ingress
+    set:
+      enabled: true
+      ingress.enabled: true
+    documentSelector:
+      path: kind
+      value: Ingress
+    asserts:
+      - isKind:
+          of: Ingress
+
+  # ── PodDisruptionBudget toggle ───────────────────────────────────────
+  - it: pdb.enabled adds a PodDisruptionBudget
+    set:
+      enabled: true
+      pdb.enabled: true
+    documentSelector:
+      path: kind
+      value: PodDisruptionBudget
+    asserts:
+      - isKind:
+          of: PodDisruptionBudget

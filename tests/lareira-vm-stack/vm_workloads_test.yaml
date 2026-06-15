@@ -59,7 +59,7 @@ tests:
           value: lareira-vm-stack-victoria-metrics-k8s-stack
       - equal:
           path: spec.retentionPeriod
-          value: "14d"
+          value: "10d"   # capped from 14d in commit 2ef01d6 (resource discipline)
       - equal:
           path: spec.storage.resources.requests.storage
           value: 30Gi

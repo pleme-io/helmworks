@@ -1,0 +1,82 @@
+suite: lareira-victoria-logs — PrometheusRule alert rules
+# lareira-victoria-logs wraps the upstream victoria-logs-single subchart;
+# the ONLY parent-authored template is the alert-rules PrometheusRule,
+# gated on the master `enabled` flag (default-OFF). These tests assert
+# that toggle path + the default VictoriaLogs alert set + label shape.
+templates:
+  - templates/prometheusrule.yaml
+release:
+  name: lareira-victoria-logs
+  namespace: monitoring
+tests:
+  - it: master-disabled (default) renders no PrometheusRule
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: enabled emits the alert-rules PrometheusRule with the lareira part-of label
+    set:
+      enabled: true
+    asserts:
+      - isKind:
+          of: PrometheusRule
+      - equal:
+          path: metadata.name
+          value: lareira-victoria-logs-lareira-victoria-logs
+      - equal:
+          path: metadata.labels["role"]
+          value: alert-rules
+      - equal:
+          path: metadata.labels["app.kubernetes.io/part-of"]
+          value: lareira
+      - equal:
+          path: spec.groups[0].name
+          value: lareira-victoria-logs
+      - equal:
+          path: spec.groups[0].interval
+          value: 30s
+
+  - it: carries the default VictoriaLogsDown + VictoriaLogsDiskNearFull alerts
+    set:
+      enabled: true
+    asserts:
+      - contains:
+          path: spec.groups[0].rules
+          any: true
+          content:
+            alert: VictoriaLogsDown
+      - contains:
+          path: spec.groups[0].rules
+          any: true
+          content:
+            alert: VictoriaLogsDiskNearFull
+
+  - it: PrometheusRule absent when observability.prometheusRule disabled
+    set:
+      enabled: true
+      observability.prometheusRule.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: alert rules are operator-tunable
+    set:
+      enabled: true
+      observability.prometheusRule.rules:
+        - alert: CustomLogAlert
+          expr: vector(1) > 0
+          for: 7m
+          labels:
+            severity: critical
+          annotations:
+            summary: testing
+    asserts:
+      - equal:
+          path: spec.groups[0].rules[0].alert
+          value: CustomLogAlert
+      - equal:
+          path: spec.groups[0].rules[0].for
+          value: 7m
+      - equal:
+          path: spec.groups[0].rules[0].labels.severity
+          value: critical

@@ -34,7 +34,7 @@ verdicts — i.e., a queue with messages overrides the sleep window.
 */}}
 
 {{- define "pleme-lareira.breathability.cron" -}}
-{{- if and .Values.breathability.enabled .Values.breathability.cron.enabled }}
+{{- if and (.Values.breathability).enabled ((.Values.breathability).cron).enabled }}
 {{- $fullname := include "pleme-lib.fullname" . }}
 ---
 apiVersion: keda.sh/v1alpha1

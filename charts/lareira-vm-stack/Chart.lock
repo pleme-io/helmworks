@@ -1,9 +1,9 @@
 dependencies:
 - name: pleme-lib
   repository: file://../pleme-lib
-  version: 0.24.0
+  version: 0.27.0
 - name: victoria-metrics-k8s-stack
   repository: https://victoriametrics.github.io/helm-charts/
   version: 0.39.0
-digest: sha256:10962868ab06c3a249e707f88591e0e8ed0fcf5340dd3b0bb89d7dfa7457bc0a
-generated: "2026-06-13T12:10:35.482243-07:00"
+digest: sha256:423bbcfc1a219d9abe2caae3f5e5415487043f238850317bf867c4844baffaa6
+generated: "2026-06-14T21:50:59.084869-04:00"

@@ -10,15 +10,19 @@ release:
   namespace: pangea-system
 
 tests:
-  # ── target.name required ───────────────────────────────────────────────────
-  - it: fails when target.name is unset (the single load-bearing input)
-    template: templates/servicemonitor.yaml
+  # ── target.name gates the whole attach (default-off) ───────────────────────
+  # Behavior pinned by commit 309bcc3 ("default-off on missing target.name —
+  # fix chronic auto-release red"): every template guards on target.name, so a
+  # release with no target renders nothing instead of fail()ing at template
+  # time. This keeps auto-release green when a HelmRelease ships before its
+  # target values are wired.
+  - it: renders nothing when target.name is unset (safe default-off attach)
     set:
       target:
         name: ""
     asserts:
-      - failedTemplate:
-          errorMessage: "lareira-observe: target.name is REQUIRED — it names the in-cluster workload/Service this release attaches to (e.g. pangea-operator)"
+      - hasDocuments:
+          count: 0
 
   # ── ServiceMonitor renders against the TARGET ──────────────────────────────
   - it: emits a ServiceMonitor scraping the target Service in the target namespace

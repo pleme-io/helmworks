@@ -1,9 +1,9 @@
 dependencies:
 - name: pleme-lib
   repository: file://../pleme-lib
-  version: 0.15.0
+  version: 0.27.0
 - name: pleme-lareira
   repository: file://../pleme-lareira
-  version: 0.1.0
-digest: sha256:0eb05bdec6ee46b3c3f7ce83d7f72147ce363fea99de6943206519f52e2715f4
-generated: "2026-05-25T23:55:49.052565-04:00"
+  version: 0.2.1
+digest: sha256:076968baa4691a43fd84564d9d0b5666cd6179876031e97a0b0d959d2229a21f
+generated: "2026-06-14T22:02:11.758079-04:00"

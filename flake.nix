@@ -332,6 +332,30 @@
               echo "==> magma:unittest OK"
             '';
 
+            # observability:unittest — the home-edge telemetry charts.
+            # Pure rendering invariants for the vm-stack / victoria-logs /
+            # ntfy / observe charts (root tests/<chart>) plus the
+            # rio-dashboards chart whose suite is chart-local. No cluster.
+            "observability:unittest" = mkApp "observability-unittest" ''
+              echo "==> running helm-unittest across every observability chart"
+              for chart in lareira-vm-stack lareira-victoria-logs lareira-ntfy lareira-observe; do
+                echo ""
+                echo "── $chart ──"
+                if [ -d tests/$chart ]; then
+                  ( cd charts/$chart && helm dep update >/dev/null 2>&1 || true )
+                  ( cd charts/$chart && helm unittest -f "../../tests/$chart/*_test.yaml" . )
+                else
+                  echo "  ✗ tests/$chart missing"
+                  exit 1
+                fi
+              done
+              echo ""
+              echo "── lareira-rio-dashboards (chart-local tests/) ──"
+              ( cd charts/lareira-rio-dashboards && helm unittest . )
+              echo ""
+              echo "==> observability:unittest OK"
+            '';
+
             "mesh:e2e" = mkApp "mesh-e2e" ''
               # Real-cluster mesh smoke. Spins up an ephemeral k3d
               # (or kind) cluster, installs SPIRE + cert-manager, then

@@ -50,11 +50,11 @@ common-case shortcut, not a one-size-fits-all.
 ---
 {{- include "pleme-lib.servicemonitor" . }}
 {{- end }}
-{{- if .Values.pdb.enabled }}
+{{- if (.Values.pdb).enabled }}
 ---
 {{- include "pleme-lib.pdb" . }}
 {{- end }}
-{{- if .Values.breathability.enabled }}
+{{- if (.Values.breathability).enabled }}
 {{- include "pleme-lib.breathability" . }}
 {{- end }}
 {{- include "pleme-lareira.breathability.cron" . }}

@@ -1,0 +1,175 @@
+suite: lareira-vm-stack — PrometheusRule alerts + Grafana HTTPScaledObject
+# Fills the gap left by grafana_sso / vm_workloads: the alert-rules
+# PrometheusRule and the optional KEDA-HTTP Grafana scale-to-zero object.
+# Both parent-template surfaces gate on the master `enabled` flag
+# (default-OFF), so every assertion exercises the real toggle path.
+templates:
+  - templates/prometheusrule.yaml
+  - templates/grafana-scaledobject.yaml
+release:
+  name: lareira-vm-stack
+  namespace: monitoring
+tests:
+  # ── PrometheusRule ───────────────────────────────────────────────────
+  - it: master-disabled (default) renders no PrometheusRule
+    template: templates/prometheusrule.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: enabled emits the alert-rules PrometheusRule
+    template: templates/prometheusrule.yaml
+    set:
+      enabled: true
+    asserts:
+      - isKind:
+          of: PrometheusRule
+      - equal:
+          path: metadata.name
+          value: lareira-vm-stack-lareira-vm-stack
+      - equal:
+          path: metadata.labels["role"]
+          value: alert-rules
+      - equal:
+          path: spec.groups[0].name
+          value: lareira-vm-stack
+      - equal:
+          path: spec.groups[0].interval
+          value: 30s
+
+  - it: PrometheusRule carries the default VMSingleDown + VMAgentScrapeErrors alerts
+    template: templates/prometheusrule.yaml
+    set:
+      enabled: true
+    asserts:
+      - contains:
+          path: spec.groups[0].rules
+          any: true
+          content:
+            alert: VMSingleDown
+      - contains:
+          path: spec.groups[0].rules
+          any: true
+          content:
+            alert: VMAgentScrapeErrors
+
+  - it: PrometheusRule absent when observability.prometheusRule disabled
+    template: templates/prometheusrule.yaml
+    set:
+      enabled: true
+      observability.prometheusRule.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: alert rules are operator-tunable
+    template: templates/prometheusrule.yaml
+    set:
+      enabled: true
+      observability.prometheusRule.rules:
+        - alert: CustomVMAlert
+          expr: vector(1) > 0
+          for: 3m
+          labels:
+            severity: page
+          annotations:
+            summary: testing
+    asserts:
+      - equal:
+          path: spec.groups[0].rules[0].alert
+          value: CustomVMAlert
+      - equal:
+          path: spec.groups[0].rules[0].for
+          value: 3m
+      - equal:
+          path: spec.groups[0].rules[0].labels.severity
+          value: page
+
+  # ── Grafana HTTPScaledObject (KEDA-HTTP scale-to-zero) ───────────────
+  - it: grafana breathability OFF by default → no HTTPScaledObject
+    template: templates/grafana-scaledobject.yaml
+    set:
+      enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: chart disabled keeps the HTTPScaledObject off even if breathability enabled
+    template: templates/grafana-scaledobject.yaml
+    set:
+      enabled: false
+      grafanaBreathability.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: enabled breathability emits the Grafana HTTPScaledObject targeting the subchart Deployment
+    template: templates/grafana-scaledobject.yaml
+    set:
+      enabled: true
+      grafanaBreathability.enabled: true
+    asserts:
+      - isKind:
+          of: HTTPScaledObject
+      - equal:
+          path: metadata.name
+          value: lareira-vm-stack-lareira-vm-stack-grafana
+      - equal:
+          path: spec.scaleTargetRef.name
+          value: lareira-vm-stack-grafana
+      - equal:
+          path: spec.scaleTargetRef.kind
+          value: Deployment
+      - equal:
+          path: spec.scaleTargetRef.service
+          value: lareira-vm-stack-grafana
+      - equal:
+          path: spec.scaleTargetRef.port
+          value: 80
+
+  - it: HTTPScaledObject reflects the default scaling window (0→2, 600s cooldown)
+    template: templates/grafana-scaledobject.yaml
+    set:
+      enabled: true
+      grafanaBreathability.enabled: true
+    asserts:
+      - equal:
+          path: spec.replicas.min
+          value: 0
+      - equal:
+          path: spec.replicas.max
+          value: 2
+      - equal:
+          path: spec.scaledownPeriod
+          value: 600
+      - equal:
+          path: spec.scalingMetric.requestRate.targetValue
+          value: 1
+
+  - it: HTTPScaledObject hosts + scaling are operator-tunable
+    template: templates/grafana-scaledobject.yaml
+    set:
+      enabled: true
+      grafanaBreathability.enabled: true
+      grafanaBreathability.hosts:
+        - grafana.rio.pleme.lol
+      grafanaBreathability.scaling.minReplicas: 1
+      grafanaBreathability.scaling.maxReplicas: 4
+      grafanaBreathability.scaling.cooldownPeriod: 300
+      grafanaBreathability.scaling.targetPendingRequests: 5
+    asserts:
+      - equal:
+          path: spec.hosts[0]
+          value: grafana.rio.pleme.lol
+      - equal:
+          path: spec.replicas.min
+          value: 1
+      - equal:
+          path: spec.replicas.max
+          value: 4
+      - equal:
+          path: spec.scaledownPeriod
+          value: 300
+      - equal:
+          path: spec.scalingMetric.requestRate.targetValue
+          value: 5
