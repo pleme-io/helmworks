@@ -1,0 +1,218 @@
+# pleme-gaveta default values
+# gaveta — Postgres-backed long-running axum + async-graphql federation
+# subgraph for the gaveta sync drive. The Urdume Method L6 container-runtime
+# fork: a Deployment + Service + ServiceAccount + ServiceMonitor +
+# NetworkPolicy, all rendered from pleme-lib named templates (never a
+# hand-written Deployment — URDUME §II L6).
+#
+# Garage (S3) holds the file bytes (content-addressed chunks); gaveta holds
+# the metadata in Postgres (CNPG) and mints presigned URLs against the
+# gaveta-data bucket.
+
+image:
+  repository: ghcr.io/pleme-io/gaveta
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+replicaCount: 1
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# ── Ports ────────────────────────────────────────────────────────────────
+# graphql 8080 (main HTTP/GraphQL), health 8081, metrics 9090
+# (the rust-service port convention; matches gaveta's flake.nix).
+ports:
+  - name: graphql
+    containerPort: 8080
+    protocol: TCP
+  - name: health
+    containerPort: 8081
+    protocol: TCP
+  - name: metrics
+    containerPort: 9090
+    protocol: TCP
+
+service:
+  type: ClusterIP
+  ports:
+    - name: graphql
+      port: 8080
+      targetPort: graphql
+      protocol: TCP
+    - name: health
+      port: 8081
+      targetPort: health
+      protocol: TCP
+    - name: metrics
+      port: 9090
+      targetPort: metrics
+      protocol: TCP
+
+# ── Environment ──────────────────────────────────────────────────────────
+# Non-secret runtime config is plain `env`. Secrets (DATABASE_URL, the Garage
+# S3 access/secret keys) flow through secretKeyRef to the `gaveta-credentials`
+# Secret — never inline literals (URDUME L8 / IA-5).
+env:
+  - name: RUST_LOG
+    value: "info,gaveta=debug"
+  - name: LOG_FORMAT
+    value: "json"
+  - name: RUN_MODE
+    value: "api"
+  # Dual-port serve addresses (graphql / health / metrics).
+  - name: GRAPHQL_ADDR
+    value: "0.0.0.0:8080"
+  - name: HEALTH_ADDR
+    value: "0.0.0.0:8081"
+  - name: METRICS_ADDR
+    value: "0.0.0.0:9090"
+  # Garage S3 endpoint — the in-cluster S3 API Service (non-secret).
+  - name: GARAGE_ENDPOINT
+    value: "http://garage-s3:3900"
+  - name: GARAGE_REGION
+    value: "garage"
+  - name: GARAGE_BUCKET
+    value: "gaveta-data"
+  # ── Secrets (secretKeyRef → gaveta-credentials) ──────────────────────
+  - name: DATABASE_URL
+    valueFrom:
+      secretKeyRef:
+        name: gaveta-credentials
+        key: database-url
+  - name: GARAGE_ACCESS_KEY
+    valueFrom:
+      secretKeyRef:
+        name: gaveta-credentials
+        key: s3-access-key
+  - name: GARAGE_SECRET_KEY
+    valueFrom:
+      secretKeyRef:
+        name: gaveta-credentials
+        key: s3-secret-key
+
+envFrom: []
+
+volumeMounts: []
+volumes: []
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 1000m
+    memory: 512Mi
+
+health:
+  path: /health/live
+  readyPath: /health/ready
+  port: health
+  livenessInitialDelay: 5
+  livenessPeriod: 10
+  livenessFailureThreshold: 3
+  readinessInitialDelay: 5
+  readinessPeriod: 5
+  readinessFailureThreshold: 2
+
+startupProbe:
+  enabled: false
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65534
+  fsGroup: 65534
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+strategy:
+  type: RollingUpdate
+
+terminationGracePeriodSeconds: 30
+
+# ── shinka-wait initContainer (URDUME L0 control plane) ───────────────────
+# Gates pod start until the shinka DatabaseMigration `gaveta` is phase==Ready,
+# so "the app serves against an un-migrated schema" is unrepresentable at the
+# pod level. Disabled by default; flip on once a `DatabaseMigration` CR is
+# committed alongside this release. (pleme-lib.deployment renders the init
+# container natively from .Values.shinkaWait.)
+shinkaWait:
+  enabled: false
+  # image: ghcr.io/pleme-io/shinka:amd64-latest
+  # migrationName: gaveta
+  # timeoutSeconds: 300
+  # retryIntervalSeconds: 5
+  # logLevel: info
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# ── ServiceMonitor (Prometheus operator) ──────────────────────────────────
+monitoring:
+  enabled: false   # flip on once kube-prometheus-stack lands on rio
+  port: metrics
+  path: /metrics
+  interval: 30s
+  scrapeTimeout: 10s
+
+# ── NetworkPolicy ──────────────────────────────────────────────────────────
+networkPolicy:
+  enabled: true
+  allowPrometheus: true
+  allowDns: true
+  # Egress to Garage S3 (3900) + Postgres (5432). Each additionalEgress entry
+  # is {name, rules: [<egress rule>...]} per the pleme-lib.networkpolicy
+  # contract (one NetworkPolicy emitted per entry, named <fullname>-<name>).
+  additionalIngress: []
+  additionalEgress:
+    - name: allow-garage-s3
+      rules:
+        - to:
+            - podSelector:
+                matchLabels:
+                  app.kubernetes.io/name: pleme-garage
+          ports:
+            - protocol: TCP
+              port: 3900
+    - name: allow-postgres
+      rules:
+        - to:
+            - podSelector:
+                matchLabels:
+                  cnpg.io/cluster: pangea-database
+          ports:
+            - protocol: TCP
+              port: 5432
+
+command: []
+args: []
+additionalLabels: {}
+sidecars: []
+initContainers: []
+priorityClassName: ""
+lifecycle: {}
+
+downwardApi:
+  enabled: false
+istio:
+  enabled: false
+podMonitor:
+  enabled: false
+autoscaling:
+  enabled: false
+pdb:
+  enabled: false
+topologySpreadConstraints: []
