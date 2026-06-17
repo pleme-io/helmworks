@@ -52,3 +52,107 @@ tests:
       - equal:
           path: spec.template.spec.initContainers[1].name
           value: custom-init
+
+  # ── new: CHECK_MODE defaults to migration ──
+  - it: should default CHECK_MODE to migration
+    set:
+      shinkaWait:
+        enabled: true
+        migrationName: explodey
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: CHECK_MODE
+            value: "migration"
+
+  # ── new: database check mode (gate on the CNPG cluster + all its migrations) ──
+  - it: should render database check mode with CLUSTER_NAME + DATABASE
+    set:
+      shinkaWait:
+        enabled: true
+        checkMode: database
+        clusterName: explodey-db
+        database: explodey
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: CHECK_MODE
+            value: "database"
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: CLUSTER_NAME
+            value: "explodey-db"
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: DATABASE
+            value: "explodey"
+
+  # ── new: SHINKA_URL + the HTTP timeouts ──
+  - it: should render SHINKA_URL and the HTTP timeout env when set
+    set:
+      shinkaWait:
+        enabled: true
+        migrationName: explodey
+        shinkaUrl: http://shinka.shinka-system.svc.cluster.local:8080
+        httpRequestTimeoutSeconds: 10
+        httpClientTimeoutSeconds: 30
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: SHINKA_URL
+            value: "http://shinka.shinka-system.svc.cluster.local:8080"
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: HTTP_REQUEST_TIMEOUT_SECONDS
+            value: "10"
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: HTTP_CLIENT_TIMEOUT_SECONDS
+            value: "30"
+
+  # ── new: SHINKA_URL absent by default (no empty env injected) ──
+  - it: should not inject SHINKA_URL or HTTP timeouts when unset
+    set:
+      shinkaWait:
+        enabled: true
+        migrationName: explodey
+    asserts:
+      - notContains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: SHINKA_URL
+      - notContains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: CLUSTER_NAME
+
+  # ── new: securityContext passthrough on the wait init container ──
+  - it: should render the wait init container securityContext when set
+    set:
+      shinkaWait:
+        enabled: true
+        migrationName: explodey
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: [ALL]
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - contains:
+          path: spec.template.spec.initContainers[0].securityContext.capabilities.drop
+          content: ALL

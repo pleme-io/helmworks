@@ -7,7 +7,7 @@ tests:
       - hasDocuments:
           count: 0
 
-  - it: should render DatabaseMigration when enabled
+  - it: should render DatabaseMigration when enabled (singular migrator, full legacy surface)
     set:
       shinkaMigration:
         enabled: true
@@ -74,3 +74,198 @@ tests:
       - equal:
           path: spec.timeouts.migration
           value: "5m"
+      # the singular path must NOT also emit a migrators[] list
+      - isNull:
+          path: spec.migrators
+
+  # ── new: the full MigratorSpec surface (CRD fields the legacy template dropped) ──
+  - it: should render the full migrator surface (imageOverride/args/workingDir/migrationsPath/toolConfig/secretRefs/containerName)
+    set:
+      shinkaMigration:
+        enabled: true
+        database:
+          cnpgClusterRef:
+            name: explodey-db
+        migrator:
+          type: sqlx
+          deploymentRef:
+            name: explodey
+            containerName: api
+          imageOverride: ghcr.io/pleme-io/explodey@sha256:deadbeef
+          args: ["--source", "/migrations"]
+          workingDir: /app
+          migrationsPath: /migrations
+          toolConfig:
+            sqlxEmbedded: true
+            sqlxIgnoreMissing: false
+          secretRefs:
+            - name: explodey-db
+              key: database-url
+    asserts:
+      - equal:
+          path: spec.migrator.deploymentRef.containerName
+          value: api
+      - equal:
+          path: spec.migrator.imageOverride
+          value: ghcr.io/pleme-io/explodey@sha256:deadbeef
+      - equal:
+          path: spec.migrator.args[1]
+          value: /migrations
+      - equal:
+          path: spec.migrator.workingDir
+          value: /app
+      - equal:
+          path: spec.migrator.migrationsPath
+          value: /migrations
+      - equal:
+          path: spec.migrator.toolConfig.sqlxEmbedded
+          value: true
+      - equal:
+          path: spec.migrator.secretRefs[0].name
+          value: explodey-db
+
+  # ── new: the ordered migrators[] list (sqlx → seaorm sequential cutover) ──
+  - it: should render the migrators[] list and suppress the singular migrator
+    set:
+      shinkaMigration:
+        enabled: true
+        database:
+          cnpgClusterRef:
+            name: explodey-db
+            database: explodey
+        migrators:
+          - name: sqlx-floor
+            type: sqlx
+            deploymentRef:
+              name: explodey
+            command: [/bin/explodey, --migrate]
+          - name: seaorm-destination
+            type: seaorm
+            deploymentRef:
+              name: explodey
+            toolConfig:
+              seaormSteps: 1
+    asserts:
+      - equal:
+          path: spec.migrators[0].name
+          value: sqlx-floor
+      - equal:
+          path: spec.migrators[0].type
+          value: sqlx
+      - equal:
+          path: spec.migrators[1].name
+          value: seaorm-destination
+      - equal:
+          path: spec.migrators[1].type
+          value: seaorm
+      - equal:
+          path: spec.migrators[1].toolConfig.seaormSteps
+          value: 1
+      # migrators[] wins — no singular migrator emitted
+      - isNull:
+          path: spec.migrator
+
+  # ── new: metadata annotations passthrough (the retry + expected-tag signals) ──
+  - it: should pass through migration annotations
+    set:
+      shinkaMigration:
+        enabled: true
+        database:
+          cnpgClusterRef:
+            name: explodey-db
+        migrator:
+          type: sqlx
+          deploymentRef:
+            name: explodey
+        annotations:
+          shinka.pleme.io/retry: "true"
+          release.shinka.pleme.io/expected-tag: amd64-r12-abc123
+    asserts:
+      - equal:
+          path: metadata.annotations["shinka.pleme.io/retry"]
+          value: "true"
+      - equal:
+          path: metadata.annotations["release.shinka.pleme.io/expected-tag"]
+          value: amd64-r12-abc123
+
+  # ── new: the database guard (Option<String> — absent must not render an empty key) ──
+  - it: should omit cnpgClusterRef.database when not set
+    set:
+      shinkaMigration:
+        enabled: true
+        database:
+          cnpgClusterRef:
+            name: explodey-db
+        migrator:
+          type: sqlx
+          deploymentRef:
+            name: explodey
+    asserts:
+      - equal:
+          path: spec.database.cnpgClusterRef.name
+          value: explodey-db
+      - isNull:
+          path: spec.database.cnpgClusterRef.database
+
+  # ── new: defaults — type→sqlx, name→fullname ──
+  - it: should default migrator type to sqlx and name to the fullname
+    set:
+      fullnameOverride: explodey
+      shinkaMigration:
+        enabled: true
+        database:
+          cnpgClusterRef:
+            name: explodey-db
+        migrator:
+          deploymentRef:
+            name: explodey
+    asserts:
+      - equal:
+          path: spec.migrator.type
+          value: sqlx
+      - equal:
+          path: spec.migrator.name
+          value: explodey
+
+  # ── new: the migrator-type allowlist guard ──
+  - it: should fail render on an unknown migrator type
+    set:
+      shinkaMigration:
+        enabled: true
+        database:
+          cnpgClusterRef:
+            name: explodey-db
+        migrator:
+          type: bogus-tool
+          deploymentRef:
+            name: explodey
+    asserts:
+      - failedTemplate:
+          errorPattern: 'migrator type "bogus-tool" is not one of'
+
+  - it: should accept every documented migrator type
+    set:
+      shinkaMigration:
+        enabled: true
+        database:
+          cnpgClusterRef:
+            name: explodey-db
+        migrators:
+          - { type: sqlx, deploymentRef: { name: x } }
+          - { type: refinery, deploymentRef: { name: x } }
+          - { type: diesel, deploymentRef: { name: x } }
+          - { type: seaorm, deploymentRef: { name: x } }
+          - { type: goose, deploymentRef: { name: x } }
+          - { type: golang-migrate, deploymentRef: { name: x } }
+          - { type: atlas, deploymentRef: { name: x } }
+          - { type: dbmate, deploymentRef: { name: x } }
+          - { type: flyway, deploymentRef: { name: x } }
+          - { type: liquibase, deploymentRef: { name: x } }
+          - { type: custom, deploymentRef: { name: x } }
+    asserts:
+      - equal:
+          path: spec.migrators[5].type
+          value: golang-migrate
+      - equal:
+          path: spec.migrators[10].type
+          value: custom
