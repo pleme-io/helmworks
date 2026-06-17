@@ -73,6 +73,39 @@ tests:
           path: spec.configRawYaml
           pattern: "priority=urgent"
 
+  - it: "ntfy auth off by default → no basic_auth on the webhooks"
+    template: templates/vm-workloads.yaml
+    set:
+      enabled: true
+      alerting.receiver: ntfy
+    documentSelector:
+      path: kind
+      value: VMAlertmanager
+    asserts:
+      - notMatchRegex:
+          path: spec.configRawYaml
+          pattern: "basic_auth"
+
+  - it: "ntfy auth on → Alertmanager basic_auth (username + password_file)"
+    template: templates/vm-workloads.yaml
+    set:
+      enabled: true
+      alerting.receiver: ntfy
+      alerting.ntfy.auth.enabled: true
+    documentSelector:
+      path: kind
+      value: VMAlertmanager
+    asserts:
+      - matchRegex:
+          path: spec.configRawYaml
+          pattern: "basic_auth:"
+      - matchRegex:
+          path: spec.configRawYaml
+          pattern: "username: rio"
+      - matchRegex:
+          path: spec.configRawYaml
+          pattern: "password_file: /etc/vm/secrets/ntfy-auth/password"
+
   - it: "receiver=ntfy with custom topic + baseUrl is honored"
     template: templates/vm-workloads.yaml
     set:

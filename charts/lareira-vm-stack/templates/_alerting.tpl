@@ -24,23 +24,31 @@ configurable unit of the observability stack.
 {{- if (($n.template).enabled) -}}
 {{- $tpl = printf "&template=1&title=%s&message=%s" (urlquery $n.template.title) (urlquery $n.template.message) -}}
 {{- end -}}
+{{- /* HARDENING: when ntfy auth is on, Alertmanager authenticates to ntfy with
+       HTTP basic_auth (the password from a mounted Secret), so the public ntfy
+       endpoint requires a credential to publish — not open. $auth is appended
+       after each webhook's send_resolved as an indented http_config block. */ -}}
+{{- $auth := "" -}}
+{{- if (($n.auth).enabled) -}}
+{{- $auth = printf "\n        http_config:\n          basic_auth:\n            username: %s\n            password_file: %s" $n.auth.username ($n.auth.passwordFile | default "/etc/vm/secrets/ntfy-auth/password") -}}
+{{- end -}}
 receivers:
   - name: rio-critical
     webhook_configs:
       - url: {{ $n.baseUrl }}/{{ $n.topics.critical }}?priority=urgent&tags=rotating_light{{ $tpl }}
-        send_resolved: true
+        send_resolved: true{{ $auth }}
   - name: rio-warning
     webhook_configs:
       - url: {{ $n.baseUrl }}/{{ $n.topics.warning }}?priority=high&tags=warning{{ $tpl }}
-        send_resolved: true
+        send_resolved: true{{ $auth }}
   - name: rio-info
     webhook_configs:
       - url: {{ $n.baseUrl }}/{{ $n.topics.info }}?priority=default{{ $tpl }}
-        send_resolved: false
+        send_resolved: false{{ $auth }}
   - name: rio-heartbeat
     webhook_configs:
       - url: {{ $n.baseUrl }}/{{ $n.topics.heartbeat }}?priority=min&tags=heartbeat{{ $tpl }}
-        send_resolved: false
+        send_resolved: false{{ $auth }}
 route:
   receiver: rio-warning
   group_by: {{ $a.route.groupBy | toJson }}

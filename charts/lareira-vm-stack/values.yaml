@@ -509,6 +509,15 @@ alerting:
       # newline literal with HTTP 400 "could not parse template"). After grouping,
       # a notification is usually a single alert anyway.
       message: '{{range .alerts}}{{.annotations.summary}} {{end}}'
+    # HARDENING: when enabled, Alertmanager authenticates to ntfy with HTTP
+    # basic_auth (username + a password from a mounted Secret) — so the public
+    # ntfy endpoint requires a credential to publish. Pair with ntfy
+    # NTFY_AUTH_DEFAULT_ACCESS=deny-all + a seeded user. The password file is the
+    # VMAlertmanager secret-mount path; add the Secret to vm.alertmanager.secrets.
+    auth:
+      enabled: false
+      username: rio
+      passwordFile: /etc/vm/secrets/ntfy-auth/password
   # Grouping for the default (warning) route.
   route:
     groupBy: [alertname, namespace, severity]
