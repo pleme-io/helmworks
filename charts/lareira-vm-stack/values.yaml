@@ -498,6 +498,14 @@ alerting:
       warning: rio-warning
       info: rio-info
       heartbeat: rio-heartbeat
+    # Message templating — Go templates evaluated ntfy-side over the Alertmanager
+    # webhook JSON, so phone notifications read as "<alertname>" / "<summary>"
+    # instead of a raw JSON blob. LITERAL strings (Helm does not process values);
+    # urlquery-encoded into the webhook URL by _alerting.tpl.
+    template:
+      enabled: true
+      title: '{{.commonLabels.alertname}}'
+      message: '{{range .alerts}}{{.annotations.summary}}{{"\n"}}{{end}}'
   # Grouping for the default (warning) route.
   route:
     groupBy: [alertname, namespace, severity]

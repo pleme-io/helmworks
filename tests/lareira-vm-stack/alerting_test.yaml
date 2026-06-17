@@ -45,6 +45,33 @@ tests:
       - matchRegex:
           path: spec.configRawYaml
           pattern: 'severity="critical"'
+      # message templating + per-severity priority baked into the webhook URL
+      - matchRegex:
+          path: spec.configRawYaml
+          pattern: "priority=urgent"
+      - matchRegex:
+          path: spec.configRawYaml
+          pattern: "template=1"
+      - matchRegex:
+          path: spec.configRawYaml
+          pattern: "title=%7B%7B"
+
+  - it: "ntfy template can be disabled (raw JSON message)"
+    template: templates/vm-workloads.yaml
+    set:
+      enabled: true
+      alerting.receiver: ntfy
+      alerting.ntfy.template.enabled: false
+    documentSelector:
+      path: kind
+      value: VMAlertmanager
+    asserts:
+      - notMatchRegex:
+          path: spec.configRawYaml
+          pattern: "template=1"
+      - matchRegex:
+          path: spec.configRawYaml
+          pattern: "priority=urgent"
 
   - it: "receiver=ntfy with custom topic + baseUrl is honored"
     template: templates/vm-workloads.yaml

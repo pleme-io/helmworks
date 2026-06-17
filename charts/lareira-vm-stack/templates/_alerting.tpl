@@ -15,22 +15,31 @@ configurable unit of the observability stack.
 {{- $a := .Values.alerting -}}
 {{- if eq $a.receiver "ntfy" -}}
 {{- $n := $a.ntfy -}}
+{{- /* ntfy query suffix: per-severity priority + (optional) message templating.
+       The title/message Go-templates live in values (literal, not Helm-processed)
+       and are urlquery-encoded into the webhook URL — ntfy parses the Alertmanager
+       JSON body and evaluates them, so phone notifications read as
+       "<alertname>" / "<summary>" instead of a raw JSON blob. */ -}}
+{{- $tpl := "" -}}
+{{- if (($n.template).enabled) -}}
+{{- $tpl = printf "&template=1&title=%s&message=%s" (urlquery $n.template.title) (urlquery $n.template.message) -}}
+{{- end -}}
 receivers:
   - name: rio-critical
     webhook_configs:
-      - url: {{ $n.baseUrl }}/{{ $n.topics.critical }}
+      - url: {{ $n.baseUrl }}/{{ $n.topics.critical }}?priority=urgent&tags=rotating_light{{ $tpl }}
         send_resolved: true
   - name: rio-warning
     webhook_configs:
-      - url: {{ $n.baseUrl }}/{{ $n.topics.warning }}
+      - url: {{ $n.baseUrl }}/{{ $n.topics.warning }}?priority=high&tags=warning{{ $tpl }}
         send_resolved: true
   - name: rio-info
     webhook_configs:
-      - url: {{ $n.baseUrl }}/{{ $n.topics.info }}
+      - url: {{ $n.baseUrl }}/{{ $n.topics.info }}?priority=default{{ $tpl }}
         send_resolved: false
   - name: rio-heartbeat
     webhook_configs:
-      - url: {{ $n.baseUrl }}/{{ $n.topics.heartbeat }}
+      - url: {{ $n.baseUrl }}/{{ $n.topics.heartbeat }}?priority=min&tags=heartbeat{{ $tpl }}
         send_resolved: false
 route:
   receiver: rio-warning

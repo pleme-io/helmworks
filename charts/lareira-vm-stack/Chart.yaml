@@ -6,7 +6,7 @@ description: |
   the canonical Grafana datasources for VMSingle + VictoriaLogs, and
   alert rules.
 type: application
-version: 0.2.5
+version: 0.2.6
 appVersion: "0.39.0"
 keywords: [observability, victoriametrics, prometheus, grafana, alertmanager, lareira]
 maintainers:
