@@ -1,0 +1,21 @@
+{{- if .Values.storageClass.create }}
+# Real per-volume ZFS storage: each PVC is a `pool/k8s-volumes/<pv>` dataset
+# with refquota = requested size. Expand = `zfs set refquota` → carvable.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ .Values.storageClass.name }}
+  {{- if .Values.storageClass.default }}
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
+  {{- end }}
+allowVolumeExpansion: true
+provisioner: zfs.csi.openebs.io
+reclaimPolicy: {{ .Values.storageClass.reclaimPolicy | default "Delete" }}
+volumeBindingMode: WaitForFirstConsumer
+parameters:
+  fstype: "zfs"
+  poolname: {{ .Values.storageClass.poolname | quote }}
+  compression: {{ .Values.storageClass.compression | default "off" | quote }}
+  recordsize: {{ .Values.storageClass.recordsize | default "128k" | quote }}
+{{- end }}

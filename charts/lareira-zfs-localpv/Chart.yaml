@@ -1,0 +1,21 @@
+apiVersion: v2
+name: lareira-zfs-localpv
+description: |
+  openebs zfs-localpv CSI for rio's ZFS pool — each PVC becomes a real ZFS
+  dataset with a refquota, so per-volume util is accurate (no local-path
+  shared-fs nonsense) and growing requests.storage actually raises the quota.
+  This is what makes the breathe StorageBand able to CARVE storage. Wraps the
+  upstream zfs-localpv chart (bundled in the package → hermetic) + a `zfs`
+  StorageClass.
+type: application
+version: 0.1.0
+appVersion: "2.10.1"
+keywords: [storage, csi, zfs, openebs, breathe, carvable, lareira]
+maintainers:
+  - name: drzzln
+    email: drzzln@protonmail.com
+dependencies:
+  - name: zfs-localpv
+    version: "2.10.1"
+    repository: "https://openebs.github.io/zfs-localpv"
+    condition: zfs-localpv.enabled
