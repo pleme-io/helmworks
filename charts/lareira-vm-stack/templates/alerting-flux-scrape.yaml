@@ -1,0 +1,24 @@
+{{- /*
+Scrape the Flux controllers' gotk metrics so the GitOps-drift alerts
+(FluxReconcileFailing / FluxSuspended in the homelab pack) have data. Toggled by
+`alerting.fluxScrape.enabled`. All flux controllers share
+`app.kubernetes.io/part-of: flux` + expose the `http-prom` port.
+*/ -}}
+{{- if and .Values.enabled ((.Values.alerting).enabled) (((.Values.alerting).fluxScrape).enabled) }}
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMPodScrape
+metadata:
+  name: {{ .Release.Name }}-flux
+  namespace: {{ .Values.alerting.fluxScrape.namespace | default "flux-system" }}
+  labels:
+    app.kubernetes.io/part-of: lareira-vm-stack
+spec:
+  namespaceSelector:
+    matchNames:
+      - {{ .Values.alerting.fluxScrape.namespace | default "flux-system" }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/part-of: flux
+  podMetricsEndpoints:
+    - port: {{ .Values.alerting.fluxScrape.port | default "http-prom" }}
+{{- end }}

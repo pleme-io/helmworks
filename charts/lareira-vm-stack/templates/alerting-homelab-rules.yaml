@@ -1,0 +1,20 @@
+{{- /*
+The high-signal homelab VMRule pack — rendered + toggled by the chart, so the
+"what fires" is part of the observability stack's configuration surface, not an
+out-of-band manifest. `alerting.homelabRules.groups` defaults to the full pack
+(ImagePullBackOff, CrashLoop, Pending, OOM, restart-storm, Flux drift, node/disk
+pressure, PVC, gaveta/garage down, watchdog) and is fully overridable.
+*/ -}}
+{{- if and .Values.enabled ((.Values.alerting).enabled) (((.Values.alerting).homelabRules).enabled) }}
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
+metadata:
+  name: {{ .Release.Name }}-homelab
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/part-of: lareira-vm-stack
+    role: alert-rules
+spec:
+  groups:
+    {{- toYaml .Values.alerting.homelabRules.groups | nindent 4 }}
+{{- end }}

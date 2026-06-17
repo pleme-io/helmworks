@@ -474,3 +474,146 @@ observability:
           summary: "vmagent failing >1 scrape/sec for 10m"
           description: "Some scrape targets unreachable. Check ServiceMonitor selectors, network policies, or target pod readiness."
           runbook_url: "https://runbooks.pleme.io/lareira-vm-stack/scrape-errors"
+
+# ── Alerting architecture (the homelab push pipeline) ──────────────────────
+# Drives WHERE alerts go and WHAT fires, as toggles, so the whole pipeline is
+# one configurable unit of the observability stack — no out-of-band manifests.
+#
+#   alerting.receiver = blackhole | ntfy   ← THE architecture switch
+#     blackhole : alerts fire but go nowhere (silent default; what shipped
+#                 historically and left the operator blind).
+#     ntfy      : the full severity → ntfy-topic push architecture.
+#
+# Rendered by this chart: the Alertmanager config (templates/_alerting.tpl via
+# vm-workloads.yaml), the homelab VMRule (alerting-homelab-rules.yaml), and the
+# Flux gotk scrape (alerting-flux-scrape.yaml).
+alerting:
+  enabled: true
+  receiver: blackhole          # blackhole | ntfy
+  ntfy:
+    # Use the chart-fullname Service of lareira-ntfy (NOT `ntfy.ntfy.svc`).
+    baseUrl: http://ntfy-lareira-ntfy.ntfy.svc.cluster.local
+    topics:
+      critical: rio-critical
+      warning: rio-warning
+      info: rio-info
+      heartbeat: rio-heartbeat
+  # Grouping for the default (warning) route.
+  route:
+    groupBy: [alertname, namespace, severity]
+    groupWait: 30s
+    groupInterval: 5m
+    repeatInterval: 12h
+  heartbeatInterval: 6h        # dead-man's-switch cadence (silence = pipeline broken)
+
+  # The high-signal homelab VMRule pack — toggle + fully overridable.
+  homelabRules:
+    enabled: false
+    groups:
+      - name: rio-homelab.workload
+        rules:
+          - alert: PodImagePullBackOff
+            expr: kube_pod_container_status_waiting_reason{reason=~"ImagePullBackOff|ErrImagePull"} == 1
+            for: 10m
+            labels: { severity: warning }
+            annotations:
+              summary: "ImagePullBackOff: {{ $labels.namespace }}/{{ $labels.pod }}"
+              description: "Container {{ $labels.container }} can't pull its image for >10m."
+          - alert: PodCrashLooping
+            expr: kube_pod_container_status_waiting_reason{reason="CrashLoopBackOff"} == 1
+            for: 10m
+            labels: { severity: warning }
+            annotations:
+              summary: "CrashLoopBackOff: {{ $labels.namespace }}/{{ $labels.pod }}"
+              description: "Container {{ $labels.container }} keeps crashing for >10m."
+          - alert: PodStuckPending
+            expr: kube_pod_status_phase{phase=~"Pending|Unknown"} == 1
+            for: 15m
+            labels: { severity: warning }
+            annotations:
+              summary: "Pod stuck {{ $labels.phase }}: {{ $labels.namespace }}/{{ $labels.pod }}"
+          - alert: PodOOMKilled
+            expr: increase(kube_pod_container_status_terminated_reason{reason="OOMKilled"}[15m]) > 0
+            labels: { severity: warning }
+            annotations:
+              summary: "OOMKilled: {{ $labels.namespace }}/{{ $labels.pod }}"
+          - alert: ContainerRestartStorm
+            expr: increase(kube_pod_container_status_restarts_total[15m]) > 5
+            for: 15m
+            labels: { severity: warning }
+            annotations:
+              summary: "Restart storm: {{ $labels.namespace }}/{{ $labels.pod }}"
+          - alert: JobFailed
+            expr: kube_job_failed{condition="true"} == 1
+            for: 5m
+            labels: { severity: warning }
+            annotations:
+              summary: "Job failed: {{ $labels.namespace }}/{{ $labels.job_name }}"
+      - name: rio-homelab.gitops
+        rules:
+          - alert: FluxReconcileFailing
+            expr: gotk_reconcile_condition{type="Ready",status="False"} == 1
+            for: 15m
+            labels: { severity: warning }
+            annotations:
+              summary: "Flux out-of-sync: {{ $labels.kind }} {{ $labels.namespace }}/{{ $labels.name }}"
+          - alert: FluxSuspended
+            expr: gotk_suspend_status == 1
+            for: 1h
+            labels: { severity: info }
+            annotations:
+              summary: "Flux suspended: {{ $labels.kind }} {{ $labels.namespace }}/{{ $labels.name }}"
+      - name: rio-homelab.node
+        rules:
+          - alert: NodeNotReady
+            expr: kube_node_status_condition{condition="Ready",status="true"} == 0
+            for: 5m
+            labels: { severity: critical }
+            annotations:
+              summary: "Node NotReady: {{ $labels.node }}"
+          - alert: NodeDiskPressure
+            expr: kube_node_status_condition{condition="DiskPressure",status="true"} == 1
+            for: 5m
+            labels: { severity: critical }
+            annotations:
+              summary: "Node DiskPressure: {{ $labels.node }}"
+          - alert: NodeMemoryPressure
+            expr: kube_node_status_condition{condition="MemoryPressure",status="true"} == 1
+            for: 5m
+            labels: { severity: critical }
+            annotations:
+              summary: "Node MemoryPressure: {{ $labels.node }}"
+          - alert: PVCAlmostFull
+            expr: kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes > 0.85
+            for: 15m
+            labels: { severity: warning }
+            annotations:
+              summary: "PVC >85% full: {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }}"
+      - name: rio-homelab.drive
+        rules:
+          - alert: GavetaDown
+            expr: kube_deployment_status_replicas_available{namespace="drive",deployment="gaveta"} == 0
+            for: 10m
+            labels: { severity: critical }
+            annotations:
+              summary: "gaveta (drive coordination service) is DOWN"
+          - alert: GarageDown
+            expr: kube_statefulset_status_replicas_ready{namespace="drive",statefulset="garage"} == 0
+            for: 10m
+            labels: { severity: critical }
+            annotations:
+              summary: "garage (drive blob store) is DOWN"
+      - name: rio-homelab.watchdog
+        rules:
+          - alert: Watchdog
+            expr: vector(1)
+            labels: { severity: heartbeat }
+            annotations:
+              summary: "rio alerting pipeline is alive"
+              description: "Always-firing heartbeat. If this stops arriving, the alert pipeline itself is broken."
+
+  # Scrape the Flux controllers' gotk metrics (the GitOps-drift alerts' data).
+  fluxScrape:
+    enabled: false
+    namespace: flux-system
+    port: http-prom

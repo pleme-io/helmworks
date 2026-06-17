@@ -1,0 +1,153 @@
+suite: lareira-vm-stack alerting architecture (blackhole ↔ ntfy toggles)
+templates:
+  - templates/vm-workloads.yaml
+  - templates/alerting-homelab-rules.yaml
+  - templates/alerting-flux-scrape.yaml
+tests:
+  # ── the receiver toggle: blackhole vs ntfy ───────────────────────────────
+  - it: "receiver=blackhole → Alertmanager routes to the blackhole, no ntfy"
+    template: templates/vm-workloads.yaml
+    set:
+      enabled: true
+      alerting.receiver: blackhole
+    documentSelector:
+      path: kind
+      value: VMAlertmanager
+    asserts:
+      - matchRegex:
+          path: spec.configRawYaml
+          pattern: "receiver: blackhole"
+      - notMatchRegex:
+          path: spec.configRawYaml
+          pattern: "ntfy"
+
+  - it: "receiver=ntfy → Alertmanager routes every severity to its ntfy topic"
+    template: templates/vm-workloads.yaml
+    set:
+      enabled: true
+      alerting.receiver: ntfy
+    documentSelector:
+      path: kind
+      value: VMAlertmanager
+    asserts:
+      - notMatchRegex:
+          path: spec.configRawYaml
+          pattern: "blackhole"
+      - matchRegex:
+          path: spec.configRawYaml
+          pattern: "ntfy-lareira-ntfy.ntfy.svc.cluster.local/rio-critical"
+      - matchRegex:
+          path: spec.configRawYaml
+          pattern: "/rio-warning"
+      - matchRegex:
+          path: spec.configRawYaml
+          pattern: "/rio-heartbeat"
+      - matchRegex:
+          path: spec.configRawYaml
+          pattern: 'severity="critical"'
+
+  - it: "receiver=ntfy with custom topic + baseUrl is honored"
+    template: templates/vm-workloads.yaml
+    set:
+      enabled: true
+      alerting.receiver: ntfy
+      alerting.ntfy.baseUrl: http://my-ntfy.example.svc
+      alerting.ntfy.topics.critical: my-crit
+    documentSelector:
+      path: kind
+      value: VMAlertmanager
+    asserts:
+      - matchRegex:
+          path: spec.configRawYaml
+          pattern: "http://my-ntfy.example.svc/my-crit"
+
+  # ── the homelab rule pack toggle ─────────────────────────────────────────
+  - it: "homelabRules off by default → no VMRule"
+    template: templates/alerting-homelab-rules.yaml
+    set:
+      enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: "homelabRules on → a VMRule with the high-signal pack"
+    template: templates/alerting-homelab-rules.yaml
+    set:
+      enabled: true
+      alerting.homelabRules.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: VMRule
+      - matchRegex:
+          path: spec.groups[0].rules[0].alert
+          pattern: "PodImagePullBackOff"
+      - matchRegex:
+          path: metadata.name
+          pattern: "-homelab$"
+
+  - it: "homelabRules groups are overridable"
+    template: templates/alerting-homelab-rules.yaml
+    set:
+      enabled: true
+      alerting.homelabRules.enabled: true
+      alerting.homelabRules.groups:
+        - name: custom
+          rules:
+            - alert: MyOwnAlert
+              expr: vector(1)
+              labels: { severity: warning }
+    asserts:
+      - equal:
+          path: spec.groups[0].name
+          value: custom
+      - equal:
+          path: spec.groups[0].rules[0].alert
+          value: MyOwnAlert
+
+  # ── the flux scrape toggle ───────────────────────────────────────────────
+  - it: "fluxScrape off by default → nothing"
+    template: templates/alerting-flux-scrape.yaml
+    set:
+      enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: "fluxScrape on → a VMPodScrape selecting the flux controllers"
+    template: templates/alerting-flux-scrape.yaml
+    set:
+      enabled: true
+      alerting.fluxScrape.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: VMPodScrape
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/part-of"]
+          value: flux
+      - equal:
+          path: spec.podMetricsEndpoints[0].port
+          value: http-prom
+
+  # ── master gate ──────────────────────────────────────────────────────────
+  - it: "master enabled=false → no homelab rules even when homelabRules.enabled"
+    template: templates/alerting-homelab-rules.yaml
+    set:
+      enabled: false
+      alerting.homelabRules.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: "alerting.enabled=false → no flux scrape even when fluxScrape.enabled"
+    template: templates/alerting-flux-scrape.yaml
+    set:
+      enabled: true
+      alerting.enabled: false
+      alerting.fluxScrape.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0

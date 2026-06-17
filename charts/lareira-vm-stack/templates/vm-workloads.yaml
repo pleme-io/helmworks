@@ -26,6 +26,13 @@ reproduced verbatim from the live spec (a future pleme-lib.vmStack auto-wiring
 helper is the destination for computing it).
 */ -}}
 {{- if .Values.enabled }}
+{{- /* Drive the Alertmanager config from the `alerting:` toggle surface: the
+       computed blackhole-or-ntfy config replaces vm.alertmanager.configRawYaml
+       before the VMAlertmanager renders. One switch (alerting.receiver) flips
+       the whole receiver/route tree. */ -}}
+{{- if and .Values.alerting .Values.alerting.enabled ((.Values.vm).alertmanager) }}
+{{- $_ := set .Values.vm.alertmanager "configRawYaml" (include "lareira-vm-stack.alertmanagerConfig" .) }}
+{{- end }}
 {{- if ((.Values.vm).single).enabled }}
 ---
 {{- include "pleme-lib.vmSingle" . }}
