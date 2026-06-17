@@ -505,7 +505,10 @@ alerting:
     template:
       enabled: true
       title: '{{.commonLabels.alertname}}'
-      message: '{{range .alerts}}{{.annotations.summary}}{{"\n"}}{{end}}'
+      # Space-separated (NOT {{"\n"}} — ntfy's template parser rejects the quoted
+      # newline literal with HTTP 400 "could not parse template"). After grouping,
+      # a notification is usually a single alert anyway.
+      message: '{{range .alerts}}{{.annotations.summary}} {{end}}'
   # Grouping for the default (warning) route.
   route:
     groupBy: [alertname, namespace, severity]
