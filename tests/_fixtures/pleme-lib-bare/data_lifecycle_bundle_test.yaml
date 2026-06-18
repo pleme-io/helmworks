@@ -1,0 +1,89 @@
+suite: pleme-lib bare-fixture — pleme-lib.dataLifecycleBundle composite
+#
+# Proves the one-border data-plane composite: each leg (migration / breathe /
+# secret) is independently gated and OFF by default, and when enabled delegates
+# to the existing primitive (shinkaDatabaseMigration → DatabaseMigration,
+# breatheBand → MemoryBand, externalSecret → ExternalSecret). Same
+# synthesize-from-typed-values shape as observabilityBundle.
+templates:
+  - templates/data-lifecycle-bundle.yaml
+release:
+  name: t
+  namespace: catch
+defaults: &defaults
+  image.repository: ghcr.io/x/y
+  image.tag: "1.0.0"
+  serviceAccount.create: true
+tests:
+  - it: renders NOTHING when dataLifecycle is unset (default-off)
+    set:
+      <<: *defaults
+    asserts:
+      - hasDocuments: { count: 0 }
+
+  - it: migration leg → a shinka DatabaseMigration
+    set:
+      <<: *defaults
+      dataLifecycle:
+        migration:
+          enabled: true
+          migrationName: t-catch
+          database:
+            cnpgClusterRef: { name: pangea-database, database: catch }
+          migrators:
+            - name: sqlx-floor
+              type: sqlx
+              deploymentRef: { name: t }
+              command: [/bin/catch-api-server, --migrate]
+    asserts:
+      - hasDocuments: { count: 1 }
+      - containsDocument: { kind: DatabaseMigration, apiVersion: shinka.pleme.io/v1 }
+
+  - it: breathe leg → a MemoryBand on the data tier
+    set:
+      <<: *defaults
+      dataLifecycle:
+        breathe:
+          enabled: true
+          memory: { enabled: true, floor: 256Mi, ceiling: 2Gi }
+          targetRef: { name: pangea-database }
+    asserts:
+      - documentIndex: 0
+        isKind: { of: MemoryBand }
+
+  - it: secret leg → an ExternalSecret for the DB credentials
+    set:
+      <<: *defaults
+      dataLifecycle:
+        secret:
+          secrets:
+            db-credentials:
+              data:
+                - secretKey: password
+                  remoteRef: { key: catch/db, property: password }
+    asserts:
+      - documentIndex: 0
+        isKind: { of: ExternalSecret }
+
+  - it: all three legs compose into three documents
+    set:
+      <<: *defaults
+      dataLifecycle:
+        migration:
+          enabled: true
+          migrationName: t-catch
+          database: { cnpgClusterRef: { name: pangea-database, database: catch } }
+          migrators:
+            - { name: sqlx-floor, type: sqlx, deploymentRef: { name: t }, command: [/bin/x, --migrate] }
+        breathe:
+          enabled: true
+          memory: { enabled: true, floor: 256Mi, ceiling: 2Gi }
+          targetRef: { name: pangea-database }
+        secret:
+          secrets:
+            db-credentials:
+              data:
+                - secretKey: password
+                  remoteRef: { key: catch/db, property: password }
+    asserts:
+      - hasDocuments: { count: 3 }
