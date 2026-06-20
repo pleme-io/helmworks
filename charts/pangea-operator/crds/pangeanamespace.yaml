@@ -214,6 +214,11 @@ spec:
                   type: string
                 description: Default tags to apply to all resources in this namespace.
                 type: object
+              defaultVariables:
+                additionalProperties: true
+                description: Namespace-default VARIABLES inherited by every template using this namespace — the OUTERMOST layer of the config-inheritance cascade (P1, Terragrunt `root.hcl` parity). Deep-merged under the workspace's and the template's variables (`controller::config_cascade`); a template inherits these fleet-wide defaults and overrides per key.
+                nullable: true
+                type: object
               description:
                 description: Description of this Pangea namespace.
                 nullable: true

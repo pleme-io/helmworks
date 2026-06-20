@@ -259,6 +259,11 @@ spec:
                 default: false
                 description: Suspend reconciliation of every template under this catalog.
                 type: boolean
+              variables:
+                additionalProperties: true
+                description: Workspace-default VARIABLES inherited by every template in this workspace — the Terragrunt `root.hcl` / `include` analogue (config inheritance, P1). A template's own `spec.variables` deep-merges ONTO these (innermost-wins per key; nested objects merge recursively), so a template inherits fleet/workspace defaults and overrides only what it needs. Resolved by `controller::config_cascade` at compile time, layered `PangeaNamespace.defaultVariables → this → template.spec.variables`.
+                nullable: true
+                type: object
             required:
             - source
             type: object
