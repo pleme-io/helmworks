@@ -194,6 +194,7 @@
                 pkgs.git
                 pkgs.docker-client
                 pkgs.openssl
+                pkgs.ruby
               ] ++ pkgs.lib.optionals (system == "x86_64-linux" || system == "aarch64-linux") [
                 pkgs.k3d
                 pkgs.kind
@@ -224,6 +225,30 @@
           );
 
           stackApps = {
+            # lib:alphabet — the ALPHABET COMPLETENESS forcing-function.
+            # Enumerates every `pleme-lib.<name>` define and fails red when
+            # one is neither assertion-covered (fixture/consumer-suite include,
+            # direct or transitive), a member of the value-dispatched
+            # overlay.*/compliance.* FAMILY the compliance corpus exercises,
+            # nor an explicitly WAIVED tracked debt. Prints the scoreboard.
+            # (CATALOG REFLECTION applied to the Helm primitive vocabulary.)
+            "lib:alphabet" = mkApp "lib-alphabet" ''
+              ruby tests/alphabet_completeness.rb
+            '';
+
+            # lib:unittest — the dedicated primitive-fixture suites that
+            # exercise individual pleme-lib named templates in isolation
+            # (tests/_fixtures/pleme-lib-bare). The alphabet forcing-function
+            # credits a define as covered when one of these (or a consumer
+            # chart suite) includes it; this app is what actually runs them.
+            "lib:unittest" = mkApp "lib-unittest" ''
+              echo "==> running pleme-lib bare-fixture helm-unittest suites"
+              ( cd tests/_fixtures/pleme-lib-bare && helm dep update >/dev/null 2>&1 || true )
+              ( cd tests/_fixtures/pleme-lib-bare && helm unittest -f '*_test.yaml' . )
+              echo ""
+              echo "==> lib:unittest OK"
+            '';
+
             "stack:render" = mkApp "stack-render" ''
               echo "==> rendering lareira-openclaw-stack with all 6 sub-charts"
               cd charts/lareira-openclaw-stack

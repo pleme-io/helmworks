@@ -1,0 +1,286 @@
+suite: pleme-lib bare-fixture — pleme-lib.rate-limit-worker.* family
+# Exercises every named template in the rate-limited-consumer (samba) family:
+#   .config .deployment .service .servicemonitor .networkpolicy .alerts
+# Pattern reference: pleme-io/theory/RATE-LIMITED-CONSUMERS.md §IV-L1.
+templates:
+  - templates/rate-limit-worker-config.yaml
+  - templates/rate-limit-worker-deployment.yaml
+  - templates/rate-limit-worker-service.yaml
+  - templates/rate-limit-worker-servicemonitor.yaml
+  - templates/rate-limit-worker-networkpolicy.yaml
+  - templates/rate-limit-worker-alerts.yaml
+release:
+  name: t
+  namespace: testns
+defaults: &defaults
+  image.repository: ghcr.io/x/y
+  image.tag: "1.0.0"
+  serviceAccount.create: true
+  queueWorker:
+    enabled: true
+    image:
+      repository: ghcr.io/pleme-io/github-throttle
+      tag: "sha-abc123"
+    subcommand: throttle
+    healthPort: 8080
+    upstream:
+      kind: github
+      budgetPerHour: 5000
+      budgetPctMax: 10
+    rateLimit:
+      quotaPct: 0.10
+      pressureWarnPct: 50
+      pressureCriticalPct: 25
+      jitterPct: 0.30
+      burst: 1
+      honorEtag: true
+    nats:
+      serverUrl: "nats://pleme-nats.nats.svc:4222"
+      stream: "GITHUB_JOBS"
+      consumer: "github-throttle"
+      resultSubject: "github.results"
+      failedSubject: "github.failed"
+      fetchTimeout: "5s"
+    auth:
+      existingSecret: "github-token"
+      secretKey: "token"
+      envName: "UPSTREAM_TOKEN"
+    networkPolicy:
+      natsNamespace: nats
+      allowUpstreamHttps: true
+
+tests:
+  # ── .config ──────────────────────────────────────────────────────
+  - it: "config: renders a ConfigMap carrying the load-bearing quota_pct knob"
+    template: templates/rate-limit-worker-config.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: t-pleme-lib-bare-config
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: "quota_pct: 0.1"
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: "budget_per_hour: 5000"
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: "stream: \"GITHUB_JOBS\""
+
+  - it: "config: renders nothing when queueWorker.enabled is false"
+    template: templates/rate-limit-worker-config.yaml
+    set:
+      <<: *defaults
+      queueWorker:
+        enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # ── .deployment ──────────────────────────────────────────────────
+  - it: "deployment: strict-singleton Recreate Deployment with worker container + secret env"
+    template: templates/rate-limit-worker-deployment.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Deployment
+      - equal:
+          path: spec.replicas
+          value: 1
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+      - equal:
+          path: spec.template.spec.containers[0].name
+          value: worker
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/pleme-io/github-throttle:sha-abc123
+      - equal:
+          path: spec.template.spec.containers[0].args[0]
+          value: throttle
+      - equal:
+          path: spec.template.spec.containers[0].env[1].name
+          value: UPSTREAM_TOKEN
+      - equal:
+          path: spec.template.spec.containers[0].env[1].valueFrom.secretKeyRef.name
+          value: github-token
+
+  - it: "deployment: renders nothing when queueWorker.enabled is false"
+    template: templates/rate-limit-worker-deployment.yaml
+    set:
+      <<: *defaults
+      queueWorker:
+        enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # ── .service ─────────────────────────────────────────────────────
+  - it: "service: ClusterIP Service exposing metrics + health ports"
+    template: templates/rate-limit-worker-service.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Service
+      - equal:
+          path: spec.type
+          value: ClusterIP
+      - equal:
+          path: spec.ports[0].name
+          value: metrics
+      - equal:
+          path: spec.ports[0].port
+          value: 9090
+      - equal:
+          path: spec.ports[1].name
+          value: health
+      - equal:
+          path: spec.ports[1].port
+          value: 8080
+
+  # ── .servicemonitor ──────────────────────────────────────────────
+  - it: "servicemonitor: ServiceMonitor scraping the metrics port at /metrics"
+    template: templates/rate-limit-worker-servicemonitor.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ServiceMonitor
+      - equal:
+          path: spec.endpoints[0].port
+          value: metrics
+      - equal:
+          path: spec.endpoints[0].path
+          value: /metrics
+      - equal:
+          path: spec.endpoints[0].interval
+          value: 30s
+
+  # ── .networkpolicy ───────────────────────────────────────────────
+  - it: "networkpolicy: renders the deny-all + DNS + scrape + upstream-443 + NATS policy set"
+    template: templates/rate-limit-worker-networkpolicy.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - hasDocuments:
+          count: 5
+      - isKind:
+          of: NetworkPolicy
+    # deny-all
+  - it: "networkpolicy: first policy is the deny-all Ingress+Egress baseline"
+    template: templates/rate-limit-worker-networkpolicy.yaml
+    set:
+      <<: *defaults
+    documentSelector:
+      path: metadata.name
+      value: t-pleme-lib-bare-deny-all
+    asserts:
+      - contains:
+          path: spec.policyTypes
+          content: Ingress
+      - contains:
+          path: spec.policyTypes
+          content: Egress
+  - it: "networkpolicy: upstream-443 egress allows public TCP/443 minus RFC1918"
+    template: templates/rate-limit-worker-networkpolicy.yaml
+    set:
+      <<: *defaults
+    documentSelector:
+      path: metadata.name
+      value: t-pleme-lib-bare-allow-upstream
+    asserts:
+      - equal:
+          path: spec.egress[0].to[0].ipBlock.cidr
+          value: 0.0.0.0/0
+      - equal:
+          path: spec.egress[0].ports[0].port
+          value: 443
+  - it: "networkpolicy: honors a custom natsNamespace on the allow-nats policy"
+    template: templates/rate-limit-worker-networkpolicy.yaml
+    set:
+      <<: *defaults
+      queueWorker:
+        enabled: true
+        image:
+          repository: ghcr.io/pleme-io/github-throttle
+          tag: "sha-abc123"
+        subcommand: throttle
+        upstream:
+          kind: github
+          budgetPerHour: 5000
+          budgetPctMax: 10
+        rateLimit:
+          quotaPct: 0.10
+          pressureWarnPct: 50
+          pressureCriticalPct: 25
+          jitterPct: 0.30
+        nats:
+          serverUrl: "nats://pleme-nats.nats.svc:4222"
+          stream: "GITHUB_JOBS"
+          consumer: "github-throttle"
+          resultSubject: "github.results"
+          failedSubject: "github.failed"
+          fetchTimeout: "5s"
+        networkPolicy:
+          natsNamespace: messaging
+    documentSelector:
+      path: metadata.name
+      value: t-pleme-lib-bare-allow-nats
+    asserts:
+      - equal:
+          path: spec.egress[0].to[0].namespaceSelector.matchLabels["kubernetes.io/metadata.name"]
+          value: messaging
+      - equal:
+          path: spec.egress[0].ports[0].port
+          value: 4222
+
+  # ── .alerts ──────────────────────────────────────────────────────
+  - it: "alerts: PrometheusRule carrying the standard four rate-limit alert groups"
+    template: templates/rate-limit-worker-alerts.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: PrometheusRule
+      - equal:
+          path: metadata.name
+          value: t-pleme-lib-bare-rate-limit
+      - equal:
+          path: metadata.labels["pleme.io/rate-limit-pattern"]
+          value: "true"
+      - equal:
+          path: spec.groups[0].name
+          value: t-pleme-lib-bare.availability
+      - equal:
+          path: spec.groups[1].name
+          value: t-pleme-lib-bare.dispatch
+      - equal:
+          path: spec.groups[2].name
+          value: t-pleme-lib-bare.queue
+
+  - it: "alerts: renders nothing when queueWorker.enabled is false"
+    template: templates/rate-limit-worker-alerts.yaml
+    set:
+      <<: *defaults
+      queueWorker:
+        enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
