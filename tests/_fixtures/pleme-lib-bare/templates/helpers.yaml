@@ -1,0 +1,25 @@
+{{- /*
+  String-returning pleme-lib helper templates have no manifest of their own.
+  Wrap each in a tiny ConfigMap so a helm-unittest suite can assert on the
+  rendered string value. One ConfigMap per helper input under .Values.helperProbe.
+*/ -}}
+{{- if .Values.helperProbe }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}-helpers
+  namespace: {{ include "pleme-lib.namespace" . }}
+data:
+  {{- with .Values.helperProbe.bytes }}
+  bytes: {{ include "pleme-lib.bytes" . | quote }}
+  {{- end }}
+  {{- with .Values.helperProbe.durationNs }}
+  durationNs: {{ include "pleme-lib.duration-ns" . | quote }}
+  {{- end }}
+  {{- with .Values.helperProbe.ephemeralId }}
+  ephemeralId: {{ include "pleme-lib.ephemeralId" . | quote }}
+  {{- end }}
+  {{- with .Values.helperProbe.fleetHostname }}
+  fleetHostname: {{ include "pleme-lib.fleetHostname" . | quote }}
+  {{- end }}
+{{- end }}

@@ -1,0 +1,57 @@
+suite: pleme-lib bare-fixture — pleme-lib.composition.statusReflectStep
+# Crossplane Composition pipeline-step helper that emits a function-kcl step with
+# `target: XR` for typed status reflection. Returns a YAML fragment, not a
+# manifest, so the harness (templates/composition-status.yaml) wraps it in a
+# ConfigMap whose data.step.yaml carries the rendered step text.
+templates:
+  - templates/composition-status.yaml
+release:
+  name: t
+  namespace: testns
+
+tests:
+  - it: "renders nothing when compositionProbe is unset"
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: "default step name + target:XR + embedded KCL source"
+    set:
+      compositionProbe:
+        kclSource: |
+          items = [{
+            apiVersion = "x.pleme.io/v1"
+            kind = "XThing"
+            status.ready = True
+          }]
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchRegex:
+          path: data["step.yaml"]
+          pattern: "- step: reflect-xr-status"
+      - matchRegex:
+          path: data["step.yaml"]
+          pattern: "name: function-kcl"
+      - matchRegex:
+          path: data["step.yaml"]
+          pattern: "target: XR"
+      - matchRegex:
+          path: data["step.yaml"]
+          pattern: "kind: KCLInput"
+      - matchRegex:
+          path: data["step.yaml"]
+          pattern: "status.ready = True"
+
+  - it: "an explicit step name overrides the default"
+    set:
+      compositionProbe:
+        step: my-reflect
+        kclSource: |
+          items = [{ kind = "XThing" }]
+    asserts:
+      - matchRegex:
+          path: data["step.yaml"]
+          pattern: "- step: my-reflect"

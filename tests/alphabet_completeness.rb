@@ -55,26 +55,14 @@ REGIMES = %w[
 ].freeze
 
 # WAIVERS — letters with no assertion yet, each a TRACKED DEBT with a reason.
-# The goal is an EMPTY list. Aliases (crossplaneMRAP / crossplaneXRD) point at a
-# COVERED canonical define; the rest are primitives awaiting a bare-fixture
-# harness + suite (the rate-limit-worker.* family was the first burndown).
-WAIVED = {
-  'pleme-lib.alerts' => 'generic PrometheusRule emitter; bare-fixture harness pending',
-  'pleme-lib.breathability' => 'KEDA ScaledObject emitter; bare-fixture harness pending',
-  'pleme-lib.bytes' => 'byte-quantity formatter helper; unit-assert harness pending',
-  'pleme-lib.duration-ns' => 'duration→ns formatter helper; unit-assert harness pending',
-  'pleme-lib.ephemeralId' => 'deterministic ephemeral-id helper; unit-assert harness pending',
-  'pleme-lib.fleetHostname' => '4-part fleet hostname helper; unit-assert harness pending',
-  'pleme-lib.composition.statusReflectStep' => 'crossplane composition status step; harness pending',
-  'pleme-lib.crossplaneMRAP' => 'alias of pleme-lib.crossplaneManagedResourceActivationPolicy (COVERED) — define a fixture include or fold the alias',
-  'pleme-lib.crossplaneXRD' => 'alias of pleme-lib.crossplaneCompositeResourceDefinition (COVERED) — define a fixture include or fold the alias',
-  'pleme-lib.csiProvider' => 'CSI SecretProviderClass emitter; bare-fixture harness pending',
-  'pleme-lib.delivery' => 'delivery/rollout emitter; bare-fixture harness pending',
-  'pleme-lib.jetstream' => 'NATS JetStream Stream emitter; bare-fixture harness pending',
-  'pleme-lib.jetstream-init-job' => 'JetStream bootstrap Job emitter; bare-fixture harness pending',
-  'pleme-lib.resilience' => 'PDB+topology resilience bundle; bare-fixture harness pending',
-  'pleme-lib.webhookInjection' => 'admission webhook CA-injection helper; bare-fixture harness pending'
-}.freeze
+# The goal is an EMPTY list, and it is now empty: every former waiver was burned
+# down with a bare-fixture harness + helm-unittest suite (the rate-limit-worker.*
+# family was the first burndown; alerts/breathability/csiProvider/delivery/
+# resilience/webhookInjection/jetstream + the bytes/duration-ns/ephemeralId/
+# fleetHostname string helpers + composition.statusReflectStep followed via
+# tests/_fixtures/pleme-lib-bare; the crossplaneMRAP/crossplaneXRD aliases via
+# direct-include suites under tests/_fixtures/pleme-crossplane).
+WAIVED = {}.freeze
 
 # Minimum size sanity-check on the enumerated alphabet.
 MIN_DEFINES = 300

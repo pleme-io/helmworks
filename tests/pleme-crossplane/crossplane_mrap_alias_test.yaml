@@ -1,0 +1,39 @@
+suite: pleme-lib.crossplaneMRAP — alias of crossplaneManagedResourceActivationPolicy
+# The alias define delegates verbatim to the canonical define; this suite proves
+# the alias name is exercised (covers it directly, not just transitively).
+templates:
+  - templates/crossplane-mrap-alias.yaml
+release:
+  name: t
+  namespace: testns
+tests:
+  - it: the alias renders the same MRAP the canonical define produces
+    set:
+      crossplane:
+        managedResourceActivationPolicies:
+          minimal:
+            activate:
+              - instances.rds.aws.upbound.io
+              - "*.s3.aws.upbound.io"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ManagedResourceActivationPolicy
+      - equal:
+          path: apiVersion
+          value: apiextensions.crossplane.io/v2alpha1
+      - equal:
+          path: metadata.name
+          value: minimal
+      - equal:
+          path: spec.activate[0]
+          value: instances.rds.aws.upbound.io
+
+  - it: the alias is a no-op on an empty map
+    set:
+      crossplane:
+        managedResourceActivationPolicies: {}
+    asserts:
+      - hasDocuments:
+          count: 0

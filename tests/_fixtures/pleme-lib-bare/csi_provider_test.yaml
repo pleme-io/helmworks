@@ -1,0 +1,95 @@
+suite: pleme-lib bare-fixture — pleme-lib.csiProvider named template
+# CSI Secrets Store provider DaemonSet — generic K8s CSI Driver secret provider.
+templates:
+  - templates/csi-provider.yaml
+release:
+  name: t
+  namespace: testns
+defaults: &defaults
+  image:
+    repository: ghcr.io/x/csi-provider
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+
+tests:
+  - it: "renders nothing when csiProvider is unset entirely"
+    set:
+      <<: *defaults
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: "renders nothing when csiProvider.enabled is false"
+    set:
+      <<: *defaults
+      csiProvider:
+        enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: "csiProvider.enabled emits a DaemonSet with the provider container"
+    set:
+      <<: *defaults
+      csiProvider:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: DaemonSet
+      - equal:
+          path: apiVersion
+          value: apps/v1
+      - equal:
+          path: metadata.name
+          value: t-pleme-lib-bare-csi-provider
+      - equal:
+          path: metadata.namespace
+          value: testns
+      - equal:
+          path: spec.template.spec.containers[0].name
+          value: provider
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/x/csi-provider:1.0.0
+
+  - it: "default socket/health/provider paths land on the args + ports + hostPath volumes"
+    set:
+      <<: *defaults
+      csiProvider:
+        enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].args[0]
+          value: "--socket-path=/tmp/provider.sock"
+      - equal:
+          path: spec.template.spec.containers[0].args[1]
+          value: "--health-port=8080"
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8080
+      - equal:
+          path: spec.template.spec.volumes[0].hostPath.path
+          value: /etc/kubernetes/secrets-store-csi-providers
+      - equal:
+          path: spec.template.spec.volumes[1].hostPath.path
+          value: /var/lib/kubelet/pods
+
+  - it: "custom kubelet path + health port override the defaults"
+    set:
+      <<: *defaults
+      csiProvider:
+        enabled: true
+        healthPort: 9100
+        kubeletPath: /var/snap/microk8s/common/var/lib/kubelet
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].args[1]
+          value: "--health-port=9100"
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 9100
+      - equal:
+          path: spec.template.spec.volumes[1].hostPath.path
+          value: /var/snap/microk8s/common/var/lib/kubelet/pods

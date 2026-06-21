@@ -1,0 +1,154 @@
+suite: pleme-lib bare-fixture — pleme-lib.breathability named template
+# Unified elastic architecture: KEDA ScaledObject (zero-scale workers) +
+# optional HPA (elastic serving). NATS-JetStream-triggered by default.
+templates:
+  - templates/breathability.yaml
+release:
+  name: t
+  namespace: testns
+defaults: &defaults
+  image.repository: ghcr.io/x/y
+  image.tag: "1.0.0"
+
+tests:
+  - it: "renders nothing when breathability is unset entirely"
+    set:
+      <<: *defaults
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: "renders nothing when breathability.enabled is false"
+    set:
+      <<: *defaults
+      breathability:
+        enabled: false
+        trigger:
+          type: nats-jetstream
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: "default trigger emits a KEDA ScaledObject targeting the chart's own Deployment"
+    set:
+      <<: *defaults
+      breathability:
+        enabled: true
+        trigger:
+          type: nats-jetstream
+          nats:
+            serverURL: "nats://nats.nats.svc:4222"
+            stream: BUILD
+            consumer: builder
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ScaledObject
+      - equal:
+          path: apiVersion
+          value: keda.sh/v1alpha1
+      - equal:
+          path: metadata.name
+          value: t-pleme-lib-bare
+      - equal:
+          path: spec.scaleTargetRef.kind
+          value: Deployment
+      - equal:
+          path: spec.scaleTargetRef.name
+          value: t-pleme-lib-bare
+      - equal:
+          path: spec.minReplicaCount
+          value: 0
+      - equal:
+          path: spec.maxReplicaCount
+          value: 4
+      - equal:
+          path: spec.triggers[0].type
+          value: nats-jetstream
+      - equal:
+          path: spec.triggers[0].metadata.stream
+          value: BUILD
+
+  - it: "monitoring endpoint is derived from the nats serverURL (4222→8222)"
+    set:
+      <<: *defaults
+      breathability:
+        enabled: true
+        trigger:
+          type: nats-jetstream
+          nats:
+            serverURL: "nats://nats.nats.svc:4222"
+            stream: BUILD
+            consumer: builder
+    asserts:
+      - equal:
+          path: spec.triggers[0].metadata.natsServerMonitoringEndpoint
+          value: nats.nats.svc:8222
+
+  - it: "an explicit external target overrides the chart's own workload"
+    set:
+      <<: *defaults
+      breathability:
+        enabled: true
+        targetKind: StatefulSet
+        targetName: external-worker
+        min: 1
+        max: 8
+        trigger:
+          type: nats-jetstream
+          nats:
+            serverURL: "nats://nats.nats.svc:4222"
+            stream: BUILD
+            consumer: builder
+    asserts:
+      - equal:
+          path: spec.scaleTargetRef.kind
+          value: StatefulSet
+      - equal:
+          path: spec.scaleTargetRef.name
+          value: external-worker
+      - equal:
+          path: spec.minReplicaCount
+          value: 1
+      - equal:
+          path: spec.maxReplicaCount
+          value: 8
+
+  - it: "enabling the HPA emits a second document (ScaledObject + HPA)"
+    set:
+      <<: *defaults
+      breathability:
+        enabled: true
+        trigger:
+          type: nats-jetstream
+          nats:
+            serverURL: "nats://nats.nats.svc:4222"
+            stream: BUILD
+            consumer: builder
+        hpa:
+          enabled: true
+          min: 2
+          max: 6
+          targetCPU: 80
+    asserts:
+      - hasDocuments:
+          count: 2
+      - isKind:
+          of: ScaledObject
+        documentIndex: 0
+      - isKind:
+          of: HorizontalPodAutoscaler
+        documentIndex: 1
+      - equal:
+          path: spec.minReplicas
+          value: 2
+        documentIndex: 1
+      - equal:
+          path: spec.maxReplicas
+          value: 6
+        documentIndex: 1
+      - equal:
+          path: spec.metrics[0].resource.target.averageUtilization
+          value: 80
+        documentIndex: 1

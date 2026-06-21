@@ -1,0 +1,129 @@
+suite: pleme-lib bare-fixture — pleme-lib.delivery named template
+# Transport slice (CIA): NATS JetStream delivery-tier ConfigMap.
+# Tiers: best_effort | durable | guaranteed, each preset + per-field overridable.
+templates:
+  - templates/delivery.yaml
+release:
+  name: t
+  namespace: testns
+defaults: &defaults
+  image.repository: ghcr.io/x/y
+  image.tag: "1.0.0"
+
+tests:
+  - it: "renders nothing when delivery is unset entirely"
+    set:
+      <<: *defaults
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: "renders nothing when delivery.enabled is false"
+    set:
+      <<: *defaults
+      delivery:
+        enabled: false
+        tier: durable
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: "the default (durable) tier emits a ConfigMap with disk-buffer block semantics"
+    set:
+      <<: *defaults
+      delivery:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: t-pleme-lib-bare-delivery
+      - equal:
+          path: metadata.labels["pleme.io/delivery-tier"]
+          value: durable
+      - matchRegex:
+          path: data["delivery.yaml"]
+          pattern: "tier: durable"
+      - matchRegex:
+          path: data["delivery.yaml"]
+          pattern: "type: disk"
+      - matchRegex:
+          path: data["delivery.yaml"]
+          pattern: "when_full: block"
+      - matchRegex:
+          path: data["delivery.yaml"]
+          pattern: "max_deliver: 5"
+
+  - it: "best_effort tier flips to memory buffer + drop semantics"
+    set:
+      <<: *defaults
+      delivery:
+        enabled: true
+        tier: best_effort
+    asserts:
+      - equal:
+          path: metadata.labels["pleme.io/delivery-tier"]
+          value: best_effort
+      - matchRegex:
+          path: data["delivery.yaml"]
+          pattern: "type: memory"
+      - matchRegex:
+          path: data["delivery.yaml"]
+          pattern: "when_full: drop_newest"
+      - matchRegex:
+          path: data["delivery.yaml"]
+          pattern: "max_deliver: 1"
+
+  - it: "guaranteed tier uses unlimited redelivery + large disk buffer"
+    set:
+      <<: *defaults
+      delivery:
+        enabled: true
+        tier: guaranteed
+    asserts:
+      - matchRegex:
+          path: data["delivery.yaml"]
+          pattern: "max_deliver: -1"
+      - matchRegex:
+          path: data["delivery.yaml"]
+          pattern: "max_size: 5368709120"
+
+  - it: "explicit buffer/retry/dlq overrides win over the tier presets"
+    set:
+      <<: *defaults
+      delivery:
+        enabled: true
+        tier: durable
+        nats:
+          url: "nats://custom.svc:4222"
+          stream: EVENTS
+          consumer: worker
+        buffer:
+          type: memory
+          maxSize: 1234
+          whenFull: drop_newest
+        retry:
+          maxDeliver: 9
+          ackWait: "99s"
+        dlq:
+          enabled: true
+          stream: EVENTS_DLQ
+    asserts:
+      - matchRegex:
+          path: data["delivery.yaml"]
+          pattern: "url: \"nats://custom.svc:4222\""
+      - matchRegex:
+          path: data["delivery.yaml"]
+          pattern: "type: memory"
+      - matchRegex:
+          path: data["delivery.yaml"]
+          pattern: "max_size: 1234"
+      - matchRegex:
+          path: data["delivery.yaml"]
+          pattern: "max_deliver: 9"
+      - matchRegex:
+          path: data["delivery.yaml"]
+          pattern: "stream: \"EVENTS_DLQ\""

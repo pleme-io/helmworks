@@ -1,0 +1,17 @@
+{{- /*
+  pleme-lib.composition.statusReflectStep returns a Crossplane Composition
+  pipeline-step YAML fragment, not a standalone manifest. Wrap it in a
+  ConfigMap so a helm-unittest suite can assert on the rendered step text.
+*/ -}}
+{{- if .Values.compositionProbe }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}-composition-step
+  namespace: {{ include "pleme-lib.namespace" . }}
+data:
+  step.yaml: |
+{{ include "pleme-lib.composition.statusReflectStep" (dict
+      "step"      (.Values.compositionProbe.step | default "reflect-xr-status")
+      "kclSource" .Values.compositionProbe.kclSource) | indent 4 }}
+{{- end }}

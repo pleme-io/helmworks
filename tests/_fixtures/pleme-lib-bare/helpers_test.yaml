@@ -1,0 +1,139 @@
+suite: pleme-lib bare-fixture — string-returning helper templates
+# Covers the four pure-helper defines that produce a STRING (not a manifest):
+#   pleme-lib.bytes        — byte-quantity formatter (MiB/GiB/KiB binary, -1=unlimited)
+#   pleme-lib.duration-ns  — Go-duration → int64 nanoseconds
+#   pleme-lib.ephemeralId  — deterministic sha256-truncated 8-hex id
+#   pleme-lib.fleetHostname — {app}[-instance][.eph][.cluster][.location].{domain}
+# Each is wrapped in a tiny ConfigMap (templates/helpers.yaml) so the rendered
+# string value is assertable.
+templates:
+  - templates/helpers.yaml
+release:
+  name: t
+  namespace: testns
+
+tests:
+  - it: "bytes: MB suffix is MiB (binary, 1024-based)"
+    set:
+      helperProbe:
+        bytes: "100MB"
+    asserts:
+      - equal:
+          path: data.bytes
+          value: "104857600"
+
+  - it: "bytes: GB suffix is GiB"
+    set:
+      helperProbe:
+        bytes: "5GB"
+    asserts:
+      - equal:
+          path: data.bytes
+          value: "5368709120"
+
+  - it: "bytes: -1 passes through as unlimited"
+    set:
+      helperProbe:
+        bytes: "-1"
+    asserts:
+      - equal:
+          path: data.bytes
+          value: "-1"
+
+  - it: "duration-ns: seconds → nanoseconds"
+    set:
+      helperProbe:
+        durationNs: "30s"
+    asserts:
+      - equal:
+          path: data.durationNs
+          value: "30000000000"
+
+  - it: "duration-ns: hours and days convert"
+    set:
+      helperProbe:
+        durationNs: "24h"
+    asserts:
+      - equal:
+          path: data.durationNs
+          value: "86400000000000"
+
+  - it: "duration-ns: milliseconds convert"
+    set:
+      helperProbe:
+        durationNs: "100ms"
+    asserts:
+      - equal:
+          path: data.durationNs
+          value: "100000000"
+
+  - it: "ephemeralId: deterministic 8-hex id for a given input"
+    set:
+      helperProbe:
+        ephemeralId: "my-feature-branch"
+    asserts:
+      - matchRegex:
+          path: data.ephemeralId
+          pattern: "^[0-9a-f]{8}$"
+
+  - it: "ephemeralId: same input → same id (reproducible)"
+    set:
+      helperProbe:
+        ephemeralId: "stable-key"
+    asserts:
+      # sha256("stable-key")[:8]
+      - equal:
+          path: data.ephemeralId
+          value: "89c23917"
+
+  - it: "fleetHostname: full 4-part org-convention host"
+    set:
+      helperProbe:
+        fleetHostname:
+          app: akeyless-saas
+          cluster: pleme-dev
+          location: use1
+          domain: quero.lol
+    asserts:
+      - equal:
+          path: data.fleetHostname
+          value: akeyless-saas.pleme-dev.use1.quero.lol
+
+  - it: "fleetHostname: empty cluster/location collapse to a 2-part Universal-SSL host"
+    set:
+      helperProbe:
+        fleetHostname:
+          app: akeyless-saas
+          domain: quero.cloud
+    asserts:
+      - equal:
+          path: data.fleetHostname
+          value: akeyless-saas.quero.cloud
+
+  - it: "fleetHostname: ephemeral segment inserts after the leaf (tatara-aligned)"
+    set:
+      helperProbe:
+        fleetHostname:
+          app: akeyless-saas
+          ephemeral: 9f8e7d6c
+          cluster: pleme-dev
+          location: use1
+          domain: quero.lol
+    asserts:
+      - equal:
+          path: data.fleetHostname
+          value: akeyless-saas.9f8e7d6c.pleme-dev.use1.quero.lol
+
+  - it: "fleetHostname: instance suffix produces the legacy leaf-suffix form"
+    set:
+      helperProbe:
+        fleetHostname:
+          app: akeyless-saas
+          instance: test01
+          cluster: pleme-dev
+          location: use1
+          domain: quero.lol
+    asserts:
+      - equal:
+          path: data.fleetHostname
+          value: akeyless-saas-test01.pleme-dev.use1.quero.lol
