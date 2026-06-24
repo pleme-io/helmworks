@@ -34,7 +34,7 @@ The 6-item contract for the consumer-authored KCL source:
      the Resources step that observes the result ConfigMap
 
 Derivation cost: 5 chart bumps + 5 wedged drills (#18-22 of
-pitr-akeyless). See theory doc for the full iteration log.
+pitr-borealis). See theory doc for the full iteration log.
 
 Usage in a consumer chart's templates/composition.yaml:
 
@@ -55,7 +55,7 @@ Usage in a consumer chart's templates/composition.yaml:
             "kclSource" (tpl (.Files.Get "kcl/status.k") .)) | nindent 6 }}
 
 Validated reference impl:
-  akeylesslabs/akeyless-environments/saas/kubernetes/helm/pitr-akeyless
+  borealis/borealis-environments/saas/kubernetes/helm/pitr-borealis
   chart 0.9.21 (drill #23 correlation 2b70f82b).
 */}}
 

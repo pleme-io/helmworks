@@ -53,25 +53,25 @@ githubWatcher:
     create: false
 
 # ─── Built-in EphemeralPool — optional convenience CR ─────────────
-# When `pools.akeyless.enabled=true` the umbrella emits an
-# EphemeralPool CR pre-configured for Akeyless closed-loop attestation.
+# When `pools.borealis.enabled=true` the umbrella emits an
+# EphemeralPool CR pre-configured for Borealis closed-loop attestation.
 # Operators can disable this and author their own Pool CRs.
 pools:
-  akeyless:
+  borealis:
     enabled: false
-    name: akeyless-attest-pool
+    name: borealis-attest-pool
     namespace: ephemeral-pools
     desiredSize: 1
     minSize: 0
     maxSize: 3
     returnPolicy: Replace
     selector:
-      repos: ["pleme-io/akeyless-*"]
-      prLabels: ["needs-akeyless"]
+      repos: ["pleme-io/borealis-*"]
+      prLabels: ["needs-borealis"]
       kinds: ["github-pr", "manual"]
     template:
       aplicacao:
-        chart_ref: "oci://ghcr.io/pleme-io/charts/lareira-akeyless-deployment"
+        chart_ref: "oci://ghcr.io/pleme-io/charts/lareira-borealis-deployment"
         version: "0.5.5"
         profile: "gateway-with-internal-saas"
       ttl: "2h"
@@ -79,7 +79,7 @@ pools:
       postconditions:
         - kind: HelmReleaseReleased
           params:
-            name: akeyless-saas-consolidated
+            name: borealis-saas-consolidated
             namespace: ephemeral-pools
 
 # ─── Compliance — cascades to all subcharts ────────────────────────

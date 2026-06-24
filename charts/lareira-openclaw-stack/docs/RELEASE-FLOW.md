@@ -109,7 +109,7 @@ tameshi attest \
   --chart-render rendered.yaml \
   --kensa-result kensa-attestation.json \
   --git-changeset HEAD~1..HEAD \
-  --signer akeyless-dfc:openclaw-release \
+  --signer borealis-dfc:openclaw-release \
   --output release-attestation.json
 ```
 
@@ -188,7 +188,7 @@ Every `signatureGate.verificationIntervalSecs` (default 3600s):
 ## What the chain proves
 
 Given:
-- The cluster admin trusts the akeyless-dfc key (org-level)
+- The cluster admin trusts the borealis-dfc key (org-level)
 - The forge release pipeline is itself attested (tameshi self-attestation)
 - The kensa runner image is digest-pinned + sekiban-gated
 
@@ -234,4 +234,4 @@ lifecycle; everything afterward is mechanical.
 - [`pleme-io/forge`](https://github.com/pleme-io/forge) — the
   release-attest implementation
 - [`pleme-io/tameshi`](https://github.com/pleme-io/tameshi) — the
-  signing primitives + Akeyless DFC integration
+  signing primitives + Borealis DFC integration

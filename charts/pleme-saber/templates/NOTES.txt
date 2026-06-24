@@ -17,7 +17,7 @@ Health:
 
 Database (production):
   DATABASE_URL is materialized into the saber-db Secret by External Secrets
-  Operator from the cluster-secret-store (cofre/Akeyless). Without it, saber
+  Operator from the cluster-secret-store (cofre/Borealis). Without it, saber
   runs with the in-memory store.
 
 Public host:

@@ -5,7 +5,7 @@ Maps to NIST 800-53 controls:
   IA-5  — Authenticator Management: secrets must be Secret-referenced, never
           inline literal values in env/podSpec
   SC-12 — Cryptographic Key Management: keys via external secret store
-          (Akeyless target -> ExternalSecret -> Secret), never hand-typed
+          (Borealis target -> ExternalSecret -> Secret), never hand-typed
 
 At moderate+, every entry in .Values.env that has a name matching the
 pattern *(SECRET|TOKEN|PASSWORD|API_KEY|PRIVATE_KEY|CREDENTIAL)* MUST be

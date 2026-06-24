@@ -30,7 +30,7 @@ ghcr.io/pleme-io/bm-discord-<name>:<tag>
 2. A Kubernetes Secret named `discord-<botName>-token` (or override
    via `tokenSecret.name`) containing the raw bot token under the key
    `DISCORD_BOT_TOKEN`. Typically managed via ExternalSecrets
-   pulling from Akeyless.
+   pulling from Borealis.
 3. (Optional) A ConfigMap rendered by `terraform apply` against
    pangea-discord's `discord_application_command` resources, mirrored
    into the cluster for engine-side validation against `Bot::commands()`.

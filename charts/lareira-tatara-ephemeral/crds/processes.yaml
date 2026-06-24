@@ -42,7 +42,7 @@ spec:
               description: |-
                 Process — one element of the tatara convergence lattice, reconciled as a Unix process.
 
-                ```yaml apiVersion: tatara.pleme.io/v1alpha1 kind: Process metadata: name: observability-stack namespace: seph spec: identity: parent: seph.1 classification: pointType: Gate substrate: Observability intent: nix: flakeRef: github:pleme-io/k8s?dir=shared/infrastructure attribute: observability compliance: baseline: fedramp-moderate bindings: - framework: nist-800-53 controlId: SC-7 phase: AtBoundary dependsOn: - name: akeyless-injection ```
+                ```yaml apiVersion: tatara.pleme.io/v1alpha1 kind: Process metadata: name: observability-stack namespace: seph spec: identity: parent: seph.1 classification: pointType: Gate substrate: Observability intent: nix: flakeRef: github:pleme-io/k8s?dir=shared/infrastructure attribute: observability compliance: baseline: fedramp-moderate bindings: - framework: nist-800-53 controlId: SC-7 phase: AtBoundary dependsOn: - name: borealis-injection ```
               properties:
                 boundary:
                   default:
@@ -334,11 +334,11 @@ spec:
 
                         This is the canonical handoff from caixa `(defaplicacao …)` declarations (which the typescape renders to this Intent) into in-cluster reconciliation. Closed-loop ephemeral test environments use this variant with `:lifetime :ephemeral` on the surrounding ProcessSpec.
 
-                        Example (Lisp): ```lisp :intent (:aplicacao (:chart-ref "oci://ghcr.io/pleme-io/charts/lareira-akeyless-deployment" :version "0.5.5" :profile "gateway-with-internal-saas" :values-overlay (:cluster (:name "ephemeral-test-01") :persistence false :compliance (:overlays [])))) ```
+                        Example (Lisp): ```lisp :intent (:aplicacao (:chart-ref "oci://ghcr.io/pleme-io/charts/lareira-borealis-deployment" :version "0.5.5" :profile "gateway-with-internal-saas" :values-overlay (:cluster (:name "ephemeral-test-01") :persistence false :compliance (:overlays [])))) ```
                       nullable: true
                       properties:
                         chartRef:
-                          description: Helm chart reference. OCI (`oci://…`) or repo-relative (`pleme-io/lareira-akeyless-deployment`).
+                          description: Helm chart reference. OCI (`oci://…`) or repo-relative (`pleme-io/lareira-borealis-deployment`).
                           type: string
                         installTimeout:
                           description: Install timeout (`humantime` duration). Empty = chart-controller default.
@@ -724,7 +724,7 @@ spec:
                             type: string
                           instance:
                             description: |-
-                              Named instance segment. When `Some("akeyless-prod")` the FQDN reads `${app}.akeyless-prod.${cluster}.…`. When `None` the reconciler substitutes `blake3(canonical_spec)[:8]` — deterministic per-spec, changes when the spec changes.
+                              Named instance segment. When `Some("borealis-prod")` the FQDN reads `${app}.borealis-prod.${cluster}.…`. When `None` the reconciler substitutes `blake3(canonical_spec)[:8]` — deterministic per-spec, changes when the spec changes.
 
                               Must be a valid DNS label when set.
                             nullable: true

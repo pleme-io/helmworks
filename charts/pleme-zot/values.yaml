@@ -206,15 +206,15 @@ authz:
   defaultPolicy:
     - read
   writers: []
-  #  - users: ["akeyless-builder"]
-  #    repos: ["akeyless-**"]
+  #  - users: ["borealis-builder"]
+  #    repos: ["borealis-**"]
   #    actions: ["read", "create", "update", "delete"]
   repositories: {}
-  #  "akeyless-**":
+  #  "borealis-**":
   #    defaultPolicy: ["read"]
   #    anonymousPolicy: []
   #    policies:
-  #      - users: ["akeyless-builder"]
+  #      - users: ["borealis-builder"]
   #        actions: ["read", "create", "update", "delete"]
 
 # -- Image signing & signature verification at the registry boundary (SI-7).

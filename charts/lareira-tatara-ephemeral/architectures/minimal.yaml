@@ -18,5 +18,5 @@ githubWatcher:
   enabled: false
 
 pools:
-  akeyless:
+  borealis:
     enabled: false

@@ -16,7 +16,7 @@
 #              restart. Default for back-compat with v0.4.x.
 # - postgres — multi-replica durable. Connection string sourced from a
 #              secret (External Secrets Operator wires this from
-#              akeyless / SOPS). See examples/values-postgres.yaml.
+#              borealis / SOPS). See examples/values-postgres.yaml.
 # - sqlite   — single-replica durable. Emits a PVC mounted at the
 #              configured path; the cartorio binary writes its
 #              merkle ledger there (matches openclaw-store's pattern).
@@ -25,7 +25,7 @@ persistence:
 
   postgres:
     # Existing K8s Secret holding the connection URL. Recommended
-    # shape: External Secrets Operator pulling from akeyless. Key
+    # shape: External Secrets Operator pulling from borealis. Key
     # default `database-url` carries a full
     # postgres://user:pass@host:port/db?sslmode=require.
     existingSecret: ""

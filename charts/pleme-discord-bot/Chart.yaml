@@ -7,7 +7,7 @@ description: |
   (one per bot crate in the blackmatter-discord workspace).
 
   The Discord bot token is supplied via a Kubernetes Secret (typically
-  rendered by ExternalSecrets / Akeyless Secrets Provider) and exposed
+  rendered by ExternalSecrets / Borealis Secrets Provider) and exposed
   to the bot as DISCORD_BOT_TOKEN via envFrom.
 type: application
 version: 0.1.0

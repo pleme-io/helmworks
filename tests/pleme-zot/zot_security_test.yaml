@@ -28,15 +28,15 @@ tests:
     template: templates/configmap.yaml
     set:
       authz.writers:
-        - users: ["akeyless-builder"]
-          repos: ["akeyless-**"]
+        - users: ["borealis-builder"]
+          repos: ["borealis-**"]
     asserts:
       - matchRegex:
           path: data["config.json"]
-          pattern: 'akeyless-\*\*'
+          pattern: 'borealis-\*\*'
       - matchRegex:
           path: data["config.json"]
-          pattern: 'akeyless-builder'
+          pattern: 'borealis-builder'
 
   - it: "adminUsers render an adminPolicy"
     template: templates/configmap.yaml

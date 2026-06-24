@@ -18,8 +18,8 @@ githubWatcher:
   enabled: false
 
 pools:
-  akeyless:
-    enabled: true     # bundled Akeyless pool ready for `feira allocation request`
+  borealis:
+    enabled: true     # bundled Borealis pool ready for `feira allocation request`
     desiredSize: 1
     minSize: 0
     maxSize: 3

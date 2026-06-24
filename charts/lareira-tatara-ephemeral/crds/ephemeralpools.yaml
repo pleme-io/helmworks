@@ -38,7 +38,7 @@ spec:
               description: |-
                 `EphemeralPool` CRD spec — typed pool of warm Processes.
 
-                ```yaml apiVersion: tatara.pleme.io/v1alpha1 kind: EphemeralPool metadata: name: akeyless-attest-pool namespace: ephemeral-pools spec: desiredSize: 3 minSize: 1 maxSize: 5 returnPolicy: Reset selector: repos: ["pleme-io/akeyless-*"] branches: ["main", "release-*"] prLabels: ["needs-akeyless"] template: aplicacao: chartRef: "oci://ghcr.io/pleme-io/charts/lareira-akeyless-deployment" version: "0.5.5" profile: "gateway-with-internal-saas" … ttl: "2h" teardown: OnAttested postconditions: [ … ] ```
+                ```yaml apiVersion: tatara.pleme.io/v1alpha1 kind: EphemeralPool metadata: name: borealis-attest-pool namespace: ephemeral-pools spec: desiredSize: 3 minSize: 1 maxSize: 5 returnPolicy: Reset selector: repos: ["pleme-io/borealis-*"] branches: ["main", "release-*"] prLabels: ["needs-borealis"] template: aplicacao: chartRef: "oci://ghcr.io/pleme-io/charts/lareira-borealis-deployment" version: "0.5.5" profile: "gateway-with-internal-saas" … ttl: "2h" teardown: OnAttested postconditions: [ … ] ```
               properties:
                 desired:
                   default: 0
@@ -134,7 +134,7 @@ spec:
                       description: The Aplicacao chart + profile + overlay to install.
                       properties:
                         chartRef:
-                          description: Helm chart reference. OCI (`oci://…`) or repo-relative (`pleme-io/lareira-akeyless-deployment`).
+                          description: Helm chart reference. OCI (`oci://…`) or repo-relative (`pleme-io/lareira-borealis-deployment`).
                           type: string
                         installTimeout:
                           description: Install timeout (`humantime` duration). Empty = chart-controller default.
@@ -471,7 +471,7 @@ spec:
                                 type: string
                               instance:
                                 description: |-
-                                  Named instance segment. When `Some("akeyless-prod")` the FQDN reads `${app}.akeyless-prod.${cluster}.…`. When `None` the reconciler substitutes `blake3(canonical_spec)[:8]` — deterministic per-spec, changes when the spec changes.
+                                  Named instance segment. When `Some("borealis-prod")` the FQDN reads `${app}.borealis-prod.${cluster}.…`. When `None` the reconciler substitutes `blake3(canonical_spec)[:8]` — deterministic per-spec, changes when the spec changes.
 
                                   Must be a valid DNS label when set.
                                 nullable: true

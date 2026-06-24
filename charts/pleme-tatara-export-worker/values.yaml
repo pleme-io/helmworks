@@ -6,7 +6,7 @@
 # reconciler (default "tatara-export-worker").
 serviceAccountName: tatara-export-worker
 
-# Extra annotations for the SA (e.g. cofre/Akeyless / IRSA hints).
+# Extra annotations for the SA (e.g. cofre/Borealis / IRSA hints).
 serviceAccountAnnotations: {}
 
 # Role rules — same-namespace by default. The worker only reaches

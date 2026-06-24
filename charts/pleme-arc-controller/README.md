@@ -1,6 +1,6 @@
 # pleme-arc-controller
 
-Cluster-level [GitHub Actions Runner Controller (ARC)](https://github.com/actions/actions-runner-controller) install. Wraps the upstream `gha-runner-scale-set-controller` chart and adds an ExternalSecret that materializes the controller's GitHub App credentials from the cluster's secret store (default: a `ClusterSecretStore` named `cluster-secret-store`; override to point at any External Secrets Operator-compatible backend — Vault, AWS Secrets Manager, Akeyless, etc.).
+Cluster-level [GitHub Actions Runner Controller (ARC)](https://github.com/actions/actions-runner-controller) install. Wraps the upstream `gha-runner-scale-set-controller` chart and adds an ExternalSecret that materializes the controller's GitHub App credentials from the cluster's secret store (default: a `ClusterSecretStore` named `cluster-secret-store`; override to point at any External Secrets Operator-compatible backend — Vault, AWS Secrets Manager, etc.).
 
 Deploy **one per cluster**. Multiple `pleme-arc-runner-pool` releases register their AutoscalingRunnerSets against this controller.
 

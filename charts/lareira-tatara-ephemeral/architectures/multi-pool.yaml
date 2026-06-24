@@ -1,6 +1,6 @@
 # architectures/multi-pool.yaml — selector-routed multiple pools.
 #
-# A baseline akeyless pool + a separate dev-cycle pool. The webhook
+# A baseline borealis pool + a separate dev-cycle pool. The webhook
 # routes via PoolSelector best-match. Operators add more pools by
 # applying EphemeralPool CRs directly.
 
@@ -20,16 +20,16 @@ githubWatcher:
       - name: TATARA_WATCHER_NAMESPACE
         value: ephemeral-pools
 
-# Built-in akeyless pool — the most-specific selector.
+# Built-in borealis pool — the most-specific selector.
 pools:
-  akeyless:
+  borealis:
     enabled: true
     desiredSize: 2
     minSize: 1
     maxSize: 5
     selector:
-      repos: ["pleme-io/akeyless-*", "akeylesslabs/*"]
-      prLabels: ["needs-akeyless"]
+      repos: ["pleme-io/borealis-*", "borealis/*"]
+      prLabels: ["needs-borealis"]
       kinds: ["github-pr"]
 
 # Operators should add additional pools (catch-all dev pool, regional

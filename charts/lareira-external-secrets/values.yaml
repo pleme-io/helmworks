@@ -24,5 +24,5 @@ observability:
         labels: { severity: warning, component: lareira-external-secrets }
         annotations:
           summary: "External Secrets sync failing repeatedly"
-          description: ">5 sync errors in 15m. Check ClusterSecretStore + provider connectivity (Akeyless, AWS SM, etc)."
+          description: ">5 sync errors in 15m. Check ClusterSecretStore + provider connectivity (Vault, AWS SM, etc)."
           runbook_url: "https://runbooks.pleme.io/lareira-external-secrets/sync-failing"

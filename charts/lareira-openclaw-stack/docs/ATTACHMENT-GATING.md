@@ -15,7 +15,7 @@ talk to it and how.
 | **Service-to-service** | scanner ↔ store ↔ pki | NetworkPolicy allowlists + sekiban-attested workload identity |
 
 All three rest on the **same tameshi root of trust**: the org-seed
-held in Akeyless DFC and signed via the publisher PKI. A break of the
+held in Borealis DFC and signed via the publisher PKI. A break of the
 PKI org-seed compromises all three; the org-seed's threat model is
 covered in [THREAT-MODEL.md](./THREAT-MODEL.md) §G2.
 

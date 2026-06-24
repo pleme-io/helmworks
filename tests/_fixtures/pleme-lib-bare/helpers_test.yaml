@@ -90,31 +90,31 @@ tests:
     set:
       helperProbe:
         fleetHostname:
-          app: akeyless-saas
+          app: borealis-saas
           cluster: pleme-dev
           location: use1
           domain: quero.lol
     asserts:
       - equal:
           path: data.fleetHostname
-          value: akeyless-saas.pleme-dev.use1.quero.lol
+          value: borealis-saas.pleme-dev.use1.quero.lol
 
   - it: "fleetHostname: empty cluster/location collapse to a 2-part Universal-SSL host"
     set:
       helperProbe:
         fleetHostname:
-          app: akeyless-saas
+          app: borealis-saas
           domain: quero.cloud
     asserts:
       - equal:
           path: data.fleetHostname
-          value: akeyless-saas.quero.cloud
+          value: borealis-saas.quero.cloud
 
   - it: "fleetHostname: ephemeral segment inserts after the leaf (tatara-aligned)"
     set:
       helperProbe:
         fleetHostname:
-          app: akeyless-saas
+          app: borealis-saas
           ephemeral: 9f8e7d6c
           cluster: pleme-dev
           location: use1
@@ -122,13 +122,13 @@ tests:
     asserts:
       - equal:
           path: data.fleetHostname
-          value: akeyless-saas.9f8e7d6c.pleme-dev.use1.quero.lol
+          value: borealis-saas.9f8e7d6c.pleme-dev.use1.quero.lol
 
   - it: "fleetHostname: instance suffix produces the legacy leaf-suffix form"
     set:
       helperProbe:
         fleetHostname:
-          app: akeyless-saas
+          app: borealis-saas
           instance: test01
           cluster: pleme-dev
           location: use1
@@ -136,4 +136,4 @@ tests:
     asserts:
       - equal:
           path: data.fleetHostname
-          value: akeyless-saas-test01.pleme-dev.use1.quero.lol
+          value: borealis-saas-test01.pleme-dev.use1.quero.lol

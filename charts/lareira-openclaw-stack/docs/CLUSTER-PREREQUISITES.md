@@ -61,7 +61,7 @@ helm install external-secrets external-secrets/external-secrets \
   --namespace external-secrets --create-namespace
 ```
 Then create a `ClusterSecretStore` named `cluster-secret-store` pointing
-at the org's Akeyless / SOPS / Vault backend (see
+at the org's Borealis / SOPS / Vault backend (see
 `pleme-io/cofre/docs/backends.md`).
 
 ### 5. cofre-materialized org-seed
@@ -72,7 +72,7 @@ backing the K8s Secret `openclaw-pki-org-seed` with key `hex`.
 # Generate + apply once per cluster.
 SEED=$(openssl rand -hex 32)
 cat <<EOF > /tmp/org-seed.yaml
-- backend: akeyless
+- backend: sops
   path: openclaw/publisher-pki/org-seed
   property: hex
   value: ${SEED}

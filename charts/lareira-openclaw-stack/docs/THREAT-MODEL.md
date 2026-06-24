@@ -5,7 +5,7 @@
 | Trusted | Untrusted |
 |---|---|
 | Cluster operator (cluster-admin) | All publishers |
-| The Akeyless DFC backend (cluster's secret store) | All consumers of the public API |
+| The Borealis DFC backend (cluster's secret store) | All consumers of the public API |
 | The forge CI pipeline (release attestation) | Network paths between cluster and external clients |
 | The kensa + tameshi codebases | Image registries (we pin digests) |
 | The pleme-lib overlay registry | Anyone who can reach cluster-edge ingress |
@@ -23,7 +23,7 @@ We assume an attacker may:
 We assume an attacker **cannot**:
 - Run code on the same node as the PKI (that's a cluster-floor breach,
   out of scope for this stack)
-- Sign anything with the org-seed unless they breach Akeyless DFC
+- Sign anything with the org-seed unless they breach Borealis DFC
 - Modify the kensa runner image (digest-pinned, sekiban-gated)
 - Bypass the sekiban admission webhook (it's a cluster-floor concern)
 
@@ -47,10 +47,10 @@ We assume an attacker **cannot**:
 | Read it from cluster-edge ingress | PKI is `ClusterIP`-only; not exposed externally |
 | Read it from another pod | NetworkPolicy: only `app.kubernetes.io/name: openclaw-skill-store` and `app.kubernetes.io/name: openclaw-scanner` may dial port 8090 |
 | Read it from the env of the running PKI process | Container has `readOnlyRootFilesystem`, drops ALL caps, runs as non-root; in-process exfil requires kernel exploit (cluster-floor concern) |
-| Read it from Akeyless | DFC: key never exists in one piece; threshold reconstruction requires multiple shares |
+| Read it from Borealis | DFC: key never exists in one piece; threshold reconstruction requires multiple shares |
 
 The current implementation uses `LocalSigner` (single-piece seed in env);
-**production deployments swap to `AkeylessDfcSigner` for threshold
+**production deployments swap to `BorealisDfcSigner` for threshold
 signing**. This is documented in `openclaw-publisher-pki/src/signing.rs`
 as the load-bearing one-line change.
 
@@ -85,10 +85,10 @@ revocation entry — the CRL root would change, scanner detects.
 | Concern | Where it lives |
 |---|---|
 | Kernel CVE in container runtime | cluster-floor (pangea-architectures) |
-| Compromise of the Akeyless backend | Akeyless org's threat model |
+| Compromise of the Borealis backend | Borealis org's threat model |
 | Compromise of forge CI | forge's signed-build invariants + tameshi ledger |
 | Compromise of the kensa container image | digest-pinned at admission; image attested via separate tameshi chain |
-| Side-channel timing attacks on the BLAKE3 keyed-HMAC signer | accepted for `LocalSigner`; not present in `AkeylessDfcSigner` (operator-grade prod) |
+| Side-channel timing attacks on the BLAKE3 keyed-HMAC signer | accepted for `LocalSigner`; not present in `BorealisDfcSigner` (operator-grade prod) |
 
 ## Audit hooks
 

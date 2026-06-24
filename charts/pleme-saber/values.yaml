@@ -181,8 +181,8 @@ prometheusRules:
 
 # DATABASE_URL via cofre→External Secrets Operator (zero-plaintext).
 # The ExternalSecret named saber-db pulls the connection string from the
-# cluster-secret-store (Akeyless-backed) and writes a Secret saber-db that
-# envFrom references above. The actual Akeyless key path + cluster-secret-store
+# cluster-secret-store (Borealis-backed) and writes a Secret saber-db that
+# envFrom references above. The actual Borealis key path + cluster-secret-store
 # provisioning is a downstream cofre concern; this is the values surface.
 externalSecret:
   secrets:

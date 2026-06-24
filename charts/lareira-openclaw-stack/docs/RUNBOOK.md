@@ -51,7 +51,7 @@ SEED=$(openssl rand -hex 32)
 
 # Apply via cofre.
 cat <<EOF > /tmp/org-seed-manifest.yaml
-- backend: akeyless
+- backend: sops
   path: openclaw/publisher-pki/org-seed
   property: hex
   value: ${SEED}
@@ -63,8 +63,8 @@ shred -uvz /tmp/org-seed-manifest.yaml
 kubectl -n openclaw get externalsecret openclaw-pki-org-seed -o yaml | grep -i 'syncedRevision\|conditions'
 ```
 
-For production: rotate to an Akeyless DFC key (key never in one piece)
-and swap `LocalSigner` → `AkeylessDfcSigner` in the PKI source. See
+For production: rotate to a Borealis DFC key (key never in one piece)
+and swap `LocalSigner` → `BorealisDfcSigner` in the PKI source. See
 `openclaw-publisher-pki/src/signing.rs`.
 
 ## Enroll a new publisher
@@ -149,7 +149,7 @@ cert. Coordinate with all publishers before rotation.
 # 2. Generate a new seed in cofre under a versioned key.
 SEED_V2=$(openssl rand -hex 32)
 cat <<EOF > /tmp/seed-v2.yaml
-- backend: akeyless
+- backend: sops
   path: openclaw/publisher-pki/org-seed-v2
   property: hex
   value: ${SEED_V2}
@@ -193,7 +193,7 @@ kubectl create namespace openclaw
 # 2. Trigger the FluxCD reconciliation.
 flux reconcile helmrelease openclaw -n flux-system --with-source
 
-# 3. The ExternalSecret will materialize the org-seed from Akeyless.
+# 3. The ExternalSecret will materialize the org-seed from Borealis.
 # 4. The postgres replica reconnects (state preserved if CNPG was on a
 #    separate PVC).
 # 5. Listings are re-verified by the scanner on its next cycle.

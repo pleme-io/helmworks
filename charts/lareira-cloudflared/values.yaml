@@ -25,7 +25,7 @@ replicaCount: 1
 
 # Tunnel token. References an existing Secret in the release namespace.
 # Recommended shape: SOPS-encrypted manifest committed alongside the
-# HelmRelease, or External Secrets Operator pulling from akeyless.
+# HelmRelease, or External Secrets Operator pulling from borealis.
 tunnel:
   # Secret name + key carrying the connector token.
   tokenSecretName: cloudflared-token

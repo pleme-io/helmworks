@@ -27,19 +27,19 @@ tendInterval: 300
 tendConfig: {}
   # Example:
   # workspaces:
-  #   - name: akeyless-specs
+  #   - name: borealis-specs
   #     provider: github
   #     base_dir: /workspace/repos
   #     clone_method: https
   #     discover: false
   #     extra_repos:
-  #       - akeylesslabs/akeyless-go
+  #       - borealis/borealis-go
   #     watch:
   #       enable: true
   #       file_watches:
-  #         - name: akeyless-openapi-spec
-  #           org: akeylesslabs
-  #           repo: akeyless-go
+  #         - name: borealis-openapi-spec
+  #           org: borealis
+  #           repo: borealis-go
   #           path: api/openapi.yaml
   #           download_to: /workspace/specs
   #           post_hooks:

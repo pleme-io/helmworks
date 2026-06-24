@@ -7,7 +7,7 @@ description: |
   on top of pleme-microservice with the fedramp-high compliance overlay.
 
   The org-seed (CA root key material) is materialized at runtime from
-  ExternalSecret bound to a backend (Akeyless / SOPS / Vault) — never
+  ExternalSecret bound to a backend (Borealis / SOPS / Vault) — never
   stored in chart values.
 type: application
 version: 0.1.0

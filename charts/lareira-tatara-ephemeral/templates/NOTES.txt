@@ -28,8 +28,8 @@ Operator next steps:
          --from-literal=secret=<the value you put in GitHub>
 {{- end }}
 {{- if .Values.poolReconciler.enabled }}
-  2. Define a pool (or enable the bundled akeyless pool via
-     `pools.akeyless.enabled=true`):
+  2. Define a pool (or enable the bundled borealis pool via
+     `pools.borealis.enabled=true`):
        feira pool apply pools.yaml
 {{- end }}
   3. Watch:

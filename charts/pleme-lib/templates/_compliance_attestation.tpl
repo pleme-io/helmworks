@@ -5,7 +5,7 @@ Maps to NIST 800-53 controls:
   CM-2  — Baseline Configuration: tameshi BLAKE3 fingerprint of the chart
   SI-7  — Software, Firmware, Information Integrity: signature chain
   SC-12 — Cryptographic Key Management: hashes computed with BLAKE3, signed
-          via Akeyless DFC (split-knowledge threshold) per tameshi
+          via Borealis DFC (split-knowledge threshold) per tameshi
   AC-3  — Access Enforcement: sekiban admission webhook gates on these
           annotations; without them admission is denied
 

@@ -2,7 +2,7 @@
 # cluster (single-node k3s 1.34.5 on AWS, ~2 CPU / 8 GB).
 #
 # Sized + adapted from cluster recon (2026-05-20):
-#   • CPU is 99% allocated by the existing akeyless stack — pool
+#   • CPU is 99% allocated by the existing borealis stack — pool
 #     members can't be warm-running here. Set desiredSize=0; allocate
 #     on demand (~2 min cold start, acceptable for a single-dev box).
 #   • No Prometheus Operator on cluster → monitoring.enabled=false on
@@ -82,26 +82,26 @@ githubWatcher:
   webhookSecret:
     create: false
 
-# ─── Bundled Akeyless pool — pool exists but starts empty ────────
+# ─── Bundled Borealis pool — pool exists but starts empty ────────
 # `desiredSize: 0` + `minSize: 0` = pool is declared, no warm
 # members spawned. Allocations request a fresh member (1-2 min cold
 # start). Acceptable on this 2-core node where a warm member can't
-# fit alongside the existing Akeyless stack (1985m/2000m CPU pinned).
+# fit alongside the existing Borealis stack (1985m/2000m CPU pinned).
 pools:
-  akeyless:
+  borealis:
     enabled: true
-    name: akeyless-attest-pool
+    name: borealis-attest-pool
     namespace: ephemeral-pools
     desiredSize: 0          # NO warm members — capacity limit
     minSize: 0
     maxSize: 1              # at most 1 ephemeral env at a time
     returnPolicy: Replace
     selector:
-      repos: ["pleme-io/akeyless-*", "akeylesslabs/*"]
+      repos: ["pleme-io/borealis-*", "borealis/*"]
       kinds: ["github-pr", "manual"]
     template:
       aplicacao:
-        chart_ref: "oci://ghcr.io/pleme-io/charts/lareira-akeyless-deployment"
+        chart_ref: "oci://ghcr.io/pleme-io/charts/lareira-borealis-deployment"
         version: "0.5.5"
         profile: "gateway-with-internal-saas"
         values_overlay:
@@ -116,7 +116,7 @@ pools:
       postconditions:
         - kind: HelmReleaseReleased
           params:
-            name: akeyless-saas-consolidated
+            name: borealis-saas-consolidated
             namespace: ephemeral-pools
 
 # pleme-dev has no Prometheus Operator → drop overlay-level monitoring.

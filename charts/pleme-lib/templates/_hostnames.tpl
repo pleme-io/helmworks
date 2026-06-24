@@ -56,17 +56,17 @@ Empty instance/ephemeral/cluster/location segments collapse out, so one
 call degrades cleanly from a 5-part ephemeral host down to a 2-part
 Cloudflare-Universal-SSL host depending on which segments are supplied:
 
-  app=akeyless-saas domain=quero.lol cluster=pleme-dev location=use1
-    -> akeyless-saas.pleme-dev.use1.quero.lol            (named, org convention)
+  app=borealis-saas domain=quero.lol cluster=pleme-dev location=use1
+    -> borealis-saas.pleme-dev.use1.quero.lol            (named, org convention)
   + ephemeral=9f8e7d6c
-    -> akeyless-saas.9f8e7d6c.pleme-dev.use1.quero.lol   (ephemeral, tatara-aligned)
+    -> borealis-saas.9f8e7d6c.pleme-dev.use1.quero.lol   (ephemeral, tatara-aligned)
   + instance=test01 (no ephemeral)
-    -> akeyless-saas-test01.pleme-dev.use1.quero.lol     (legacy leaf-suffix form)
-  app=akeyless-saas domain=quero.cloud (cluster/location "")
-    -> akeyless-saas.quero.cloud                         (2-part, Universal SSL)
+    -> borealis-saas-test01.pleme-dev.use1.quero.lol     (legacy leaf-suffix form)
+  app=borealis-saas domain=quero.cloud (cluster/location "")
+    -> borealis-saas.quero.cloud                         (2-part, Universal SSL)
 
 Args (dict):
-  app       (required) — leaf component name, e.g. "akeyless-saas"
+  app       (required) — leaf component name, e.g. "borealis-saas"
   instance  (optional) — leaf suffix; "" omits it
   ephemeral (optional) — consistent-hash segment (pleme-lib.ephemeralId); "" omits it
   cluster   (optional) — cluster segment; "" omits it

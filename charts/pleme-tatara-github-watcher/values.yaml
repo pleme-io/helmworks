@@ -104,11 +104,11 @@ pleme-microservice:
           key: secret
     # Optional config knobs (set via --set or per-cluster values overlay):
     # - name: TATARA_WATCHER_PIN_POOL
-    #   value: "akeyless-attest-pool"
+    #   value: "borealis-attest-pool"
     # - name: TATARA_WATCHER_INCLUDE_DRAFTS
     #   value: "false"
     # - name: TATARA_WATCHER_ALLOW_REPOS
-    #   value: "pleme-io/*,akeyless/*"
+    #   value: "pleme-io/*,borealis/*"
 
   # ─── RBAC: create EphemeralAllocation CRs in target namespace ────
   serviceAccount:

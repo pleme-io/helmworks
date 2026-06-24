@@ -25,7 +25,7 @@ imagePullSecrets: []
 # -- Kubernetes Secret containing the Discord bot token.
 # The Secret MUST contain a key matching `tokenKey` whose value is the raw
 # bot token (no "Bot " prefix). Typically managed by ExternalSecrets +
-# Akeyless Secrets Provider — see pleme-io conventions.
+# Borealis Secrets Provider — see pleme-io conventions.
 tokenSecret:
   # -- Secret name. Defaults to `discord-<botName>-token`.
   name: ""

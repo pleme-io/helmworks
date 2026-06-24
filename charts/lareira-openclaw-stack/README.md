@@ -24,7 +24,7 @@ This chart presumes a FedRAMP-High-shaped cluster. Specifically:
 | Encrypted PVC class | StorageClass named `encrypted-default` |
 | OIDC provider | `authentik` (saguão fleet IdP) |
 | External Secrets | `external-secrets-operator` + `cluster-secret-store` |
-| Secret materialization | `cofre`-managed Akeyless / SOPS / Vault entry for `openclaw/publisher-pki/org-seed` |
+| Secret materialization | `cofre`-managed Borealis / SOPS / Vault entry for `openclaw/publisher-pki/org-seed` |
 
 The cluster floor (FedRAMP-compliant VPC, KMS, Flow Logs, GuardDuty,
 Config Rules, etc.) lives in `pangea-architectures` —

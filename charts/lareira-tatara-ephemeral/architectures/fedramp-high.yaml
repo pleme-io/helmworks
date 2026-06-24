@@ -56,7 +56,7 @@ githubWatcher:
       nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
 
 pools:
-  akeyless:
+  borealis:
     enabled: true
     desiredSize: 2
     minSize: 2          # never go below 2 for HA

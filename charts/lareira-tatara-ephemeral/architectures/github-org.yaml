@@ -27,7 +27,7 @@ githubWatcher:
       # Allowlist tightens which org/repo trigger envs — empty = all
       # repos that share the webhook. Set explicitly in production.
       - name: TATARA_WATCHER_ALLOW_REPOS
-        value: "pleme-io/*,akeylesslabs/*"
+        value: "pleme-io/*,borealis/*"
   ingress:
     enabled: true
     className: nginx
@@ -39,7 +39,7 @@ githubWatcher:
     create: false       # operator pre-creates (recommended)
 
 pools:
-  akeyless:
+  borealis:
     enabled: true
     desiredSize: 2      # 2 warm envs ready
     minSize: 1

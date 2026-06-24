@@ -11,7 +11,7 @@ Backends:
 - **memory** (default) — ephemeral; loses state on Pod restart. Matches
   v0.2.x chart behavior.
 - **postgres** — multi-replica durable. See `examples/values-postgres.yaml`
-  for the canonical CNPG / akeyless External Secrets wiring.
+  for the canonical CNPG / borealis External Secrets wiring.
 - **sqlite** — single-replica durable; pending pleme-microservice
   `extraVolumes` hook (helmworks v0.7). Today's sqlite-backed deploys
   use a hand-rolled Deployment outside this chart.

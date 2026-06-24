@@ -108,7 +108,7 @@ next.
 
 | Concern | Source of truth |
 |---|---|
-| PKI org-seed | cofre-managed Akeyless DFC entry → ExternalSecret → projected env |
+| PKI org-seed | cofre-managed Borealis DFC entry → ExternalSecret → projected env |
 | Image digests | forge CI substitutes at release time; chart fail()s on placeholders |
 | Compliance baseline | `compliance.overlays: [fedramp-high]` in pleme-lib overlay registry |
 | NIST 800-53 mapping | `kensa/src/mapping/nist_800_53.rs` (built into kensa runner image) |

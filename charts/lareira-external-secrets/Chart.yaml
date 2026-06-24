@@ -4,7 +4,7 @@ description: External Secrets Operator for pleme-io clusters. Wraps external-sec
 type: application
 version: 0.1.0
 appVersion: "0.10.7"
-keywords: [external-secrets, akeyless, sops, lareira]
+keywords: [external-secrets, vault, sops, lareira]
 maintainers: [{name: drzzln, email: drzzln@protonmail.com}]
 dependencies:
   - {name: pleme-lib, version: ">=0.18.0", repository: "file://../pleme-lib"}

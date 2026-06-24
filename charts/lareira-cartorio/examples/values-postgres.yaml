@@ -6,7 +6,7 @@
 # `database-url` key carries the full
 # `postgres://user:pass@host:port/db?sslmode=require`.
 #
-# Wired via External Secrets Operator from akeyless / SOPS in the
+# Wired via External Secrets Operator from borealis / SOPS in the
 # canonical pleme-io shape:
 #
 #   apiVersion: external-secrets.io/v1

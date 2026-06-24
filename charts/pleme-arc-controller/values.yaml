@@ -25,14 +25,14 @@ image:
 # chart will consume whatever Secret already exists at the name the
 # gha-runner-scale-set-controller env vars reference (default `arc-github-app-secret`).
 #
-# Example (akeyless ESO mode):
+# Example (borealis ESO mode):
 #   externalSecret:
-#     clusterSecretStoreName: akeyless-cluster-secret-store
+#     clusterSecretStoreName: borealis-cluster-secret-store
 #     secrets:
 #       arc-github-app-secret:
 #         dataFrom:
 #           - extract:
-#               key: /path/in/akeyless/to/github-app-secret
+#               key: /path/in/borealis/to/github-app-secret
 externalSecret:
   clusterSecretStoreName: cluster-secret-store
   refreshInterval: 30m

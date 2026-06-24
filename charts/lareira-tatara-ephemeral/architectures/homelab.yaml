@@ -35,7 +35,7 @@ githubWatcher:
     value: "homelab-shared-secret-replace-me"
 
 pools:
-  akeyless:
+  borealis:
     enabled: true
     desiredSize: 1
     minSize: 0
