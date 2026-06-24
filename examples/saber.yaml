@@ -21,8 +21,10 @@ ports:
 service:
   type: ClusterIP
   ports:
+    # Service port 80 → targetPort http (containerPort 8080): the fleet
+    # convention (catch/auth/cracha) — the cloudflare-tunnel ingress targets :80.
     - name: http
-      port: 8080
+      port: 80
       targetPort: http
       protocol: TCP
     - name: grpc

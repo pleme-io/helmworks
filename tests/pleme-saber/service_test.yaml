@@ -15,13 +15,13 @@ tests:
           path: spec.type
           value: ClusterIP
 
-  - it: should expose http port 8080
+  - it: should expose http on Service port 80 (targetPort http → container 8080)
     asserts:
       - contains:
           path: spec.ports
           content:
             name: http
-            port: 8080
+            port: 80
             targetPort: http
             protocol: TCP
 

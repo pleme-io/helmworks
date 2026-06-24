@@ -41,9 +41,12 @@ ports:
 # One ClusterIP Service exposing both ports (pleme-lib.service iterates this list).
 service:
   type: ClusterIP
+    # Service port 80 → targetPort http (containerPort 8080): the fleet
+    # convention (catch/auth/cracha all expose :80 → container http), so the
+    # cloudflare-tunnel ingress + SaberInfra both target svc :80.
   ports:
     - name: http
-      port: 8080
+      port: 80
       targetPort: http
       protocol: TCP
     - name: grpc
