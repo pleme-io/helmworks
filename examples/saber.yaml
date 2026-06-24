@@ -1,0 +1,89 @@
+# Example values for the saber knowledge-platform API server.
+# Used by tests/pleme-saber/*_test.yaml as the golden render input.
+image:
+  repository: ghcr.io/pleme-io/saber
+  tag: amd64-latest
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+serviceAccount:
+  create: true
+
+ports:
+  - name: http
+    containerPort: 8080
+    protocol: TCP
+  - name: grpc
+    containerPort: 50051
+    protocol: TCP
+
+service:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+    - name: grpc
+      port: 50051
+      targetPort: grpc
+      protocol: TCP
+
+env:
+  - name: SABER_HTTP_BIND
+    value: "0.0.0.0:8080"
+  - name: SABER_GRPC_BIND
+    value: "0.0.0.0:50051"
+  - name: RUN_MODE
+    value: "serve"
+  - name: RUST_LOG
+    value: "info,saber=debug"
+
+envFrom:
+  - secretRef:
+      name: saber-db
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+health:
+  path: /health/live
+  readyPath: /health/ready
+  port: http
+
+startupProbe:
+  enabled: true
+  path: /health/startup
+  port: http
+
+monitoring:
+  enabled: true
+  port: http
+  path: /metrics
+  interval: 30s
+
+networkPolicy:
+  enabled: true
+  allowPrometheus: true
+  allowDns: true
+  additionalEgress:
+    - name: allow-postgres
+      rules:
+        - to: []
+          ports:
+            - port: 5432
+              protocol: TCP
+
+externalSecret:
+  secrets:
+    saber-db:
+      refreshInterval: 1h
+      dataFrom:
+        - extract:
+            key: /pleme-io/saber/database-url

@@ -53,6 +53,7 @@
             { name = "pleme-lareira"; chartDir = ./charts/pleme-lareira; }
             { name = "pleme-lareira-canary"; chartDir = ./charts/pleme-lareira-canary; }
             { name = "pleme-microservice"; chartDir = ./charts/pleme-microservice; }
+            { name = "pleme-saber"; chartDir = ./charts/pleme-saber; }
             { name = "pleme-worker"; chartDir = ./charts/pleme-worker; }
             { name = "pleme-web"; chartDir = ./charts/pleme-web; }
             { name = "pleme-cronjob"; chartDir = ./charts/pleme-cronjob; }

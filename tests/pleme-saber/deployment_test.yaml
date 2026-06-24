@@ -1,0 +1,133 @@
+suite: pleme-saber deployment tests
+templates:
+  - templates/deployment.yaml
+values:
+  - ../../examples/saber.yaml
+tests:
+  - it: should render a Deployment
+    asserts:
+      - isKind:
+          of: Deployment
+
+  - it: should use the saber image
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "ghcr.io/pleme-io/saber:amd64-latest"
+
+  - it: should set security context baseline on pod
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 1000
+
+  - it: should set container security context baseline
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+
+  - it: should expose both http and grpc container ports
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: http
+            containerPort: 8080
+            protocol: TCP
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: grpc
+            containerPort: 50051
+            protocol: TCP
+
+  - it: should set liveness probe to /health/live on http
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /health/live
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.port
+          value: http
+
+  - it: should set readiness probe to /health/ready on http
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /health/ready
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.port
+          value: http
+
+  - it: should set startup probe to /health/startup on http
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.path
+          value: /health/startup
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.port
+          value: http
+
+  - it: should set the saber config env vars
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SABER_HTTP_BIND
+            value: "0.0.0.0:8080"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SABER_GRPC_BIND
+            value: "0.0.0.0:50051"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: RUN_MODE
+            value: "serve"
+
+  - it: should pull DATABASE_URL via envFrom secretRef saber-db (no plaintext)
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].envFrom
+          content:
+            secretRef:
+              name: saber-db
+
+  - it: should set prometheus annotations when monitoring enabled
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["prometheus.io/scrape"]
+          value: "true"
+      - equal:
+          path: spec.template.metadata.annotations["prometheus.io/port"]
+          value: "http"
+      - equal:
+          path: spec.template.metadata.annotations["prometheus.io/path"]
+          value: "/metrics"
+
+  - it: should set replicas when autoscaling is disabled
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: should use a custom AUTOBUMP image tag (overridable, image not pulled)
+    set:
+      image:
+        repository: ghcr.io/pleme-io/saber
+        tag: amd64-r412-9c1f2a0b
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "ghcr.io/pleme-io/saber:amd64-r412-9c1f2a0b"

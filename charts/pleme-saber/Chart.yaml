@@ -1,0 +1,10 @@
+apiVersion: v2
+name: pleme-saber
+description: Saber knowledge-platform API server (REST/GraphQL/gRPC/MCP) on the pleme-lib baseline
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+dependencies:
+  - name: pleme-lib
+    version: ">=0.30.0"
+    repository: "file://../pleme-lib"

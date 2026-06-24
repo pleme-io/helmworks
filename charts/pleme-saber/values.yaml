@@ -1,0 +1,199 @@
+# pleme-saber default values
+# saber-api-server — knowledge-platform SaaS, 4 faces (REST + GraphQL + gRPC + MCP)
+# served on ONE http listener (8080) plus a SEPARATE gRPC listener (50051).
+# REST + GraphQL + Swagger + MCP + /metrics + /health/* all live on the http port.
+#
+# Stateless Deployment (NOT a StatefulSet) — saber has no local persistence;
+# Postgres is external and reached via DATABASE_URL (cofre→ESO secretRef).
+#
+# Public ingress is NOT in this chart (mirrors pleme-armazem): rio fronts the
+# public host via the drive cloudflare-tunnel architecture; the HelmRelease +
+# tunnel ingress entry live in the k8s repo (rio cluster), not here.
+
+image:
+  # AUTOBUMP exact tag amd64-r<n>-<sha> is what the HelmRelease pins in git;
+  # the placeholder default below is overridable and never used as a deploy
+  # source in a real release (Flux image-automation writes the exact tag).
+  repository: ghcr.io/pleme-io/saber
+  tag: amd64-latest
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+replicaCount: 1
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# Two container ports: the all-faces http listener and the gRPC listener.
+ports:
+  - name: http
+    containerPort: 8080
+    protocol: TCP
+  - name: grpc
+    containerPort: 50051
+    protocol: TCP
+
+# One ClusterIP Service exposing both ports (pleme-lib.service iterates this list).
+service:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+    - name: grpc
+      port: 50051
+      targetPort: grpc
+      protocol: TCP
+
+# SaberConfig::from_env surface (saber-api-server/src/main.rs).
+env:
+  - name: SABER_HTTP_BIND
+    value: "0.0.0.0:8080"
+  - name: SABER_GRPC_BIND
+    value: "0.0.0.0:50051"
+  - name: RUN_MODE
+    value: "serve"
+  - name: RUST_LOG
+    value: "info,saber=debug"
+
+# DATABASE_URL is materialized by ESO/cofre into the saber-db Secret (see
+# externalSecret below) and injected via envFrom — NO plaintext in values.
+envFrom:
+  - secretRef:
+      name: saber-db
+
+volumeMounts: []
+volumes: []
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# All three probes target the http port; saber serves /health/{startup,live,ready}.
+health:
+  path: /health/live
+  readyPath: /health/ready
+  port: http
+  livenessInitialDelay: 5
+  livenessPeriod: 10
+  livenessFailureThreshold: 3
+  readinessInitialDelay: 5
+  readinessPeriod: 5
+  readinessFailureThreshold: 2
+
+# Startup probe gives M0 boot slack (Postgres connect + in-process migrate).
+startupProbe:
+  enabled: true
+  path: /health/startup
+  port: http
+  initialDelaySeconds: 0
+  periodSeconds: 5
+  failureThreshold: 30
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+strategy:
+  type: RollingUpdate
+
+terminationGracePeriodSeconds: 30
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+initContainers: []
+
+# Prometheus scrape of /metrics on the http port.
+monitoring:
+  enabled: true
+  port: http
+  path: /metrics
+  interval: 30s
+  scrapeTimeout: 10s
+
+networkPolicy:
+  enabled: true
+  allowPrometheus: true
+  allowDns: true
+  additionalIngress: []
+  # Egress to external Postgres (DATABASE_URL). The destination selector is
+  # cluster-specific; the HelmRelease in the k8s repo narrows it. The default
+  # allows the postgres port so a stateless saber can reach its DB.
+  additionalEgress:
+    - name: allow-postgres
+      rules:
+        - to: []
+          ports:
+            - port: 5432
+              protocol: TCP
+
+pdb:
+  enabled: false
+  minAvailable: 1
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 80
+
+command: []
+args: []
+additionalLabels: {}
+lifecycle: {}
+
+configMaps: []
+downwardApi:
+  enabled: false
+istio:
+  enabled: false
+podMonitor:
+  enabled: false
+prometheusRules:
+  enabled: false
+  groups: []
+
+# DATABASE_URL via cofre→External Secrets Operator (zero-plaintext).
+# The ExternalSecret named saber-db pulls the connection string from the
+# cluster-secret-store (Akeyless-backed) and writes a Secret saber-db that
+# envFrom references above. The actual Akeyless key path + cluster-secret-store
+# provisioning is a downstream cofre concern; this is the values surface.
+externalSecret:
+  secrets:
+    saber-db:
+      refreshInterval: 1h
+      dataFrom:
+        - extract:
+            key: /pleme-io/saber/database-url
+
+# shinka migration gating is disabled by default: saber-api-server connects and
+# migrates the Postgres store in-process when DATABASE_URL is set (main.rs).
+# Flip shinkaWait/shinkaMigration on only if migration is later split into a
+# separate Job/CRD.
+shinkaWait:
+  enabled: false
+shinkaMigration:
+  enabled: false

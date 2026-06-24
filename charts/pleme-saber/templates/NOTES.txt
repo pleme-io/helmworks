@@ -1,0 +1,28 @@
+saber — the knowledge-platform API server (REST + GraphQL + gRPC + MCP) — is installed.
+
+  Release:   {{ .Release.Name }}
+  Namespace: {{ include "pleme-lib.namespace" . }}
+  Image:     {{ .Values.image.repository }}:{{ .Values.image.tag }}
+
+Faces (all on the http port, except gRPC):
+  REST + GraphQL + Swagger + MCP + /metrics + /health/*:
+    http://{{ include "pleme-lib.fullname" . }}.{{ include "pleme-lib.namespace" . }}.svc:8080
+  gRPC:
+    {{ include "pleme-lib.fullname" . }}.{{ include "pleme-lib.namespace" . }}.svc:50051
+
+Health:
+  startup:   http://{{ include "pleme-lib.fullname" . }}.{{ include "pleme-lib.namespace" . }}.svc:8080/health/startup
+  liveness:  http://{{ include "pleme-lib.fullname" . }}.{{ include "pleme-lib.namespace" . }}.svc:8080/health/live
+  readiness: http://{{ include "pleme-lib.fullname" . }}.{{ include "pleme-lib.namespace" . }}.svc:8080/health/ready
+
+Database (production):
+  DATABASE_URL is materialized into the saber-db Secret by External Secrets
+  Operator from the cluster-secret-store (cofre/Akeyless). Without it, saber
+  runs with the in-memory store.
+
+Public host:
+  Not in this chart. rio fronts saber via the drive cloudflare-tunnel
+  architecture — the public host ({app}.{cluster}.{location}.{domain}) and
+  the tunnel ingress entry are declared in the k8s repo's HelmRelease.
+
+Doctrine: theory/URDUME.md (the service spine) + theory/SABER.md.
