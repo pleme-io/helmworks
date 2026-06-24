@@ -1,0 +1,14 @@
+{{/*
+stream.yaml — (2) TRANSPORT + BUFFER.
+
+Declares the respiro JetStream workqueue stream + pull consumer via the
+already-shipped pleme-lib.jetstream helper. respiro owns the stream lifecycle
+(Cilium-style identity: the broker is unaware; removing the release removes the
+stream). We adapt respiro.{stream,serverUrl} → the helper's native
+.Values.jetstream contract, then hand the helper a sub-context with that shape.
+*/}}
+{{- if .Values.respiro.enabled }}
+{{- $jsValues := fromYaml (include "lareira-respiro.jetstreamValues" .) }}
+{{- $ctx := merge (dict "Values" $jsValues) (omit . "Values") }}
+{{- include "pleme-lib.jetstream" $ctx }}
+{{- end }}

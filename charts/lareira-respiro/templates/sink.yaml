@@ -1,0 +1,51 @@
+{{/*
+sink.yaml — (5) SINK.
+
+Terminal egress for the consumer's processed output. For A0 the sink.kind is
+one of { vlogs | nats }:
+  • vlogs — the consumer forwards to VictoriaLogs (endpoint surfaced as a
+            ConfigMap the consumer reads);
+  • nats  — the consumer republishes to a downstream NATS subject.
+
+The DELIVERY GUARANTEE semantics (buffer / retry / DLQ tier) are rendered by
+the already-shipped pleme-lib.delivery helper — we adapt
+respiro.{sink,stream,serverUrl} → its native .Values.delivery contract.
+
+Typed slots for vm | grafana | splunk | coralogix | datadog are LATER
+MILESTONES enumerated in the verification matrix; A0 fail()s on any kind other
+than vlogs|nats so the gap surfaces mechanically rather than silently.
+*/}}
+{{- if .Values.respiro.enabled }}
+{{- $r := .Values.respiro }}
+{{- $sink := $r.sink }}
+{{- $kind := $sink.kind | default "vlogs" }}
+{{- $fullname := include "pleme-lib.fullname" . }}
+{{- /* ── Validate sink.kind: A0 supports vlogs|nats only ──────────────── */}}
+{{- if not (or (eq $kind "vlogs") (eq $kind "nats")) }}
+{{- fail (printf "lareira-respiro: sink.kind %q is a later milestone — A0 supports vlogs | nats only (vm | grafana | splunk | coralogix | datadog are planned, not yet emitted)" $kind) }}
+{{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullname }}-sink
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+    app.kubernetes.io/component: respiro-sink
+    respiro.pleme.io/sink-kind: {{ $kind }}
+data:
+  {{- if eq $kind "vlogs" }}
+  sink.yaml: |
+    {{- $sinkVal := dict "kind" "vlogs" "endpoint" ((default dict $sink.vlogs).endpoint | default "http://victoria-logs.monitoring.svc:9428") }}
+    {{- toYaml $sinkVal | nindent 4 }}
+  {{- else if eq $kind "nats" }}
+  sink.yaml: |
+    {{- $sinkVal := dict "kind" "nats" "url" $r.serverUrl "subject" ((default dict $sink.nats).subject | default (printf "%s.out" (lower $r.stream.name))) }}
+    {{- toYaml $sinkVal | nindent 4 }}
+  {{- end }}
+{{- /* ── Delivery-guarantee semantics (pleme-lib.delivery) ────────────── */}}
+{{- $dValues := fromYaml (include "lareira-respiro.deliveryValues" .) }}
+{{- $ctx := merge (dict "Values" $dValues) (omit . "Values") }}
+{{- include "pleme-lib.delivery" $ctx }}
+{{- end }}

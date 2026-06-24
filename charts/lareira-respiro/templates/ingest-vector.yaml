@@ -1,0 +1,144 @@
+{{/*
+ingest-vector.yaml — (1) INGEST.
+
+A Vector Deployment whose config is rendered by the NEW pleme-lib.vectorConfig
+emitter from respiro.ingest (typed source kubernetes_logs|http|socket +
+transforms passthrough + the nats transport sink). Emits:
+  • a ConfigMap holding the rendered vector.yaml (TYPED EMISSION — the emitter
+    builds a dict + toYaml; no string-concatenation of config syntax);
+  • the Vector Deployment mounting that ConfigMap;
+  • a Service exposing Vector's API/source ports;
+  • a ServiceAccount the Vector pod runs as.
+
+A checksum annotation links the Deployment to the ConfigMap so a config change
+rolls the pod.
+*/}}
+{{- if and .Values.respiro.enabled .Values.respiro.ingest.enabled }}
+{{- $r := .Values.respiro }}
+{{- $ingest := $r.ingest }}
+{{- $vecName := include "lareira-respiro.vectorName" . }}
+{{- $vectorConfig := include "pleme-lib.vectorConfig" (dict "ingest" $ingest "stream" $r.stream "serverUrl" $r.serverUrl) }}
+{{- $source := $ingest.source | default dict }}
+{{- $kind := $source.kind | default "kubernetes_logs" }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $vecName }}
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+    app.kubernetes.io/component: respiro-ingest
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $vecName }}-config
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+    app.kubernetes.io/component: respiro-ingest
+data:
+  vector.yaml: |
+    {{- $vectorConfig | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $vecName }}
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+    app.kubernetes.io/component: respiro-ingest
+spec:
+  replicas: {{ $ingest.vector.replicas | default 1 }}
+  selector:
+    matchLabels:
+      {{- include "pleme-lib.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: respiro-ingest
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ $vectorConfig | sha256sum }}
+      labels:
+        {{- include "pleme-lib.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: respiro-ingest
+        app: {{ $vecName }}
+    spec:
+      serviceAccountName: {{ $vecName }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+        - name: vector
+          image: "{{ $ingest.vector.image.repository }}:{{ $ingest.vector.image.tag }}"
+          imagePullPolicy: IfNotPresent
+          args: ["--config", "/etc/vector/vector.yaml"]
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          ports:
+            - name: api
+              containerPort: 8686
+              protocol: TCP
+            {{- if eq $kind "http" }}
+            - name: http-src
+              containerPort: 8080
+              protocol: TCP
+            {{- else if eq $kind "socket" }}
+            - name: socket-src
+              containerPort: 9000
+              protocol: TCP
+            {{- end }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/vector
+              readOnly: true
+            - name: data
+              mountPath: /vector-data-dir
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: config
+          configMap:
+            name: {{ $vecName }}-config
+        - name: data
+          emptyDir:
+            sizeLimit: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $vecName }}
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+    app.kubernetes.io/component: respiro-ingest
+spec:
+  selector:
+    {{- include "pleme-lib.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: respiro-ingest
+  ports:
+    - name: api
+      port: 8686
+      targetPort: api
+      protocol: TCP
+    {{- if eq $kind "http" }}
+    - name: http-src
+      port: 8080
+      targetPort: http-src
+      protocol: TCP
+    {{- else if eq $kind "socket" }}
+    - name: socket-src
+      port: 9000
+      targetPort: socket-src
+      protocol: TCP
+    {{- end }}
+{{- end }}

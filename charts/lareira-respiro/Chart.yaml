@@ -1,0 +1,25 @@
+apiVersion: v2
+name: lareira-respiro
+description: >-
+  respiro — the packaged NATS-JetStream-scale-to-zero + breathability "breathing
+  pipeline" primitive. A 5-stage spine — INGEST (a Vector Deployment whose config
+  is rendered by pleme-lib.vectorConfig) → TRANSPORT+BUFFER (a JetStream workqueue
+  stream + pull consumer) → WAKE (KEDA scale-0→N on stream lag) → HOLD (breathe
+  80/20 bands on the consumer) → SINK (terminal egress vlogs|nats) — composed
+  entirely from already-shipped pleme-lib helpers. Default-off: respiro.enabled=false
+  renders zero documents.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+# respiro composes pleme-lib helpers (vectorConfig / jetstream / breathability /
+# breatheBand / delivery) and the lareira-observe ATTACH abstraction (the OBSERVE
+# stage attaches scrape + alerts to the consumer Deployment). It owns no Deployment
+# baseline of its own beyond the Vector + consumer it wires directly.
+dependencies:
+  - name: pleme-lib
+    version: ">=0.30.0"
+    repository: "file://../pleme-lib"
+  - name: lareira-observe
+    version: ">=0.1.0"
+    repository: "file://../lareira-observe"
+    condition: respiro.observe.attach.enabled

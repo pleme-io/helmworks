@@ -78,6 +78,8 @@
             { name = "lareira-ntfy"; chartDir = ./charts/lareira-ntfy; }
             # Attachable observability + breathability — scrape + bands + alert routing for any workload
             { name = "lareira-observe"; chartDir = ./charts/lareira-observe; }
+            # respiro — the packaged NATS-JetStream-scale-to-zero + breathability "breathing pipeline" (5-stage spine)
+            { name = "lareira-respiro"; chartDir = ./charts/lareira-respiro; }
             # Family Tier 2 — quality-of-life household services
             { name = "lareira-joplin"; chartDir = ./charts/lareira-joplin; }
             { name = "lareira-audiobookshelf"; chartDir = ./charts/lareira-audiobookshelf; }

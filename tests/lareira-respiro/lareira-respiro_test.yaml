@@ -1,0 +1,429 @@
+suite: lareira-respiro — the packaged breathing-pipeline primitive (5-stage spine)
+templates:
+  - templates/ingest-vector.yaml
+  - templates/stream.yaml
+  - templates/consumers.yaml
+  - templates/breathe.yaml
+  - templates/observe.yaml
+  - templates/sink.yaml
+release:
+  name: respiro
+  namespace: respiro
+
+tests:
+  # ── (a) DEFAULT-OFF: respiro.enabled=false renders ZERO documents ───────────
+  # Load-bearing for auto-release green: a HelmRelease shipped before its values
+  # are wired must be a safe no-op. Every template gates on respiro.enabled.
+  - it: renders nothing when respiro.enabled is false (safe default-off)
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: still renders nothing for every template under default-off
+    template: templates/ingest-vector.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # ── (b) PER-TOGGLE independence ─────────────────────────────────────────────
+  # INGEST toggle
+  - it: INGEST emits Vector ConfigMap + Deployment + Service + SA when enabled
+    template: templates/ingest-vector.yaml
+    set:
+      respiro:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 4
+      - documentIndex: 0
+        isKind:
+          of: ServiceAccount
+      - documentIndex: 1
+        isKind:
+          of: ConfigMap
+      - documentIndex: 2
+        isKind:
+          of: Deployment
+      - documentIndex: 3
+        isKind:
+          of: Service
+
+  - it: INGEST absent when ingest.enabled false (but respiro on)
+    template: templates/ingest-vector.yaml
+    set:
+      respiro:
+        enabled: true
+        ingest:
+          enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: INGEST Vector ConfigMap holds the typed-emitted kubernetes_logs source + nats sink
+    template: templates/ingest-vector.yaml
+    documentIndex: 1
+    set:
+      respiro:
+        enabled: true
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - matchRegex:
+          path: data["vector.yaml"]
+          pattern: "type: kubernetes_logs"
+      - matchRegex:
+          path: data["vector.yaml"]
+          pattern: "type: nats"
+      - matchRegex:
+          path: data["vector.yaml"]
+          pattern: "url: nats://pleme-nats.nats.svc:4222"
+
+  # TRANSPORT toggle (jetstream stream + consumer)
+  - it: TRANSPORT emits the JetStream ConfigMap + init Job (workqueue stream + pull consumer)
+    template: templates/stream.yaml
+    set:
+      respiro:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 2
+      - documentIndex: 0
+        isKind:
+          of: ConfigMap
+      - documentIndex: 0
+        matchRegex:
+          path: data["stream-AUDIT.json"]
+          pattern: "\"retention\": \"workqueue\""
+      - documentIndex: 0
+        matchRegex:
+          path: data["consumer-AUDIT-respiro.json"]
+          pattern: "\"max_ack_pending\": 1"
+      - documentIndex: 1
+        isKind:
+          of: Job
+
+  # WAKE toggle (consumer Deployment + Service + KEDA ScaledObject)
+  - it: WAKE emits the consumer Deployment + Service + a KEDA ScaledObject scaling 0→N on lag
+    template: templates/consumers.yaml
+    set:
+      respiro:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 3
+      - documentIndex: 0
+        isKind:
+          of: Deployment
+      - documentIndex: 1
+        isKind:
+          of: Service
+      - documentIndex: 2
+        isKind:
+          of: ScaledObject
+
+  - it: WAKE ScaledObject targets the consumer Deployment with the nats-jetstream trigger
+    template: templates/consumers.yaml
+    documentIndex: 2
+    set:
+      respiro:
+        enabled: true
+    asserts:
+      - isKind:
+          of: ScaledObject
+      - equal:
+          path: spec.scaleTargetRef.name
+          value: respiro-lareira-respiro-consumer
+      - equal:
+          path: spec.minReplicaCount
+          value: 0
+      - equal:
+          path: spec.maxReplicaCount
+          value: 8
+      - equal:
+          path: spec.triggers[0].type
+          value: nats-jetstream
+      - equal:
+          path: spec.triggers[0].metadata.stream
+          value: AUDIT
+      - equal:
+          path: spec.triggers[0].metadata.lagThreshold
+          value: "100"
+
+  # HOLD toggle (breathe bands)
+  - it: HOLD emits a MemoryBand on the consumer Deployment, SHADOW-first (dryRun true)
+    template: templates/breathe.yaml
+    set:
+      respiro:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: MemoryBand
+      - equal:
+          path: apiVersion
+          value: breathe.pleme.io/v1
+      - equal:
+          path: spec.targetRef.name
+          value: respiro-lareira-respiro-consumer
+      - equal:
+          path: spec.dryRun
+          value: true
+      - equal:
+          path: spec.floor
+          value: 256Mi
+      - equal:
+          path: spec.ceiling
+          value: 2Gi
+
+  - it: HOLD emits both MemoryBand and CpuBand when cpu enabled
+    template: templates/breathe.yaml
+    set:
+      respiro:
+        enabled: true
+        breathe:
+          enabled: true
+          cpu:
+            enabled: true
+    asserts:
+      - hasDocuments:
+          count: 2
+      - documentIndex: 1
+        isKind:
+          of: CpuBand
+
+  - it: HOLD absent when breathe disabled
+    template: templates/breathe.yaml
+    set:
+      respiro:
+        enabled: true
+        breathe:
+          enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # OBSERVE toggle (ServiceMonitor + PrometheusRule + AlertmanagerConfig)
+  - it: OBSERVE emits a ServiceMonitor scraping the consumer Service
+    template: templates/observe.yaml
+    set:
+      respiro:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ServiceMonitor
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/component"]
+          value: respiro-consumer
+      - equal:
+          path: metadata.labels.release
+          value: victoria-metrics-k8s-stack
+
+  - it: OBSERVE ServiceMonitor absent when monitoring disabled
+    template: templates/observe.yaml
+    set:
+      respiro:
+        enabled: true
+        observe:
+          monitoring:
+            enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: OBSERVE emits a PrometheusRule + AlertmanagerConfig with ntfy routing when wired
+    template: templates/observe.yaml
+    set:
+      respiro:
+        enabled: true
+        observe:
+          monitoring:
+            enabled: false
+          alerts:
+            enabled: true
+            groups:
+              - name: respiro.observe
+                rules:
+                  - alert: RespiroConsumerDown
+                    expr: "up == 0"
+                    for: 5m
+                    labels:
+                      severity: critical
+          ntfyRouting:
+            enabled: true
+            topic: rio-critical
+            ntfyUrl: "http://lareira-ntfy.ntfy.svc/rio-critical"
+    asserts:
+      - hasDocuments:
+          count: 2
+      - documentIndex: 0
+        isKind:
+          of: PrometheusRule
+      - documentIndex: 0
+        equal:
+          path: spec.groups[0].rules[0].labels["ntfy-topic"]
+          value: rio-critical
+      - documentIndex: 0
+        equal:
+          path: spec.groups[0].rules[0].labels.target
+          value: respiro-lareira-respiro-consumer
+      - documentIndex: 1
+        isKind:
+          of: AlertmanagerConfig
+      - documentIndex: 1
+        equal:
+          path: spec.receivers[0].webhookConfigs[0].url
+          value: "http://lareira-ntfy.ntfy.svc/rio-critical"
+
+  - it: OBSERVE ntfyRouting fails when topic is empty
+    template: templates/observe.yaml
+    set:
+      respiro:
+        enabled: true
+        observe:
+          ntfyRouting:
+            enabled: true
+            topic: ""
+            ntfyUrl: "http://x/y"
+    asserts:
+      - failedTemplate:
+          errorMessage: "lareira-respiro: observe.ntfyRouting.enabled=true requires observe.ntfyRouting.topic (the ntfy topic alerts route to)"
+
+  # SINK toggle (terminal egress)
+  - it: SINK emits a vlogs sink ConfigMap + the delivery ConfigMap by default
+    template: templates/sink.yaml
+    set:
+      respiro:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 2
+      - documentIndex: 0
+        isKind:
+          of: ConfigMap
+      - documentIndex: 0
+        equal:
+          path: metadata.labels["respiro.pleme.io/sink-kind"]
+          value: vlogs
+      - documentIndex: 0
+        matchRegex:
+          path: data["sink.yaml"]
+          pattern: "endpoint: http://victoria-logs.monitoring.svc:9428"
+
+  - it: SINK kind=nats emits a nats egress ConfigMap
+    template: templates/sink.yaml
+    documentIndex: 0
+    set:
+      respiro:
+        enabled: true
+        sink:
+          kind: nats
+    asserts:
+      - equal:
+          path: metadata.labels["respiro.pleme.io/sink-kind"]
+          value: nats
+      - matchRegex:
+          path: data["sink.yaml"]
+          pattern: "kind: nats"
+
+  - it: SINK kind=splunk (a later milestone) fails with a clear message
+    template: templates/sink.yaml
+    set:
+      respiro:
+        enabled: true
+        sink:
+          kind: splunk
+    asserts:
+      - failedTemplate:
+          errorMessage: "lareira-respiro: sink.kind \"splunk\" is a later milestone — A0 supports vlogs | nats only (vm | grafana | splunk | coralogix | datadog are planned, not yet emitted)"
+
+  # ── (c) FULL-ON snapshot ────────────────────────────────────────────────────
+  - it: full-on spine renders the complete document set (snapshot)
+    set:
+      respiro:
+        enabled: true
+    asserts:
+      - matchSnapshot: {}
+
+  # ── (d) source.kind × sink.kind matrix subset (each renders cleanly) ─────────
+  - it: matrix kubernetes_logs × vlogs renders the vector source + the vlogs sink
+    template: templates/ingest-vector.yaml
+    documentIndex: 1
+    set:
+      respiro:
+        enabled: true
+        ingest:
+          source:
+            kind: kubernetes_logs
+        sink:
+          kind: vlogs
+    asserts:
+      - matchRegex:
+          path: data["vector.yaml"]
+          pattern: "type: kubernetes_logs"
+
+  - it: matrix kubernetes_logs × nats renders cleanly
+    template: templates/sink.yaml
+    documentIndex: 0
+    set:
+      respiro:
+        enabled: true
+        ingest:
+          source:
+            kind: kubernetes_logs
+        sink:
+          kind: nats
+    asserts:
+      - equal:
+          path: metadata.labels["respiro.pleme.io/sink-kind"]
+          value: nats
+
+  - it: matrix http × vlogs renders the http_server source
+    template: templates/ingest-vector.yaml
+    documentIndex: 1
+    set:
+      respiro:
+        enabled: true
+        ingest:
+          source:
+            kind: http
+        sink:
+          kind: vlogs
+    asserts:
+      - matchRegex:
+          path: data["vector.yaml"]
+          pattern: "type: http_server"
+
+  - it: matrix http × nats renders the http_server source + nats egress
+    template: templates/sink.yaml
+    documentIndex: 0
+    set:
+      respiro:
+        enabled: true
+        ingest:
+          source:
+            kind: http
+        sink:
+          kind: nats
+    asserts:
+      - equal:
+          path: metadata.labels["respiro.pleme.io/sink-kind"]
+          value: nats
+
+  - it: matrix socket × vlogs renders the socket source
+    template: templates/ingest-vector.yaml
+    documentIndex: 1
+    set:
+      respiro:
+        enabled: true
+        ingest:
+          source:
+            kind: socket
+        sink:
+          kind: vlogs
+    asserts:
+      - matchRegex:
+          path: data["vector.yaml"]
+          pattern: "type: socket"

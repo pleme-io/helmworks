@@ -1,0 +1,147 @@
+# lareira-respiro — the packaged "breathing pipeline" primitive.
+#
+# A 5-stage spine, each stage 1:1 onto an already-shipped pleme-lib helper
+# (the chart owns no new scaling/transport/homeostasis algebra — only wiring +
+# the one net-new pleme-lib.vectorConfig emitter):
+#
+#   (1) INGEST    → a Vector Deployment + ConfigMap (pleme-lib.vectorConfig)
+#   (2) TRANSPORT → a JetStream workqueue stream + pull consumer (pleme-lib.jetstream)
+#   (3) WAKE      → KEDA ScaledObject scale-0→N on stream lag (pleme-lib.breathability)
+#   (4) HOLD      → breathe MemoryBand/CpuBand on the consumer  (pleme-lib.breatheBand)
+#   (5) SINK      → terminal egress vlogs|nats                  (pleme-lib.delivery)
+#   (+) OBSERVE   → scrape + alerts attached to the consumer    (lareira-observe-shape)
+#
+# ★ DEFAULT-OFF DISCIPLINE: respiro.enabled=false renders ZERO documents. A
+# HelmRelease that ships before its values are wired is a safe no-op (keeps
+# auto-release green). Every template gates on respiro.enabled.
+
+respiro:
+  # enabled — THE master gate. false ⇒ zero documents rendered.
+  enabled: false
+
+  # ── (1) INGEST ──────────────────────────────────────────────────────────────
+  # A Vector Deployment whose config is rendered by pleme-lib.vectorConfig from
+  # the typed `source` block, with `transforms` passthrough, terminating in the
+  # Vector `nats` sink (the transport hand-off into JetStream).
+  ingest:
+    enabled: true
+    vector:
+      image:
+        repository: timberio/vector
+        tag: "0.40.0-debian"
+      replicas: 1
+    source:
+      # kind ∈ { kubernetes_logs | http | socket }. s3 is a later milestone
+      # (a typed slot in the emitter that fail()s with a clear message — A0
+      # does NOT emit it).
+      kind: kubernetes_logs
+      kubernetes_logs:
+        extraLabelSelector: ""
+      http:
+        address: "0.0.0.0:8080"
+        encoding: json
+      socket:
+        address: "0.0.0.0:9000"
+        mode: tcp
+    # transforms — passthrough list of typed Vector transform dicts (type +
+    # config). The emitter chains their `inputs` deterministically between the
+    # source and the nats sink. Empty = source feeds the sink directly.
+    transforms: []
+    # sink — the INGEST stage's NATS hand-off subject. Defaults the subject to
+    # "<stream.name lowercased>.>" when unset.
+    sink:
+      stream: AUDIT
+      subject: audit.>
+
+  # ── (2) TRANSPORT + BUFFER ────────────────────────────────────────────────
+  # A JetStream workqueue stream + pull consumer (pleme-lib.jetstream). The
+  # consumer's maxAckPending=1 is the serialized rate-limit invariant.
+  stream:
+    name: AUDIT
+    subjects:
+      - audit.>
+    retention: workqueue
+    storage: file
+    maxBytes: 5GB
+    maxAge: 24h
+    consumer:
+      name: respiro
+      maxAckPending: 1
+      ackWait: 60s
+      maxDeliver: 5
+
+  # serverUrl — the shared NATS broker. Used by the Vector nats sink, the
+  # JetStream init Job, and the KEDA trigger.
+  serverUrl: nats://pleme-nats.nats.svc:4222
+
+  # ── (3) WAKE — consumer Deployment + KEDA scale-0→N ───────────────────────
+  # The consumer workload that drains the stream, plus a KEDA ScaledObject
+  # (pleme-lib.breathability, nats-jetstream trigger) waking it 0→N on lag.
+  consumers:
+    image:
+      repository: ghcr.io/pleme-io/respiro-consumer
+      tag: "latest"
+    min: 0
+    max: 8
+    cooldown: 300
+    pollingInterval: 15
+    lagThreshold: 100
+    activationLagThreshold: 0
+
+  # ── (4) HOLD — breathe 80/20 bands on the consumer ────────────────────────
+  # breathe MemoryBand/CpuBand (pleme-lib.breatheBand) carving the consumer
+  # Deployment's resource limits to hold it at the setpoint. dryRun SHADOW-first.
+  breathe:
+    enabled: true
+    dryRun: true
+    setpoint: 0.8
+    memory:
+      enabled: true
+      floor: 256Mi
+      ceiling: 2Gi
+    cpu:
+      enabled: false
+      floor: 200m
+      ceiling: 2000m
+
+  # ── (5) SINK — terminal egress ────────────────────────────────────────────
+  # kind ∈ { vlogs | nats } for A0. The delivery semantics (buffer/retry/DLQ
+  # tier) are rendered by pleme-lib.delivery. Typed slots for vm | grafana |
+  # splunk | coralogix | datadog are LATER MILESTONES (not emitted in A0).
+  sink:
+    kind: vlogs
+    vlogs:
+      endpoint: http://victoria-logs.monitoring.svc:9428
+    # later-milestone typed slots (declared for the verification matrix; A0
+    # does NOT emit these — the sink.yaml template fail()s on an unknown kind):
+    # vm:        { endpoint: "" }
+    # grafana:   { endpoint: "" }
+    # splunk:    { endpoint: "", hecToken: "" }
+    # coralogix: { endpoint: "", privateKey: "" }
+    # datadog:   { site: "", apiKey: "" }
+    delivery:
+      tier: durable
+
+  # ── (+) OBSERVE — scrape + alerts attached to the consumer ────────────────
+  observe:
+    monitoring:
+      enabled: true
+      port: metrics
+      path: /metrics
+      interval: 30s
+      release: victoria-metrics-k8s-stack
+    alerts:
+      enabled: true
+      groups: []
+    ntfyRouting:
+      enabled: false
+      topic: ""
+      ntfyUrl: ""
+      sendResolved: true
+    # attach — route the OBSERVE stage through the lareira-observe SUBCHART
+    # instead of the native templates. Default false: respiro emits the
+    # observe attachments natively against the consumer so the chart renders
+    # without plumbing subchart values. (Chart.yaml gates the dependency on
+    # this flag.)
+    attach:
+      enabled: false

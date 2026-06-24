@@ -1,0 +1,518 @@
+full-on spine renders the complete document set (snapshot):
+  1: |
+    apiVersion: breathe.pleme.io/v1
+    kind: MemoryBand
+    metadata:
+      labels:
+        app: respiro-lareira-respiro
+        app.kubernetes.io/instance: respiro
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-respiro
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.1.0
+        helm.sh/chart: lareira-respiro-0.1.0
+      name: respiro-lareira-respiro-consumer-memory
+      namespace: respiro
+    spec:
+      ceiling: 2Gi
+      cooldownSeconds: 600
+      disruptionPolicy: allowRestart
+      dryRun: true
+      floor: 256Mi
+      growAbove: 0.85
+      growFactor: 1.25
+      maxStalenessSeconds: 120
+      setpoint: 0.8
+      shrinkBelow: 0.7
+      shrinkFactor: 0.9
+      targetRef:
+        apiVersion: apps/v1
+        kind: Deployment
+        name: respiro-lareira-respiro-consumer
+  2: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      labels:
+        app: respiro-lareira-respiro
+        app.kubernetes.io/component: respiro-consumer
+        app.kubernetes.io/instance: respiro
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-respiro
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.1.0
+        helm.sh/chart: lareira-respiro-0.1.0
+      name: respiro-lareira-respiro-consumer
+      namespace: respiro
+    spec:
+      replicas: 0
+      selector:
+        matchLabels:
+          app.kubernetes.io/component: respiro-consumer
+          app.kubernetes.io/instance: respiro
+          app.kubernetes.io/name: lareira-respiro
+      template:
+        metadata:
+          labels:
+            app: respiro-lareira-respiro-consumer
+            app.kubernetes.io/component: respiro-consumer
+            app.kubernetes.io/instance: respiro
+            app.kubernetes.io/name: lareira-respiro
+        spec:
+          containers:
+            - env:
+                - name: NATS_URL
+                  value: nats://pleme-nats.nats.svc:4222
+                - name: RESPIRO_STREAM
+                  value: AUDIT
+                - name: RESPIRO_CONSUMER
+                  value: respiro
+              image: ghcr.io/pleme-io/respiro-consumer:latest
+              imagePullPolicy: IfNotPresent
+              name: consumer
+              ports:
+                - containerPort: 9090
+                  name: metrics
+                  protocol: TCP
+              resources:
+                limits:
+                  cpu: 2000m
+                  memory: 2Gi
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                readOnlyRootFilesystem: true
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+          serviceAccountName: default
+  3: |
+    apiVersion: v1
+    kind: Service
+    metadata:
+      labels:
+        app: respiro-lareira-respiro
+        app.kubernetes.io/component: respiro-consumer
+        app.kubernetes.io/instance: respiro
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-respiro
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.1.0
+        helm.sh/chart: lareira-respiro-0.1.0
+      name: respiro-lareira-respiro-consumer
+      namespace: respiro
+    spec:
+      ports:
+        - name: metrics
+          port: 9090
+          protocol: TCP
+          targetPort: metrics
+      selector:
+        app.kubernetes.io/component: respiro-consumer
+        app.kubernetes.io/instance: respiro
+        app.kubernetes.io/name: lareira-respiro
+  4: |
+    apiVersion: keda.sh/v1alpha1
+    kind: ScaledObject
+    metadata:
+      labels:
+        app: respiro-lareira-respiro
+        app.kubernetes.io/instance: respiro
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-respiro
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.1.0
+        helm.sh/chart: lareira-respiro-0.1.0
+      name: respiro-lareira-respiro
+    spec:
+      cooldownPeriod: 300
+      maxReplicaCount: 8
+      minReplicaCount: 0
+      pollingInterval: 15
+      scaleTargetRef:
+        kind: Deployment
+        name: respiro-lareira-respiro-consumer
+      triggers:
+        - metadata:
+            activationLagThreshold: "0"
+            consumer: respiro
+            lagThreshold: "100"
+            natsServerMonitoringEndpoint: pleme-nats.nats.svc:8222
+            stream: AUDIT
+          type: nats-jetstream
+  5: |
+    apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      labels:
+        app: respiro-lareira-respiro
+        app.kubernetes.io/component: respiro-ingest
+        app.kubernetes.io/instance: respiro
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-respiro
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.1.0
+        helm.sh/chart: lareira-respiro-0.1.0
+      name: respiro-lareira-respiro-vector
+      namespace: respiro
+  6: |
+    apiVersion: v1
+    data:
+      vector.yaml: |
+        api:
+          address: 0.0.0.0:8686
+          enabled: true
+        data_dir: /vector-data-dir
+        sinks:
+          respiro_nats:
+            encoding:
+              codec: json
+            inputs:
+            - respiro_source
+            subject: audit.>
+            type: nats
+            url: nats://pleme-nats.nats.svc:4222
+        sources:
+          respiro_source:
+            type: kubernetes_logs
+    kind: ConfigMap
+    metadata:
+      labels:
+        app: respiro-lareira-respiro
+        app.kubernetes.io/component: respiro-ingest
+        app.kubernetes.io/instance: respiro
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-respiro
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.1.0
+        helm.sh/chart: lareira-respiro-0.1.0
+      name: respiro-lareira-respiro-vector-config
+      namespace: respiro
+  7: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      labels:
+        app: respiro-lareira-respiro
+        app.kubernetes.io/component: respiro-ingest
+        app.kubernetes.io/instance: respiro
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-respiro
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.1.0
+        helm.sh/chart: lareira-respiro-0.1.0
+      name: respiro-lareira-respiro-vector
+      namespace: respiro
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/component: respiro-ingest
+          app.kubernetes.io/instance: respiro
+          app.kubernetes.io/name: lareira-respiro
+      template:
+        metadata:
+          annotations:
+            checksum/config: d0bd96a3f85aafdfd6faeca185a3aa284d52084aa538413ef0cb8b0620a31688
+          labels:
+            app: respiro-lareira-respiro-vector
+            app.kubernetes.io/component: respiro-ingest
+            app.kubernetes.io/instance: respiro
+            app.kubernetes.io/name: lareira-respiro
+        spec:
+          containers:
+            - args:
+                - --config
+                - /etc/vector/vector.yaml
+              image: timberio/vector:0.40.0-debian
+              imagePullPolicy: IfNotPresent
+              name: vector
+              ports:
+                - containerPort: 8686
+                  name: api
+                  protocol: TCP
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                readOnlyRootFilesystem: true
+              volumeMounts:
+                - mountPath: /etc/vector
+                  name: config
+                  readOnly: true
+                - mountPath: /vector-data-dir
+                  name: data
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+          serviceAccountName: respiro-lareira-respiro-vector
+          volumes:
+            - configMap:
+                name: respiro-lareira-respiro-vector-config
+              name: config
+            - emptyDir:
+                sizeLimit: 1Gi
+              name: data
+  8: |
+    apiVersion: v1
+    kind: Service
+    metadata:
+      labels:
+        app: respiro-lareira-respiro
+        app.kubernetes.io/component: respiro-ingest
+        app.kubernetes.io/instance: respiro
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-respiro
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.1.0
+        helm.sh/chart: lareira-respiro-0.1.0
+      name: respiro-lareira-respiro-vector
+      namespace: respiro
+    spec:
+      ports:
+        - name: api
+          port: 8686
+          protocol: TCP
+          targetPort: api
+      selector:
+        app.kubernetes.io/component: respiro-ingest
+        app.kubernetes.io/instance: respiro
+        app.kubernetes.io/name: lareira-respiro
+  9: |
+    apiVersion: monitoring.coreos.com/v1
+    kind: ServiceMonitor
+    metadata:
+      labels:
+        app: respiro-lareira-respiro
+        app.kubernetes.io/instance: respiro
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-respiro
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.1.0
+        helm.sh/chart: lareira-respiro-0.1.0
+        release: victoria-metrics-k8s-stack
+      name: respiro-lareira-respiro-consumer
+      namespace: respiro
+    spec:
+      endpoints:
+        - interval: 30s
+          path: /metrics
+          port: metrics
+      namespaceSelector:
+        matchNames:
+          - respiro
+      selector:
+        matchLabels:
+          app.kubernetes.io/component: respiro-consumer
+          app.kubernetes.io/name: lareira-respiro
+  10: |
+    apiVersion: v1
+    data:
+      sink.yaml: |
+        endpoint: http://victoria-logs.monitoring.svc:9428
+        kind: vlogs
+    kind: ConfigMap
+    metadata:
+      labels:
+        app: respiro-lareira-respiro
+        app.kubernetes.io/component: respiro-sink
+        app.kubernetes.io/instance: respiro
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-respiro
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.1.0
+        helm.sh/chart: lareira-respiro-0.1.0
+        respiro.pleme.io/sink-kind: vlogs
+      name: respiro-lareira-respiro-sink
+      namespace: respiro
+  11: |
+    apiVersion: v1
+    data:
+      delivery.yaml: |
+        # Delivery configuration — tier: durable
+        # Generated by pleme-lib.delivery template
+        tier: durable
+        nats:
+          url: "nats://pleme-nats.nats.svc:4222"
+          stream: "AUDIT"
+          consumer: "respiro"
+        buffer:
+          type: disk
+          max_size: 536870912
+          when_full: block
+        retry:
+          max_deliver: 5
+          ack_wait: "30s"
+    kind: ConfigMap
+    metadata:
+      labels:
+        app: respiro-lareira-respiro
+        app.kubernetes.io/instance: respiro
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-respiro
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.1.0
+        helm.sh/chart: lareira-respiro-0.1.0
+        pleme.io/delivery-tier: durable
+      name: respiro-lareira-respiro-delivery
+  12: |
+    apiVersion: v1
+    data:
+      consumer-AUDIT-respiro.json: |
+        {
+          "stream_name": "AUDIT",
+          "config": {
+            "durable_name": "respiro",
+            "ack_policy": "explicit",
+            "ack_wait": 60000000000,
+            "max_ack_pending": 1,
+            "max_deliver": 5,
+            "filter_subject": "",
+            "replay_policy": "instant"
+          }
+        }
+      stream-AUDIT.json: |
+        {
+          "name": "AUDIT",
+          "subjects": ["audit.\u003e"],
+          "retention": "workqueue",
+          "storage": "file",
+          "num_replicas": 1,
+          "max_consumers": -1,
+          "max_msgs": -1,
+          "max_msgs_per_subject": -1,
+          "max_bytes": 5368709120,
+          "max_msg_size": -1,
+          "max_age": 86400000000000,
+          "duplicate_window": 0,
+          "discard": "old"
+        }
+    kind: ConfigMap
+    metadata:
+      annotations:
+        helm.sh/hook: post-install,post-upgrade
+        helm.sh/hook-delete-policy: before-hook-creation
+        helm.sh/hook-weight: "-5"
+      labels:
+        app: respiro-lareira-respiro
+        app.kubernetes.io/instance: respiro
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-respiro
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.1.0
+        helm.sh/chart: lareira-respiro-0.1.0
+        pleme.io/jetstream-config: "true"
+      name: respiro-lareira-respiro-jetstream
+      namespace: respiro
+  13: |
+    apiVersion: batch/v1
+    kind: Job
+    metadata:
+      annotations:
+        helm.sh/hook: post-install,post-upgrade
+        helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+        helm.sh/hook-weight: "5"
+      labels:
+        app: respiro-lareira-respiro
+        app.kubernetes.io/instance: respiro
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-respiro
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.1.0
+        helm.sh/chart: lareira-respiro-0.1.0
+        pleme.io/jetstream-init: "true"
+      name: respiro-lareira-respiro-jetstream-init
+      namespace: respiro
+    spec:
+      backoffLimit: 3
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/component: jetstream-init
+            app.kubernetes.io/instance: respiro
+            app.kubernetes.io/name: lareira-respiro
+        spec:
+          containers:
+            - command:
+                - /bin/sh
+                - -ec
+                - |
+                  echo "Waiting up to ${SERVER_WAIT_SECONDS}s for NATS at ${NATS_URL}..."
+                  i=0
+                  until nats --server "${NATS_URL}" account info >/dev/null 2>&1; do
+                    i=$((i+1))
+                    if [ "$i" -ge "${SERVER_WAIT_SECONDS}" ]; then
+                      echo "Gave up waiting for NATS"
+                      exit 1
+                    fi
+                    sleep 1
+                  done
+                  echo "NATS reachable. Declaring streams..."
+                  for f in /configs/stream-*.json; do
+                    [ -f "$f" ] || continue
+                    name=$(basename "$f" .json | sed 's/^stream-//')
+                    echo "  → stream: $name"
+                    # `--force` skips interactive confirmation when the
+                    # stream already exists with a different configuration.
+                    # Idempotent upsert: try add first, fall through to
+                    # update if it already exists.
+                    nats --server "${NATS_URL}" stream add --config "$f" "$name" 2>/dev/null \
+                      || nats --server "${NATS_URL}" stream update --force --config "$f" "$name"
+                  done
+                  echo "Declaring consumers..."
+                  for f in /configs/consumer-*.json; do
+                    [ -f "$f" ] || continue
+                    base=$(basename "$f" .json | sed 's/^consumer-//')
+                    stream=$(echo "$base" | cut -d- -f1)
+                    consumer=$(echo "$base" | cut -d- -f2-)
+                    echo "  → consumer: $stream/$consumer"
+                    nats --server "${NATS_URL}" consumer add --config "$f" "$stream" "$consumer" 2>/dev/null \
+                      || nats --server "${NATS_URL}" consumer update --force --config "$f" "$stream" "$consumer"
+                  done
+                  echo "Done."
+              env:
+                - name: NATS_URL
+                  value: nats://pleme-nats.nats.svc:4222
+                - name: SERVER_WAIT_SECONDS
+                  value: "120"
+                - name: HOME
+                  value: /tmp
+              image: natsio/nats-box:0.14.5
+              imagePullPolicy: IfNotPresent
+              name: jetstream-init
+              resources:
+                limits:
+                  cpu: 100m
+                  memory: 64Mi
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+              volumeMounts:
+                - mountPath: /configs
+                  name: configs
+                  readOnly: true
+                - mountPath: /tmp
+                  name: tmp
+              workingDir: /tmp
+          restartPolicy: OnFailure
+          volumes:
+            - configMap:
+                name: respiro-lareira-respiro-jetstream
+              name: configs
+            - emptyDir:
+                sizeLimit: 32Mi
+              name: tmp
+      ttlSecondsAfterFinished: 300

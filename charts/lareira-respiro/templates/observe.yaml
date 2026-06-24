@@ -1,0 +1,125 @@
+{{/*
+observe.yaml — (+) OBSERVE.
+
+Attaches scrape + alerts to the CONSUMER Deployment, in the lareira-observe
+ATTACH shape (ServiceMonitor / PrometheusRule / AlertmanagerConfig authored
+natively against the consumer Service this chart owns). When
+respiro.observe.attach.enabled is true, the lareira-observe SUBCHART owns this
+instead (Chart.yaml gates the dependency) and these native templates stay
+silent to avoid double-emission.
+
+The consumer Service (consumers.yaml) carries `app: <consumerName>` + a metrics
+port, so the ServiceMonitor selector + the PrometheusRule `job` line resolve to
+the real workload.
+*/}}
+{{- if and .Values.respiro.enabled (not .Values.respiro.observe.attach.enabled) }}
+{{- $r := .Values.respiro }}
+{{- $obs := $r.observe }}
+{{- $consName := include "lareira-respiro.consumerName" . }}
+{{- $ns := include "pleme-lib.namespace" . }}
+{{- /* ── ServiceMonitor (scrape the consumer /metrics) ────────────────── */}}
+{{- if (default dict $obs.monitoring).enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ $consName }}
+  namespace: {{ $ns }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+    {{- with $obs.monitoring.release }}
+    release: {{ . }}
+    {{- end }}
+spec:
+  namespaceSelector:
+    matchNames:
+      - {{ $ns }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "pleme-lib.name" . }}
+      app.kubernetes.io/component: respiro-consumer
+  endpoints:
+    - port: {{ $obs.monitoring.port | default "metrics" }}
+      path: {{ $obs.monitoring.path | default "/metrics" }}
+      interval: {{ $obs.monitoring.interval | default "30s" }}
+{{- end }}
+{{- /* ── PrometheusRule (passthrough groups + target stamp + ntfy) ─────── */}}
+{{- if and (default dict $obs.alerts).enabled $obs.alerts.groups }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ $consName }}
+  namespace: {{ $ns }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+    prometheus: main
+spec:
+  groups:
+    {{- range $group := $obs.alerts.groups }}
+    - name: {{ $group.name }}
+      {{- with $group.interval }}
+      interval: {{ . }}
+      {{- end }}
+      rules:
+        {{- range $rule := $group.rules }}
+        - {{- if $rule.alert }} alert: {{ $rule.alert }}{{- end }}
+          {{- if $rule.record }}
+          record: {{ $rule.record }}
+          {{- end }}
+          expr: {{ $rule.expr | toYaml | nindent 12 }}
+          {{- with $rule.for }}
+          for: {{ . }}
+          {{- end }}
+          labels:
+            {{- with $rule.labels }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+            target: {{ $consName }}
+            {{- if ($obs.ntfyRouting).enabled }}
+            {{- with ($obs.ntfyRouting).topic }}
+            ntfy-topic: {{ . }}
+            {{- end }}
+            {{- end }}
+          {{- with $rule.annotations }}
+          annotations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        {{- end }}
+    {{- end }}
+{{- end }}
+{{- /* ── AlertmanagerConfig (route ntfy-topic → ntfy webhook) ──────────── */}}
+{{- if ($obs.ntfyRouting).enabled }}
+{{- $topic := $obs.ntfyRouting.topic | default "" }}
+{{- if eq $topic "" }}
+{{- fail "lareira-respiro: observe.ntfyRouting.enabled=true requires observe.ntfyRouting.topic (the ntfy topic alerts route to)" }}
+{{- end }}
+{{- $url := $obs.ntfyRouting.ntfyUrl | default "" }}
+{{- if eq $url "" }}
+{{- fail "lareira-respiro: observe.ntfyRouting.enabled=true requires observe.ntfyRouting.ntfyUrl (the ntfy webhook URL alerts POST to)" }}
+{{- end }}
+---
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: {{ $consName }}
+  namespace: {{ $ns }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+spec:
+  route:
+    receiver: respiro-ntfy
+    groupBy: {{ $obs.ntfyRouting.groupBy | default (list "alertname" "target") | toJson }}
+    groupWait: {{ $obs.ntfyRouting.groupWait | default "30s" }}
+    groupInterval: {{ $obs.ntfyRouting.groupInterval | default "5m" }}
+    repeatInterval: {{ $obs.ntfyRouting.repeatInterval | default "4h" }}
+    matchers:
+      - name: ntfy-topic
+        value: {{ $topic }}
+  receivers:
+    - name: respiro-ntfy
+      webhookConfigs:
+        - url: {{ $url | quote }}
+          sendResolved: {{ $obs.ntfyRouting.sendResolved | default true }}
+{{- end }}
+{{- end }}

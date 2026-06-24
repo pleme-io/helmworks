@@ -1,0 +1,96 @@
+{{/*
+consumers.yaml — (3) WAKE.
+
+Two parts:
+  • the CONSUMER Deployment that drains the JetStream stream (authored natively
+    so the spine has a concrete scale target + a /metrics port for OBSERVE);
+  • the KEDA ScaledObject scaling it 0→N on stream lag, via the already-shipped
+    pleme-lib.breathability helper (nats-jetstream trigger). We adapt
+    respiro.{consumers,serverUrl,stream} → the helper's native
+    .Values.breathability contract.
+
+The Deployment starts at 0 replicas — KEDA owns the replica count (scale-to-zero
+when the stream is empty, wake on lag). The security baseline matches the
+pleme-io enforced posture.
+*/}}
+{{- if .Values.respiro.enabled }}
+{{- $r := .Values.respiro }}
+{{- $cons := $r.consumers }}
+{{- $consName := include "lareira-respiro.consumerName" . }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $consName }}
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+    app.kubernetes.io/component: respiro-consumer
+spec:
+  # 0 replicas at install — KEDA's ScaledObject owns the count (wakes on lag).
+  replicas: 0
+  selector:
+    matchLabels:
+      {{- include "pleme-lib.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: respiro-consumer
+  template:
+    metadata:
+      labels:
+        {{- include "pleme-lib.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: respiro-consumer
+        app: {{ $consName }}
+    spec:
+      serviceAccountName: {{ include "pleme-lib.serviceAccountName" . }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+        - name: consumer
+          image: "{{ $cons.image.repository }}:{{ $cons.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          ports:
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+          env:
+            - name: NATS_URL
+              value: {{ $r.serverUrl | quote }}
+            - name: RESPIRO_STREAM
+              value: {{ $r.stream.name | quote }}
+            - name: RESPIRO_CONSUMER
+              value: {{ $r.stream.consumer.name | quote }}
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: {{ (default dict $r.breathe.cpu).ceiling | default "2000m" }}
+              memory: {{ (default dict $r.breathe.memory).ceiling | default "2Gi" }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $consName }}
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+    app.kubernetes.io/component: respiro-consumer
+spec:
+  selector:
+    {{- include "pleme-lib.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: respiro-consumer
+  ports:
+    - name: metrics
+      port: 9090
+      targetPort: metrics
+      protocol: TCP
+{{- /* ── KEDA scale-0→N on stream lag (pleme-lib.breathability) ───────── */}}
+{{- $bValues := fromYaml (include "lareira-respiro.breathabilityValues" .) }}
+{{- $ctx := merge (dict "Values" $bValues) (omit . "Values") }}
+{{- include "pleme-lib.breathability" $ctx }}
+{{- end }}
