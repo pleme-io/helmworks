@@ -1,0 +1,9 @@
+dependencies:
+- name: lareira-respiro
+  repository: file://../lareira-respiro
+  version: 0.1.0
+- name: lareira-pangea-dashboards
+  repository: file://../lareira-pangea-dashboards
+  version: 0.1.0
+digest: sha256:e205aa4f877e68d612aa84ed2fd4ec47d4aee2ab6e925d8377d5094fdbff355b
+generated: "2026-06-24T17:24:22.962471-07:00"

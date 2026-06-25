@@ -1,0 +1,30 @@
+lareira-tap-stack — the thin per-tap composition umbrella.
+
+{{ if not .Values.tap.enabled -}}
+This release is DEFAULT-OFF (tap.enabled=false) — zero documents rendered.
+A tap that ships before its values are wired is a safe no-op.
+
+To activate a tap-cell, set:
+
+  tap:
+    enabled: true
+    datakind: <archive|audit|events|metrics|…>
+    name: tap-<datakind>-<tenant>-<env>-<cloud>-<region>
+  lareira-respiro:
+    respiro:
+      enabled: true                 # the breathing-pipeline master switch
+      stream:
+        name: {{ include "lareira-tap-stack.streamName" . | quote }}
+{{- else -}}
+TAP ACTIVE
+  tap-cell    : {{ .Values.tap.name | default "(unnamed — set tap.name)" }}
+  datakind    : {{ .Values.tap.datakind }}
+  stream name : {{ include "lareira-tap-stack.streamName" . }}
+
+Composed subcharts:
+  • lareira-respiro            : {{ if (index .Values "lareira-respiro" "respiro" "enabled") }}ON  — Vector ingest → JetStream 0-scale → KEDA 0→N → breathe bands → vlogs sink{{ else }}off (respiro.enabled=false){{ end }}
+  • lareira-pangea-dashboards  : {{ if .Values.tap.dashboards.enabled }}ON  — {{ len (index .Values "lareira-pangea-dashboards" "dashboards") }} dashboard(s){{ else }}off (tap.dashboards.enabled=false){{ end }}
+
+The victoriaops STORE (lareira-vm-stack + lareira-victoria-logs) is SHARED and
+deployed SEPARATELY — this tap points at it, it is not bundled here.
+{{- end }}

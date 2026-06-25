@@ -1,0 +1,37 @@
+apiVersion: v2
+name: lareira-tap-stack
+description: >-
+  lareira-tap-stack — the THIN per-tap composition umbrella. It presents the
+  tap-cell vocabulary (`tap.*`) and composes the SHIPPED lareira-respiro
+  breathing pipeline (Vector ingest → NATS JetStream zero-scale → KEDA 0→N →
+  breathe bands → sink) plus, optionally, the lareira-pangea-dashboards
+  per-tap dashboards. It owns NO new algebra — every resource is rendered by a
+  subchart; this chart only translates the tap intent into each subchart's
+  native values surface. The shared victoriaops store (lareira-vm-stack +
+  lareira-victoria-logs) is deliberately NOT bundled — per the
+  store-up / processing-breathes split the store is deployed once, separately,
+  and shared across every tap; this chart points at it. Default-off:
+  tap.enabled=false renders ZERO documents.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords: [tap, observability, respiro, breathability, jetstream, vector, lareira]
+maintainers:
+  - name: drzzln
+    email: drzzln@protonmail.com
+# THIN UMBRELLA — both deps are in-tree (file://) with FLOOR-ONLY (>=) versions
+# (never ceilinged; the repo convention — see helmworks/CLAUDE.md). Each dep is
+# toggled by a `condition:` keyed off the tap-cell vocabulary, and values flow
+# into each subchart under its real subchart-name key (no `alias:`).
+#
+# NOT a dependency: lareira-vm-stack / lareira-victoria-logs — the victoriaops
+# store is shared + separately-deployed, never bundled per-tap.
+dependencies:
+  - name: lareira-respiro
+    version: ">=0.1.0"
+    repository: "file://../lareira-respiro"
+    condition: tap.respiro.enabled
+  - name: lareira-pangea-dashboards
+    version: ">=0.1.0"
+    repository: "file://../lareira-pangea-dashboards"
+    condition: tap.dashboards.enabled

@@ -80,6 +80,8 @@
             { name = "lareira-observe"; chartDir = ./charts/lareira-observe; }
             # respiro — the packaged NATS-JetStream-scale-to-zero + breathability "breathing pipeline" (5-stage spine)
             { name = "lareira-respiro"; chartDir = ./charts/lareira-respiro; }
+            # tap-stack — thin per-tap umbrella composing lareira-respiro (+ optional dashboards); points at the SHARED store
+            { name = "lareira-tap-stack"; chartDir = ./charts/lareira-tap-stack; }
             # Family Tier 2 — quality-of-life household services
             { name = "lareira-joplin"; chartDir = ./charts/lareira-joplin; }
             { name = "lareira-audiobookshelf"; chartDir = ./charts/lareira-audiobookshelf; }

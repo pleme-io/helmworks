@@ -1,0 +1,206 @@
+suite: lareira-tap-stack — the thin per-tap composition umbrella
+#
+# This is a THIN UMBRELLA: it owns NO bespoke resource template (M0 ships only
+# _helpers.tpl + NOTES.txt). Every rendered document comes from a subchart
+# (lareira-respiro / lareira-pangea-dashboards). helm-unittest targets the
+# SUBCHART templates by their `charts/<subchart>/templates/...` path; the parent
+# passes values into each subchart under its real subchart-NAME key
+# (`lareira-respiro.respiro.*`, `lareira-pangea-dashboards.dashboards`).
+#
+# DEFAULT-OFF is proven WITHOUT excluding a subchart (helm-unittest treats a
+# template path for an EXCLUDED subchart as an error): the deps stay included
+# (their `condition:` defaults keep lareira-respiro on, dashboards off) and
+# default-off is achieved by the subchart's OWN gate — respiro.enabled=false
+# renders 0 docs, dashboards:[] renders 0 docs.
+release:
+  name: tap
+  namespace: tap
+
+tests:
+  # ── (a) DEFAULT-OFF: the respiro spine renders ZERO documents ───────────────
+  # respiro.enabled defaults false in the passthrough ⇒ the breathing spine is a
+  # safe no-op out of the box (auto-release stays green). The subchart is still
+  # INCLUDED (tap.respiro.enabled defaults true), so this is a real render of 0.
+  - it: default-off renders no respiro INGEST documents (Vector spine off)
+    template: charts/lareira-respiro/templates/ingest-vector.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: default-off renders no respiro WAKE documents (consumer + KEDA off)
+    template: charts/lareira-respiro/templates/consumers.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: default-off renders no respiro HOLD documents (breathe bands off)
+    template: charts/lareira-respiro/templates/breathe.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: default-off renders no respiro SINK documents
+    template: charts/lareira-respiro/templates/sink.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # dashboards default-off: the dep is condition-excluded (tap.dashboards.enabled
+  # false), so we cannot target its template directly. We assert the no-op by
+  # FORCING the subchart on but leaving the list empty ⇒ 0 PangeaDashboard CRs.
+  - it: default dashboards list is empty ⇒ no PangeaDashboard CRs even if forced on
+    template: charts/lareira-pangea-dashboards/templates/dashboards.yaml
+    set:
+      tap:
+        dashboards:
+          enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # ── (b) FULL-ON TAP: enabling respiro renders the breathing spine ───────────
+  # A live tap-cell sets tap.enabled + the lareira-respiro.respiro.* master
+  # switch. The subchart's spine then appears: Vector INGEST + the consumer/KEDA
+  # WAKE + breathe HOLD + the vlogs SINK.
+  - it: full-on tap renders the respiro INGEST Vector spine (SA+CM+Deploy+Svc)
+    template: charts/lareira-respiro/templates/ingest-vector.yaml
+    set:
+      tap:
+        enabled: true
+        datakind: audit
+        name: tap-audit-acme-prod-aws-us-east-1
+      lareira-respiro:
+        respiro:
+          enabled: true
+    asserts:
+      - hasDocuments:
+          count: 4
+      - documentIndex: 1
+        isKind:
+          of: ConfigMap
+      - documentIndex: 1
+        matchRegex:
+          path: data["vector.yaml"]
+          pattern: "type: kubernetes_logs"
+      - documentIndex: 1
+        matchRegex:
+          path: data["vector.yaml"]
+          pattern: "type: nats"
+
+  - it: full-on tap renders the WAKE consumer Deployment + Service + KEDA ScaledObject
+    template: charts/lareira-respiro/templates/consumers.yaml
+    set:
+      tap:
+        enabled: true
+      lareira-respiro:
+        respiro:
+          enabled: true
+    asserts:
+      - hasDocuments:
+          count: 3
+      - documentIndex: 0
+        isKind:
+          of: Deployment
+      - documentIndex: 2
+        isKind:
+          of: ScaledObject
+      - documentIndex: 2
+        equal:
+          path: spec.minReplicaCount
+          value: 0
+
+  - it: full-on tap with a vlogs sink renders the vlogs SINK ConfigMap
+    template: charts/lareira-respiro/templates/sink.yaml
+    set:
+      tap:
+        enabled: true
+      lareira-respiro:
+        respiro:
+          enabled: true
+          sink:
+            kind: vlogs
+    asserts:
+      - hasDocuments:
+          count: 2
+      - documentIndex: 0
+        equal:
+          path: metadata.labels["respiro.pleme.io/sink-kind"]
+          value: vlogs
+
+  - it: full-on tap breathes in SHADOW first (breathe.dryRun true by default)
+    template: charts/lareira-respiro/templates/breathe.yaml
+    set:
+      tap:
+        enabled: true
+      lareira-respiro:
+        respiro:
+          enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: MemoryBand
+      - equal:
+          path: spec.dryRun
+          value: true
+
+  # ── (c) DASHBOARDS-ON: per-tap dashboards render one CR per entry ───────────
+  - it: tap.dashboards.enabled with a dashboards list renders one PangeaDashboard per entry
+    template: charts/lareira-pangea-dashboards/templates/dashboards.yaml
+    set:
+      tap:
+        enabled: true
+        dashboards:
+          enabled: true
+      lareira-pangea-dashboards:
+        folder: rio
+        dashboards:
+          - name: tap-audit-overview
+            architecture: WorkloadOverview
+            params:
+              name: tap-audit
+              jobs: [tap-audit]
+              namespace: tap
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: PangeaDashboard
+      - equal:
+          path: metadata.name
+          value: tap-audit-overview
+      - equal:
+          path: metadata.labels["pleme.io/dashboard-architecture"]
+          value: WorkloadOverview
+
+  # ── (d) BOREALIS-CLEAN: no akeyless string anywhere in the rendered spine ───
+  # The tap-stack vocabulary + the breathing pipeline carry ZERO akeyless
+  # coupling — secret materialization (where relevant) is a separate concern.
+  - it: borealis-clean — the full-on respiro INGEST config names no akeyless surface
+    template: charts/lareira-respiro/templates/ingest-vector.yaml
+    set:
+      tap:
+        enabled: true
+        name: tap-audit-acme-prod-aws-us-east-1
+      lareira-respiro:
+        respiro:
+          enabled: true
+    asserts:
+      - documentIndex: 1
+        notMatchRegex:
+          path: data["vector.yaml"]
+          pattern: "(?i)akeyless"
+
+  - it: borealis-clean — the WAKE consumer manifest names no akeyless surface
+    template: charts/lareira-respiro/templates/consumers.yaml
+    set:
+      tap:
+        enabled: true
+      lareira-respiro:
+        respiro:
+          enabled: true
+    asserts:
+      - documentIndex: 0
+        notMatchRegex:
+          path: spec.template.spec.containers[0].image
+          pattern: "(?i)akeyless"

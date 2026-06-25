@@ -1,0 +1,145 @@
+# lareira-tap-stack — the THIN per-tap composition umbrella.
+#
+# It presents the TAP-CELL vocabulary (`tap.*`) and composes:
+#   • lareira-respiro            — the per-tap breathing pipeline (Vector ingest
+#                                  → NATS JetStream zero-scale → KEDA 0→N →
+#                                  breathe bands → sink). ALWAYS the spine.
+#   • lareira-pangea-dashboards  — optional per-tap Grafana dashboards.
+#
+# It owns NO new algebra — every document is rendered by a subchart. The
+# `lareira-respiro:` / `lareira-pangea-dashboards:` blocks below pass values
+# into each subchart under its real subchart-name key (the Helm umbrella
+# convention; no `alias:`). A tiny glue template threads `tap.name` into the
+# respiro stream identity (the one value the static umbrella can't compute).
+#
+# ★ DEFAULT-OFF DISCIPLINE: tap.enabled=false renders ZERO documents. Two
+#   independent gates make this true (defense in depth — either alone suffices):
+#   - lareira-respiro: the subchart's own `respiro.enabled` defaults to FALSE in
+#     the passthrough block below, so the spine renders 0 docs out of the box.
+#     The dep `condition: tap.respiro.enabled` additionally drops the subchart
+#     entirely when a tap declares itself dashboards-only. A tap that ships
+#     before it is wired is a safe no-op (auto-release stays green).
+#   - lareira-pangea-dashboards: the dep `condition: tap.dashboards.enabled`
+#     defaults false (subchart absent), AND it ships an empty `dashboards: []`
+#     list (0 PangeaDashboard CRs even if force-enabled).
+#
+# HELM NOTE: a parent CANNOT compute a subchart's values at render time — Helm
+# resolves subchart values BEFORE templating. So enabling a live tap is a direct
+# value edit: set tap.enabled=true AND lareira-respiro.respiro.enabled=true (the
+# master switch the operator flips per tap-cell), plus the per-tap stream
+# identity below. The chart's own templates render only parent-scoped NOTES +
+# helpers — there is no bespoke resource in M0.
+#
+# ── THE TAP-CELL ─────────────────────────────────────────────────────────────
+# A "tap" is one named ingest→breathe→sink cell. Its canonical name is a typed
+# 6-tuple (the STREAM/consumer/band identity all derive from it):
+#
+#     tap-<datakind>-<tenant>-<env>-<cloud>-<region>
+#
+#   datakind  the class of data the tap carries     (archive | audit | events | metrics | …)
+#   tenant    the owning tenant / product            (acme | pleme | …)
+#   env       the environment                         (prod | staging | dev)
+#   cloud     the cloud / substrate                   (aws | gcp | rio | …)
+#   region    the locality                            (us-east-1 | bristol-tn | …)
+#
+# `tap.name` is that full string. It is uppercased + sanitized by the glue
+# template into the JetStream stream name (NATS stream names are token-safe).
+
+tap:
+  # enabled — THE master gate. false ⇒ zero documents (both subcharts off).
+  enabled: false
+
+  # datakind — the class of data this tap carries. Part of the tap-cell name;
+  # also the default sink routing hint. Default `archive` (the cold-store class).
+  datakind: archive
+
+  # name — the full tap-cell identity (tap-<datakind>-<tenant>-<env>-<cloud>-<region>).
+  # Empty in the default-off baseline; a live tap sets it. The glue template
+  # derives the JetStream stream/consumer/subject + breathe-band identity from it.
+  name: ""
+
+  # respiro — the breathing-pipeline spine. enabled-by-default WHEN the tap is
+  # on; the dep `condition: tap.respiro.enabled` toggles whether the subchart
+  # renders at all. (Set false to declare a dashboards-only tap.)
+  respiro:
+    enabled: true
+
+  # dashboards — the optional per-tap Grafana dashboards. Default OFF.
+  dashboards:
+    enabled: false
+
+# ── SUBCHART PASSTHROUGH: lareira-respiro ────────────────────────────────────
+# Values here flow into the lareira-respiro subchart under its `respiro.*`
+# surface (the umbrella value-passing convention: a parent key matching the
+# subchart NAME passes values into that subchart). These are the tap-intent →
+# respiro mapping defaults:
+#
+#   ingest.source.kind   kubernetes_logs (the default tap source; http|socket override)
+#   stream.*             a workqueue JetStream stream (name = the tap-cell, set per tap)
+#   consumers.{min,max}  scale-0→N (zero-scale by default)
+#   breathe.dryRun       true (SHADOW-first — never carve live until proven)
+#   sink.kind            vlogs (terminus = the shared VictoriaLogs store)
+#
+# Per-tap activation = set respiro.enabled=true here (the master switch) +
+# stream.name/subjects/consumer.name to the tap-cell identity.
+lareira-respiro:
+  respiro:
+    # ★ The respiro master switch. FALSE by default ⇒ the spine renders 0 docs
+    #   (default-off). A live tap sets this true alongside tap.enabled.
+    enabled: false
+
+    # ── (1) INGEST ──────────────────────────────────────────────────────────
+    ingest:
+      enabled: true
+      source:
+        # kind ∈ { kubernetes_logs | http | socket }. The tap default is the
+        # in-cluster log tap; override per tap-cell for an http/socket ingress.
+        kind: kubernetes_logs
+
+    # ── (2) TRANSPORT — JetStream workqueue stream + pull consumer ───────────
+    # `name` / `subjects` / `consumer.name` are OVERLAID from tap.name by the
+    # glue template. The shape below is the durable-by-default tap envelope.
+    stream:
+      name: TAP
+      subjects:
+        - tap.>
+      retention: workqueue
+      storage: file
+      consumer:
+        name: tap
+        maxAckPending: 1
+
+    # The shared NATS broker (cluster-wide, not per-tap).
+    serverUrl: nats://pleme-nats.nats.svc:4222
+
+    # ── (3) WAKE — consumer Deployment + KEDA scale-0→N ─────────────────────
+    consumers:
+      min: 0
+      max: 8
+
+    # ── (4) HOLD — breathe bands, SHADOW-first ──────────────────────────────
+    breathe:
+      enabled: true
+      # ★ dryRun:true — every tap breathes in SHADOW first. Flip per tap-cell
+      #   only after the band's ShadowWouldApply decisions are observed.
+      dryRun: true
+
+    # ── (5) SINK — terminal egress to the SHARED VictoriaLogs store ──────────
+    # The store is deployed separately (lareira-victoria-logs) and shared across
+    # taps; this points at it, never bundles it.
+    sink:
+      kind: vlogs
+
+    # OBSERVE — render natively against the consumer (no subchart attach).
+    observe:
+      attach:
+        enabled: false
+
+# ── SUBCHART PASSTHROUGH: lareira-pangea-dashboards ──────────────────────────
+# Values here flow into the lareira-pangea-dashboards subchart. Default OFF:
+# the dep is gated by `condition: tap.dashboards.enabled`, and an empty
+# `dashboards: []` list renders 0 PangeaDashboard CRs even if force-enabled.
+# Populate per tap-cell with WorkloadOverview / LogExplorerDashboard entries.
+lareira-pangea-dashboards:
+  folder: rio
+  dashboards: []
