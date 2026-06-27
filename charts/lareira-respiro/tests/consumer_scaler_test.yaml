@@ -1,0 +1,54 @@
+suite: respiro consumer scaler (keda default | fixed stealth-seed)
+templates:
+  - templates/consumers.yaml
+tests:
+  - it: "default scaler=keda → consumer Deployment starts at replicas 0"
+    set:
+      respiro:
+        enabled: true
+        consumers:
+          mode: connect
+        sink:
+          kind: vlogs
+    documentSelector:
+      path: kind
+      value: Deployment
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 0
+
+  - it: "scaler=fixed → consumer Deployment runs at fixedReplicas (namespace-pure)"
+    set:
+      respiro:
+        enabled: true
+        consumers:
+          mode: connect
+          scaler: fixed
+          fixedReplicas: 2
+        sink:
+          kind: vlogs
+    documentSelector:
+      path: kind
+      value: Deployment
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 2
+
+  - it: "scaler=fixed defaults to 1 replica"
+    set:
+      respiro:
+        enabled: true
+        consumers:
+          mode: connect
+          scaler: fixed
+        sink:
+          kind: vlogs
+    documentSelector:
+      path: kind
+      value: Deployment
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1

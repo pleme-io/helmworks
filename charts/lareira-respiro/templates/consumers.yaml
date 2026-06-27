@@ -22,6 +22,10 @@ The security baseline matches the pleme-io enforced posture.
 {{- $r := .Values.respiro }}
 {{- $cons := $r.consumers }}
 {{- $mode := $cons.mode | default "connect" }}
+{{- $scaler := $cons.scaler | default "keda" }}
+{{- if not (or (eq $scaler "keda") (eq $scaler "fixed")) }}
+{{- fail (printf "lareira-respiro: consumers.scaler %q invalid — keda | fixed" $scaler) }}
+{{- end }}
 {{- $consName := include "lareira-respiro.consumerName" . }}
 {{- $sink := $r.sink }}
 {{- $sinkKind := $sink.kind | default "vlogs" }}
@@ -94,8 +98,14 @@ metadata:
     {{- include "pleme-lib.labels" . | nindent 4 }}
     app.kubernetes.io/component: respiro-consumer
 spec:
+  {{- if eq $scaler "fixed" }}
+  # Fixed-replica drain — the lightest, namespace-pure mode (no KEDA CRD). Used
+  # by the stealth in-cluster seed; grow to scaler: keda for scale-to-zero.
+  replicas: {{ $cons.fixedReplicas | default 1 }}
+  {{- else }}
   # 0 replicas at install — KEDA's ScaledObject owns the count (wakes on lag).
   replicas: 0
+  {{- end }}
   selector:
     matchLabels:
       {{- include "pleme-lib.selectorLabels" . | nindent 6 }}
@@ -200,7 +210,11 @@ spec:
       targetPort: metrics
       protocol: TCP
 {{- /* ── KEDA scale-0→N on stream lag (pleme-lib.breathability) ───────── */}}
+{{- /* Only the keda scaler emits the (cluster-scoped) ScaledObject. The fixed
+       scaler is namespace-pure — the stealth seed runs with no KEDA CRD. */}}
+{{- if eq $scaler "keda" }}
 {{- $bValues := fromYaml (include "lareira-respiro.breathabilityValues" .) }}
 {{- $ctx := merge (dict "Values" $bValues) (omit . "Values") }}
 {{- include "pleme-lib.breathability" $ctx }}
+{{- end }}
 {{- end }}
