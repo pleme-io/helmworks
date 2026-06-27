@@ -71,6 +71,9 @@ spec:
     - type: nats-jetstream
       metadata:
         natsServerMonitoringEndpoint: {{ .Values.breathability.trigger.nats.serverURL | replace "nats://" "" | replace ":4222" ":8222" | quote }}
+        # KEDA's nats-jetstream scaler requires the NATS account; the default
+        # no-auth global account is "$G". Configurable for accounted setups.
+        account: {{ default "$G" .Values.breathability.trigger.nats.account | quote }}
         stream: {{ .Values.breathability.trigger.nats.stream | quote }}
         consumer: {{ .Values.breathability.trigger.nats.consumer | quote }}
         lagThreshold: {{ default "1" .Values.breathability.trigger.nats.lagThreshold | quote }}

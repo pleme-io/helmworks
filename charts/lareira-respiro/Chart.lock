@@ -1,9 +1,9 @@
 dependencies:
 - name: pleme-lib
   repository: file://../pleme-lib
-  version: 0.31.0
+  version: 0.32.0
 - name: lareira-observe
   repository: file://../lareira-observe
   version: 0.1.1
-digest: sha256:9c4b1c9d675f1ad0f819fd28f294fe63e3f06c33e8ee34b53ff85b1998a204cf
-generated: "2026-06-24T03:04:23.386614-07:00"
+digest: sha256:265d2e9c2e29b268affdf172ca012821f21b88e7eaa8dbc06fe1d6a8222acbbb
+generated: "2026-06-27T01:34:15.910164-07:00"
