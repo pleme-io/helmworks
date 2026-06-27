@@ -71,6 +71,14 @@ jetstream:
         maxDeliver: {{ $c.maxDeliver | default 5 }}
         filterSubject: ""
         replayPolicy: instant
+jetstreamInit:
+  # PRE-install hook: the stream + durable consumer must exist BEFORE the main
+  # resources are applied, because the KEDA ScaledObject (a waited main resource)
+  # resolves its nats-jetstream trigger against the consumer. A post-install hook
+  # deadlocks helm --wait (ScaledObject never Ready → wait hangs → hook never
+  # runs). respiro's broker is an external pleme-nats release (dependsOn Ready),
+  # so the broker is up at pre-install time.
+  hookPhase: "pre-install,pre-upgrade"
 {{- end -}}
 
 {{/*

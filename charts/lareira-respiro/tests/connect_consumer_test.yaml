@@ -65,3 +65,17 @@ tests:
       - equal:
           path: spec.replicas
           value: 0
+
+  - it: the jetstream stream-init runs as a PRE-install hook (no ScaledObject deadlock)
+    # Regression guard: a post-install hook deadlocks helm --wait because the
+    # ScaledObject (waited) resolves its trigger against the consumer the hook
+    # creates. The stream/consumer must exist before the main resources.
+    templates:
+      - templates/stream.yaml
+    set:
+      respiro.enabled: true
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: pre-install,pre-upgrade

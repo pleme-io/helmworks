@@ -147,7 +147,7 @@ metadata:
     {{- include "pleme-lib.labels" . | nindent 4 }}
     pleme.io/jetstream-config: "true"
   annotations:
-    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook": {{ default "post-install,post-upgrade" ((.Values.jetstreamInit).hookPhase) }}
     "helm.sh/hook-weight": "-5"
     "helm.sh/hook-delete-policy": before-hook-creation
 data:
@@ -219,7 +219,7 @@ metadata:
     {{- include "pleme-lib.labels" $ctx | nindent 4 }}
     pleme.io/jetstream-init: "true"
   annotations:
-    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook": {{ default "post-install,post-upgrade" (($ctx.Values.jetstreamInit).hookPhase) }}
     "helm.sh/hook-weight": "5"
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 spec:
