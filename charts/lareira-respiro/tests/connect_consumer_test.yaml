@@ -1,0 +1,67 @@
+suite: lareira-respiro connect consumer (regression guards)
+templates:
+  - templates/consumers.yaml
+tests:
+  - it: default-off renders zero documents
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: connect mode renders the Benthos consumer config + Deployment + Service + ScaledObject
+    set:
+      respiro.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 4
+
+  - it: the consumer ConfigMap uses a VALID Benthos schema — bind:true, NO create_stream
+    # Regression guard for the v4.40.0 "field create_stream not recognised"
+    # crashloop and the bind semantics. Both are load-bearing for the drain leg.
+    set:
+      respiro.enabled: true
+    documentSelector:
+      path: metadata.name
+      value: RELEASE-NAME-lareira-respiro-consumer-connect
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - matchRegex:
+          path: data["connect.yaml"]
+          pattern: "nats_jetstream"
+      - matchRegex:
+          path: data["connect.yaml"]
+          pattern: "bind: true"
+      - notMatchRegex:
+          path: data["connect.yaml"]
+          pattern: "create_stream"
+      - matchRegex:
+          path: data["connect.yaml"]
+          pattern: "http_client"
+      - matchRegex:
+          path: data["connect.yaml"]
+          pattern: "/insert/jsonline"
+      - matchRegex:
+          path: data["connect.yaml"]
+          pattern: "prometheus"
+
+  - it: the consumer runs the public Redpanda Connect image (no nonexistent respiro-consumer binary)
+    set:
+      respiro.enabled: true
+    documentSelector:
+      path: kind
+      value: Deployment
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].image
+          pattern: "redpandadata/connect"
+
+  - it: the consumer Deployment starts at 0 replicas (KEDA owns scale-to-zero)
+    set:
+      respiro.enabled: true
+    documentSelector:
+      path: kind
+      value: Deployment
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 0
