@@ -121,7 +121,24 @@ metadata:
   labels:
     {{- include "pleme-lib.labels" . | nindent 4 }}
     app.kubernetes.io/component: respiro-ingest
+  {{- with (($ingest.vector).service).annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
+  {{- $svc := ($ingest.vector).service | default dict }}
+  {{- /* Default ClusterIP (rio/kind unaffected). An external tap pushing
+         cross-VPC (e.g. the akeyless Vector forward-sink reaching the tendril
+         ingest over a peering) sets type: LoadBalancer + the internal-NLB
+         annotations above. */}}
+  type: {{ $svc.type | default "ClusterIP" }}
+  {{- with $svc.loadBalancerClass }}
+  loadBalancerClass: {{ . }}
+  {{- end }}
+  {{- with $svc.loadBalancerSourceRanges }}
+  loadBalancerSourceRanges:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   selector:
     {{- include "pleme-lib.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: respiro-ingest

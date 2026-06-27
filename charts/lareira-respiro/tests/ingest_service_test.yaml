@@ -1,0 +1,58 @@
+suite: respiro ingest Service exposure knob
+templates:
+  - templates/ingest-vector.yaml
+tests:
+  # ── default: ClusterIP (rio/kind unaffected — byte-compatible) ──────────
+  - it: "default ingest Service is ClusterIP with no annotations"
+    set:
+      respiro:
+        enabled: true
+        ingest:
+          enabled: true
+          source:
+            kind: http
+    documentSelector:
+      path: kind
+      value: Service
+    asserts:
+      - equal:
+          path: spec.type
+          value: ClusterIP
+      - notExists:
+          path: metadata.annotations
+      - notExists:
+          path: spec.loadBalancerClass
+
+  # ── internal NLB: the cross-VPC tap exposure ───────────────────────────
+  - it: "service.type=LoadBalancer + internal-NLB annotations expose the ingest cross-VPC"
+    set:
+      respiro:
+        enabled: true
+        ingest:
+          enabled: true
+          source:
+            kind: http
+          vector:
+            service:
+              type: LoadBalancer
+              annotations:
+                service.beta.kubernetes.io/aws-load-balancer-type: nlb
+                service.beta.kubernetes.io/aws-load-balancer-internal: "true"
+              loadBalancerSourceRanges:
+                - 10.0.0.0/16
+    documentSelector:
+      path: kind
+      value: Service
+    asserts:
+      - equal:
+          path: spec.type
+          value: LoadBalancer
+      - equal:
+          path: metadata.annotations["service.beta.kubernetes.io/aws-load-balancer-internal"]
+          value: "true"
+      - equal:
+          path: spec.loadBalancerSourceRanges[0]
+          value: 10.0.0.0/16
+      - equal:
+          path: spec.ports[1].port
+          value: 8080
