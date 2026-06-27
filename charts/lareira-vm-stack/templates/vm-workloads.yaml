@@ -26,6 +26,46 @@ reproduced verbatim from the live spec (a future pleme-lib.vmStack auto-wiring
 helper is the destination for computing it).
 */ -}}
 {{- if .Values.enabled }}
+{{- /* Portability knob #1 — `vm.serviceNamespace`. The inter-component URLs
+       (vmagent→vmsingle remoteWrite, vmalert→vmsingle datasource/remoteRead/
+       remoteWrite, vmalert→vmalertmanager notifier, vmsingle→vmalert proxyURL)
+       default to rio's `monitoring` namespace verbatim in values.yaml. When a
+       consumer in ANOTHER namespace sets `vm.serviceNamespace`, recompute those
+       URLs from the deterministic CR Service names + that namespace, so the mesh
+       wires itself in-namespace with ONE value instead of six URL overrides.
+       OPT-IN: unset (rio) → values used verbatim → byte-identical render. The
+       rewrite touches only these URL fields — never vm.rules (VMRule Go-template
+       exprs) or vm.alertmanager.configRawYaml (Alertmanager Go-templates). */ -}}
+{{- if (.Values.vm).serviceNamespace }}
+{{- $ns := .Values.vm.serviceNamespace -}}
+{{- $singleName := (((.Values.vm).single).name) | default (include "lareira-vm-stack.fullname" .) -}}
+{{- $amName := (((.Values.vm).alertmanager).name) | default (include "lareira-vm-stack.fullname" .) -}}
+{{- $singleBase := printf "http://vmsingle-%s.%s.svc.cluster.local.:8429" $singleName $ns -}}
+{{- $amBase := printf "http://vmalertmanager-%s.%s.svc.cluster.local.:9093" $amName $ns -}}
+{{- $proxyUrl := printf "http://vmalert-%s.%s.svc.cluster.local.:8080" $singleName $ns -}}
+{{- if and ((.Values.vm).single) (((.Values.vm).single).extraArgs) (hasKey .Values.vm.single.extraArgs "vmalert.proxyURL") }}
+{{- $_ := set .Values.vm.single.extraArgs "vmalert.proxyURL" $proxyUrl -}}
+{{- end }}
+{{- if and ((.Values.vm).agent) (((.Values.vm).agent).remoteWrite) }}
+{{- range $rw := .Values.vm.agent.remoteWrite }}{{- $_ := set $rw "url" (printf "%s/api/v1/write" $singleBase) -}}{{- end }}
+{{- end }}
+{{- with (.Values.vm).alert }}
+{{- if .datasource }}{{- $_ := set .datasource "url" $singleBase -}}{{- end }}
+{{- if .remoteRead }}{{- $_ := set .remoteRead "url" $singleBase -}}{{- end }}
+{{- if .remoteWrite }}{{- $_ := set .remoteWrite "url" (printf "%s/api/v1/write" $singleBase) -}}{{- end }}
+{{- if .notifiers }}{{- range $n := .notifiers }}{{- $_ := set $n "url" $amBase -}}{{- end }}{{- end }}
+{{- end }}
+{{- end }}
+{{- /* Portability knob #2 — `vm.storageClassName`. The PVC storageClassName
+       defaults to rio's `local-path`. One value cascades to the VMSingle data
+       PVC and the VMAlertmanager volumeClaimTemplate so a portable consumer
+       (EKS gp3, etc.) sets ONE knob instead of editing each nested storage spec.
+       OPT-IN: unset → values verbatim → byte-identical render. */ -}}
+{{- if (.Values.vm).storageClassName }}
+{{- $sc := .Values.vm.storageClassName -}}
+{{- if (((.Values.vm).single).storage) }}{{- $_ := set .Values.vm.single.storage "storageClassName" $sc -}}{{- end }}
+{{- if ((((((.Values.vm).alertmanager).storage)).volumeClaimTemplate).spec) }}{{- $_ := set .Values.vm.alertmanager.storage.volumeClaimTemplate.spec "storageClassName" $sc -}}{{- end }}
+{{- end }}
 {{- /* Drive the Alertmanager config from the `alerting:` toggle surface: the
        computed blackhole-or-ntfy config replaces vm.alertmanager.configRawYaml
        before the VMAlertmanager renders. One switch (alerting.receiver) flips

@@ -1,0 +1,108 @@
+suite: vm-stack portability knobs (serviceNamespace + storageClassName)
+templates:
+  - templates/vm-workloads.yaml
+tests:
+  # ── rio safety: the knobs are OPT-IN; unset → values used verbatim ──────────
+  - it: "rio default (serviceNamespace unset) → VMAgent remoteWrite stays .monitoring.svc — byte-identical"
+    set:
+      enabled: true
+    documentSelector:
+      path: kind
+      value: VMAgent
+    asserts:
+      - equal:
+          path: spec.remoteWrite[0].url
+          value: http://vmsingle-lareira-vm-stack-victoria-metrics-k8s-stack.monitoring.svc.cluster.local.:8429/api/v1/write
+
+  - it: "rio default → VMAlert datasource + notifier stay .monitoring.svc — byte-identical"
+    set:
+      enabled: true
+    documentSelector:
+      path: kind
+      value: VMAlert
+    asserts:
+      - equal:
+          path: spec.datasource.url
+          value: http://vmsingle-lareira-vm-stack-victoria-metrics-k8s-stack.monitoring.svc.cluster.local.:8429
+      - equal:
+          path: spec.notifiers[0].url
+          value: http://vmalertmanager-lareira-vm-stack.monitoring.svc.cluster.local.:9093
+
+  - it: "rio default → VMSingle storageClassName stays local-path — byte-identical"
+    set:
+      enabled: true
+    documentSelector:
+      path: kind
+      value: VMSingle
+    asserts:
+      - equal:
+          path: spec.storage.storageClassName
+          value: local-path
+
+  # ── portability: ONE value rewires every inter-component URL in-namespace ────
+  - it: "serviceNamespace=tendril → VMAgent remoteWrite rewired in-namespace"
+    set:
+      enabled: true
+      vm.serviceNamespace: tendril
+    documentSelector:
+      path: kind
+      value: VMAgent
+    asserts:
+      - equal:
+          path: spec.remoteWrite[0].url
+          value: http://vmsingle-lareira-vm-stack-victoria-metrics-k8s-stack.tendril.svc.cluster.local.:8429/api/v1/write
+
+  - it: "serviceNamespace=tendril → VMAlert datasource/remoteRead/remoteWrite/notifier rewired"
+    set:
+      enabled: true
+      vm.serviceNamespace: tendril
+    documentSelector:
+      path: kind
+      value: VMAlert
+    asserts:
+      - equal:
+          path: spec.datasource.url
+          value: http://vmsingle-lareira-vm-stack-victoria-metrics-k8s-stack.tendril.svc.cluster.local.:8429
+      - equal:
+          path: spec.remoteWrite.url
+          value: http://vmsingle-lareira-vm-stack-victoria-metrics-k8s-stack.tendril.svc.cluster.local.:8429/api/v1/write
+      - equal:
+          path: spec.notifiers[0].url
+          value: http://vmalertmanager-lareira-vm-stack.tendril.svc.cluster.local.:9093
+
+  - it: "serviceNamespace=tendril → VMSingle vmalert.proxyURL rewired"
+    set:
+      enabled: true
+      vm.serviceNamespace: tendril
+    documentSelector:
+      path: kind
+      value: VMSingle
+    asserts:
+      - equal:
+          path: spec.extraArgs["vmalert.proxyURL"]
+          value: http://vmalert-lareira-vm-stack-victoria-metrics-k8s-stack.tendril.svc.cluster.local.:8080
+
+  # ── portability: ONE value cascades the storageClass to every PVC ───────────
+  - it: "storageClassName=gp3 → VMSingle data PVC uses gp3"
+    set:
+      enabled: true
+      vm.storageClassName: gp3
+    documentSelector:
+      path: kind
+      value: VMSingle
+    asserts:
+      - equal:
+          path: spec.storage.storageClassName
+          value: gp3
+
+  - it: "storageClassName=gp3 → VMAlertmanager volumeClaimTemplate uses gp3"
+    set:
+      enabled: true
+      vm.storageClassName: gp3
+    documentSelector:
+      path: kind
+      value: VMAlertmanager
+    asserts:
+      - equal:
+          path: spec.storage.volumeClaimTemplate.spec.storageClassName
+          value: gp3
