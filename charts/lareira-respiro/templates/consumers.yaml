@@ -56,8 +56,7 @@ data:
         subject: {{ $subject | quote }}
         stream: {{ $s.name | quote }}
         durable: {{ $c.name | quote }}
-        bind: false
-        create_stream: false
+        bind: true
         deliver: all
         ack_wait: {{ $c.ackWait | default "60s" | quote }}
         max_ack_pending: {{ $c.maxAckPending | default 256 }}
