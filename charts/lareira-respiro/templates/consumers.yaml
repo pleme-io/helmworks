@@ -1,22 +1,90 @@
 {{/*
 consumers.yaml — (3) WAKE.
 
-Two parts:
-  • the CONSUMER Deployment that drains the JetStream stream (authored natively
-    so the spine has a concrete scale target + a /metrics port for OBSERVE);
-  • the KEDA ScaledObject scaling it 0→N on stream lag, via the already-shipped
-    pleme-lib.breathability helper (nats-jetstream trigger). We adapt
-    respiro.{consumers,serverUrl,stream} → the helper's native
-    .Values.breathability contract.
+Three parts:
+  • the CONSUMER Deployment that drains the JetStream stream. Two modes
+    (consumers.mode):
+      - connect (DEFAULT, runnable today): a Redpanda Connect (Benthos) process
+        whose nats_jetstream input is a durable pull consumer (explicit ack,
+        max_ack_pending, scale-to-zero safe — the stream retains, so a cold
+        start replays unacked messages) and whose output is rendered from
+        respiro.sink. Public image, no custom binary. The literal NATS→connect
+        drain that completes the vector→NATS→sink spine.
+      - binary: the custom respiro-consumer image (env-driven). Reserved for when
+        that image is published; selecting it without the image yields ImagePull.
+  • the KEDA ScaledObject scaling it 0→N on stream lag (pleme-lib.breathability,
+    nats-jetstream trigger). The Deployment starts at 0 replicas — KEDA owns the
+    count (scale-to-zero when the stream is empty, wake on lag).
 
-The Deployment starts at 0 replicas — KEDA owns the replica count (scale-to-zero
-when the stream is empty, wake on lag). The security baseline matches the
-pleme-io enforced posture.
+The security baseline matches the pleme-io enforced posture.
 */}}
 {{- if .Values.respiro.enabled }}
 {{- $r := .Values.respiro }}
 {{- $cons := $r.consumers }}
+{{- $mode := $cons.mode | default "connect" }}
 {{- $consName := include "lareira-respiro.consumerName" . }}
+{{- $sink := $r.sink }}
+{{- $sinkKind := $sink.kind | default "vlogs" }}
+{{- if not (or (eq $sinkKind "vlogs") (eq $sinkKind "nats")) }}
+{{- fail (printf "lareira-respiro: sink.kind %q is a later milestone — the connect consumer emits vlogs | nats only" $sinkKind) }}
+{{- end }}
+{{- if not (or (eq $mode "connect") (eq $mode "binary")) }}
+{{- fail (printf "lareira-respiro: consumers.mode %q invalid — connect | binary" $mode) }}
+{{- end }}
+{{- if eq $mode "connect" }}
+{{- $s := $r.stream }}
+{{- $c := $s.consumer }}
+{{- $subject := index $s.subjects 0 }}
+{{- $vlogsEndpoint := (default dict $sink.vlogs).endpoint | default "http://victoria-logs.monitoring.svc:9428" }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $consName }}-connect
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+    app.kubernetes.io/component: respiro-consumer
+data:
+  connect.yaml: |
+    http:
+      address: 0.0.0.0:4195
+      enabled: true
+    input:
+      nats_jetstream:
+        urls: [{{ $r.serverUrl | quote }}]
+        subject: {{ $subject | quote }}
+        stream: {{ $s.name | quote }}
+        durable: {{ $c.name | quote }}
+        bind: false
+        create_stream: false
+        deliver: all
+        ack_wait: {{ $c.ackWait | default "60s" | quote }}
+        max_ack_pending: {{ $c.maxAckPending | default 256 }}
+    output:
+    {{- if eq $sinkKind "vlogs" }}
+      http_client:
+        url: {{ printf "%s/insert/jsonline" (trimSuffix "/" $vlogsEndpoint) | quote }}
+        verb: POST
+        headers:
+          Content-Type: application/stream+json
+        batching:
+          count: 200
+          period: 1s
+          processors:
+            - archive:
+                format: lines
+    {{- else if eq $sinkKind "nats" }}
+      nats_jetstream:
+        urls: [{{ $r.serverUrl | quote }}]
+        subject: {{ (default dict $sink.nats).subject | default (printf "%s.out" (lower $s.name)) | quote }}
+    {{- end }}
+    metrics:
+      prometheus: {}
+    logger:
+      level: INFO
+      format: json
+{{- end }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -35,16 +103,58 @@ spec:
       app.kubernetes.io/component: respiro-consumer
   template:
     metadata:
+      {{- if eq $mode "connect" }}
+      annotations:
+        checksum/config: {{ printf "%s|%s|%s|%s" $r.serverUrl $r.stream.name $sinkKind ((default dict $sink.vlogs).endpoint | default "") | sha256sum }}
+      {{- end }}
       labels:
         {{- include "pleme-lib.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: respiro-consumer
         app: {{ $consName }}
     spec:
       serviceAccountName: {{ include "pleme-lib.serviceAccountName" . }}
+      {{- with $cons.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $cons.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
       containers:
+      {{- if eq $mode "connect" }}
+        - name: consumer
+          image: "{{ $cons.connect.image.repository }}:{{ $cons.connect.image.tag }}"
+          imagePullPolicy: IfNotPresent
+          args: ["run", "/etc/connect/connect.yaml"]
+          securityContext:
+            readOnlyRootFilesystem: false
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          ports:
+            - name: metrics
+              containerPort: 4195
+              protocol: TCP
+          volumeMounts:
+            - name: connect-config
+              mountPath: /etc/connect
+              readOnly: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: {{ (default dict $r.breathe.cpu).ceiling | default "2000m" }}
+              memory: {{ (default dict $r.breathe.memory).ceiling | default "2Gi" }}
+      volumes:
+        - name: connect-config
+          configMap:
+            name: {{ $consName }}-connect
+      {{- else }}
         - name: consumer
           image: "{{ $cons.image.repository }}:{{ $cons.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: IfNotPresent
@@ -71,6 +181,7 @@ spec:
             limits:
               cpu: {{ (default dict $r.breathe.cpu).ceiling | default "2000m" }}
               memory: {{ (default dict $r.breathe.memory).ceiling | default "2Gi" }}
+      {{- end }}
 ---
 apiVersion: v1
 kind: Service

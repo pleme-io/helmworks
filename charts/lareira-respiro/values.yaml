@@ -78,6 +78,15 @@ respiro:
   # The consumer workload that drains the stream, plus a KEDA ScaledObject
   # (pleme-lib.breathability, nats-jetstream trigger) waking it 0→N on lag.
   consumers:
+    # mode ∈ { connect | binary }. connect (DEFAULT) runs a Redpanda Connect
+    # (Benthos) durable JetStream pull consumer → sink — a public image, runnable
+    # today. binary runs the custom respiro-consumer image (reserved; unpublished).
+    mode: connect
+    connect:
+      image:
+        repository: docker.io/redpandadata/connect
+        tag: "4.40.0"
+    # binary-mode image (only used when mode=binary).
     image:
       repository: ghcr.io/pleme-io/respiro-consumer
       tag: "latest"
