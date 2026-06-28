@@ -35,6 +35,9 @@ spec:
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/config.yaml") . | sha256sum }}
     spec:
+      {{- if .Values.dashboards.sidecar.enabled }}
+      serviceAccountName: {{ .Values.serviceAccount.name | default $fullname }}
+      {{- end }}
       {{- with .Values.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
@@ -89,6 +92,13 @@ spec:
               readOnly: true
             - name: data
               mountPath: /var/lib/grafana
+            {{- if .Values.dashboards.sidecar.enabled }}
+            - name: dashboard-provider
+              mountPath: /etc/grafana/provisioning/dashboards
+              readOnly: true
+            - name: sc-dashboards
+              mountPath: /tmp/dashboards
+            {{- end }}
           readinessProbe:
             httpGet:
               path: /api/health
@@ -103,6 +113,38 @@ spec:
             periodSeconds: 30
           resources:
             {{- toYaml $g.resources | nindent 12 }}
+        {{- if .Values.dashboards.sidecar.enabled }}
+        - name: grafana-sc-dashboard
+          image: "{{ .Values.dashboards.sidecar.image.repository }}:{{ .Values.dashboards.sidecar.image.tag }}"
+          imagePullPolicy: {{ .Values.dashboards.sidecar.image.pullPolicy }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            - name: METHOD
+              value: WATCH
+            - name: LABEL
+              value: {{ .Values.dashboards.sidecar.label | quote }}
+            - name: LABEL_VALUE
+              value: {{ .Values.dashboards.sidecar.labelValue | quote }}
+            - name: FOLDER
+              value: /tmp/dashboards
+            - name: RESOURCE
+              value: configmap
+            - name: FOLDER_ANNOTATION
+              value: {{ .Values.dashboards.sidecar.folderAnnotation | quote }}
+            {{- $sn := .Values.dashboards.sidecar.searchNamespace | default "" }}
+            {{- if $sn }}
+            - name: NAMESPACE
+              value: {{ $sn | quote }}
+            {{- end }}
+          volumeMounts:
+            - name: sc-dashboards
+              mountPath: /tmp/dashboards
+          resources:
+            {{- toYaml .Values.dashboards.sidecar.resources | nindent 12 }}
+        {{- end }}
       volumes:
         - name: grafana-ini
           configMap:
@@ -117,3 +159,10 @@ spec:
           {{- else }}
           emptyDir: {}
           {{- end }}
+        {{- if .Values.dashboards.sidecar.enabled }}
+        - name: dashboard-provider
+          configMap:
+            name: {{ $fullname }}-dashboard-provider
+        - name: sc-dashboards
+          emptyDir: {}
+        {{- end }}

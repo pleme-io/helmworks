@@ -4,6 +4,7 @@ templates:
   - templates/config.yaml
   - templates/breathe.yaml
   - templates/scaledobject.yaml
+  - templates/rbac.yaml
 tests:
   - it: deploys its OWN Grafana with datasource provisioning mounted
     template: templates/deployment.yaml
@@ -58,3 +59,23 @@ tests:
       - equal:
           path: spec.replicas.min
           value: 0
+
+  - it: runs the dashboard sidecar so enjulho PangeaDashboard dashboards appear
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1].name
+          value: grafana-sc-dashboard
+      - matchRegex:
+          path: spec.template.spec.containers[1].image
+          pattern: "k8s-sidecar"
+
+  - it: grants the sidecar a namespace-scoped ConfigMap watch (namespace-pure default)
+    template: templates/rbac.yaml
+    documentSelector:
+      path: kind
+      value: Role
+    asserts:
+      - contains:
+          path: rules[0].resources
+          content: configmaps

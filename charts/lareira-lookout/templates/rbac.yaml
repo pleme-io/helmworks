@@ -1,0 +1,78 @@
+{{/*
+rbac.yaml — the dashboard sidecar's identity + ConfigMap watch grant.
+
+The k8s-sidecar watches for PangeaDashboard-compiled ConfigMaps (label
+grafana_dashboard) and writes the dashboard JSON into the Grafana provisioning
+dir. searchNamespace "" = this face's namespace (Role — namespace-pure); "ALL"
+= cluster-wide (ClusterRole — the central lookout consolidating many feeders).
+*/}}
+{{- if .Values.dashboards.sidecar.enabled }}
+{{- $fullname := include "pleme-lib.fullname" . }}
+{{- $ns := include "pleme-lib.namespace" . }}
+{{- $saName := .Values.serviceAccount.name | default $fullname }}
+{{- if .Values.serviceAccount.create }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $saName }}
+  namespace: {{ $ns }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+---
+{{- end }}
+{{- if eq (.Values.dashboards.sidecar.searchNamespace | default "") "ALL" }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $fullname }}-dashboard-sidecar
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: [configmaps]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $fullname }}-dashboard-sidecar
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $fullname }}-dashboard-sidecar
+subjects:
+  - kind: ServiceAccount
+    name: {{ $saName }}
+    namespace: {{ $ns }}
+{{- else }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $fullname }}-dashboard-sidecar
+  namespace: {{ $ns }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: [configmaps]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $fullname }}-dashboard-sidecar
+  namespace: {{ $ns }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $fullname }}-dashboard-sidecar
+subjects:
+  - kind: ServiceAccount
+    name: {{ $saName }}
+    namespace: {{ $ns }}
+{{- end }}
+{{- end }}

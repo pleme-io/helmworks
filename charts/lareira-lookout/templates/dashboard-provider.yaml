@@ -1,0 +1,27 @@
+{{/*
+dashboard-provider.yaml — the Grafana file-provider that loads the JSON the
+dashboard sidecar drops into /tmp/dashboards. foldersFromFilesStructure honours
+the grafana_folder annotation the PangeaDashboard ConfigMaps carry.
+*/}}
+{{- if .Values.dashboards.sidecar.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}-dashboard-provider
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+data:
+  lookout.yaml: |
+    apiVersion: 1
+    providers:
+      - name: lookout
+        orgId: 1
+        type: file
+        disableDeletion: false
+        allowUiUpdates: false
+        updateIntervalSeconds: 30
+        options:
+          path: /tmp/dashboards
+          foldersFromFilesStructure: true
+{{- end }}

@@ -64,6 +64,48 @@ persistence:
   storageClass: ""           # "" = cluster default
   size: 2Gi
 
+serviceAccount:
+  create: true
+  name: ""                   # defaults to the fullname
+
+# ── Dashboards: ENJULHO-style (theory/ENJULHO.md + dashboard-as-code). ─────────
+# Dashboards are NEVER hand-authored JSON. They are PangeaDashboard CRDs the
+# pangea-operator compiles to Grafana JSON and delivers as sidecar-labelled
+# ConfigMaps. This face's Grafana runs the dashboard SIDECAR so those compiled
+# dashboards appear; declare the dashboards inline below (the canonical
+# lareira-pangea-dashboards emitter, as a condition-gated subchart) or via a
+# sibling lareira-pangea-dashboards HelmRelease targeting this face's namespace.
+dashboards:
+  sidecar:
+    enabled: true
+    image:
+      repository: quay.io/kiwigrid/k8s-sidecar
+      tag: "1.28.0"
+      pullPolicy: IfNotPresent
+    label: grafana_dashboard
+    labelValue: "1"
+    folderAnnotation: grafana_folder
+    # Namespaces the sidecar watches for PangeaDashboard-compiled ConfigMaps.
+    # "" = this face's release namespace (namespace-pure, Role-scoped); "ALL" =
+    # cluster-wide (ClusterRole) — the central lookout consolidating many feeders.
+    searchNamespace: ""
+    resources:
+      requests:
+        cpu: 20m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 64Mi
+
+# Inline ENJULHO dashboards — PangeaDashboard CRDs via the canonical emitter
+# (the lareira-pangea-dashboards subchart). Flip enabled=true + populate the
+# list so a face declares its dashboards as part of its single declaration.
+# Each entry = one PangeaDashboard the pangea-operator reconciles.
+lareira-pangea-dashboards:
+  enabled: false
+  folder: ""                 # default Grafana folder (defaults to the face name)
+  dashboards: []             # [{ name, architecture, params, folder?, suspend? }]
+
 # ── Breathe homeostasis (memory + cpu limits carved in-band, shadow-first). ───
 # Emitted by the canonical pleme-lib.breatheBand helper, retargeted to this
 # chart's Deployment.

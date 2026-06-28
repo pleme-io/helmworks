@@ -15,7 +15,7 @@ description: |
   (MCP) planes are sibling artifacts; this chart is INFRA. Consumer-specific
   hosts/feeders/secrets live only in the consumer's private values, never here.
 type: application
-version: 0.1.0
+version: 0.2.0
 appVersion: "11.3.0"
 keywords: [grafana, observability, lookout, lareira, vantage]
 maintainers:
@@ -25,3 +25,11 @@ dependencies:
   - name: pleme-lib
     version: ">=0.32.0"
     repository: "file://../pleme-lib"
+  # ENJULHO-style dashboards: reuse the canonical PangeaDashboard emitter so a
+  # face can declare its dashboards inline (pangea-operator compiles them to
+  # Grafana JSON → sidecar ConfigMap → this face's dashboard sidecar). Gated off
+  # by default — flip lareira-pangea-dashboards.enabled to declare inline.
+  - name: lareira-pangea-dashboards
+    version: ">=0.1.0"
+    repository: "file://../lareira-pangea-dashboards"
+    condition: lareira-pangea-dashboards.enabled
