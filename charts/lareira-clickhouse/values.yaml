@@ -1,0 +1,144 @@
+# lareira-clickhouse — the columnar tap store for the tendril nervous system.
+#
+# Posture: zero-scale by default (KEDA wakes the StatefulSet on NATS lag),
+# breathable on every dimension (memory + cpu + disk bands), auto-initialized
+# (idempotent schema runs on first start so it comes up ready to receive).
+
+nameOverride: ""
+fullnameOverride: ""
+
+clickhouse:
+  image:
+    # Mirror to ghcr.io/pleme-io per the HERMETIC SUPPLY CHAIN rule before a
+    # real-cluster (air-gapped) deploy; clickhouse/clickhouse-server is the
+    # upstream coordinate.
+    repository: clickhouse/clickhouse-server
+    tag: "24.8"
+    pullPolicy: IfNotPresent
+
+  ports:
+    http: 8123
+    native: 9000
+
+  # Resources are BREATHE-managed (the bands below carve the real limits in
+  # band); these are the conservative starting envelope before the first band
+  # decision. cpu/memory deliberately small — the store sleeps most of the time.
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 4Gi
+
+  persistence:
+    enabled: true
+    # "" = cluster default StorageClass (gp3 on EKS, local-path alias on kind).
+    # MUST be allowVolumeExpansion:true for the StorageBand grow to actuate.
+    storageClass: ""
+    size: 10Gi
+
+  auth:
+    user: tendril
+    database: tendril
+    # Password resolution order: existingSecret (cofre/SOPS, real clusters) →
+    # password (dev/kind fallback only). Never commit a real password here.
+    existingSecret: ""
+    passwordKey: clickhouse-password
+    password: "tendril"
+
+  # Idempotent auto-initialization. Rendered into /docker-entrypoint-initdb.d
+  # so ClickHouse runs it on first start (empty data dir); the PVC then persists
+  # the schema across wake/sleep cycles. Every statement is IF NOT EXISTS so a
+  # re-run is a no-op. Override `extraSQL` to add tables; the default `events`
+  # table ingests the NATS-fed JSON log/event stream.
+  init:
+    enabled: true
+    # Analytical retention tier — longer than the 3h hot VictoriaOps buffer
+    # (ClickHouse is the deep-query store). Disk grows GrowOnly via StorageBand.
+    ttl: "7 DAY"
+    extraSQL: ""
+
+  podSecurityContext:
+    fsGroup: 101
+  securityContext:
+    runAsUser: 101
+    runAsNonRoot: true
+    allowPrivilegeEscalation: false
+
+# ── Zero-scale: KEDA scales the StatefulSet 0<->1 on NATS-JetStream lag. ──────
+# The store wakes on the SAME MTE_STAGING lag that wakes its respiro consumer,
+# so the consumer always has a live ClickHouse to write into. min:0 = true
+# zero-scale; the 3h NATS buffer makes a sleeping store lossless.
+breathability:
+  enabled: true
+  targetKind: StatefulSet
+  min: 0
+  max: 1
+  cooldown: 600
+  pollingInterval: 15
+  trigger:
+    type: nats-jetstream
+    nats:
+      serverURL: "nats://pleme-nats.tendril.svc:4222"
+      account: "$G"
+      stream: MTE_STAGING
+      consumer: clickhouse
+      lagThreshold: "1"
+      activationLagThreshold: "0"
+
+# ── Breathe homeostasis: memory + cpu limits carved in-band, disk grown
+# GrowOnly via StorageBand. SHADOW-first (dryRun / mode:shadow) like the rest of
+# tendril — observe the decisions, then flip to actuate. The memory + cpu bands
+# are emitted by the canonical pleme-lib.breatheBand helper (targeting THIS
+# chart's StatefulSet, not the helper-default Deployment); the StorageBand is
+# hand-emitted in templates/breathe.yaml (a band on a PVC, not a workload). ────
+breathe:
+  enabled: true
+  targetRef:
+    apiVersion: apps/v1
+    kind: StatefulSet
+  memory:
+    enabled: true
+    setpoint: 0.80
+    floor: "512Mi"
+    ceiling: "8Gi"
+    growAbove: 0.85
+    shrinkBelow: 0.70
+    cooldownSeconds: 600
+    disruptionPolicy: restartFreeOnly
+    dryRun: true
+  cpu:
+    enabled: true
+    setpoint: 0.80
+    floor: "200m"
+    ceiling: "4000m"
+    growAbove: 0.85
+    shrinkBelow: 0.70
+    cooldownSeconds: 600
+    disruptionPolicy: restartFreeOnly
+    dryRun: true
+  storage:
+    enabled: true
+    setpoint: 0.80
+    floor: "10Gi"
+    ceiling: "100Gi"
+    growAbove: 0.85
+    shrinkBelow: 0.70
+    growFactor: 1.25
+    shrinkFactor: 0.90
+    cooldownSeconds: 600
+    maxStalenessSeconds: 300
+    mode: shadow
+    disruptionPolicy: restartFreeOnly
+
+serviceMonitor:
+  enabled: false
+  interval: 30s
+
+# Node placement — generic by default; the tendril release pins the tainted,
+# scale-to-zero `role: tendril` pool (taint tendril-only=true:NoSchedule) so the
+# store lands on the carve-out, not on resident workloads.
+nodeSelector: {}
+tolerations: []
+affinity: {}

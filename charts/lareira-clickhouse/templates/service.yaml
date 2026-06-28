@@ -1,0 +1,26 @@
+{{/*
+service.yaml — the stable ClusterIP the respiro consumer + query clients reach.
+
+http (8123) is the ingestion + query endpoint the NATS consumer writes to;
+native (9000) is the binary protocol for clickhouse-client / Grafana datasource.
+The Service stays resolvable while the StatefulSet sleeps at 0 replicas — the
+consumer's connection simply blocks until KEDA wakes the store.
+*/}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "pleme-lib.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.clickhouse.ports.http }}
+      targetPort: http
+    - name: native
+      port: {{ .Values.clickhouse.ports.native }}
+      targetPort: native

@@ -1,0 +1,46 @@
+{{/*
+breathe.yaml — homeostasis on every dimension breathe can carve for a store.
+
+  • MemoryBand + CpuBand — emitted by the canonical pleme-lib.breatheBand helper
+    (reads .Values.breathe; targetRef pins THIS chart's StatefulSet). The
+    controller holds resources.limits.{memory,cpu} at the 80/20 setpoint.
+  • StorageBand — hand-emitted (the helper bands a workload; a StorageBand bands
+    a PVC). GrowOnly: it grows requests.storage as the disk fills, never shrinks
+    data, restartFreeOnly via online CSI resize. Targets the StatefulSet's
+    volumeClaimTemplate PVC `data-<fullname>-0`.
+
+SHADOW-first throughout (mem/cpu dryRun:true, storage mode:shadow) — observe the
+decisions before flipping to actuate, per the tendril rollout posture.
+*/}}
+{{- if .Values.breathe.enabled }}
+{{- include "pleme-lib.breatheBand" . }}
+{{- $s := .Values.breathe.storage | default dict }}
+{{- if $s.enabled }}
+{{- $fullname := include "pleme-lib.fullname" . }}
+---
+apiVersion: breathe.pleme.io/v1
+kind: StorageBand
+metadata:
+  name: {{ $fullname }}-storage
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+    lareira.pleme.io/dimension: storage
+spec:
+  targetRef:
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    name: data-{{ $fullname }}-0
+  setpoint: {{ $s.setpoint | default 0.80 }}
+  growAbove: {{ $s.growAbove | default 0.85 }}
+  shrinkBelow: {{ $s.shrinkBelow | default 0.70 }}
+  growFactor: {{ $s.growFactor | default 1.25 }}
+  shrinkFactor: {{ $s.shrinkFactor | default 0.90 }}
+  floor: {{ $s.floor | default "10Gi" | quote }}
+  ceiling: {{ $s.ceiling | default "100Gi" | quote }}
+  cooldownSeconds: {{ $s.cooldownSeconds | default 600 }}
+  maxStalenessSeconds: {{ $s.maxStalenessSeconds | default 300 }}
+  mode: {{ $s.mode | default "shadow" }}
+  disruptionPolicy: {{ $s.disruptionPolicy | default "restartFreeOnly" }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,11 @@
+{{/*
+breathability.yaml — ZERO-SCALE via the canonical pleme-lib.breathability helper.
+
+Emits a KEDA ScaledObject (targetKind StatefulSet) that wakes ClickHouse 0->1 on
+NATS-JetStream lag on the `clickhouse` durable consumer of the MTE_STAGING
+stream, and lets it fall back to 0 after the idle cooldown. The store wakes on
+the SAME lag signal as its respiro consumer, so the consumer always has a live
+ClickHouse to write into. min:0 = true zero-scale; the 3h NATS buffer makes a
+sleeping store lossless.
+*/}}
+{{- include "pleme-lib.breathability" . }}

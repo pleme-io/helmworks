@@ -1,0 +1,119 @@
+{{/*
+statefulset.yaml — the single-node ClickHouse store.
+
+Zero-scale: replicas start at 0; KEDA (templates/breathability.yaml) owns the
+replica count and wakes it 0->1 on NATS-JetStream lag, falling back to 0 after
+the idle cooldown. The PVC (volumeClaimTemplates) persists data + schema across
+sleep/wake — a sleeping store loses nothing because the 3h NATS buffer holds the
+in-flight stream. The PVC is labelled breathe-expandable so a StorageBand grows
+it GrowOnly as it fills.
+*/}}
+{{- $fullname := include "pleme-lib.fullname" . }}
+{{- $ch := .Values.clickhouse }}
+{{- $secretName := $ch.auth.existingSecret | default (printf "%s-auth" $fullname) }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $fullname }}
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ $fullname }}
+  replicas: 0
+  selector:
+    matchLabels:
+      {{- include "pleme-lib.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "pleme-lib.labels" . | nindent 8 }}
+        app.kubernetes.io/component: clickhouse-store
+      annotations:
+        {{- if $ch.init.enabled }}
+        checksum/initdb: {{ include (print $.Template.BasePath "/init-sql.yaml") . | sha256sum }}
+        {{- end }}
+    spec:
+      {{- with $ch.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: clickhouse
+          image: "{{ $ch.image.repository }}:{{ $ch.image.tag }}"
+          imagePullPolicy: {{ $ch.image.pullPolicy }}
+          {{- with $ch.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ $ch.ports.http }}
+            - name: native
+              containerPort: {{ $ch.ports.native }}
+          env:
+            - name: CLICKHOUSE_DB
+              value: {{ $ch.auth.database | quote }}
+            - name: CLICKHOUSE_USER
+              value: {{ $ch.auth.user | quote }}
+            - name: CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secretName }}
+                  key: {{ $ch.auth.passwordKey }}
+            - name: CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT
+              value: "1"
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/clickhouse
+            {{- if $ch.init.enabled }}
+            - name: initdb
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+            {{- end }}
+          resources:
+            {{- toYaml $ch.resources | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+      volumes:
+        {{- if $ch.init.enabled }}
+        - name: initdb
+          configMap:
+            name: {{ $fullname }}-initdb
+        {{- end }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels:
+          {{- include "pleme-lib.labels" . | nindent 10 }}
+          breathe.pleme.io/expandable: "true"
+      spec:
+        accessModes: [ReadWriteOnce]
+        {{- if $ch.persistence.storageClass }}
+        storageClassName: {{ $ch.persistence.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ $ch.persistence.size }}

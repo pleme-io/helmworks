@@ -1,0 +1,90 @@
+suite: lareira-clickhouse — zero-scale, breathable-every-dimension, auto-initialized
+templates:
+  - templates/statefulset.yaml
+  - templates/breathability.yaml
+  - templates/breathe.yaml
+  - templates/init-sql.yaml
+tests:
+  - it: the StatefulSet starts asleep at 0 replicas (zero-scale by default) with a breathe-expandable PVC
+    template: templates/statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 0
+      - equal:
+          path: spec.volumeClaimTemplates[0].metadata.labels["breathe.pleme.io/expandable"]
+          value: "true"
+
+  - it: KEDA wakes the StatefulSet 0->1 on NATS-JetStream lag (wake-on-data)
+    template: templates/breathability.yaml
+    documentSelector:
+      path: kind
+      value: ScaledObject
+    asserts:
+      - equal:
+          path: spec.minReplicaCount
+          value: 0
+      - equal:
+          path: spec.maxReplicaCount
+          value: 1
+      - equal:
+          path: spec.scaleTargetRef.kind
+          value: StatefulSet
+      - equal:
+          path: spec.triggers[0].type
+          value: nats-jetstream
+      - equal:
+          path: spec.triggers[0].metadata.stream
+          value: MTE_STAGING
+
+  - it: breathes on the MEMORY dimension (band targets the StatefulSet, shadow-first)
+    template: templates/breathe.yaml
+    documentSelector:
+      path: kind
+      value: MemoryBand
+    asserts:
+      - equal:
+          path: spec.targetRef.kind
+          value: StatefulSet
+      - equal:
+          path: spec.dryRun
+          value: true
+
+  - it: breathes on the CPU dimension
+    template: templates/breathe.yaml
+    documentSelector:
+      path: kind
+      value: CpuBand
+    asserts:
+      - equal:
+          path: spec.targetRef.kind
+          value: StatefulSet
+
+  - it: breathes on the DISK dimension (StorageBand on the PVC, GrowOnly, shadow)
+    template: templates/breathe.yaml
+    documentSelector:
+      path: kind
+      value: StorageBand
+    asserts:
+      - equal:
+          path: spec.targetRef.kind
+          value: PersistentVolumeClaim
+      - equal:
+          path: spec.mode
+          value: shadow
+
+  - it: auto-initializes an idempotent MergeTree schema so it comes up ready to receive
+    template: templates/init-sql.yaml
+    documentSelector:
+      path: kind
+      value: ConfigMap
+    asserts:
+      - matchRegex:
+          path: data["00-schema.sql"]
+          pattern: "CREATE DATABASE IF NOT EXISTS tendril"
+      - matchRegex:
+          path: data["00-schema.sql"]
+          pattern: "CREATE TABLE IF NOT EXISTS tendril.events"
+      - matchRegex:
+          path: data["00-schema.sql"]
+          pattern: "ENGINE = MergeTree"

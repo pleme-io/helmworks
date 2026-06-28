@@ -1,0 +1,25 @@
+apiVersion: v2
+name: lareira-clickhouse
+description: |
+  ClickHouse single-node MergeTree store for the lareira/tendril nervous
+  system. The high-cardinality, columnar tap store — a third durable
+  destination alongside VictoriaLogs (logs) and VictoriaMetrics (metrics),
+  fed from NATS JetStream by its own KEDA-scaled respiro consumer.
+
+  Designed for the tendril posture: DEFAULT ZERO-SCALE (the StatefulSet wakes
+  on NATS-JetStream lag and falls back to 0 on idle — the 3h NATS buffer makes
+  a sleeping store lossless), AUTOMATED INITIALIZATION (idempotent
+  CREATE DATABASE / MergeTree schema runs on first start so it comes up ready
+  to receive), and BREATHABLE on every dimension (memory + cpu + disk bands
+  via breathe, the PVC labelled for StorageBand grow-only expansion).
+type: application
+version: 0.1.0
+appVersion: "24.8"
+keywords: [clickhouse, olap, columnar, observability, lareira, tendril]
+maintainers:
+  - name: drzzln
+    email: drzzln@protonmail.com
+dependencies:
+  - name: pleme-lib
+    version: ">=0.32.0"
+    repository: "file://../pleme-lib"

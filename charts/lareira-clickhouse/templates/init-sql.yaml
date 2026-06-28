@@ -1,0 +1,44 @@
+{{/*
+init-sql.yaml — AUTOMATED INITIALIZATION.
+
+Rendered into /docker-entrypoint-initdb.d so the official clickhouse-server
+image runs it on FIRST start (empty data dir). The PVC then persists the schema
+across the zero-scale wake/sleep cycles, so the store always comes up ready to
+receive. Every statement is IF NOT EXISTS — a re-run (e.g. a fresh PVC after a
+disk replace) is a safe no-op.
+
+The default `events` table ingests the NATS-fed JSON log/event stream: a small
+typed prefix (timestamp/source/level/message) for fast filtering plus a `raw`
+column holding the full original payload for ad-hoc querying. Override
+`clickhouse.init.extraSQL` to add more tables.
+*/}}
+{{- if .Values.clickhouse.init.enabled }}
+{{- $db := .Values.clickhouse.auth.database }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}-initdb
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+data:
+  00-schema.sql: |
+    CREATE DATABASE IF NOT EXISTS {{ $db }};
+
+    CREATE TABLE IF NOT EXISTS {{ $db }}.events
+    (
+      timestamp   DateTime64(3) DEFAULT now64(3),
+      source      LowCardinality(String) DEFAULT '',
+      level       LowCardinality(String) DEFAULT '',
+      message     String DEFAULT '',
+      raw         String DEFAULT ''
+    )
+    ENGINE = MergeTree
+    PARTITION BY toYYYYMMDD(timestamp)
+    ORDER BY (source, timestamp)
+    TTL toDateTime(timestamp) + INTERVAL {{ .Values.clickhouse.init.ttl }}
+    SETTINGS index_granularity = 8192;
+{{- with .Values.clickhouse.init.extraSQL }}
+{{ . | indent 4 }}
+{{- end }}
+{{- end }}
