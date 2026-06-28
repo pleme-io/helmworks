@@ -1,0 +1,177 @@
+# lareira-akeyless-gateway — akeyless FortiGate SSL-VPN gateway on rio.
+#
+# ONE typed authoring surface. The chart's templates translate every key below
+# into the flat values pleme-lib.deployment consumes (command / securityContext
+# / volumes / sidecars / networkPolicy / …). An operator NEVER hand-writes those
+# flat pleme-lib keys here — they are derived. `values.schema.json` rejects any
+# key not declared below (additionalProperties:false), so a misspelled or
+# dropped key is an INSTALL-TIME ERROR, never a silently-ignored no-op.
+#
+# One pod, two containers sharing one netns:
+#   (B) fortictl-gateway  — NET_ADMIN + /dev/net/tun; SSH-relays the
+#       SVPNCOOKIE from drzzln@cid, runs openconnect to the FortiGate, and
+#       installs ONLY split-include routes (never a default route).
+#   (A) cloudflared        — userspace token connector, warp-routing on,
+#       NO extra caps.
+
+# ---------------------------------------------------------------------------
+# COMPLIANCE — MUST stay empty.
+# This workload genuinely needs NET_ADMIN + a hostPath CharDevice + root.
+# A FedRAMP moderate/high baseline hard-fails on exactly those (CM-7/AC-6),
+# so any non-empty baseline would refuse to render. Keep it "".
+# ---------------------------------------------------------------------------
+compliance:
+  baseline: ""
+
+# Resource naming. Pins every rendered object to the shared convention.
+fullnameOverride: akeyless-gateway
+nameOverride: ""
+
+replicaCount: 1
+
+# The VPN session + the /dev/net/tun device are pod-singletons — never run
+# two at once. Recreate (tear the old pod down before the new one starts)
+# avoids two pods fighting over one tun device / one FortiGate cookie.
+strategy:
+  type: Recreate
+
+# fortictl-gateway image. Published by AUTO-RELEASE to
+# ghcr.io/pleme-io/fortictl-gateway with the AUTOBUMP exact-tag scheme
+# (amd64-r<run>-<sha>). The amd64-latest pointer below is a placeholder —
+# a subscribing cluster's Flux ImagePolicy rewrites it to the highest
+# exact run tag in the committed HelmRelease (never deploy from :latest).
+image:
+  repository: ghcr.io/pleme-io/fortictl-gateway
+  # TODO(operator): pin an exact AUTOBUMP tag (amd64-r<run>-<sha>); Flux
+  # image-automation maintains this when the cluster subscribes.
+  tag: amd64-latest
+  pullPolicy: Always
+
+# Private GHCR pull credentials. The in-namespace ghcr-pull Secret (the
+# flux-system ImageRepository scan secret is a SEPARATE concern, not this).
+imagePullSecrets:
+  - name: ghcr-pull
+
+# Pod placement. /dev/net/tun and the single FortiGate session are node
+# singletons — pin the gateway to exactly one node so Recreate never lands it
+# where another tun consumer or a stale session lives. Empty = unpinned.
+nodeSelector: {}
+  # TODO(operator): pin to the gateway node, e.g.
+  # kubernetes.io/hostname: rio
+
+# ---------------------------------------------------------------------------
+# gateway — the fortictl-gateway container (B).
+# ---------------------------------------------------------------------------
+gateway:
+  # fortictl profile NAME. Drives `command: [fortictl, gateway, --profile, <profile>]`
+  # AND the profile key in the rendered fortictl.yaml ConfigMap — they stay in sync.
+  profile: akeyless
+
+  fortigate:
+    # openconnect target (the FortiGate SSL-VPN endpoint).
+    endpoint: office.akeyless.fans:10443
+
+  # SSH cookie-relay: pull the SVPNCOOKIE from the canonical SAML driver
+  # (drzzln@cid) over SSH instead of driving SAML in-pod.
+  relaySsh:
+    secretName: akeyless-gateway-relay-ssh   # keys: id_ed25519, known_hosts
+    peer: drzzln@cid
+    # Headless pod — never fall back to a local Chromium SAML flow.
+    fallbackToLocal: false
+
+  # Refreshed-cookie fallback (when cid is unreachable). When NON-EMPTY, the
+  # ConfigMap points fortictl at this cookie-file path and DISABLES the SSH
+  # relay; the operator mounts the refreshed SVPNCOOKIE Secret at this path
+  # out-of-band (see the commented alternative in templates/configmap.yaml).
+  # Empty = use the SSH relay above.
+  cookieFile: ""
+
+  # Privilege surface. NET_ADMIN + an explicit /dev/net/tun CharDevice is
+  # sufficient (NOT `privileged: true`).
+  privileged:
+    netAdmin: true   # → container securityContext.capabilities.add: [NET_ADMIN]
+    tunDevice: true  # → hostPath /dev/net/tun (CharDevice) volume + mount
+
+  # Split-include routing mode (MEANINGFUL — not a no-op):
+  #   []  (default) → DYNAMIC: the FortiGate pushes CISCO_SPLIT_INC at session
+  #                   bring-up; openconnect installs whatever it receives.
+  #   non-empty     → PINNED:  the ConfigMap sets route_source=pinned +
+  #                   pinned_routes=<this list>; openconnect installs exactly
+  #                   these CIDRs and NEVER a default route.
+  # NOTE: in the verifier design the corp CIDRs live in the two Cloudflare-side
+  # consumers (the WARP tunnel routes + the device-profile include), NOT here —
+  # so DYNAMIC ([]) is the correct default for the gateway.
+  splitInclude: []
+
+# ---------------------------------------------------------------------------
+# cloudflared — the userspace WARP token-connector sidecar (A).
+# Shares the pod netns with fortictl-gateway so warp-routed flows inherit
+# tun0's VPN source IP. NO extra capabilities. value-toggleable.
+# ---------------------------------------------------------------------------
+cloudflared:
+  enabled: true
+  # warp-routing is configured on the REMOTELY-managed Cloudflare Tunnel, not on
+  # the connector (token mode pulls config from the edge). This flag is the
+  # declared cross-consumer contract — it MUST match the Tunnel's edge config
+  # (architectures/warp-gateway-tunnel.yaml). The chart records it as the
+  # `cloudflared.pleme.io/warp-routing` pod annotation so the declared intent is
+  # observable on the running pod (never a silent no-op).
+  warpRouting: true
+  image: cloudflare/cloudflared
+  tag: "2026.3.0"
+  # Secret carrying the connector token (TUNNEL_TOKEN).
+  tokenSecret: akeyless-gateway-cloudflared-token
+  tokenKey: token
+
+# ---------------------------------------------------------------------------
+# forwarding — M4 L3-forward gate (OFF by default).
+# The CORE path does NOT need this: cloudflared re-originates WARP flows in
+# userspace so they already carry tun0's VPN source IP. Forwarding OTHER
+# workloads' L3 traffic through the gateway needs ip_forward + MASQUERADE.
+# When true the fortictl container is started with the l3-forward feature
+# flag (env/arg) — this requires the fortictl-gateway image to be built WITH
+# the l3-forward feature, and it does NOT (yet) add MASQUERADE on the core
+# path; it is an explicit, opt-in follow-on.
+# ---------------------------------------------------------------------------
+forwarding:
+  enabled: false
+
+# ---------------------------------------------------------------------------
+# NetworkPolicy — EGRESS-ONLY (deny-all base + selective allows), NO ingress.
+# The chart always emits the built-in egress allows below; additionalEgress is
+# APPENDED to them:
+#   - DNS                              : resolve office.akeyless.fans + cid
+#   - 10443/TCP  fortigate-vpn         : openconnect → the FortiGate
+#   - 22/TCP     ssh-cookie-relay      : fortictl → drzzln@cid (SVPNCOOKIE)
+#   - 443/TCP + 7844/UDP cloudflared-edge : the sidecar's tunnel CONTROL
+#       connection to Cloudflare's edge (only when cloudflared.enabled).
+# Zero ingress is allowed.
+# ---------------------------------------------------------------------------
+networkPolicy:
+  enabled: true
+  additionalEgress: []
+
+# ---------------------------------------------------------------------------
+# serviceMonitor — optional Prometheus ServiceMonitor (default OFF).
+# NOTE: this is an egress-only workload with NO Service, so a ServiceMonitor
+# has nothing to select until a Service is added. Kept as a simple toggle with
+# no hard CRD dependency (helm template never fails on it).
+# ---------------------------------------------------------------------------
+serviceMonitor:
+  enabled: false
+
+# ---------------------------------------------------------------------------
+# breathe — optional breathe.pleme.io homeostasis bands (default OFF).
+# When enabled, emits MemoryBand / CpuBand CRs (pleme-lib.breatheBand). Use
+# shadow-first (memory/cpu .dryRun: true) on a new node, then promote per band.
+# ---------------------------------------------------------------------------
+breathe:
+  enabled: false
+
+# ---------------------------------------------------------------------------
+# service — egress-only workload: a Service can NEVER be requested (const-false
+# in the schema; the chart never renders pleme-lib.service). Documentation +
+# unrepresentability marker.
+# ---------------------------------------------------------------------------
+service:
+  enabled: false

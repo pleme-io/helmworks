@@ -1,0 +1,160 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "lareira-akeyless-gateway values",
+  "description": "Typed authoring surface for the akeyless WARP->FortiGate egress gateway. additionalProperties:false everywhere — an unknown/misspelled key is rejected at install time instead of being silently dropped by Helm.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "global": {
+      "type": "object",
+      "description": "Helm cross-chart global value namespace (passthrough)."
+    },
+    "pleme-lib": {
+      "type": "object",
+      "description": "Library-subchart value namespace coalesced by Helm; opaque to this chart's typed surface."
+    },
+    "compliance": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "MUST stay empty — NET_ADMIN + hostPath + root hard-fail any FedRAMP baseline.",
+      "properties": {
+        "baseline": { "type": "string", "enum": [""] }
+      }
+    },
+    "fullnameOverride": { "type": "string" },
+    "nameOverride": { "type": "string" },
+    "replicaCount": { "type": "integer", "minimum": 1, "maximum": 1 },
+    "strategy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": { "enum": ["Recreate", "RollingUpdate"] }
+      }
+    },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository"],
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "tag": { "type": "string", "minLength": 1 },
+        "pullPolicy": { "enum": ["Always", "IfNotPresent", "Never"] }
+      }
+    },
+    "imagePullSecrets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name"],
+        "properties": { "name": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "nodeSelector": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "gateway": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "profile": { "type": "string", "minLength": 1 },
+        "fortigate": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "endpoint": { "type": "string", "minLength": 1 }
+          }
+        },
+        "relaySsh": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "secretName": { "type": "string", "minLength": 1 },
+            "peer": { "type": "string", "minLength": 1 },
+            "fallbackToLocal": { "type": "boolean" }
+          }
+        },
+        "cookieFile": { "type": "string" },
+        "privileged": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "netAdmin": { "type": "boolean" },
+            "tunDevice": { "type": "boolean" }
+          }
+        },
+        "splitInclude": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+/[0-9]+$"
+          }
+        }
+      }
+    },
+    "cloudflared": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "warpRouting": { "type": "boolean" },
+        "image": { "type": "string", "minLength": 1 },
+        "tag": { "type": "string", "minLength": 1 },
+        "tokenSecret": { "type": "string", "minLength": 1 },
+        "tokenKey": { "type": "string", "minLength": 1 }
+      }
+    },
+    "forwarding": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "additionalEgress": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "rules"],
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "rules": { "type": "array", "items": { "type": "object" } }
+            }
+          }
+        }
+      }
+    },
+    "serviceMonitor": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" }
+      }
+    },
+    "breathe": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "memory": { "type": "object" },
+        "cpu": { "type": "object" },
+        "targetRef": { "type": "object" }
+      }
+    },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Egress-only: a Service can never be requested.",
+      "properties": {
+        "enabled": { "const": false }
+      }
+    }
+  }
+}

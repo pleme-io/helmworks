@@ -1,0 +1,63 @@
+{{/*
+The fortictl.yaml config consumed by `fortictl gateway --profile <profile>`
+(mounted read-only at /etc/fortictl). Driven entirely by the typed gateway.*
+surface. Relay-consumer mode: the pod never drives SAML locally — it SSH-relays
+the SVPNCOOKIE from the canonical driver (gateway.relaySsh.peer) and feeds it to
+openconnect. When gateway.cookieFile is set, the refreshed-cookie file path is
+used instead and the relay is disabled.
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}-fortictl
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+data:
+  fortictl.yaml: |
+    general:
+      log_level: info
+      state_dir: "/var/lib/fortictl"
+    profiles:
+      {{ .Values.gateway.profile | default "akeyless" }}:
+        server: {{ .Values.gateway.fortigate.endpoint | quote }}
+        user: ""
+        # Relay-consumer mode: never drive SAML in-pod.
+        saml:
+          enable: false
+        cookie_source:
+        {{- if .Values.gateway.cookieFile }}
+          # Refreshed-cookie-Secret fallback (cid unreachable): read the cookie
+          # from this mounted path; SSH relay + local SAML both disabled. The
+          # operator mounts the refreshed SVPNCOOKIE Secret at this path
+          # out-of-band (see the commented alternative below).
+          cookie_file: {{ .Values.gateway.cookieFile | quote }}
+          via_peer: ""
+          fallback_to_local: false
+        {{- else }}
+          via_peer: {{ .Values.gateway.relaySsh.peer | quote }}
+          fallback_to_local: {{ .Values.gateway.relaySsh.fallbackToLocal | default false }}
+        {{- end }}
+        {{- if .Values.gateway.splitInclude }}
+        # PINNED split-include: openconnect installs EXACTLY these routes and
+        # never a default route.
+        route_source: pinned
+        pinned_routes:
+          {{- range .Values.gateway.splitInclude }}
+          - {{ . | quote }}
+          {{- end }}
+        {{- else }}
+        # DYNAMIC split-include: the FortiGate pushes CISCO_SPLIT_INC at session
+        # bring-up; openconnect installs whatever it receives (never a default route).
+        route_source: dynamic
+        {{- end }}
+    # ---------------------------------------------------------------------
+    # ALTERNATIVE — refreshed-cookie-Secret mode (when cid is unreachable).
+    # Instead of the live SSH relay, the operator refreshes the SVPNCOOKIE
+    # out-of-band (`fortictl emit-cookie --refresh akeyless` on the driver),
+    # writes it into a Secret, and mounts that Secret into the per-profile
+    # cookie cache at {state_dir}/cookies/akeyless. Then set
+    # gateway.cookieFile to that path (e.g. /var/lib/fortictl/cookies/akeyless)
+    # — the relay branch above is replaced by the cookie_file branch and
+    # fortictl reads the cached cookie, skipping both SSH and SAML.
+    # ---------------------------------------------------------------------

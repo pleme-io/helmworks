@@ -1,0 +1,132 @@
+{{/*
+lareira-akeyless-gateway: all resources.
+
+The TRANSLATION layer. The chart's typed authoring surface (gateway.* /
+cloudflared.* / forwarding / networkPolicy / serviceMonitor / breathe) is
+translated HERE into the flat values pleme-lib.deployment consumes (command,
+args, securityContext, podSecurityContext, volumes, volumeMounts, sidecars,
+health, resources, serviceAccount, monitoring, networkPolicy). Operators author
+the typed surface; these `set` calls derive the pleme-lib values.
+
+Delegates to pleme-lib named templates:
+  - pleme-lib.deployment      (the two-container gateway pod)
+  - pleme-lib.serviceaccount  (the pod's SA)
+  - pleme-lib.networkpolicy   (egress-only deny-all + selective allows)
+  - pleme-lib.servicemonitor  (optional; off by default)
+  - pleme-lib.breatheBand     (optional; off by default)
+
+Deliberately NO pleme-lib.service — egress-only workload, no listening port.
+*/}}
+
+{{- $g  := .Values.gateway -}}
+{{- $cf := .Values.cloudflared -}}
+{{- $fullname := include "pleme-lib.fullname" . -}}
+
+{{/* ── Entrypoint: fortictl gateway --profile <profile> ──────────────────── */}}
+{{- $_ := set .Values "command" (list "fortictl" "gateway" "--profile" ($g.profile | default "akeyless")) -}}
+
+{{/* ── Args: --l3-forward only when the M4 forwarding gate is opened ──────── */}}
+{{- $args := list -}}
+{{- if (.Values.forwarding).enabled -}}{{- $args = append $args "--l3-forward" -}}{{- end -}}
+{{- $_ := set .Values "args" $args -}}
+
+{{/* ── Egress-only main container: no listening port ─────────────────────── */}}
+{{- $_ := set .Values "ports" (list) -}}
+
+{{/* ── Pod runs as root (uid 0) for /dev/net/tun + route installation.
+       pleme-lib >=0.33.0 honors runAsNonRoot:false / runAsUser:0 via hasKey. */}}
+{{- $_ := set .Values "podSecurityContext" (dict "runAsNonRoot" false "runAsUser" 0) -}}
+
+{{/* ── Container securityContext: drop ALL, add NET_ADMIN when requested.
+       NOT privileged. readOnlyRootFilesystem:false — openconnect's vpnc-script
+       rewrites /etc/resolv.conf at session bring-up. */}}
+{{- $caps := dict "drop" (list "ALL") -}}
+{{- if ($g.privileged).netAdmin -}}{{- $_ := set $caps "add" (list "NET_ADMIN") -}}{{- end -}}
+{{- $_ := set .Values "securityContext" (dict
+      "allowPrivilegeEscalation" true
+      "readOnlyRootFilesystem" false
+      "capabilities" $caps) -}}
+
+{{/* ── Volumes + mounts derived from the typed surface ───────────────────── */}}
+{{- $volumes := list -}}
+{{- $mounts  := list -}}
+{{- if ($g.privileged).tunDevice -}}
+{{-   $volumes = append $volumes (dict "name" "tun" "hostPath" (dict "path" "/dev/net/tun" "type" "CharDevice")) -}}
+{{-   $mounts  = append $mounts  (dict "name" "tun" "mountPath" "/dev/net/tun") -}}
+{{- end -}}
+{{- $volumes = append $volumes (dict "name" "relay-ssh" "secret" (dict "secretName" ($g.relaySsh).secretName "defaultMode" 0400)) -}}
+{{- $mounts  = append $mounts  (dict "name" "relay-ssh" "mountPath" "/root/.ssh" "readOnly" true) -}}
+{{- $volumes = append $volumes (dict "name" "state" "emptyDir" (dict)) -}}
+{{- $mounts  = append $mounts  (dict "name" "state" "mountPath" "/var/lib/fortictl") -}}
+{{- $volumes = append $volumes (dict "name" "config" "configMap" (dict "name" (printf "%s-fortictl" $fullname))) -}}
+{{- $mounts  = append $mounts  (dict "name" "config" "mountPath" "/etc/fortictl" "readOnly" true) -}}
+{{- $_ := set .Values "volumes" $volumes -}}
+{{- $_ := set .Values "volumeMounts" $mounts -}}
+
+{{/* ── Forwarding feature flag (env) — paired with the --l3-forward arg.
+       Needs the fortictl image built WITH the l3-forward feature; does NOT add
+       MASQUERADE on the core path. */}}
+{{- if (.Values.forwarding).enabled -}}
+{{-   $_ := set .Values "env" (list (dict "name" "FORTICTL_L3_FORWARD" "value" "true")) -}}
+{{- end -}}
+
+{{/* ── Internal (computed) pleme-lib knobs — not part of the typed surface ── */}}
+{{- $_ := set .Values "serviceAccount" (dict "create" true "name" "") -}}
+{{- $_ := set .Values "health" (dict
+      "type" "Exec"
+      "execCommand" (list "test" "-e" "/sys/class/net/tun0")
+      "livenessInitialDelay" 60 "livenessPeriod" 30 "livenessFailureThreshold" 6
+      "readinessInitialDelay" 15 "readinessPeriod" 15 "readinessFailureThreshold" 4) -}}
+{{- $_ := set .Values "resources" (dict
+      "requests" (dict "cpu" "50m" "memory" "64Mi")
+      "limits"   (dict "cpu" "300m" "memory" "256Mi")) -}}
+{{- $_ := set .Values "monitoring" (dict "enabled" ((.Values.serviceMonitor).enabled | default false)) -}}
+
+{{/* ── NetworkPolicy: built-in egress allows + appended additionalEgress ──── */}}
+{{- $np := .Values.networkPolicy | default dict -}}
+{{- $builtinEgress := list
+      (dict "name" "fortigate-vpn"    "rules" (list (dict "ports" (list (dict "port" 10443 "protocol" "TCP")))))
+      (dict "name" "ssh-cookie-relay" "rules" (list (dict "ports" (list (dict "port" 22    "protocol" "TCP"))))) -}}
+{{- if $cf.enabled -}}
+{{-   $builtinEgress = append $builtinEgress (dict "name" "cloudflared-edge" "rules" (list (dict "ports" (list (dict "port" 443 "protocol" "TCP") (dict "port" 7844 "protocol" "UDP"))))) -}}
+{{- end -}}
+{{- $allEgress := concat $builtinEgress ($np.additionalEgress | default list) -}}
+{{- $_ := set .Values "networkPolicy" (dict
+      "enabled" ($np.enabled | default false)
+      "allowDns" true
+      "allowPrometheus" false
+      "additionalEgress" $allEgress) -}}
+
+{{/* ── cloudflared sidecar woven in when enabled. warpRouting is edge-side
+       config; recorded as a pod annotation so the declared intent is observable. */}}
+{{- if $cf.enabled -}}
+{{-   $_ := set .Values "podAnnotations" (dict "cloudflared.pleme.io/warp-routing" (toString ($cf.warpRouting | default false))) -}}
+{{-   $cfSidecar := dict
+        "name" "cloudflared"
+        "image" (printf "%s:%s" $cf.image $cf.tag)
+        "imagePullPolicy" "IfNotPresent"
+        "args" (list "tunnel" "run")
+        "env" (list
+          (dict "name" "TUNNEL_TOKEN" "valueFrom" (dict "secretKeyRef" (dict "name" $cf.tokenSecret "key" $cf.tokenKey)))
+          (dict "name" "TUNNEL_TRANSPORT_PROTOCOL" "value" "http2")
+          (dict "name" "TUNNEL_METRICS" "value" "0.0.0.0:2000"))
+        "securityContext" (dict
+          "allowPrivilegeEscalation" false
+          "readOnlyRootFilesystem" false
+          "runAsNonRoot" true
+          "capabilities" (dict "drop" (list "ALL"))
+          "seccompProfile" (dict "type" "RuntimeDefault"))
+        "livenessProbe"  (dict "httpGet" (dict "path" "/ready" "port" 2000) "initialDelaySeconds" 10 "periodSeconds" 30)
+        "readinessProbe" (dict "httpGet" (dict "path" "/ready" "port" 2000) "initialDelaySeconds" 5  "periodSeconds" 10)
+        "resources" (dict
+          "requests" (dict "cpu" "50m" "memory" "64Mi")
+          "limits"   (dict "cpu" "200m" "memory" "128Mi")) -}}
+{{-   $_ := set .Values "sidecars" (list $cfSidecar) -}}
+{{- end -}}
+
+{{- include "pleme-lib.deployment" . }}
+---
+{{ include "pleme-lib.serviceaccount" . }}
+{{- include "pleme-lib.networkpolicy" . }}
+{{- include "pleme-lib.servicemonitor" . }}
+{{- include "pleme-lib.breatheBand" . }}

@@ -1,0 +1,40 @@
+apiVersion: v2
+name: lareira-akeyless-gateway
+description: |
+  akeyless FortiGate SSL-VPN gateway — a single rio pod that bridges the
+  Cloudflare WARP edge into the akeyless corporate network over a headless
+  FortiGate openconnect session.
+
+  TWO containers share ONE netns:
+    (A) cloudflared sidecar — userspace token connector with warp-routing
+        on, NO privilege. Re-originates WARP flows in userspace so they
+        inherit tun0's VPN source IP.
+    (B) fortictl-gateway   — NET_ADMIN + hostPath /dev/net/tun. SSH-relays
+        the SVPNCOOKIE from the canonical SAML driver (drzzln@cid), runs
+        openconnect to the FortiGate, and installs ONLY split-include
+        routes (NEVER a default route).
+
+  NO MASQUERADE / NO ip_forward on the core path — cloudflared re-originates
+  flows in userspace, so they ride tun0 without L3 forwarding. (ip_forward +
+  MASQUERADE are an OPTIONAL, OFF-by-default M4 follow-on for forwarding
+  OTHER workloads' traffic.)
+
+  Egress-only: no Service, no ingress. WARP scoping is a CUSTOM device
+  profile (Include mode) matched to the operator group — never the
+  account-global default profile.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords: [akeyless, fortigate, openconnect, vpn, cloudflared, warp, gateway, lareira]
+maintainers: [{name: drzzln, email: drzzln@protonmail.com}]
+home: https://github.com/pleme-io/helmworks
+dependencies:
+  # Only pleme-lib — this chart includes pleme-lib.deployment / .serviceaccount
+  # / .networkpolicy directly (it needs NO Service + a value-toggled sidecar,
+  # which pleme-lareira.allResources can't express). Mirrors lareira-cloudflared
+  # (the closest analog: an egress-only token-connector that also depends only
+  # on pleme-lib). Requires >=0.33.0 for values-driven securityContext.capabilities.add
+  # and honest runAsUser:0 / runAsNonRoot:false (the root+NET_ADMIN surface).
+  - name: pleme-lib
+    version: ">=0.33.0"
+    repository: "file://../pleme-lib"

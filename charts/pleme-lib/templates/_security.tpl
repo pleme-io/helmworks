@@ -22,15 +22,19 @@ Pod security context
 {{- if eq $enabled "true" -}}
 {{- include "pleme-lib.compliance.podSecurityContext" . -}}
 {{- else -}}
-runAsNonRoot: {{ (.Values.podSecurityContext).runAsNonRoot | default true }}
-runAsUser: {{ (.Values.podSecurityContext).runAsUser | default 1000 }}
-{{- with (.Values.podSecurityContext).runAsGroup }}
+{{- $psc := .Values.podSecurityContext | default dict -}}
+{{- /* hasKey (not `| default`): `| default` treats 0 / false as "empty" and
+       coerces them back to the default, so a deliberate root workload
+       (runAsNonRoot: false, runAsUser: 0) could not be expressed. */ -}}
+runAsNonRoot: {{ if hasKey $psc "runAsNonRoot" }}{{ $psc.runAsNonRoot }}{{ else }}true{{ end }}
+runAsUser: {{ if hasKey $psc "runAsUser" }}{{ $psc.runAsUser }}{{ else }}1000{{ end }}
+{{- with $psc.runAsGroup }}
 runAsGroup: {{ . }}
 {{- end }}
-fsGroup: {{ (.Values.podSecurityContext).fsGroup | default 1000 }}
+fsGroup: {{ if hasKey $psc "fsGroup" }}{{ $psc.fsGroup }}{{ else }}1000{{ end }}
 seccompProfile:
-  type: {{ ((.Values.podSecurityContext).seccompProfile).type | default "RuntimeDefault" }}
-  {{- with ((.Values.podSecurityContext).seccompProfile).localhostProfile }}
+  type: {{ ($psc.seccompProfile).type | default "RuntimeDefault" }}
+  {{- with ($psc.seccompProfile).localhostProfile }}
   localhostProfile: {{ . }}
   {{- end }}
 {{- end -}}
@@ -44,18 +48,35 @@ Container security context (enforced baseline)
 {{- if eq $enabled "true" -}}
 {{- include "pleme-lib.compliance.containerSecurityContext" . -}}
 {{- else -}}
-allowPrivilegeEscalation: {{ (.Values.securityContext).allowPrivilegeEscalation | default false }}
-readOnlyRootFilesystem: {{ (.Values.securityContext).readOnlyRootFilesystem | default true }}
+{{- $sc := .Values.securityContext | default dict -}}
+{{- /* hasKey for readOnlyRootFilesystem: `false | default true` -> true,
+       so an explicit readOnlyRootFilesystem: false (e.g. a workload that
+       must rewrite /etc at startup) was silently forced back to true. */ -}}
+allowPrivilegeEscalation: {{ if hasKey $sc "allowPrivilegeEscalation" }}{{ $sc.allowPrivilegeEscalation }}{{ else }}false{{ end }}
+readOnlyRootFilesystem: {{ if hasKey $sc "readOnlyRootFilesystem" }}{{ $sc.readOnlyRootFilesystem }}{{ else }}true{{ end }}
+{{- if hasKey $sc "privileged" }}
+privileged: {{ $sc.privileged }}
+{{- end }}
+{{- if hasKey $sc "runAsNonRoot" }}
+runAsNonRoot: {{ $sc.runAsNonRoot }}
+{{- end }}
 capabilities:
   drop:
-    {{- if (.Values.securityContext).capabilities }}
-    {{- toYaml (.Values.securityContext).capabilities.drop | nindent 4 }}
+    {{- if and $sc.capabilities $sc.capabilities.drop }}
+    {{- toYaml $sc.capabilities.drop | nindent 4 }}
     {{- else }}
     - ALL
     {{- end }}
+  {{- /* capabilities.add is now values-driven at every baseline (the
+         compliance variant already honored it; the legacy non-compliance
+         branch silently dropped it). */ -}}
+  {{- if and $sc.capabilities $sc.capabilities.add }}
+  add:
+    {{- toYaml $sc.capabilities.add | nindent 4 }}
+  {{- end }}
 seccompProfile:
-  type: {{ ((.Values.securityContext).seccompProfile).type | default "RuntimeDefault" }}
-  {{- with ((.Values.securityContext).seccompProfile).localhostProfile }}
+  type: {{ ($sc.seccompProfile).type | default "RuntimeDefault" }}
+  {{- with ($sc.seccompProfile).localhostProfile }}
   localhostProfile: {{ . }}
   {{- end }}
 {{- end -}}
