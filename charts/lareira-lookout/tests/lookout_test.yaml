@@ -1,0 +1,60 @@
+suite: lareira-lookout — breathable Grafana face (INFRA plane)
+templates:
+  - templates/deployment.yaml
+  - templates/config.yaml
+  - templates/breathe.yaml
+  - templates/scaledobject.yaml
+tests:
+  - it: deploys its OWN Grafana with datasource provisioning mounted
+    template: templates/deployment.yaml
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].image
+          pattern: "grafana/grafana"
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[1].mountPath
+          value: /etc/grafana/provisioning/datasources
+
+  - it: hardens grafana.ini — anonymous + signup OFF, host as root_url
+    template: templates/config.yaml
+    documentIndex: 0
+    asserts:
+      - matchRegex:
+          path: data["grafana.ini"]
+          pattern: "enabled = false"
+      - matchRegex:
+          path: data["grafana.ini"]
+          pattern: "allow_sign_up = false"
+
+  - it: provisions a datasource per feeder store (feeders->datasources)
+    template: templates/config.yaml
+    documentIndex: 1
+    asserts:
+      - matchRegex:
+          path: data["datasources.yaml"]
+          pattern: 'type: "prometheus"'
+
+  - it: breathes on memory (band targets the Deployment, shadow-first)
+    template: templates/breathe.yaml
+    documentSelector:
+      path: kind
+      value: MemoryBand
+    asserts:
+      - equal:
+          path: spec.targetRef.kind
+          value: Deployment
+      - equal:
+          path: spec.dryRun
+          value: true
+
+  - it: scale-to-zero emits a KEDA HTTPScaledObject only when enabled
+    template: templates/scaledobject.yaml
+    set:
+      scaleToZero.enabled: true
+    asserts:
+      - equal:
+          path: kind
+          value: HTTPScaledObject
+      - equal:
+          path: spec.replicas.min
+          value: 0

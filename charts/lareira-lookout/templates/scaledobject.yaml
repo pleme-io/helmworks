@@ -1,0 +1,35 @@
+{{/*
+scaledobject.yaml — ZERO-SCALE query-wake (KEDA HTTP add-on).
+
+A Grafana face wakes on the FIRST HTTP query and recedes when unwatched. This
+uses the KEDA HTTP add-on (the interceptor) — a DELIBERATE growth-ladder
+cluster dependency — so it is default-OFF: the central lookout runs always-on
+(the single pane an operator opens first), popup faces opt into scale-to-zero.
+When off, the Deployment holds `replicas` (templates/deployment.yaml).
+*/}}
+{{- if .Values.scaleToZero.enabled }}
+{{- $fullname := include "pleme-lib.fullname" . }}
+apiVersion: http.keda.sh/v1alpha1
+kind: HTTPScaledObject
+metadata:
+  name: {{ $fullname }}
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+spec:
+  hosts:
+    - {{ .Values.lookout.host | quote }}
+  scaleTargetRef:
+    name: {{ $fullname }}
+    kind: Deployment
+    apiVersion: apps/v1
+    service: {{ $fullname }}
+    port: {{ .Values.grafana.port }}
+  replicas:
+    min: {{ .Values.scaleToZero.minReplicas }}
+    max: {{ .Values.scaleToZero.maxReplicas }}
+  scaledownPeriod: {{ .Values.scaleToZero.scaledownPeriod }}
+  scalingMetric:
+    requestRate:
+      targetValue: {{ .Values.scaleToZero.targetPendingRequests }}
+{{- end }}

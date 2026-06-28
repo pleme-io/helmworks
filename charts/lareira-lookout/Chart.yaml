@@ -1,0 +1,27 @@
+apiVersion: v2
+name: lareira-lookout
+description: |
+  Lookout — the INFRA plane of the single-declaration observation vantage
+  (theory/LOOKOUT.md). A self-contained, breathable Grafana face that watches
+  one-or-many lareira/tendril feeder meshes: it authors its OWN Grafana
+  Deployment + datasource provisioning computed from the declared feeders
+  (it does NOT wrap a metrics-stack subchart Grafana — a Helm parent cannot
+  inject computed values into a subchart, and the feeders->datasources map is
+  the whole point).
+
+  Generic + reusable (the "borealis" line): a face is parameterized entirely by
+  values (faceKind, host, feeders, datasources, breathe, scale-to-zero,
+  node placement). The ACCESS (mTLS), CREDENTIAL (SA-token), and INTERFACE
+  (MCP) planes are sibling artifacts; this chart is INFRA. Consumer-specific
+  hosts/feeders/secrets live only in the consumer's private values, never here.
+type: application
+version: 0.1.0
+appVersion: "11.3.0"
+keywords: [grafana, observability, lookout, lareira, vantage]
+maintainers:
+  - name: drzzln
+    email: drzzln@protonmail.com
+dependencies:
+  - name: pleme-lib
+    version: ">=0.32.0"
+    repository: "file://../pleme-lib"

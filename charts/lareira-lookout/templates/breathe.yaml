@@ -1,0 +1,11 @@
+{{/*
+breathe.yaml — the face breathes (memory + cpu limits carved in-band).
+
+Emitted by the canonical pleme-lib.breatheBand helper, retargeted to this
+chart's Grafana Deployment (.Values.breathe.targetRef). Shadow-first (dryRun)
+per the rollout posture; the PVC carries the breathe-expandable label
+(templates/config.yaml) so a StorageBand can grow it if disk pressure appears.
+*/}}
+{{- if .Values.breathe.enabled }}
+{{- include "pleme-lib.breatheBand" . }}
+{{- end }}

@@ -1,0 +1,17 @@
+{{/* service.yaml — the face's ClusterIP; the ACCESS overlay + the HTTP scaler
+front this, and the SA-token MCP queries it. */}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "pleme-lib.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.grafana.port }}
+      targetPort: http

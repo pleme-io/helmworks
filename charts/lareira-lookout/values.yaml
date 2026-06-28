@@ -1,0 +1,122 @@
+# lareira-lookout — the INFRA plane of a Lookout (theory/LOOKOUT.md).
+# A breathable Grafana face over its feeder meshes. GENERIC / borealis-free —
+# consumer-specific hosts/feeders/secrets live only in the consumer's private
+# values, never in this chart.
+
+nameOverride: ""
+fullnameOverride: ""
+
+lookout:
+  # The face name (identity across every plane); defaults to the release name.
+  name: ""
+  faceKind: grafana          # grafana | clickhouse | logs-ui | profiler
+                             #   (only grafana is end-to-end today)
+  topology: popup            # central | popup (informational here; the feeders
+                             #   list is what actually differs)
+  # The publicly-NAMED DNS record this face answers on -> GF_SERVER_ROOT_URL.
+  host: lookout.example.dev
+
+grafana:
+  image:
+    repository: grafana/grafana
+    tag: "11.3.0"
+    pullPolicy: IfNotPresent
+  port: 3000
+  # The human login: admin user + COMPLEX password from a pre-seeded secret
+  # (the bootstrap-of-the-bootstrap; cofre/SOPS-sealed in real clusters). Keys
+  # admin-user / admin-password. The SA token (CREDENTIAL plane) is provisioned
+  # separately against this admin login.
+  adminSecret: grafana-admin
+  # Resources are breathe-managed (bands below carve the real limits); small
+  # starting envelope — the face sleeps when unwatched.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  # Hardening: anonymous + signup OFF (the human logs in; agents use the SA
+  # token over the INTERFACE plane). The login form stays for the human user.
+  ini:
+    anonymousEnabled: false
+    allowSignUp: false
+    extra: {}                # free-form grafana.ini sections (map of section->kv)
+
+# ── Datasources: the feeders→datasources projection (Lookout morphism #2). ────
+# In this M0 chart the datasource SET is a plain list (the registry emitter
+# computes it from `feeders[]`: central=all meshes, popup=one). VictoriaMetrics
+# is prometheus-wire; victoria-logs + clickhouse use their Grafana plugins.
+datasources:
+  - name: metrics
+    type: prometheus
+    url: http://vmsingle.example.svc:8429
+    isDefault: true
+  - name: logs
+    type: victorialogs-datasource
+    url: http://victoria-logs.example.svc:9428
+  # - name: events
+  #   type: grafana-clickhouse-datasource
+  #   url: http://lareira-clickhouse.example.svc:8123
+
+persistence:
+  enabled: true
+  storageClass: ""           # "" = cluster default
+  size: 2Gi
+
+# ── Breathe homeostasis (memory + cpu limits carved in-band, shadow-first). ───
+# Emitted by the canonical pleme-lib.breatheBand helper, retargeted to this
+# chart's Deployment.
+breathe:
+  enabled: true
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+  memory:
+    enabled: true
+    setpoint: 0.80
+    floor: "128Mi"
+    ceiling: "2Gi"
+    growAbove: 0.85
+    shrinkBelow: 0.70
+    cooldownSeconds: 600
+    disruptionPolicy: restartFreeOnly
+    dryRun: true
+  cpu:
+    enabled: true
+    setpoint: 0.80
+    floor: "100m"
+    ceiling: "2000m"
+    growAbove: 0.85
+    shrinkBelow: 0.70
+    cooldownSeconds: 600
+    disruptionPolicy: restartFreeOnly
+    dryRun: true
+
+# ── Scale-to-zero (query-wake). A Grafana wakes on the first HTTP query and
+# recedes when unwatched. Requires the KEDA HTTP add-on (the interceptor) — a
+# DELIBERATE growth-ladder dependency, so default OFF: the central lookout runs
+# always-on (the single pane), popups opt into scale-to-zero. ─────────────────
+scaleToZero:
+  enabled: false
+  minReplicas: 0
+  maxReplicas: 1
+  targetPendingRequests: 1
+  scaledownPeriod: 300
+
+# When scaleToZero is off, the Deployment runs this many replicas.
+replicas: 1
+
+# Node placement — generic by default; the consumer pins its own pool/taint.
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+podSecurityContext:
+  fsGroup: 472
+  runAsUser: 472
+  runAsNonRoot: true
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: [ALL]

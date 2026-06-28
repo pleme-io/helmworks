@@ -1,0 +1,70 @@
+{{/*
+config.yaml — the Grafana face's provisioning + persistence.
+
+  • grafana.ini      — server root_url (= the face host), anon/signup OFF.
+  • datasources.yaml — the feeders→datasources projection (Lookout morphism #2):
+                       one Grafana datasource per declared feeder store.
+  • PVC              — the face's dashboard/state store (ReadWriteOnce).
+*/}}
+{{- $fullname := include "pleme-lib.fullname" . }}
+{{- $g := .Values.grafana }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullname }}-grafana-ini
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+data:
+  grafana.ini: |
+    [server]
+    root_url = https://{{ .Values.lookout.host }}
+    [auth.anonymous]
+    enabled = {{ $g.ini.anonymousEnabled }}
+    [users]
+    allow_sign_up = {{ $g.ini.allowSignUp }}
+    {{- range $section, $kv := $g.ini.extra }}
+    [{{ $section }}]
+    {{- range $k, $v := $kv }}
+    {{ $k }} = {{ $v }}
+    {{- end }}
+    {{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullname }}-datasources
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+data:
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+    {{- range .Values.datasources }}
+      - name: {{ .name | quote }}
+        type: {{ .type | quote }}
+        access: proxy
+        url: {{ .url | quote }}
+        isDefault: {{ .isDefault | default false }}
+        editable: false
+    {{- end }}
+{{- if .Values.persistence.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $fullname }}-data
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+    breathe.pleme.io/expandable: "true"
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- with .Values.persistence.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.size }}
+{{- end }}
