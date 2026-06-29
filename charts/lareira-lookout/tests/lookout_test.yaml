@@ -56,6 +56,21 @@ tests:
           path: data["datasources.yaml"]
           pattern: 'type: "prometheus"'
 
+  - it: pins a datasource uid when given, defaults to the name otherwise
+    template: templates/config.yaml
+    documentIndex: 1
+    set:
+      datasources:
+        - { name: metrics, uid: vm, type: prometheus, url: "http://vm:8429" }
+        - { name: logs, type: victoriametrics-logs-datasource, url: "http://vl:9428" }
+    asserts:
+      - matchRegex:
+          path: data["datasources.yaml"]
+          pattern: 'uid: "vm"'
+      - matchRegex:
+          path: data["datasources.yaml"]
+          pattern: 'uid: "logs"'
+
   - it: breathes on memory (band targets the Deployment, shadow-first)
     template: templates/breathe.yaml
     documentSelector:
