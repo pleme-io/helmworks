@@ -66,6 +66,14 @@ spec:
         app: {{ $vecName }}
     spec:
       serviceAccountName: {{ $vecName }}
+      {{- with $ingest.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $ingest.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000

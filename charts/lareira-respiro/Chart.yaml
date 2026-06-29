@@ -9,7 +9,7 @@ description: >-
   entirely from already-shipped pleme-lib helpers. Default-off: respiro.enabled=false
   renders zero documents.
 type: application
-version: 0.1.6
+version: 0.1.7
 appVersion: "0.1.0"
 # respiro composes pleme-lib helpers (vectorConfig / jetstream / breathability /
 # breatheBand / delivery) and the lareira-observe ATTACH abstraction (the OBSERVE
