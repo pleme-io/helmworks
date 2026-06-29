@@ -82,6 +82,10 @@ spec:
               value: {{ $g.ini.anonymousEnabled | quote }}
             - name: GF_USERS_ALLOW_SIGN_UP
               value: {{ $g.ini.allowSignUp | quote }}
+            {{- with $g.plugins }}
+            - name: GF_INSTALL_PLUGINS
+              value: {{ join "," . | quote }}
+            {{- end }}
           volumeMounts:
             - name: grafana-ini
               mountPath: /etc/grafana/grafana.ini

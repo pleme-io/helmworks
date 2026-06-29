@@ -42,6 +42,15 @@ grafana:
     anonymousEnabled: false
     allowSignUp: false
     extra: {}                # free-form grafana.ini sections (map of section->kv)
+  # Grafana plugins installed at pod start via GF_INSTALL_PLUGINS (pulled from
+  # grafana.com — confirm the cluster's egress allows it, or pin a baked image /
+  # mirrored plugin URL for an air-gapped face). Empty by default.
+  # NOTE: the VictoriaLogs datasource plugin id is `victoriametrics-logs-datasource`
+  # (NOT "victorialogs-datasource" / "VictoriaLogs") — Grafana matches a datasource
+  # `type:` to the plugin id, so a logs datasource's type AND this id must be the
+  # SAME string. A face that declares a victoriametrics-logs-datasource datasource
+  # must list it here, or every log panel renders "datasource not found".
+  plugins: []
 
 # ── Datasources: the feeders→datasources projection (Lookout morphism #2). ────
 # In this M0 chart the datasource SET is a plain list (the registry emitter

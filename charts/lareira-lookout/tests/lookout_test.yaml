@@ -16,6 +16,27 @@ tests:
           path: spec.template.spec.containers[0].volumeMounts[1].mountPath
           value: /etc/grafana/provisioning/datasources
 
+  - it: installs grafana plugins via GF_INSTALL_PLUGINS when declared
+    template: templates/deployment.yaml
+    set:
+      grafana.plugins:
+        - victoriametrics-logs-datasource
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GF_INSTALL_PLUGINS
+            value: victoriametrics-logs-datasource
+
+  - it: omits GF_INSTALL_PLUGINS by default (no plugins declared)
+    template: templates/deployment.yaml
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          any: true
+          content:
+            name: GF_INSTALL_PLUGINS
+
   - it: hardens grafana.ini — anonymous + signup OFF, host as root_url
     template: templates/config.yaml
     documentIndex: 0

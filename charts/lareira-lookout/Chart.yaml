@@ -15,7 +15,7 @@ description: |
   (MCP) planes are sibling artifacts; this chart is INFRA. Consumer-specific
   hosts/feeders/secrets live only in the consumer's private values, never here.
 type: application
-version: 0.2.1
+version: 0.2.2
 appVersion: "11.3.0"
 keywords: [grafana, observability, lookout, lareira, vantage]
 maintainers:
