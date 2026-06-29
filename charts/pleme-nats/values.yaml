@@ -187,12 +187,26 @@ service:
     monitoring: 8222
     metrics: 7777
 
-# ─── ServiceMonitor ─────────────────────────────────────────────────
+# ─── ServiceMonitor (prometheus-operator) ───────────────────────────
 serviceMonitor:
   enabled: true
   interval: 30s
   scrapeTimeout: 10s
   port: metrics
+
+# ─── VMServiceScrape (VictoriaMetrics-native) ───────────────────────
+# First-class VMServiceScrape for clusters running the VictoriaMetrics
+# operator and NO prometheus-operator controller. Prefer this over
+# serviceMonitor there — it does not rely on vmagent's cross-CR
+# ServiceMonitor conversion. Scrapes the exporter sidecar's
+# JetStream/connz/varz metrics on the `metrics` port (7777) — the
+# literal "is the queue filling/draining" signal.
+vmScrape:
+  enabled: false
+  port: metrics
+  path: /metrics
+  interval: 30s
+  scrapeTimeout: 10s
 
 # ─── NetworkPolicy ──────────────────────────────────────────────────
 # Default: only consumers in tend-system + monitoring + observability

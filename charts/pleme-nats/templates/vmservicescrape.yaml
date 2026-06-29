@@ -1,0 +1,20 @@
+{{- if .Values.enabled }}
+{{- if .Values.vmScrape.enabled }}
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: {{ include "pleme-nats.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pleme-nats.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "pleme-nats.selectorLabels" . | nindent 6 }}
+  endpoints:
+    - port: {{ .Values.vmScrape.port }}
+      path: {{ .Values.vmScrape.path }}
+      interval: {{ .Values.vmScrape.interval }}
+      scrapeTimeout: {{ .Values.vmScrape.scrapeTimeout }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,30 @@
+suite: pleme-nats VMServiceScrape (VictoriaMetrics-native)
+templates:
+  - templates/vmservicescrape.yaml
+tests:
+  - it: emits no VMServiceScrape by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: emits a VMServiceScrape on the metrics port when enabled
+    set:
+      vmScrape.enabled: true
+    asserts:
+      - containsDocument:
+          kind: VMServiceScrape
+          apiVersion: operator.victoriametrics.com/v1beta1
+      - equal:
+          path: spec.endpoints[0].port
+          value: metrics
+      - equal:
+          path: spec.endpoints[0].path
+          value: /metrics
+
+  - it: emits nothing when the chart is disabled even with vmScrape on
+    set:
+      enabled: false
+      vmScrape.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
