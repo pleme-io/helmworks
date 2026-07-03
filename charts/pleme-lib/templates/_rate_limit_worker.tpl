@@ -240,11 +240,12 @@ spec:
         - name: tmp
           emptyDir:
             sizeLimit: 100Mi
-      {{- with .Values.nodeSelector }}
+      {{- $sched := .Values.global | default dict }}
+      {{- with (.Values.nodeSelector | default $sched.nodeSelector) }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.tolerations }}
+      {{- with (.Values.tolerations | default $sched.tolerations) }}
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}

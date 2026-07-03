@@ -1,0 +1,84 @@
+suite: pleme-lib bare-fixture — global.nodeSelector / global.tolerations fallback
+# A top-level `global.nodeSelector` / `global.tolerations` (which Helm propagates
+# to every subchart) becomes the fleet-wide scheduling posture: every pleme-lib
+# workload pins to it unless the chart sets its own per-chart nodeSelector /
+# tolerations, which still win. Backward-compatible — nothing set renders nothing.
+# This is the primitive that lets one overlay value pin a whole umbrella (e.g. an
+# isolated tainted node group) without touching each subchart.
+templates:
+  - templates/deployment.yaml
+  - templates/statefulset.yaml
+release:
+  name: t
+  namespace: testns
+defaults: &defaults
+  image.repository: ghcr.io/x/y
+  image.tag: "1.0.0"
+  serviceAccount.create: true
+
+tests:
+  - it: "global.nodeSelector flows to the Deployment when the chart sets none"
+    template: templates/deployment.yaml
+    set:
+      <<: *defaults
+      global.nodeSelector.role: camelot
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector.role
+          value: camelot
+
+  - it: "global.tolerations flows to the Deployment when the chart sets none"
+    template: templates/deployment.yaml
+    set:
+      <<: *defaults
+      global.tolerations:
+        - key: camelot-only
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+    asserts:
+      - equal:
+          path: spec.template.spec.tolerations[0].key
+          value: camelot-only
+      - equal:
+          path: spec.template.spec.tolerations[0].effect
+          value: NoSchedule
+
+  - it: "a per-chart nodeSelector overrides the global fallback"
+    template: templates/deployment.yaml
+    set:
+      <<: *defaults
+      global.nodeSelector.role: camelot
+      nodeSelector.role: override
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector.role
+          value: override
+
+  - it: "backward-compat — nothing set renders no scheduling posture, no error"
+    template: templates/deployment.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - notExists:
+          path: spec.template.spec.nodeSelector
+      - notExists:
+          path: spec.template.spec.tolerations
+
+  - it: "global.nodeSelector flows to the StatefulSet too (isolation is uniform)"
+    template: templates/statefulset.yaml
+    set:
+      <<: *defaults
+      global.nodeSelector.role: camelot
+      global.tolerations:
+        - key: camelot-only
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector.role
+          value: camelot
+      - equal:
+          path: spec.template.spec.tolerations[0].key
+          value: camelot-only
