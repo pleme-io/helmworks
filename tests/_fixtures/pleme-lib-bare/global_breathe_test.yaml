@@ -1,0 +1,67 @@
+suite: pleme-lib bare-fixture — global.breathe fallback + explicit mode passthrough
+# A top-level global.breathe (which Helm propagates to every subchart) arms every
+# workload's MemoryBand/CpuBand from one toggle — the breathe analogue of the
+# global.nodeSelector fallback. The explicit `mode` passthrough lets a no-cluster
+# environment pin `mode: shadow` (observe + attest forever, never carve), closing
+# the bare-dryRun auto-promote footgun. Per-chart breathe still wins wholesale.
+templates:
+  - templates/breatheband.yaml
+release:
+  name: t
+  namespace: testns
+
+tests:
+  - it: "global.breathe.enabled arms the MemoryBand with the global mode when the chart sets none"
+    set:
+      global.breathe:
+        enabled: true
+        memory: { setpoint: 0.8, dryRun: true, mode: shadow }
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: MemoryBand
+      - equal:
+          path: spec.mode
+          value: shadow
+      - equal:
+          path: spec.dryRun
+          value: true
+
+  - it: "global.breathe arms BOTH a MemoryBand and a CpuBand when cpu is enabled"
+    set:
+      global.breathe:
+        enabled: true
+        memory: { dryRun: true, mode: shadow }
+        cpu: { enabled: true, dryRun: true, mode: shadow }
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: spec.mode
+          value: shadow
+          documentIndex: 0
+      - equal:
+          path: spec.mode
+          value: shadow
+          documentIndex: 1
+
+  - it: "backward-compat — nothing set renders no bands, no error"
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: "a per-chart breathe block wins wholesale over the global fallback"
+    set:
+      global.breathe:
+        enabled: true
+        memory: { mode: shadow }
+      breathe:
+        enabled: true
+        memory: { dryRun: false, mode: live }
+    asserts:
+      - isKind:
+          of: MemoryBand
+      - equal:
+          path: spec.mode
+          value: live

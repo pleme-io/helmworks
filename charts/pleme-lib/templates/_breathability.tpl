@@ -44,14 +44,15 @@ Values:
 */}}
 
 {{- define "pleme-lib.breathability" -}}
-{{- if .Values.breathability }}
-{{- if .Values.breathability.enabled }}
+{{- $g := .Values.global | default dict }}
+{{- $b := .Values.breathability | default $g.breathability | default dict }}
+{{- if $b.enabled }}
 {{- $fullname := include "pleme-lib.fullname" . }}
-{{- $targetName := default $fullname .Values.breathability.targetName }}
-{{- $targetKind := default "Deployment" .Values.breathability.targetKind }}
+{{- $targetName := default $fullname $b.targetName }}
+{{- $targetKind := default "Deployment" $b.targetKind }}
 
 {{/* ── KEDA ScaledObject (zero-scale workers) ─────────────────────── */}}
-{{- if and .Values.breathability.trigger (eq (default "nats-jetstream" .Values.breathability.trigger.type) "nats-jetstream") }}
+{{- if and $b.trigger (eq (default "nats-jetstream" $b.trigger.type) "nats-jetstream") }}
 ---
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
@@ -63,26 +64,26 @@ spec:
   scaleTargetRef:
     kind: {{ $targetKind }}
     name: {{ $targetName }}
-  minReplicaCount: {{ default 0 .Values.breathability.min }}
-  maxReplicaCount: {{ default 4 .Values.breathability.max }}
-  cooldownPeriod: {{ default 300 .Values.breathability.cooldown }}
-  pollingInterval: {{ default 15 .Values.breathability.pollingInterval }}
+  minReplicaCount: {{ default 0 $b.min }}
+  maxReplicaCount: {{ default 4 $b.max }}
+  cooldownPeriod: {{ default 300 $b.cooldown }}
+  pollingInterval: {{ default 15 $b.pollingInterval }}
   triggers:
     - type: nats-jetstream
       metadata:
-        natsServerMonitoringEndpoint: {{ .Values.breathability.trigger.nats.serverURL | replace "nats://" "" | replace ":4222" ":8222" | quote }}
+        natsServerMonitoringEndpoint: {{ $b.trigger.nats.serverURL | replace "nats://" "" | replace ":4222" ":8222" | quote }}
         # KEDA's nats-jetstream scaler requires the NATS account; the default
         # no-auth global account is "$G". Configurable for accounted setups.
-        account: {{ default "$G" .Values.breathability.trigger.nats.account | quote }}
-        stream: {{ .Values.breathability.trigger.nats.stream | quote }}
-        consumer: {{ .Values.breathability.trigger.nats.consumer | quote }}
-        lagThreshold: {{ default "1" .Values.breathability.trigger.nats.lagThreshold | quote }}
-        activationLagThreshold: {{ default "0" .Values.breathability.trigger.nats.activationLagThreshold | quote }}
+        account: {{ default "$G" $b.trigger.nats.account | quote }}
+        stream: {{ $b.trigger.nats.stream | quote }}
+        consumer: {{ $b.trigger.nats.consumer | quote }}
+        lagThreshold: {{ default "1" $b.trigger.nats.lagThreshold | quote }}
+        activationLagThreshold: {{ default "0" $b.trigger.nats.activationLagThreshold | quote }}
 {{- end }}
 
 {{/* ── HPA (elastic serving targets) ─────────────────────────────── */}}
-{{- if .Values.breathability.hpa }}
-{{- if .Values.breathability.hpa.enabled }}
+{{- if $b.hpa }}
+{{- if $b.hpa.enabled }}
 ---
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
@@ -95,31 +96,30 @@ spec:
     apiVersion: apps/v1
     kind: {{ $targetKind }}
     name: {{ $targetName }}
-  minReplicas: {{ default 1 .Values.breathability.hpa.min }}
-  maxReplicas: {{ default 3 .Values.breathability.hpa.max }}
+  minReplicas: {{ default 1 $b.hpa.min }}
+  maxReplicas: {{ default 3 $b.hpa.max }}
   metrics:
     - type: Resource
       resource:
         name: cpu
         target:
           type: Utilization
-          averageUtilization: {{ default 70 .Values.breathability.hpa.targetCPU }}
+          averageUtilization: {{ default 70 $b.hpa.targetCPU }}
   behavior:
     scaleUp:
-      stabilizationWindowSeconds: {{ default 60 ((.Values.breathability.hpa).scaleUp).stabilization }}
+      stabilizationWindowSeconds: {{ default 60 (($b.hpa).scaleUp).stabilization }}
       policies:
         - type: Pods
-          value: {{ default 1 ((.Values.breathability.hpa).scaleUp).pods }}
-          periodSeconds: {{ default 60 ((.Values.breathability.hpa).scaleUp).period }}
+          value: {{ default 1 (($b.hpa).scaleUp).pods }}
+          periodSeconds: {{ default 60 (($b.hpa).scaleUp).period }}
     scaleDown:
-      stabilizationWindowSeconds: {{ default 300 ((.Values.breathability.hpa).scaleDown).stabilization }}
+      stabilizationWindowSeconds: {{ default 300 (($b.hpa).scaleDown).stabilization }}
       policies:
         - type: Pods
-          value: {{ default 1 ((.Values.breathability.hpa).scaleDown).pods }}
-          periodSeconds: {{ default 120 ((.Values.breathability.hpa).scaleDown).period }}
+          value: {{ default 1 (($b.hpa).scaleDown).pods }}
+          periodSeconds: {{ default 120 (($b.hpa).scaleDown).period }}
 {{- end }}
 {{- end }}
 
-{{- end }}
 {{- end }}
 {{- end }}

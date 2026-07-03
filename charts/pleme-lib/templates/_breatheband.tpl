@@ -32,7 +32,8 @@ rendering a valid CR.
 */}}
 
 {{- define "pleme-lib.breatheBand" -}}
-{{- $breathe := .Values.breathe | default dict -}}
+{{- $g := .Values.global | default dict -}}
+{{- $breathe := .Values.breathe | default $g.breathe | default dict -}}
 {{- if $breathe.enabled }}
 {{- $explicit := $breathe.targetRef | default dict -}}
 {{- /* Resolve the target workload name: explicit targetRef.name, else fullname. */ -}}
@@ -76,6 +77,9 @@ spec:
   cooldownSeconds: {{ $mem.cooldownSeconds | default 600 }}
   disruptionPolicy: {{ $mem.disruptionPolicy | default "allowRestart" }}
   dryRun: {{ $mem.dryRun | default false }}
+  {{- with $mem.mode }}
+  mode: {{ . }}
+  {{- end }}
   maxStalenessSeconds: {{ $mem.maxStalenessSeconds | default 120 }}
 {{- end }}
 {{/* ── CpuBand ─────────────────────────────────────────────────── */}}
@@ -108,6 +112,9 @@ spec:
   cooldownSeconds: {{ $cpu.cooldownSeconds | default 600 }}
   disruptionPolicy: {{ $cpu.disruptionPolicy | default "allowRestart" }}
   dryRun: {{ $cpu.dryRun | default false }}
+  {{- with $cpu.mode }}
+  mode: {{ . }}
+  {{- end }}
   maxStalenessSeconds: {{ $cpu.maxStalenessSeconds | default 120 }}
 {{- end }}
 {{- end }}
