@@ -133,11 +133,22 @@ spec:
 
   {{- if .Values.persistence.enabled }}
   # PVC managed by the StatefulSet — survives pod restart.
+  #
+  # volumeClaimTemplates is an IMMUTABLE StatefulSet field: the apiserver
+  # rejects any update to it (server-side apply forbids all StatefulSet
+  # spec changes except replicas/template/updateStrategy/…). The full
+  # `pleme-nats.labels` set embeds version-bearing labels — `helm.sh/chart`
+  # (chart version) and `app.kubernetes.io/version` (image tag) — so using
+  # it here made the PVC metadata churn on every chart bump, wedging the
+  # upgrade (0.3.0 -> 0.3.1 flipped helm.sh/chart -> "the field is immutable").
+  # Pin the PVC labels to the version-STABLE selector set (name + instance),
+  # identical to spec.selector.matchLabels, so a version bump never touches
+  # this immutable field.
   volumeClaimTemplates:
     - metadata:
         name: jetstream
         labels:
-          {{- include "pleme-nats.labels" . | nindent 10 }}
+          {{- include "pleme-nats.selectorLabels" . | nindent 10 }}
       spec:
         accessModes: [ {{ .Values.persistence.accessMode | quote }} ]
         {{- if .Values.persistence.storageClass }}

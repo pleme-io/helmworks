@@ -1,0 +1,60 @@
+suite: pleme-nats StatefulSet immutable-field stability
+# Guards the wedge that pinned the chart back to 0.3.0: a version bump must
+# NEVER change a StatefulSet immutable field (spec.selector, spec.serviceName,
+# spec.volumeClaimTemplates). The apiserver rejects any update to those, so if
+# they carry version-bearing labels (helm.sh/chart, app.kubernetes.io/version)
+# every chart bump wedges the upgrade. These asserts pin the immutable fields
+# to the version-stable selector set (app.kubernetes.io/name + instance).
+#
+# configmap.yaml is listed so the StatefulSet's checksum/config annotation
+# (which `include`s configmap.yaml) resolves under helm-unittest's scoped
+# template loading; assertions target the StatefulSet document via `template:`.
+templates:
+  - templates/statefulset.yaml
+  - templates/configmap.yaml
+release:
+  name: nats
+  namespace: tend-system
+tests:
+  - it: pins serviceName to the stable fullname
+    template: templates/statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.serviceName
+          value: nats-pleme-nats
+
+  - it: pins selector.matchLabels to the version-stable selector set
+    template: templates/statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.selector.matchLabels
+          value:
+            app.kubernetes.io/name: pleme-nats
+            app.kubernetes.io/instance: nats
+
+  - it: keeps volumeClaimTemplates labels version-stable (no chart/version labels)
+    template: templates/statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].metadata.labels
+          value:
+            app.kubernetes.io/name: pleme-nats
+            app.kubernetes.io/instance: nats
+      - notExists:
+          path: spec.volumeClaimTemplates[0].metadata.labels["helm.sh/chart"]
+      - notExists:
+          path: spec.volumeClaimTemplates[0].metadata.labels["app.kubernetes.io/version"]
+
+  - it: keeps the PVC labels identical to the selector (the immutable-stability invariant)
+    template: templates/statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].metadata.labels
+          value:
+            app.kubernetes.io/name: pleme-nats
+            app.kubernetes.io/instance: nats
+      - equal:
+          path: spec.selector.matchLabels
+          value:
+            app.kubernetes.io/name: pleme-nats
+            app.kubernetes.io/instance: nats
