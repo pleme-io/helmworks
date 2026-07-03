@@ -1,0 +1,63 @@
+suite: pleme-lib bare-fixture — global.networkPolicy default-deny fallback
+# A top-level global.networkPolicy (propagated by Helm to every subchart) locks
+# every workload behind a deny-all NetworkPolicy from one toggle — the lockdown
+# analogue of the global.nodeSelector / global.breathe fallbacks. This is Camelot's
+# "born locked" floor: one value denies all ingress+egress on every element, and
+# access is added back only as explicit allow rules (DNS, then the akeyless
+# SRA-bastion ingress). Per-chart networkPolicy still wins wholesale.
+templates:
+  - templates/networkpolicy.yaml
+release:
+  name: t
+  namespace: testns
+defaults: &defaults
+  image.repository: ghcr.io/x/y
+  image.tag: "1.0.0"
+
+tests:
+  - it: "global.networkPolicy.enabled locks the workload with a deny-all (ingress + egress)"
+    set:
+      <<: *defaults
+      global.networkPolicy:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: NetworkPolicy
+      - equal:
+          path: metadata.name
+          value: t-pleme-lib-bare-deny-all
+      - contains:
+          path: spec.policyTypes
+          content: Ingress
+      - contains:
+          path: spec.policyTypes
+          content: Egress
+
+  - it: "global.networkPolicy.allowDns adds the DNS egress carve-out to the lock"
+    set:
+      <<: *defaults
+      global.networkPolicy:
+        enabled: true
+        allowDns: true
+    asserts:
+      - hasDocuments:
+          count: 2
+      - isKind:
+          of: NetworkPolicy
+        documentIndex: 0
+      - isKind:
+          of: NetworkPolicy
+        documentIndex: 1
+
+  - it: "a per-chart networkPolicy wins wholesale over the global fallback"
+    set:
+      <<: *defaults
+      global.networkPolicy:
+        enabled: true
+      networkPolicy:
+        enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0

@@ -14,6 +14,8 @@ _compliance_network.tpl, plus any consumer-provided additionalIngress / Egress
 rules below).
 */}}
 {{- define "pleme-lib.networkpolicy" -}}
+{{- $g := .Values.global | default dict -}}
+{{- $np := .Values.networkPolicy | default $g.networkPolicy | default dict -}}
 {{- $complianceRequired := include "pleme-lib.compliance.network.required" . -}}
 {{- if eq $complianceRequired "true" -}}
 {{ include "pleme-lib.compliance.network.policies" . }}
@@ -21,7 +23,7 @@ rules below).
 {{ include "pleme-lib.compliance.egress.policies" . }}
 {{- /* Layer 2: air-gap shapes (consumer / registry-mirror) */ -}}
 {{ include "pleme-lib.compliance.airgap.policies" . }}
-{{- range (.Values.networkPolicy).additionalIngress }}
+{{- range $np.additionalIngress }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -39,7 +41,7 @@ spec:
   ingress:
     {{- toYaml .rules | nindent 4 }}
 {{- end }}
-{{- range (.Values.networkPolicy).additionalEgress }}
+{{- range $np.additionalEgress }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -57,7 +59,7 @@ spec:
   egress:
     {{- toYaml .rules | nindent 4 }}
 {{- end }}
-{{- else if (.Values.networkPolicy).enabled }}
+{{- else if $np.enabled }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -73,7 +75,7 @@ spec:
   policyTypes:
     - Ingress
     - Egress
-{{- if (.Values.networkPolicy).allowDns }}
+{{- if $np.allowDns }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -95,7 +97,7 @@ spec:
         - port: 53
           protocol: TCP
 {{- end }}
-{{- if (.Values.networkPolicy).allowPrometheus }}
+{{- if $np.allowPrometheus }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -115,7 +117,7 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: prometheus-operator
-        {{- range (.Values.networkPolicy).prometheusNamespaces }}
+        {{- range $np.prometheusNamespaces }}
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: {{ . }}
@@ -136,7 +138,7 @@ spec:
   with a curated allowedCidrs list (auditable, principle-of-least-
   privilege). This helper is the not-yet-curated path.
 */}}
-{{- if (.Values.networkPolicy).allowEgressHttps }}
+{{- if $np.allowEgressHttps }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -164,7 +166,7 @@ spec:
         - protocol: TCP
           port: 443
 {{- end }}
-{{- range (.Values.networkPolicy).additionalIngress }}
+{{- range $np.additionalIngress }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -182,7 +184,7 @@ spec:
   ingress:
     {{- toYaml .rules | nindent 4 }}
 {{- end }}
-{{- range (.Values.networkPolicy).additionalEgress }}
+{{- range $np.additionalEgress }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
