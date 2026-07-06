@@ -1,0 +1,115 @@
+{{- /*
+The band's demand signal — build-queue-depth exporter (design §2c / §7). A tiny
+metric surface computing `build_queue_depth` (SSM-session count / /etc/nix/machines
+load per arch) and exposing it for Prometheus scrape. The BreatheCloudPool's
+`signal.prometheus: build_queue_depth` reads this to pre-grow the node count.
+Runs on the camelot nodes (reads AWS SSM via the SA's ambient creds).
+*/ -}}
+{{- if .Values.buildQueueExporter.enabled }}
+{{- $e := .Values.buildQueueExporter }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: build-queue-exporter
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "lareira-camelot-builders.labels" . | nindent 4 }}
+    app.kubernetes.io/component: queue-exporter
+spec:
+  replicas: {{ $e.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "lareira-camelot-builders.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: queue-exporter
+  template:
+    metadata:
+      labels:
+        {{- include "lareira-camelot-builders.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: queue-exporter
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      automountServiceAccountToken: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: exporter
+          image: "{{ $e.image.repository }}:{{ $e.image.tag }}"
+          imagePullPolicy: {{ $e.image.pullPolicy }}
+          args:
+            - "--port={{ $e.port }}"
+            {{- range $s := $e.sources }}
+            - "--source={{ $s.arch }}:{{ $s.asg }}"
+            {{- end }}
+          ports:
+            - name: metrics
+              containerPort: {{ $e.port }}
+              protocol: TCP
+          env:
+            - name: AWS_REGION
+              value: {{ .Values.region | quote }}
+          {{- with $e.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: build-queue-exporter
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "lareira-camelot-builders.labels" . | nindent 4 }}
+    app.kubernetes.io/component: queue-exporter
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "lareira-camelot-builders.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: queue-exporter
+  ports:
+    - name: metrics
+      port: {{ $e.port }}
+      targetPort: metrics
+      protocol: TCP
+{{- if $e.serviceMonitor.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: build-queue-exporter
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "lareira-camelot-builders.labels" . | nindent 4 }}
+    app.kubernetes.io/component: queue-exporter
+spec:
+  selector:
+    matchLabels:
+      {{- include "lareira-camelot-builders.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: queue-exporter
+  endpoints:
+    - port: metrics
+      interval: {{ $e.serviceMonitor.interval }}
+      path: /metrics
+{{- end }}
+{{- end }}

@@ -1,0 +1,7 @@
+{{- /* Tier B (DESTINATION, gated off) · amd64 EKS-joined builder node group. Design §2i tierB. */ -}}
+{{- if and .Values.tierB.enabled (has "amd64" .Values.arches) }}
+{{- if .Values.tierB.nodeGroup.infraTemplateEnabled }}
+---
+{{ include "lareira-camelot-builders.nodeGroupTierB" (dict "root" . "arch" "amd64") }}
+{{- end }}
+{{- end }}

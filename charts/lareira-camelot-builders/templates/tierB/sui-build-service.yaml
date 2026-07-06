@@ -1,0 +1,87 @@
+{{- /*
+Tier B (DESTINATION, gated off) — the sui build service (design §2i). Per-arch
+REAPI worker Deployments whose store is the tiered Redis(L1)→Postgres(L2)→object(L3)
+backend (never-touch-disk by construction). INERT until the TieredBackend keystone
+(RedisBackend/PgStore/TieredBackend) + the sui REAPI remote worker binary land —
+the MemoryBand (memoryband-ramdisk-<arch>) targets sui-builder-<arch>.
+*/ -}}
+{{- if and .Values.tierB.enabled .Values.tierB.sui.enabled }}
+{{- $s := .Values.tierB.sui }}
+{{- $root := . }}
+{{- range $arch := .Values.arches }}
+{{- $b := index $root.Values.builders $arch }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sui-builder-{{ $arch }}
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- include "lareira-camelot-builders.labels" $root | nindent 4 }}
+    pleme.io/tier: b
+    app.kubernetes.io/component: sui-builder
+    kubernetes.io/arch: {{ $b.k8sArch }}
+spec:
+  replicas: {{ $s.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "lareira-camelot-builders.selectorLabels" $root | nindent 6 }}
+      app.kubernetes.io/component: sui-builder
+      kubernetes.io/arch: {{ $b.k8sArch }}
+  template:
+    metadata:
+      labels:
+        {{- include "lareira-camelot-builders.selectorLabels" $root | nindent 8 }}
+        app.kubernetes.io/component: sui-builder
+        kubernetes.io/arch: {{ $b.k8sArch }}
+    spec:
+      serviceAccountName: {{ $root.Values.serviceAccount.name }}
+      automountServiceAccountToken: false
+      nodeSelector:
+        role: camelot-builder
+        kubernetes.io/arch: {{ $b.k8sArch }}
+      tolerations:
+        - key: camelot-builder
+          value: "true"
+          effect: NoSchedule
+      {{- with $root.Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: sui
+          image: "{{ $s.image.repository }}:{{ $s.image.tag }}"
+          imagePullPolicy: {{ $s.image.pullPolicy }}
+          args: ["build-service", "--reapi", "--arch={{ $b.nixArch }}-linux"]
+          env:
+            - name: SUI_STORE_REDIS_HOST
+              value: {{ $s.store.redis.host | quote }}
+            - name: SUI_STORE_REDIS_PORT
+              value: {{ $s.store.redis.port | quote }}
+            - name: SUI_STORE_OBJECT_ENDPOINT
+              value: {{ $s.store.object.endpoint | quote }}
+            - name: SUI_STORE_OBJECT_BUCKET
+              value: {{ $s.store.object.bucket | quote }}
+          {{- if $s.store.postgres.secretName }}
+          envFrom:
+            - secretRef:
+                name: {{ $s.store.postgres.secretName }}
+          {{- end }}
+          {{- with $s.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+{{- end }}
+{{- end }}

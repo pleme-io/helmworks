@@ -1,0 +1,7 @@
+{{- /* Tier A · arm64 node-COUNT band (BreatheCloudPool). SHADOW-FIRST: dryRun + writeEnabled OFF, floor 0, predictive. Design §2c. */ -}}
+{{- if has "arm64" .Values.arches }}
+{{- if .Values.cloudPool.enabled }}
+---
+{{ include "lareira-camelot-builders.breatheCloudPool" (dict "root" . "arch" "arm64") }}
+{{- end }}
+{{- end }}

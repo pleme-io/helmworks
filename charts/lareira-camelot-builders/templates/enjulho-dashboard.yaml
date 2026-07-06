@@ -1,0 +1,40 @@
+{{- /*
+enjulho dashboard (design §2i) — OBSERVE. A PangeaDashboard CR whose inline
+Pangea Ruby calls the SuperCacheCiOverview Library mixin through
+Pangea::Architectures::GrafanaDashboardWorkspace.render_json; pangea-operator's
+DashboardController evals it → Grafana JSON → a sidecar-labelled ConfigMap. The
+operator's OBSERVE surface for the whole builder fleet (the enjulho catalog IS
+the agent's reasoning surface — dashboard-as-code, no hand-authored JSON). params
+is emitted as JSON and parsed in Ruby via JSON.parse(…, symbolize_names: true).
+*/ -}}
+{{- if .Values.dashboard.enabled }}
+{{- $d := .Values.dashboard }}
+{{- $params := $d.params | default dict }}
+apiVersion: pangea.pleme.io/v1alpha1
+kind: PangeaDashboard
+metadata:
+  name: camelot-builders
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "lareira-camelot-builders.labels" . | nindent 4 }}
+    pleme.io/dashboard-architecture: {{ $d.architecture | quote }}
+spec:
+  folder: {{ $d.folder | quote }}
+  {{- if $d.message }}
+  message: {{ $d.message | quote }}
+  {{- end }}
+  {{- if $d.suspend }}
+  suspend: true
+  {{- end }}
+  source:
+    inline:
+      ruby: |
+        require 'pangea-dashboards'
+        Pangea::Architectures::GrafanaDashboardWorkspace.render_json(
+          architecture: {{ $d.architecture | quote }},
+          params: JSON.parse(<<~'PANGEA_PARAMS', symbolize_names: true),
+        {{ $params | toJson | indent 8 }}
+        PANGEA_PARAMS
+          folder: {{ $d.folder | quote }},
+        )
+{{- end }}

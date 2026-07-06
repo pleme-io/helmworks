@@ -1,0 +1,280 @@
+# lareira-camelot-builders — the camelot nix builder fleet (Tier A shipped; Tier B gated).
+#
+# Design: scratchpad/camelot-builder-fleet-design.md (§2i + §2c + §2f).
+# Every mutation is a magma Plan / GitOps commit — never a direct cloud-API call.
+# Every band ships SHADOW-FIRST: dryRun + writeEnabled both default safe-OFF; the
+# operator observes ShadowWouldApply, then flips writeEnabled deliberately.
+# The operator's two verbs are DECLARE (edit these values, commit) + OBSERVE
+# (status.lastCycle receipts + the enjulho dashboard). Do NOT round Tier B up:
+# every tierB/* template is inert until `tierB.enabled: true` (LiveTODO-honest).
+
+# ── The arches this fleet stands up. Per-arch templates gate on membership here.
+#    A full stack per arch; nothing cross-emulates (no QEMU, ever).
+arches:
+  - arm64
+  - amd64
+
+# ── Shared cloud context (the borrowed camelot ground; host-free split). ───────
+cluster:    mte-staging      # the EKS cluster camelot is carved into
+region:     us-east-1
+awsProfile: mte-staging      # BreatheCloudPool.target.profile
+# pangeaNamespace = the pangea-operator state-isolation boundary (Postgres schema)
+# the builder InfrastructureTemplates settle into.
+pangeaNamespace: camelot-builders
+# magma is the sole executor (PANGEA_FORBID_TOFU); never tofu.
+executor: magma
+# AWS provider credentials for the InfrastructureTemplate's magma apply. Leave
+# name empty to use the operator's ambient IRSA path (no explicit secretRef).
+aws:
+  credentialsSecret:
+    name: ""
+    namespace: pangea-system
+
+# ── The on-demand-perf-selection knob (§2h / §3). ─────────────────────────────
+# THE single load-bearing knob: trades cost for wake-certainty, config-selectable
+# per stream. It composes SHIPPED mechanisms (on_demand_base_capacity, the Bid
+# interruption_tolerance, the allocation strategy) — it invents no new mechanism.
+# Default = cost-floor (the 100%-spot cost floor). The measurement + release
+# streams select guaranteed-wake. A per-arch builder may override via
+# builders.<arch>.perfClass.
+perfClass: cost-floor        # cost-floor | guaranteed-wake | dedicated
+
+# The three rungs (a discrete 3-rung selector over the shipped on_demand +
+# tolerance knobs — honest, NOT the full effective-cost auction, which is the M4
+# Otimizador::optimize destination).
+perfClassProfiles:
+  cost-floor:                # bulk / batch rebuilds — cheapest, 100% spot, no OD floor
+    catalogProfile: beefy_spot           # amd64 lane resolves to beefy_spot_amd64
+    onDemandBaseCapacity: 0
+    onDemandPercentageAboveBase: 0
+    bidInterruptionTolerance: Batch
+    allocationStrategy: capacity_optimized
+  guaranteed-wake:           # perf-critical / must-wake (the measurement, a release build)
+    catalogProfile: balanced             # OD base 1 + 20% spot above → wakes even if pools dry
+    onDemandBaseCapacity: 1
+    onDemandPercentageAboveBase: 20
+    bidInterruptionTolerance: Standard
+    allocationStrategy: price_capacity_optimized
+  dedicated:                 # SLA-bound, no interruption tolerated
+    catalogProfile: balanced
+    onDemandBaseCapacity: ceiling         # sentinel → resolves to the arch ceiling (OD-only)
+    onDemandPercentageAboveBase: 100
+    bidInterruptionTolerance: Critical
+    allocationStrategy: price_capacity_optimized
+
+# ── Per-arch builder config (§2b — the CamelotBuilderNodeGroup delta). ─────────
+# The SAME stack per arch; arch is a parameter. Shared node-group shape lives
+# below in `nodeGroup`; per-arch here overrides only what differs.
+builders:
+  arm64:
+    infraTemplate:
+      enabled: true          # render the InfrastructureTemplate (magma applies the ASG)
+    k8sArch: arm64           # kubernetes.io/arch label + node_label
+    nixArch:  aarch64        # the nix `system` half is aarch64-linux
+    asg: camelot-builder-arm64-asg
+    ceiling: 8               # max ASG size = the L2 budget wall
+    costSlaCents: 40000      # per-period cost ceiling → EnvelopeExausto→Escalate
+    # perfClass: guaranteed-wake   # optional per-arch override of the top-level knob
+    interruptionHandler:
+      enabled: false         # §2f — retirada drain-ahead seam is OPT-IN (off by default)
+  amd64:
+    infraTemplate:
+      enabled: true
+    k8sArch: amd64
+    nixArch:  x86_64         # the nix `system` half is x86_64-linux
+    asg: camelot-builder-amd64-asg
+    ceiling: 8
+    costSlaCents: 40000
+    # perfClass: guaranteed-wake
+    interruptionHandler:
+      enabled: false
+
+# ── Shared CamelotBuilderNodeGroup shape (§2b) — the isolation guarantee. ──────
+# A builder-SPECIFIC taint keeps builder churn off the camelot SaaS nodes; only
+# builder pods tolerate it, nothing resident lands here.
+nodeGroup:
+  role: camelot-builder
+  taint:
+    key: camelot-builder
+    value: "true"
+    effect: NO_SCHEDULE
+  catalog: nix_builder       # the pangea-spot nix_builder catalog category
+  substrate: mixed_instances_asg   # Tier A: standalone SSM ASG, NOT EKS-joined
+  ami:
+    kind: nixos_builder      # NixOS AMI: nix-daemon + sshd + ssm-agent + tmpfs /tmp
+  iam:                       # SSM is what makes cordel ProxyCommand work
+    - worker
+    - cni
+    - ecr
+    - ssm
+    - ebs_csi
+  diskSizeGb: 200            # nix closures + ½-RAM tmpfs headroom
+  minSize: 0                 # scale-to-zero
+  desiredSize: 0             # breathe owns desired once writeEnabled (Trust policy → count-0 legit)
+  spotInterruption: graceful_terminate   # §2f — retirada opt-in, scoped to THIS ASG
+  destroyProtection: false
+  refreshInterval: "9m"
+  settlingPolicy:
+    maxConsecutiveDriftCycles: 4
+    onExhaustion: fail
+
+# ── The node-COUNT band (§2c) — BreatheCloudPool, SHADOW-FIRST. ────────────────
+# Shared band shape; per-arch overrides asg + ceiling + costSlaCents (above).
+# `metric_missing_policy: Trust` makes count-0 a real in-band value — scale-to-
+# zero is first-class, not an error. Predictive is MANDATORY for nodes.
+cloudPool:
+  enabled: true              # render the band (safe: shadow, actuates nothing)
+  forma: node-spot           # M3 destination · node-on-demand (M2 shipped) as seed
+  floor: 0                   # scale-to-zero — Trust makes count-0 legitimate
+  metricMissingPolicy: Trust
+  reliefLatencySeconds: 180  # node boot→Ready; predictor forecasts ≥ this ahead
+  setpoint: 0.80             # 15-pt anti-flap deadband (nodes warrant it)
+  growAbove: 0.85
+  shrinkBelow: 0.70
+  predictive: true           # MANDATORY — pre-grow off queue depth (LinearTrendPrevisor)
+  fillPolicy: pack           # builders are throughput → pack (efficiency), not spread
+  provider: kubeObserve      # actuator: compose-Karpenter default; magma-replace for standalone ASG
+  signal:
+    prometheus: build_queue_depth   # the demand signal (from the queue exporter below)
+  # THE TWO SAFETY GATES — both default safe-OFF. Flip LIVE only after shadow-proof.
+  dryRun: true               # SHADOW — observe ShadowWouldApply, actuate nothing
+  writeEnabled: false        # pool-level master write switch
+
+# ── L4 substituter — Attic-in-camelot (§2i). VPN-independent in-cluster cache. ─
+attic:
+  enabled: true
+  image:
+    repository: ghcr.io/pleme-io/attic
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicaCount: 1
+  cacheName: main
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8080
+  persistence:
+    enabled: false           # on-disk store (Tier A). Off by default → emptyDir; flip for durability.
+    size: 200Gi
+    storageClass: ""
+    mountPath: /var/lib/atticd
+  resources:
+    requests: { cpu: 250m, memory: 512Mi }
+    limits:   { cpu: "2",  memory: 4Gi }
+  # Config secret the atticd server reads (DATABASE_URL / token). Optional.
+  configSecret:
+    name: ""
+
+# ── The band's demand signal — build-queue-depth exporter (§2c / §7). ──────────
+# A tiny metric surface (SSM-session count / /etc/nix/machines load) exposing
+# `build_queue_depth` for the BreatheCloudPool's Prometheus signal.
+buildQueueExporter:
+  enabled: true
+  image:
+    repository: ghcr.io/pleme-io/build-queue-exporter
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicaCount: 1
+  port: 9109
+  # SSM/machines sources the exporter reads to compute queue depth (per arch).
+  sources:
+    - arch: arm64
+      asg: camelot-builder-arm64-asg
+    - arch: amd64
+      asg: camelot-builder-amd64-asg
+  serviceMonitor:
+    enabled: true
+    interval: 15s
+  resources:
+    requests: { cpu: 25m, memory: 64Mi }
+    limits:   { cpu: 250m, memory: 256Mi }
+
+# ── enjulho dashboard (§2i) — SuperCacheCiOverview mixin (OBSERVE). ────────────
+# Dashboard-as-code: a PangeaDashboard CR whose inline Pangea Ruby calls the
+# SuperCacheCiOverview Library mixin. pangea-operator compiles it → Grafana JSON.
+dashboard:
+  enabled: true
+  folder: camelot
+  architecture: SuperCacheCiOverview
+  message: "camelot builder fleet — super-cache-ci overview"
+  params:
+    namespace: camelot-builders
+    arches: [arm64, amd64]
+    queueMetric: build_queue_depth
+    poolPrefix: camelot-builder
+
+# ── Camelot posture (CAMELOT §III non-negotiables). ───────────────────────────
+# In-cluster workloads (attic, exporter) run on camelot nodes with the camelot
+# toleration — NOT on the builder-tainted nodes (those are for build workers only).
+nodeSelector:
+  role: camelot
+tolerations:
+  - key: camelot-only
+    operator: Exists
+    effect: NoSchedule
+imagePullSecrets: []
+
+serviceAccount:
+  create: true
+  name: camelot-builders
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Tier B — the super-cache-ci DESTINATION. GATED OFF until its keystone gates
+# clear (TieredBackend = Redis(L1)→Pg(L2)→object(L3); sui REAPI remote worker;
+# sui /metrics named contract). Everything under templates/tierB/ is INERT while
+# this is false. Flipping it on WITHOUT those gates ships a non-functional stack —
+# this is the LiveTODO honesty gate, never rounded up.
+# ═══════════════════════════════════════════════════════════════════════════════
+tierB:
+  enabled: false
+
+  # EKS managed builder node groups (the EKS-joined substrate, per arch).
+  nodeGroup:
+    infraTemplateEnabled: true
+    instanceProfile: nix_builder     # + amd64 → beefy_spot_amd64 (§2a)
+    ceiling: 8
+
+  # ARC runner scale sets — minRunners:0 → pods scale 0→N on queued jobs (§2e).
+  arc:
+    enabled: true
+    minRunners: 0
+    maxRunners: 8
+    githubConfigUrl: ""              # set to the camelot GHA org/repo
+    githubConfigSecret: ""
+
+  # ReplicaBand — the runner-replica axis (field-disjoint from node count) (§2e).
+  replicaBand:
+    enabled: true
+    floor: 0
+    ceiling: 8
+    topology: NonPersistent          # builders = interchangeable pods → free scale
+    signal:
+      prometheus: build_queue_depth
+    dryRun: true                     # shadow-first (SpotScaleOut on reclaim)
+
+  # RAMDISK MemoryBand — the super-cache-ci carve (P0-#2): couple pod-limit AND
+  # emptyDir{Memory} sizeLimit so `limit ≥ tmpfs + build-RSS headroom` by
+  # construction; spill to a disk-backed emptyDir when the RAM medium fills (§2d).
+  memoryBand:
+    enabled: true
+    mountPath: /nix/build-dir
+    setpoint: 0.75
+    cooldownSeconds: 600
+    maxStalenessSeconds: 120
+    dryRun: true                     # shadow-first
+
+  # sui build service — the tiered Redis→Pg→object store, never-touch-disk (§2i).
+  sui:
+    enabled: true
+    image:
+      repository: ghcr.io/pleme-io/sui
+      tag: latest
+      pullPolicy: IfNotPresent
+    replicaCount: 1
+    resources:
+      requests: { cpu: "1", memory: 2Gi }
+      limits:   { cpu: "4", memory: 16Gi }
+    store:
+      redis:    { host: "", port: 6379 }      # L1 hot cache
+      postgres: { secretName: "" }            # L2 store
+      object:   { endpoint: "", bucket: "" }  # L3 durable (S3Storage ships)

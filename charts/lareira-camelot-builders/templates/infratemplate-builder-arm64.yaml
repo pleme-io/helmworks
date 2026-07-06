@@ -1,0 +1,7 @@
+{{- /* Tier A · arm64 native builder → CamelotBuilderNodeGroup (magma applies the AWS ASG). Design §2b. */ -}}
+{{- if has "arm64" .Values.arches }}
+{{- if (index .Values.builders "arm64").infraTemplate.enabled }}
+---
+{{ include "lareira-camelot-builders.infraTemplate" (dict "root" . "arch" "arm64") }}
+{{- end }}
+{{- end }}

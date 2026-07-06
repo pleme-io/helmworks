@@ -1,0 +1,127 @@
+{{- /*
+L4 substituter — Attic-in-camelot (design §2i). An in-cluster Nix binary cache
+that makes the builder-fleet substituter path VPN-INDEPENDENT (immune to the
+Tailscale ⊥ akeyless-VPN mutex): builders substitute from this in-cluster Attic
+first, then cache.nixos.org. Runs on the camelot nodes (NOT the builder-tainted
+nodes — those are for build workers only). Security baseline enforced.
+*/ -}}
+{{- if .Values.attic.enabled }}
+{{- $a := .Values.attic }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: attic-in-camelot
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "lareira-camelot-builders.labels" . | nindent 4 }}
+    app.kubernetes.io/component: substituter
+spec:
+  replicas: {{ $a.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "lareira-camelot-builders.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: substituter
+  template:
+    metadata:
+      labels:
+        {{- include "lareira-camelot-builders.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: substituter
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      automountServiceAccountToken: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: atticd
+          image: "{{ $a.image.repository }}:{{ $a.image.tag }}"
+          imagePullPolicy: {{ $a.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ $a.service.targetPort }}
+              protocol: TCP
+          {{- if $a.configSecret.name }}
+          envFrom:
+            - secretRef:
+                name: {{ $a.configSecret.name }}
+          {{- end }}
+          volumeMounts:
+            - name: store
+              mountPath: {{ $a.persistence.mountPath }}
+            - name: tmp
+              mountPath: /tmp
+          {{- with $a.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: store
+        {{- if $a.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: attic-in-camelot
+        {{- else }}
+          emptyDir: {}
+        {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: attic-in-camelot
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "lareira-camelot-builders.labels" . | nindent 4 }}
+    app.kubernetes.io/component: substituter
+spec:
+  type: {{ $a.service.type }}
+  selector:
+    {{- include "lareira-camelot-builders.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: substituter
+  ports:
+    - name: http
+      port: {{ $a.service.port }}
+      targetPort: {{ $a.service.targetPort }}
+      protocol: TCP
+{{- if $a.persistence.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: attic-in-camelot
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "lareira-camelot-builders.labels" . | nindent 4 }}
+    app.kubernetes.io/component: substituter
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: {{ $a.persistence.size }}
+  {{- with $a.persistence.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+{{- end }}
+{{- end }}

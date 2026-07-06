@@ -1,0 +1,7 @@
+{{- /* Tier B (DESTINATION, gated off) · amd64 ARC AutoscalingRunnerSet, minRunners:0. Design §2e. */ -}}
+{{- if and .Values.tierB.enabled (has "amd64" .Values.arches) }}
+{{- if .Values.tierB.arc.enabled }}
+---
+{{ include "lareira-camelot-builders.arcRunnerSet" (dict "root" . "arch" "amd64") }}
+{{- end }}
+{{- end }}
