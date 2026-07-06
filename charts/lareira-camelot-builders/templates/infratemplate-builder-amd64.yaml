@@ -1,0 +1,7 @@
+{{- /* Tier A · amd64 native builder → CamelotBuilderNodeGroup (magma applies the AWS ASG). Design §2b (beefy_spot_amd64, §2a). */ -}}
+{{- if has "amd64" .Values.arches }}
+{{- if (index .Values.builders "amd64").infraTemplate.enabled }}
+---
+{{ include "lareira-camelot-builders.infraTemplate" (dict "root" . "arch" "amd64") }}
+{{- end }}
+{{- end }}

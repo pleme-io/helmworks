@@ -1,0 +1,7 @@
+{{- /* Tier A · amd64 retirada drain-ahead seam (scoped Spot::InterruptionHandler). OPT-IN (off by default). Design §2f. */ -}}
+{{- if has "amd64" .Values.arches }}
+{{- if (index .Values.builders "amd64").interruptionHandler.enabled }}
+---
+{{ include "lareira-camelot-builders.interruptionHandler" (dict "root" . "arch" "amd64") }}
+{{- end }}
+{{- end }}

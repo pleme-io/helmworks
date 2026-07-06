@@ -1,0 +1,7 @@
+{{- /* Tier B (DESTINATION, gated off) · amd64 ReplicaBand (runner-replica axis, shadow-first). Design §2e. */ -}}
+{{- if and .Values.tierB.enabled (has "amd64" .Values.arches) }}
+{{- if .Values.tierB.replicaBand.enabled }}
+---
+{{ include "lareira-camelot-builders.replicaBand" (dict "root" . "arch" "amd64") }}
+{{- end }}
+{{- end }}

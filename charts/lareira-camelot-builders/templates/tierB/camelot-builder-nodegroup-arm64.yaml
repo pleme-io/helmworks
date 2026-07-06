@@ -1,0 +1,7 @@
+{{- /* Tier B (DESTINATION, gated off) · arm64 EKS-joined builder node group. Design §2i tierB. */ -}}
+{{- if and .Values.tierB.enabled (has "arm64" .Values.arches) }}
+{{- if .Values.tierB.nodeGroup.infraTemplateEnabled }}
+---
+{{ include "lareira-camelot-builders.nodeGroupTierB" (dict "root" . "arch" "arm64") }}
+{{- end }}
+{{- end }}

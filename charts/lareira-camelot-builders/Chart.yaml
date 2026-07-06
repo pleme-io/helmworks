@@ -1,0 +1,45 @@
+apiVersion: v2
+name: lareira-camelot-builders
+description: >-
+  Camelot Nix builder fleet — the per-arch (arm64 + amd64), camelot-tainted,
+  100%-spot, scale-to-zero native-metal builder substrate that unblocks cold
+  cross-arch Nix builds inside the camelot (mte-staging) environment. Tier A
+  (shipped-primitive composition, the unblock-NOW lane): per-arch
+  InfrastructureTemplate CRs render a CamelotBuilderNodeGroup (magma applies the
+  AWS ASG + IAM + NixOS builder AMI); a shadow-first BreatheCloudPool carves the
+  node COUNT (dryRun + writeEnabled both default safe-OFF, floor 0, predictive);
+  a scoped Spot::InterruptionHandler + retirada seam drains-ahead on reclaim; an
+  in-cluster Attic substituter is VPN-independent; a build-queue-depth exporter
+  feeds the band; an enjulho SuperCacheCiOverview dashboard observes. Tier B (the
+  super-cache-ci destination — EKS builder node groups, ARC minRunners:0 runners,
+  ReplicaBand, RAM-carve MemoryBand, sui tiered Redis→Pg→object store) ships under
+  tierB/ gated enabled:false until its keystone gates (TieredBackend, sui REAPI
+  worker) clear — LiveTODO-honest, never rounded up. Owns MINIMAL new algebra — a
+  composition index over pangea-spot (nix_builder catalog) + CamelotNodeGroup +
+  BreatheCloudPool + retirada + pleme-lib. Every mutation is a magma Plan / GitOps
+  commit; the operator's two verbs are declare + observe. CAMELOT-SCOPED.
+  See scratchpad/camelot-builder-fleet-design.md.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - camelot
+  - nix-builder
+  - builder-fleet
+  - breathe
+  - breathecloudpool
+  - spot
+  - scale-to-zero
+  - retirada
+  - super-cache-ci
+  - multi-arch
+home: https://github.com/pleme-io/helmworks
+sources:
+  - https://github.com/pleme-io/helmworks
+maintainers:
+  - name: drzzln
+    email: drzzln@protonmail.com
+dependencies:
+  - name: pleme-lib
+    version: ">=0.28.0"
+    repository: "file://../pleme-lib"

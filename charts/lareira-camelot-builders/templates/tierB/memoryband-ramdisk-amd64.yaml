@@ -1,0 +1,7 @@
+{{- /* Tier B (DESTINATION, gated off) · amd64 RAMDISK MemoryBand carve (P0-#2, shadow-first). Design §2d. */ -}}
+{{- if and .Values.tierB.enabled (has "amd64" .Values.arches) }}
+{{- if .Values.tierB.memoryBand.enabled }}
+---
+{{ include "lareira-camelot-builders.memoryBand" (dict "root" . "arch" "amd64") }}
+{{- end }}
+{{- end }}
