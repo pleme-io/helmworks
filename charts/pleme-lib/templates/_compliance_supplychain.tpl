@@ -61,6 +61,9 @@ pipelines can enumerate per-workload supply-chain claims.
 {{- $cosign := $sc.cosign | default dict -}}
 {{- $slsa := $sc.slsa | default dict -}}
 {{- $scan := $sc.scan | default dict -}}
+{{- $vex := $scan.vex | default dict -}}
+{{- $guac := $sc.guac | default dict -}}
+{{- $scorecard := $sc.scorecard | default dict -}}
 {{- if or $sbom.digest $cosign.signatureRef $slsa.level $scan.resultDigest }}
 supplychain-sbom-digest: {{ $sbom.digest | default "" | quote }}
 supplychain-sbom-format: {{ $sbom.format | default "" | quote }}
@@ -72,6 +75,12 @@ supplychain-slsa-provenance-ref: {{ $slsa.provenanceRef | default "" | quote }}
 supplychain-slsa-builder-id: {{ $slsa.builderId | default "" | quote }}
 supplychain-scan-result-digest: {{ $scan.resultDigest | default "" | quote }}
 supplychain-scan-scanner: {{ $scan.scanner | default "" | quote }}
+supplychain-vex-ref: {{ $vex.ref | default "" | quote }}
+supplychain-vex-format: {{ $vex.format | default "" | quote }}
+supplychain-guac-endpoint: {{ $guac.endpoint | default "" | quote }}
+supplychain-guac-ingested: {{ $guac.ingested | default false | quote }}
+supplychain-scorecard-score: {{ $scorecard.score | default "" | quote }}
+supplychain-scorecard-threshold: {{ $scorecard.threshold | default "" | quote }}
 {{- end }}
 {{- end }}
 
@@ -116,6 +125,15 @@ pleme.io/scan-at: {{ . | quote }}
 {{ end -}}
 {{- with ($scan.vex | default dict).ref -}}
 pleme.io/vex-ref: {{ . | quote }}
+pleme.io/vex-format: {{ ($scan.vex | default dict).format | default "openvex-0.2.0" | quote }}
+{{ end -}}
+{{- with ($sc.guac | default dict).endpoint -}}
+pleme.io/guac-endpoint: {{ . | quote }}
+pleme.io/guac-ingested: {{ ($sc.guac | default dict).ingested | default false | quote }}
+{{ end -}}
+{{- with ($sc.scorecard | default dict).score -}}
+pleme.io/scorecard-score: {{ . | quote }}
+pleme.io/scorecard-threshold: {{ ($sc.scorecard | default dict).threshold | default "" | quote }}
 {{ end -}}
 {{- end }}
 
@@ -189,6 +207,23 @@ At IL5+ (compliance.dod.impactLevel = il5/il6, see _compliance_il.tpl):
   {{- if gt $high 0 -}}
     {{- if not $allow.acceptHighCves -}}
       {{- fail (printf "compliance: compliance.supplychain.thresholds.high must be 0 unless compliance.supplychain.allowList.acceptHighCves=true with documented justification (RA-5)" ) -}}
+    {{- end -}}
+    {{/* VEX: an accepted High CVE MUST be justified by an OpenVEX doc —
+         you cannot silently accept a High without a machine-readable
+         not-affected/mitigated statement (RA-5, SI-2). */}}
+    {{- $vex := $scan.vex | default dict -}}
+    {{- if not $vex.ref -}}
+      {{- fail (printf "compliance: compliance.supplychain.allowList.acceptHighCves=true requires compliance.supplychain.scan.vex.ref (an OpenVEX doc justifying every accepted High CVE; RA-5, SI-2)" ) -}}
+    {{- end -}}
+  {{- end -}}
+  {{/* OpenSSF Scorecard: if a score + threshold are declared, the score
+       must meet the threshold (SA-15 developer security testing). */}}
+  {{- $scorecard := $sc.scorecard | default dict -}}
+  {{- if and (hasKey $scorecard "score") (hasKey $scorecard "threshold") -}}
+    {{- $score := $scorecard.score | float64 -}}
+    {{- $thr := $scorecard.threshold | float64 -}}
+    {{- if lt $score $thr -}}
+      {{- fail (printf "compliance: compliance.supplychain.scorecard.score=%v below threshold %v (OpenSSF Scorecard; SA-15)" $score $thr) -}}
     {{- end -}}
   {{- end -}}
 {{- end -}}

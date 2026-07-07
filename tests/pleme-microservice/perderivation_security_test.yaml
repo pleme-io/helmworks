@@ -1,0 +1,145 @@
+suite: pleme-microservice — per-derivation security (enjulho layered surface)
+#
+# Positive corpus for the six-layer per-derivation security overlay
+# (security.perDerivation) + the VEX/GUAC/Scorecard supplychain additions.
+# Renders the compliance-manifest ConfigMap and asserts the layered posture
+# surfaces mechanically (declare + observe). Negatives live in
+# perderivation_security_negative_test.yaml.
+templates:
+  - templates/compliance-manifest.yaml
+release:
+  name: pds
+  namespace: testns
+defaults: &defaults
+  image.repository: ghcr.io/pleme-io/example
+  image.tag: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  serviceAccount.create: true
+  attestation.enabled: true
+  monitoring.enabled: true
+  replicaCount: 2
+  compliance.authn.oidc.provider: authentik
+  # full supplychain verdicts (the perDerivation umbrella forces these on)
+  compliance.supplychain.enabled: true
+  compliance.supplychain.sbom.digest: "sha256:abc"
+  compliance.supplychain.sbom.format: cyclonedx-1.5
+  compliance.supplychain.cosign.signatureRef: "oci://x"
+  compliance.supplychain.cosign.fulcioCertFingerprint: "0123abcdef"
+  compliance.supplychain.slsa.level: 3
+  compliance.supplychain.slsa.provenanceRef: "oci://x"
+  compliance.supplychain.slsa.builderId: "https://github.com/pleme-io/forge/.github/workflows/release.yml@refs/tags/v1"
+  compliance.supplychain.scan.resultDigest: "sha256:def"
+  # perDerivation is a LIBRARY-chart surface: .Values reads the parent, so the
+  # verdict-producer foundation is opt-in and MUST be set explicitly at high.
+  security.perDerivation.layers.sign.storePathSigning: true
+  security.perDerivation.layers.admission.enforce: true
+tests:
+  - it: "[perDerivation] fedramp-high umbrella surfaces all six layers"
+    set:
+      <<: *defaults
+      compliance.baseline: fedramp-high
+      security.perDerivation.enabled: true
+    asserts:
+      - matchRegex:
+          path: data.overlays
+          pattern: "security-perderivation"
+      - matchRegex:
+          path: data.overlays
+          pattern: "supplychain"
+      - equal:
+          path: data.security-per-derivation
+          value: "true"
+      - equal:
+          path: data.security-layers
+          value: "sign,sbom,cve-vex,provenance-vsa,transparency,admission"
+      - equal:
+          path: data.security-verdict-store
+          value: "sui-postgres"
+      - equal:
+          path: data.security-verdict-key
+          value: "blake3"
+      - equal:
+          path: data.security-layer-sbom-tool
+          value: "sbomnix"
+      - equal:
+          path: data.security-layer-cve-scanner
+          value: "trivy"
+      - equal:
+          path: data.security-layer-transparency-mode
+          value: "rekor"
+      - equal:
+          path: data.security-layer-admission-enforce
+          value: "true"
+
+  - it: "[perDerivation] declared directly via overlays list pulls supplychain (requires)"
+    set:
+      <<: *defaults
+      compliance.overlays: ["fedramp-high", "security-perderivation"]
+      security.perDerivation.enabled: true
+    asserts:
+      - matchRegex:
+          path: data.overlays
+          pattern: "security-perderivation"
+      - matchRegex:
+          path: data.overlays
+          pattern: "supplychain"
+
+  - it: "[perDerivation] tool + transparency knobs are configurable"
+    set:
+      <<: *defaults
+      compliance.baseline: fedramp-high
+      security.perDerivation.enabled: true
+      security.perDerivation.layers.sbom.tool: syft
+      security.perDerivation.layers.cve.scanner: grype
+      security.perDerivation.layers.transparency.mode: offline-tameshi
+    asserts:
+      - equal:
+          path: data.security-layer-sbom-tool
+          value: "syft"
+      - equal:
+          path: data.security-layer-cve-scanner
+          value: "grype"
+      - equal:
+          path: data.security-layer-transparency-mode
+          value: "offline-tameshi"
+
+  - it: "[VEX] scan.vex.ref surfaces in the manifest"
+    set:
+      <<: *defaults
+      compliance.baseline: fedramp-moderate
+      compliance.supplychain.scan.vex.ref: "oci://vex"
+      compliance.supplychain.scan.vex.format: openvex-0.2.0
+    asserts:
+      - equal:
+          path: data.supplychain-vex-ref
+          value: "oci://vex"
+      - equal:
+          path: data.supplychain-vex-format
+          value: "openvex-0.2.0"
+
+  - it: "[GUAC] guac endpoint + ingestion surface in the manifest"
+    set:
+      <<: *defaults
+      compliance.baseline: fedramp-moderate
+      compliance.supplychain.guac.endpoint: "http://guac.security.svc:8080"
+      compliance.supplychain.guac.ingested: true
+    asserts:
+      - equal:
+          path: data.supplychain-guac-endpoint
+          value: "http://guac.security.svc:8080"
+      - equal:
+          path: data.supplychain-guac-ingested
+          value: "true"
+
+  - it: "[Scorecard] a passing OpenSSF Scorecard score surfaces + renders clean"
+    set:
+      <<: *defaults
+      compliance.baseline: fedramp-moderate
+      compliance.supplychain.scorecard.score: 8.5
+      compliance.supplychain.scorecard.threshold: 7.0
+    asserts:
+      - equal:
+          path: data.supplychain-scorecard-score
+          value: "8.5"
+      - equal:
+          path: data.supplychain-scorecard-threshold
+          value: "7"

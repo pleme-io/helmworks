@@ -68,7 +68,7 @@ string source-of-truth — when adding a new overlay, append its name
 here and CI catches any orphaned overlay file.
 */}}
 {{- define "pleme-lib.overlay.registry" -}}
-fedramp-low,fedramp-moderate,fedramp-high,airgap-consumer,airgap-registry-mirror,mirror,supplychain,fips,dod-il2,dod-il4,dod-il5,dod-il6,hipaa,cmmc-l3
+fedramp-low,fedramp-moderate,fedramp-high,airgap-consumer,airgap-registry-mirror,mirror,supplychain,security-perderivation,fips,dod-il2,dod-il4,dod-il5,dod-il6,hipaa,cmmc-l3
 {{- end }}
 
 {{/*
@@ -160,6 +160,10 @@ into the equivalent overlay declaration.
 {{- end -}}
 {{- $sc := (.Values.compliance).supplychain | default dict -}}
 {{- if eq (toString $sc.enabled) "true" -}}{{- $list = append $list "supplychain" -}}{{- end -}}
+{{- /* security.perDerivation.enabled synthesizes the umbrella overlay,
+       which `requires` supplychain (pulled in by the closure walk). */ -}}
+{{- $pd := (.Values.security | default dict).perDerivation | default dict -}}
+{{- if eq (toString $pd.enabled) "true" -}}{{- $list = append $list "security-perderivation" -}}{{- end -}}
 {{- $m := (.Values.compliance).mirror | default dict -}}
 {{- if and $m.upstreams (gt (len ($m.upstreams | default list)) 0) -}}
   {{- if not (has "airgap-registry-mirror" $list) -}}

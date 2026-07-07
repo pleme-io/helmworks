@@ -1,0 +1,141 @@
+suite: pleme-microservice — per-derivation security negative proof
+#
+# "non-compliant per-derivation config cannot produce a chart." Each test
+# starts from a fully-valid fedramp-high + supplychain + perDerivation base
+# (which renders clean) and flips ONE field, asserting the render fails with
+# the specific validator's message. Weakening a validator breaks its test —
+# the symmetry is the proof (mirrors compliance_proof_negative_test.yaml).
+templates:
+  - templates/deployment.yaml
+release:
+  name: pdsn
+  namespace: testns
+defaults: &defaults
+  compliance.baseline: fedramp-high
+  compliance.enforce: true
+  image.repository: ghcr.io/pleme-io/example
+  image.tag: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  monitoring.enabled: true
+  replicaCount: 2
+  resources.requests.cpu: 50m
+  resources.requests.memory: 64Mi
+  resources.limits.memory: 256Mi
+  serviceAccount.create: true
+  attestation.enabled: true
+  attestation.signature: "blake3:0000000000000000000000000000000000000000000000000000000000000000"
+  # valid supplychain verdicts
+  compliance.supplychain.enabled: true
+  compliance.supplychain.sbom.digest: "sha256:abc"
+  compliance.supplychain.sbom.format: cyclonedx-1.5
+  compliance.supplychain.cosign.signatureRef: "oci://x"
+  compliance.supplychain.cosign.fulcioCertFingerprint: "0123abcdef"
+  compliance.supplychain.slsa.level: 3
+  compliance.supplychain.slsa.provenanceRef: "oci://x"
+  compliance.supplychain.slsa.builderId: "https://github.com/pleme-io/forge/.github/workflows/release.yml@refs/tags/v1"
+  compliance.supplychain.scan.resultDigest: "sha256:def"
+  # valid perDerivation
+  security.perDerivation.enabled: true
+  security.perDerivation.layers.sign.storePathSigning: true
+  security.perDerivation.layers.admission.enforce: true
+tests:
+  - it: "[perDerivation] enabled without supplychain.enabled is rejected"
+    set:
+      <<: *defaults
+      compliance.supplychain.enabled: false
+    asserts:
+      - failedTemplate:
+          errorPattern: "requires compliance.supplychain.enabled=true"
+
+  - it: "[L-sign] high without storePathSigning is rejected"
+    set:
+      <<: *defaults
+      security.perDerivation.layers.sign.storePathSigning: false
+    asserts:
+      - failedTemplate:
+          errorPattern: "requires layers.sign.storePathSigning=true"
+
+  - it: "[L-admission] high without admission.enforce is rejected"
+    set:
+      <<: *defaults
+      security.perDerivation.layers.admission.enforce: false
+    asserts:
+      - failedTemplate:
+          errorPattern: "requires layers.admission.enforce=true"
+
+  - it: "[L-transparency] unknown transparency mode is rejected"
+    set:
+      <<: *defaults
+      security.perDerivation.layers.transparency.mode: carrier-pigeon
+    asserts:
+      - failedTemplate:
+          errorPattern: "transparency.mode=.*must be one of"
+
+  - it: "[L-sbom] unknown sbom tool is rejected"
+    set:
+      <<: *defaults
+      security.perDerivation.layers.sbom.tool: homegrown
+    asserts:
+      - failedTemplate:
+          errorPattern: "sbom.tool=.*must be one of"
+
+  - it: "[L-cve] unknown scanner is rejected"
+    set:
+      <<: *defaults
+      security.perDerivation.layers.cve.scanner: eyeballs
+    asserts:
+      - failedTemplate:
+          errorPattern: "cve.scanner=.*must be one of"
+
+  - it: "[keys] an inline cosign key (not a SecretRef) is rejected"
+    set:
+      <<: *defaults
+      security.perDerivation.layers.sign.cosignKeyRef.value: "-----BEGIN PRIVATE KEY-----"
+    asserts:
+      - failedTemplate:
+          errorPattern: "must be a cofre/ESO SecretRef"
+
+  - it: "[keys] a SecretRef name without a key is rejected"
+    set:
+      <<: *defaults
+      security.perDerivation.layers.sign.cosignKeyRef.name: cosign-key
+    asserts:
+      - failedTemplate:
+          errorPattern: "cosignKeyRef.name set without .key"
+
+  - it: "[IL6] rekor transparency in a classified air-gap is rejected"
+    set:
+      <<: *defaults
+      compliance.dod.impactLevel: il6
+      compliance.fips.enabled: true
+      compliance.fips.runtime: go-boringcrypto
+      compliance.fips.cmvpCertId: "4282"
+      compliance.airgap.role: consumer
+      compliance.airgap.requireSignedImages: true
+      compliance.airgap.imagePullSecret: zot-pull
+      compliance.airgap.upstream.allowedCidrs: ["127.0.0.1/32"]
+      compliance.airgap.upstream.credentialSecret: zot-sentinel
+      compliance.attestation.hardwareRoot: tpm2
+      compliance.network.egress: cds-only
+      image.repository: zot.registry.svc.cluster.local/pleme-io/example
+      security.perDerivation.layers.transparency.mode: rekor
+    asserts:
+      - failedTemplate:
+          errorPattern: "transparency.mode=offline-tameshi"
+
+  - it: "[VEX] accepting a High CVE without a VEX justification is rejected"
+    set:
+      <<: *defaults
+      compliance.supplychain.thresholds.high: 1
+      compliance.supplychain.allowList.acceptHighCves: true
+    asserts:
+      - failedTemplate:
+          errorPattern: "requires compliance.supplychain.scan.vex.ref"
+
+  - it: "[Scorecard] a score below threshold is rejected"
+    set:
+      <<: *defaults
+      compliance.supplychain.scorecard.score: 4.2
+      compliance.supplychain.scorecard.threshold: 7.0
+    asserts:
+      - failedTemplate:
+          errorPattern: "below threshold"

@@ -499,6 +499,53 @@ compliance:
     allowList:
       # anonymousUpstream: false   # opt-in for unauthenticated upstreams
 
+# -- Per-derivation security (the enjulho LAYERED surface for super-cache-ci).
+# ONE umbrella toggle (security.perDerivation.enabled) composes the shipped
+# compliance.supplychain.* verdict surface into six ordered layers. The
+# engines are the industry standards (Nix ed25519 / Sigstore cosign+rekor /
+# sbomnix / Trivy / SLSA-in-toto / Kyverno verifyImages) behind typed config;
+# pleme-io content is reserved for the four tested voids (offline inclusion,
+# re-derivable proof, BLAKE3 store-binding, eBPF kernel-enforcement).
+# See theory/SUPER-CACHE-CI-SECURITY.md + _compliance_perderivation.tpl.
+# Because super-cache-ci is content-addressed (PDC clause 4), every verdict
+# is per-derivation build-once-reuse: sign/SBOM/scan/attest each content hash
+# ONCE; every consumer of the hash inherits the verdict.
+security:
+  perDerivation:
+    # -- Umbrella. true FORCES compliance.supplychain.enabled=true.
+    enabled: false
+    # -- Content-addressed verdict store (§4.4): a ContentHash-keyed sibling
+    #    table in sui's Postgres. NOT pod disk (MAGMA-NATIVE).
+    verdictStore:
+      backend: "sui-postgres"      # the durable verdict tier
+      contentKey: "blake3"         # the PDC clause-4 shared key
+    layers:
+      # L-sign — the store-path foundation (biggest native win).
+      sign:
+        storePathSigning: true     # sui ed25519 NAR signing; required at high
+        # cosignKeyRef is a cofre/ESO SecretRef — name + key, NEVER inline.
+        cosignKeyRef: {}           # { name: cosign-key, key: cosign.key }
+      # L-sbom — CM-8 inventory; closure-driven so it dedups per content hash.
+      sbom:
+        tool: "sbomnix"            # sbomnix (closure-driven) | syft
+        closureDriven: true
+      # L-cve/vex — RA-5; the ONE non-timeless verdict (§4.3 db-epoch TTL).
+      cve:
+        scanner: "trivy"           # trivy | grype | anchore
+        dbEpochTtlHours: 24
+      # L-provenance/vsa — SR-3/4 (new in Rev5); the SLSA maturity metric.
+      provenance:
+        slsaLevel: 3
+        vsaRef: ""                 # verification-summary attestation, optional
+      # L-transparency — AU-2/12. rekor online OR the offline air-gap void.
+      transparency:
+        mode: "rekor"              # rekor | offline-tameshi (IL6 forces offline)
+        offlineReceiptRef: ""      # cartorio offline inclusion proof
+      # L-admission — Enforce (not Audit); un-suspend Kyverno verifyImages.
+      admission:
+        enforce: true
+        mode: "kyverno"            # kyverno | policy-controller
+
 # -- Attestation framework integration (sekiban integrity verification)
 # When enabled, produces sekiban.pleme.io/* annotations on all resources.
 # These are verified by sekiban's ValidatingAdmissionWebhook before resources
