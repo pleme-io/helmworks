@@ -33,6 +33,14 @@ mode:
     enabled: true
     listen: "0.0.0.0:5000"
     priority: 40
+    # backend: s3 | tiered | local
+    #   s3     — single S3 store (legacy default)
+    #   tiered — the super-cache-ci posture: Redis(L1) → Postgres(L2) → S3/local(L3),
+    #            write-through, never-touch-durable-disk. Config-selected from the
+    #            mounted TOML (sui `cache serve --backend-config`, resolve_serve_backend).
+    #            REQUIRES an image built `--features tiered` (Redis + Postgres arms);
+    #            a stock image returns CacheError::NotImplemented, never a silent
+    #            disk fallback.
     backend: s3
     s3:
       bucket: ""
@@ -41,6 +49,27 @@ mode:
     signing:
       secretName: ""
       secretKey: signing-key
+    # --- tiered super-cache (used only when backend: tiered) ---
+    tiered:
+      # Where the BackendConfig TOML is mounted (key: backend.toml).
+      mountPath: /etc/sui/tiered
+      # Provide the tiered BackendConfig as inline TOML -> this chart renders the
+      # ConfigMap `{fullname}-tiered`. See sui contrib/ground-truth/tiered-backend.toml.
+      backendConfigToml: ""
+      # OR reference an externally-managed ConfigMap (key: backend.toml). Takes
+      # precedence over the inline render when set (lets a composing chart own it).
+      configMapName: ""
+      # OR source the backend.toml from a Secret (key: backend.toml) — use this
+      # when the DSN carries a password (Postgres L2), so no plaintext credential
+      # lands in a ConfigMap. Highest precedence.
+      secretName: ""
+      # The L3 local floor. When the tiered resolver's L3 is a local path AND the
+      # container runs readOnlyRootFilesystem, back it with an emptyDir so the
+      # floor path is writable (own writes never reach it on a never-touch-disk node).
+      l3:
+        emptyDir: true
+        path: /var/cache/sui-l3
+        sizeLimit: 20Gi
 
 # --- Resources ---
 resources:
@@ -120,6 +149,24 @@ alerts:
 pdb:
   enabled: true
   minAvailable: 1
+
+# --- Build sandbox (never-touch-durable-disk) ---
+# The tmpfs RAMDISK the eval+build sandbox writes to. emptyDir{medium:Memory}.
+# When enabled, SUI_BUILD_DIR + TMPDIR point at mountPath so LocalBuilder keeps
+# eval + build off durable disk (the super-cache-ci invariant). Off by default;
+# turn on for a build-capable daemon (e.g. the camelot super-cache).
+sandbox:
+  ramdisk:
+    enabled: false
+    mountPath: /build
+    sizeLimit: 8Gi
+    setTmpdir: true
+
+# --- Writable state dir (cache-serve under readOnlyRootFilesystem) ---
+# In cache-only mode the daemon still needs a writable XDG_CACHE_HOME/HOME; this
+# emptyDir provides it without relaxing readOnlyRootFilesystem.
+state:
+  sizeLimit: 2Gi
 
 # --- Nix build agent ---
 # Phase 1: sui shells out to `nix build`. Needs writable /nix/store, root user.

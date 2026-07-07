@@ -39,6 +39,10 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       containers:
         - name: sui
@@ -60,6 +64,12 @@ spec:
             - cache
             - serve
             - --listen={{ .Values.mode.cache.listen }}
+            {{- if eq .Values.mode.cache.backend "tiered" }}
+            # Tiered super-cache: Redis(L1) → Postgres(L2) → S3/local(L3), never-touch-disk.
+            # The daemon config-selects the TieredBackend from this mounted TOML
+            # (sui_cache::BackendConfig::Tiered via `resolve_serve_backend`).
+            - --backend-config={{ .Values.mode.cache.tiered.mountPath }}/backend.toml
+            {{- end }}
           {{- else if .Values.mode.agent.enabled }}
           # Agent-only mode
           args:
@@ -83,6 +93,26 @@ spec:
             - name: NIX_CONFIG
               value: "experimental-features = nix-command flakes"
             {{- end }}
+            {{- if .Values.sandbox.ramdisk.enabled }}
+            # The never-touch-disk build sandbox lives on the tmpfs RAMDISK
+            # (emptyDir{medium:Memory}). SUI_BUILD_DIR is the documented sandbox
+            # contract; TMPDIR is load-bearing because LocalBuilder.build_dir_base
+            # defaults to std::env::temp_dir() (which reads TMPDIR), so pointing
+            # TMPDIR at the RAMDISK is what actually keeps eval+build off durable disk.
+            - name: SUI_BUILD_DIR
+              value: {{ .Values.sandbox.ramdisk.mountPath | quote }}
+            {{- if .Values.sandbox.ramdisk.setTmpdir }}
+            - name: TMPDIR
+              value: {{ .Values.sandbox.ramdisk.mountPath | quote }}
+            {{- end }}
+            {{- end }}
+            {{- if and .Values.mode.cache.enabled (not .Values.mode.agent.enabled) }}
+            # Cache-serve under readOnlyRootFilesystem needs a writable XDG/HOME.
+            - name: XDG_CACHE_HOME
+              value: /var/lib/sui
+            - name: HOME
+              value: /var/lib/sui
+            {{- end }}
           {{- with .Values.ports }}
           ports:
             {{- toYaml . | nindent 12 }}
@@ -94,24 +124,40 @@ spec:
             capabilities:
               drop:
                 - ALL
-          volumeMounts:
-            - name: nix-store
-              mountPath: /nix/var
-            - name: tmp
-              mountPath: /tmp
           {{- else }}
           {{- with .Values.securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- if .Values.mode.agent.enabled }}
+          {{- end }}
           volumeMounts:
+            {{- if .Values.nixAgent.enabled }}
+            - name: nix-store
+              mountPath: /nix/var
+            - name: tmp
+              mountPath: /tmp
+            {{- else if .Values.mode.agent.enabled }}
             - name: tmp
               mountPath: /tmp
             - name: eval-cache
               mountPath: /var/lib/sui
-          {{- end }}
-          {{- end }}
+            {{- else if .Values.mode.cache.enabled }}
+            - name: state
+              mountPath: /var/lib/sui
+            {{- end }}
+            {{- if eq .Values.mode.cache.backend "tiered" }}
+            - name: tiered-config
+              mountPath: {{ .Values.mode.cache.tiered.mountPath }}
+              readOnly: true
+            {{- if .Values.mode.cache.tiered.l3.emptyDir }}
+            - name: l3-store
+              mountPath: {{ .Values.mode.cache.tiered.l3.path }}
+            {{- end }}
+            {{- end }}
+            {{- if .Values.sandbox.ramdisk.enabled }}
+            - name: ramdisk
+              mountPath: {{ .Values.sandbox.ramdisk.mountPath }}
+            {{- end }}
           {{- with .Values.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
@@ -132,20 +178,56 @@ spec:
               path: {{ .Values.health.path }}
               port: {{ .Values.health.port }}
             periodSeconds: {{ .Values.health.readinessPeriodSeconds }}
-      {{- if .Values.nixAgent.enabled }}
       volumes:
+        {{- if .Values.nixAgent.enabled }}
         - name: nix-store
           emptyDir:
             sizeLimit: {{ .Values.nixAgent.storageSize }}
         - name: tmp
           emptyDir:
             sizeLimit: 10Gi
-      {{- else if .Values.mode.agent.enabled }}
-      volumes:
+        {{- else if .Values.mode.agent.enabled }}
         - name: tmp
           emptyDir:
             sizeLimit: 10Gi
         - name: eval-cache
           emptyDir:
             sizeLimit: 20Gi
-      {{- end }}
+        {{- else if .Values.mode.cache.enabled }}
+        - name: state
+          emptyDir:
+            sizeLimit: {{ .Values.state.sizeLimit }}
+        {{- end }}
+        {{- if eq .Values.mode.cache.backend "tiered" }}
+        - name: tiered-config
+          {{- if .Values.mode.cache.tiered.secretName }}
+          # DSN carries the Postgres L2 password → source the backend.toml from a
+          # Secret, never a ConfigMap. A composing chart (lareira-sui) renders it.
+          secret:
+            secretName: {{ .Values.mode.cache.tiered.secretName }}
+            items:
+              - key: backend.toml
+                path: backend.toml
+          {{- else }}
+          configMap:
+            name: {{ default (printf "%s-tiered" (include "pleme-sui.fullname" .)) .Values.mode.cache.tiered.configMapName }}
+            items:
+              - key: backend.toml
+                path: backend.toml
+          {{- end }}
+        {{- if .Values.mode.cache.tiered.l3.emptyDir }}
+        - name: l3-store
+          emptyDir:
+            sizeLimit: {{ .Values.mode.cache.tiered.l3.sizeLimit }}
+        {{- end }}
+        {{- end }}
+        {{- if .Values.sandbox.ramdisk.enabled }}
+        # tmpfs RAMDISK — the never-touch-durable-disk build sandbox. The breathe
+        # RAMDISK MemoryBand (couple: emptyDirMedium=Memory) live-manages this
+        # sizeLimit once promoted past shadow; the static sizeLimit here is the
+        # shadow-first floor so the sandbox exists before the band carves.
+        - name: ramdisk
+          emptyDir:
+            medium: Memory
+            sizeLimit: {{ .Values.sandbox.ramdisk.sizeLimit }}
+        {{- end }}

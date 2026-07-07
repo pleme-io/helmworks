@@ -1,0 +1,19 @@
+{{- /*
+Tiered super-cache BackendConfig (sui_cache::BackendConfig::Tiered). Rendered
+only when the daemon runs backend: tiered AND an inline `backendConfigToml` is
+supplied AND no external `configMapName` overrides it. Mounted read-only at
+`mode.cache.tiered.mountPath`/backend.toml and passed to `sui cache serve
+--backend-config`. A composing chart (e.g. lareira-sui) may instead supply its
+own ConfigMap via `configMapName` so it can template the L1/L2 service DSNs.
+*/ -}}
+{{- if and (eq .Values.mode.cache.backend "tiered") .Values.mode.cache.tiered.backendConfigToml (not .Values.mode.cache.tiered.configMapName) (not .Values.mode.cache.tiered.secretName) }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pleme-sui.fullname" . }}-tiered
+  labels:
+    {{- include "pleme-sui.labels" . | nindent 4 }}
+data:
+  backend.toml: |
+    {{- .Values.mode.cache.tiered.backendConfigToml | nindent 4 }}
+{{- end }}
