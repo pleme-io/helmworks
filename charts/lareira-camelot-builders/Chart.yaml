@@ -20,8 +20,8 @@ description: >-
   commit; the operator's two verbs are declare + observe. CAMELOT-SCOPED.
   See scratchpad/camelot-builder-fleet-design.md.
 type: application
-version: 0.1.0
-appVersion: "0.1.0"
+version: 0.1.1
+appVersion: "0.1.1"
 keywords:
   - camelot
   - nix-builder

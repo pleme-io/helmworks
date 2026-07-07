@@ -1,0 +1,72 @@
+{{- /*
+Perpetual cache-warming — the Viggy (defpromessa) "the sui super-cache stays
+warm" as a CHART-RENDERED, GitOps-toggleable CR. This is the DESTINATION for the
+hand-authored clusters/camelot/warming/promessa.yaml (the interim): a consumer
+flips `preheat.enabled` in the HelmRelease values instead of hand-authoring the
+CR (generation-over-composition, Pillar 12). The three targets mirror the
+hand-authored shape exactly so a flip is a no-surprise swap.
+
+SHADOW-first (`dryRun`). Rendering the CR does NOT actuate — there is no live
+Viggy Promessa controller ticking it on the camelot floor yet; it is the DECLARED
+outcome the loop (autorevivy's CLEAN face, superCacheCiRef) reconciles toward. The
+pure decision core the loop derives from is sui-supercacheci::preheat.
+
+TIER-HONEST: the sui substituter is LIVE (a build fetches closures from
+sui.camelot-build.svc); "the cache STAYS warm" is behind the camelot-cache-warm
+workflow going green + the sui TieredBackend store keystone. "Attested" = an
+auditable OutcomeChain provenance, NOT a proof of warmth.
+*/ -}}
+{{- if .Values.preheat.enabled }}
+{{- $p := .Values.preheat }}
+{{- $pr := $p.promessa }}
+{{- $staleWindow := add (int $p.cadenceSeconds) (int $p.stalenessSlackSeconds) }}
+apiVersion: viggy.pleme.io/v1
+kind: Promessa
+metadata:
+  name: {{ $pr.name | quote }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "lareira-camelot-builders.labels" . | nindent 4 }}
+    pleme.io/viggy: cache-warm
+spec:
+  # The business outcome: the sui super-cache serves the CURRENT build closures warm.
+  kind: Custom
+  scope: {{ $pr.scope | quote }}
+  description: >-
+    The sui super-cache (sui.camelot-build.svc) holds the current camelot build
+    closures so a build substitutes (warm) instead of cold-compiling. Re-warm on
+    tracked-input change or every {{ $p.cadenceSeconds }}s; spin the 100%-spot
+    scale-to-zero builder floor ONLY while warming (warmFloor
+    {{ $p.floorSpin.warmFloor }} → idleFloor {{ $p.floorSpin.idleFloor }}).
+  # The three observation sources the reconcile Observe-beat reads (mirrors the
+  # hand-authored CR; derived from sui-supercacheci::preheat's WarmthPromessa).
+  targets:
+    # L1 (Redis) holds the hot closures for the current tracked inputs.
+    - name: l1-hot-closures-present
+      query: {{ printf "sui_cache_l1_present{scope=\"%s\"} == 1" $pr.scope | quote }}
+      comparator: Eq
+      value: "1"
+    # a canary warm build substitutes (hit-tier != miss) — the load-bearing signal.
+    - name: warm-build-substitutes
+      query: {{ printf "sui_warm_build_hit_tier{svc=\"%s\",scope=\"%s\"} != \"miss\"" $pr.canaryService $pr.scope | quote }}
+      comparator: Ne
+      value: "miss"
+    # the preheat loop ran within its cadence (re-warm freshness).
+    - name: preheat-ran-within-cadence
+      query: {{ printf "time() - camelot_cache_warm_last_run_seconds < %d" $staleWindow | quote }}
+      comparator: Lt
+      value: {{ $staleWindow | quote }}
+  # the SLA is "warm within one cadence of an input change".
+  sla:
+    objective: {{ $pr.slaObjective | quote }}
+    window: {{ $pr.slaWindow | quote }}
+  # remediation is the autorevivy CLEAN face (warm-Redis-L1 / retune-tiers-live)
+  # once the coordinator controller lands; today the scheduled workflow actuates.
+  remediation:
+    policy: {{ $pr.remediationPolicy }}
+    autorevivyRef: {{ $pr.autorevivyRef | quote }}
+  attest:
+    outcomeChain: {{ $pr.outcomeChain }}
+  # shadow-first, like every camelot controller surface.
+  dryRun: {{ $p.dryRun }}
+{{- end }}
