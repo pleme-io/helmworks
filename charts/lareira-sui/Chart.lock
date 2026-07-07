@@ -1,0 +1,6 @@
+dependencies:
+- name: pleme-sui
+  repository: file://../pleme-sui
+  version: 0.3.0
+digest: sha256:9a0b577757c09d5a4ddd194a8a778f0466f21bdd8d2b55bb4588aab680f2195a
+generated: "2026-07-06T20:46:28.93081-07:00"

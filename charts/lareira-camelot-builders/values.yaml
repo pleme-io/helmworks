@@ -263,7 +263,12 @@ tierB:
     maxStalenessSeconds: 120
     dryRun: true                     # shadow-first
 
-  # sui build service — the tiered Redis→Pg→object store, never-touch-disk (§2i).
+  # sui build service — SUPERSEDED 2026-07-06. The proven camelot super-cache is
+  # the `sui cache serve --backend-config` daemon (TieredBackend + RAMDISK),
+  # shipped as its own self-contained enjulho artifact: helmworks/charts/lareira-sui.
+  # This block + templates/tierB/sui-build-service.yaml are a tombstone (the stub
+  # renders nothing); the RAMDISK MemoryBands below still name `sui-builder-<arch>`
+  # and are inert until reconciled with the node-fleet's own build-pod model.
   sui:
     enabled: true
     image:

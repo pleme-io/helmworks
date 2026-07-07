@@ -1,0 +1,87 @@
+{{- if .Values.redis.enabled }}
+{{- $r := .Values.redis }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $r.service.name }}
+  labels:
+    {{- include "lareira-sui.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis-l1
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "lareira-sui.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: redis-l1
+  ports:
+    - name: redis
+      port: {{ $r.service.port }}
+      targetPort: redis
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $r.service.name }}
+  labels:
+    {{- include "lareira-sui.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis-l1
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "lareira-sui.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: redis-l1
+  template:
+    metadata:
+      labels:
+        {{- include "lareira-sui.labels" . | nindent 8 }}
+        app.kubernetes.io/component: redis-l1
+    spec:
+      {{- with $r.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $r.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: redis
+          image: "{{ $r.image.repository }}:{{ $r.image.tag }}"
+          imagePullPolicy: {{ $r.image.pullPolicy }}
+          args:
+            - redis-server
+            - --maxmemory
+            - {{ $r.maxmemory | quote }}
+            - --maxmemory-policy
+            - {{ $r.maxmemoryPolicy | quote }}
+            {{- range $r.extraArgs }}
+            - {{ . | quote }}
+            {{- end }}
+          ports:
+            - name: redis
+              containerPort: {{ $r.service.port }}
+          {{- with $r.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          livenessProbe:
+            tcpSocket:
+              port: redis
+            periodSeconds: 15
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            periodSeconds: 10
+{{- end }}

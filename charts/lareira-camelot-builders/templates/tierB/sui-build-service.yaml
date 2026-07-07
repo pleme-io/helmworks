@@ -1,87 +1,23 @@
 {{- /*
-Tier B (DESTINATION, gated off) — the sui build service (design §2i). Per-arch
-REAPI worker Deployments whose store is the tiered Redis(L1)→Postgres(L2)→object(L3)
-backend (never-touch-disk by construction). INERT until the TieredBackend keystone
-(RedisBackend/PgStore/TieredBackend) + the sui REAPI remote worker binary land —
-the MemoryBand (memoryband-ramdisk-<arch>) targets sui-builder-<arch>.
+SUPERSEDED (2026-07-06) — this Tier B stub declared a `sui build-service --reapi`
+REAPI *remote-worker* Deployment, a model that was never built (no
+`sui build-service --reapi` binary exists) and never proven. The PROVEN camelot
+super-cache is the `sui cache serve --backend-config` daemon over the TieredBackend
+keystone (Redis L1 → Postgres L2 → S3/local L3) + a tmpfs RAMDISK sandbox — ran
+end-to-end on 2026-07-06 (sui/contrib/ground-truth) and shipped as its own
+self-contained camelot enjulho artifact:
+
+    helmworks/charts/lareira-sui   (Deployment/sui + Redis + Postgres + RAMDISK
+                                    MemoryBand + tiered Secret + example HelmRelease)
+
+This file renders NOTHING (the proven daemon is NOT re-authored here — solve once,
+in one place). The builder NODE-fleet concerns (node groups, ARC runners,
+ReplicaBand, the RAMDISK MemoryBand, the queue exporter, the BreatheCloudPool)
+remain this chart's job; the cache SERVICE is lareira-sui's. Kept as a tombstone
+rather than deleted so the supersession is legible in one place.
+
+If a future REAPI remote-worker model is genuinely wanted, extend lareira-sui (the
+daemon primitive lives in pleme-sui), never revive this competing surface.
 */ -}}
-{{- if and .Values.tierB.enabled .Values.tierB.sui.enabled }}
-{{- $s := .Values.tierB.sui }}
-{{- $root := . }}
-{{- range $arch := .Values.arches }}
-{{- $b := index $root.Values.builders $arch }}
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: sui-builder-{{ $arch }}
-  namespace: {{ $root.Release.Namespace }}
-  labels:
-    {{- include "lareira-camelot-builders.labels" $root | nindent 4 }}
-    pleme.io/tier: b
-    app.kubernetes.io/component: sui-builder
-    kubernetes.io/arch: {{ $b.k8sArch }}
-spec:
-  replicas: {{ $s.replicaCount }}
-  selector:
-    matchLabels:
-      {{- include "lareira-camelot-builders.selectorLabels" $root | nindent 6 }}
-      app.kubernetes.io/component: sui-builder
-      kubernetes.io/arch: {{ $b.k8sArch }}
-  template:
-    metadata:
-      labels:
-        {{- include "lareira-camelot-builders.selectorLabels" $root | nindent 8 }}
-        app.kubernetes.io/component: sui-builder
-        kubernetes.io/arch: {{ $b.k8sArch }}
-    spec:
-      serviceAccountName: {{ $root.Values.serviceAccount.name }}
-      automountServiceAccountToken: false
-      nodeSelector:
-        role: camelot-builder
-        kubernetes.io/arch: {{ $b.k8sArch }}
-      tolerations:
-        - key: camelot-builder
-          value: "true"
-          effect: NoSchedule
-      {{- with $root.Values.imagePullSecrets }}
-      imagePullSecrets:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      securityContext:
-        runAsNonRoot: true
-        runAsUser: 1000
-        seccompProfile:
-          type: RuntimeDefault
-      containers:
-        - name: sui
-          image: "{{ $s.image.repository }}:{{ $s.image.tag }}"
-          imagePullPolicy: {{ $s.image.pullPolicy }}
-          args: ["build-service", "--reapi", "--arch={{ $b.nixArch }}-linux"]
-          env:
-            - name: SUI_STORE_REDIS_HOST
-              value: {{ $s.store.redis.host | quote }}
-            - name: SUI_STORE_REDIS_PORT
-              value: {{ $s.store.redis.port | quote }}
-            - name: SUI_STORE_OBJECT_ENDPOINT
-              value: {{ $s.store.object.endpoint | quote }}
-            - name: SUI_STORE_OBJECT_BUCKET
-              value: {{ $s.store.object.bucket | quote }}
-          {{- if $s.store.postgres.secretName }}
-          envFrom:
-            - secretRef:
-                name: {{ $s.store.postgres.secretName }}
-          {{- end }}
-          {{- with $s.resources }}
-          resources:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
-          securityContext:
-            runAsNonRoot: true
-            runAsUser: 1000
-            readOnlyRootFilesystem: true
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop: [ALL]
-{{- end }}
+{{- if false }}
 {{- end }}

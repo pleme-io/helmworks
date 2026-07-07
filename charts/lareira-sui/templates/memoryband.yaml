@@ -1,0 +1,39 @@
+{{- /*
+breathe RAMDISK MemoryBand for the sui super-cache daemon — SHADOW-FIRST.
+Couples the daemon pod memory limit AND the emptyDir{Memory} sizeLimit at
+`mountPath` so `limit >= tmpfs + build-RSS headroom` by construction. dryRun: true
+observes ShadowWouldApply and carves nothing; promote (shadow ->
+shadowConfirmEffect -> effect) only after the shadow window holds — the same
+ladder the rio pangea-database + pangea-operator bands followed. Mirrors
+sui/contrib/ground-truth/breathe-memoryband.yaml lifted to the camelot Deployment.
+*/ -}}
+{{- if .Values.memoryBand.enabled }}
+{{- $mb := .Values.memoryBand }}
+apiVersion: breathe.pleme.io/v1
+kind: MemoryBand
+metadata:
+  name: sui-super-cache-ramdisk
+  labels:
+    {{- include "lareira-sui.labels" . | nindent 4 }}
+  annotations:
+    breathe.pleme.io/note: "camelot sui super-cache daemon — RAMDISK carve, dryRun-first shadow"
+spec:
+  targetRef:
+    kind: Deployment
+    name: {{ $mb.targetDeployment }}
+    apiVersion: apps/v1
+  couple:
+    emptyDirMedium: Memory
+    mountPath: {{ $mb.mountPath | quote }}
+  spillTo:
+    emptyDir: {}
+  setpoint: {{ $mb.setpoint }}
+  growAbove: {{ $mb.growAbove }}
+  shrinkBelow: {{ $mb.shrinkBelow }}
+  floor: {{ $mb.floor | quote }}
+  ceiling: {{ $mb.ceiling | quote }}
+  cooldownSeconds: {{ $mb.cooldownSeconds }}
+  maxStalenessSeconds: {{ $mb.maxStalenessSeconds }}
+  dryRun: {{ $mb.dryRun }}
+  disruptionPolicy: {{ $mb.disruptionPolicy }}
+{{- end }}

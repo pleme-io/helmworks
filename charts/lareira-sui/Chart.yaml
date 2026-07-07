@@ -1,0 +1,44 @@
+apiVersion: v2
+name: lareira-sui
+description: >-
+  Camelot super-cache-ci sui daemon — the RAM-native, content-addressed Nix
+  build-cache SERVICE (step 2 of the optimized build stack). Packages the PROVEN
+  ground-truth posture (sui/contrib/ground-truth, ran 2026-07-06) as ONE camelot
+  enjulho artifact: the `sui cache serve --backend-config` daemon over a TieredBackend
+  (Redis L1 hot cache → Postgres L2 durable store → S3/local L3), an in-cluster
+  Redis (redis:7-alpine) + Postgres (postgres:17-alpine) backing pair, a tmpfs
+  RAMDISK build sandbox (emptyDir{medium:Memory} → SUI_BUILD_DIR/TMPDIR, the
+  never-touch-durable-disk invariant), pinned to role:camelot-builder + the
+  camelot-builder toleration, 100%-spot, breathe-managed shadow-first. The daemon
+  itself is the canonical `pleme-sui` chart (subchart) run in tiered cache-serve
+  mode — this chart owns ONLY the camelot composition: the backing deps, the tiered
+  DSN wiring (Secret, not ConfigMap), the RAMDISK MemoryBand, and the camelot
+  posture. Every mutation is a GitOps commit FluxCD converges; the operator's two
+  verbs are declare + observe. CAMELOT-SCOPED. See
+  sui/contrib/ground-truth/README.md + scratchpad/step2-sui-daemon-runbook.md.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - camelot
+  - super-cache-ci
+  - sui
+  - nix-cache
+  - tiered-backend
+  - redis
+  - postgres
+  - ramdisk
+  - never-touch-disk
+  - breathe
+home: https://github.com/pleme-io/helmworks
+sources:
+  - https://github.com/pleme-io/helmworks
+  - https://github.com/pleme-io/sui
+maintainers:
+  - name: drzln
+    email: luis.d@akeyless.io
+dependencies:
+  - name: pleme-sui
+    version: ">=0.3.0"
+    repository: "file://../pleme-sui"
+    condition: pleme-sui.enabled

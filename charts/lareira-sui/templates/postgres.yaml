@@ -1,0 +1,139 @@
+{{- if .Values.postgres.enabled }}
+{{- $p := .Values.postgres }}
+{{- if not $p.auth.existingSecret }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $p.service.name }}
+  labels:
+    {{- include "lareira-sui.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres-l2
+type: Opaque
+stringData:
+  POSTGRES_PASSWORD: {{ $p.auth.password | quote }}
+  password: {{ $p.auth.password | quote }}
+---
+{{- end }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $p.service.name }}
+  labels:
+    {{- include "lareira-sui.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres-l2
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "lareira-sui.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres-l2
+  ports:
+    - name: postgres
+      port: {{ $p.service.port }}
+      targetPort: postgres
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $p.service.name }}
+  labels:
+    {{- include "lareira-sui.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres-l2
+spec:
+  serviceName: {{ $p.service.name }}
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "lareira-sui.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: postgres-l2
+  template:
+    metadata:
+      labels:
+        {{- include "lareira-sui.labels" . | nindent 8 }}
+        app.kubernetes.io/component: postgres-l2
+    spec:
+      {{- with $p.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $p.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 70          # postgres:*-alpine user
+        runAsGroup: 70
+        fsGroup: 70            # PVC group-owned by postgres so the data dir is writable
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: postgres
+          image: "{{ $p.image.repository }}:{{ $p.image.tag }}"
+          imagePullPolicy: {{ $p.image.pullPolicy }}
+          env:
+            - name: POSTGRES_USER
+              value: {{ $p.auth.user | quote }}
+            - name: POSTGRES_DB
+              value: {{ $p.auth.database | quote }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default $p.service.name $p.auth.existingSecret }}
+                  key: POSTGRES_PASSWORD
+            # PGDATA in a subdir so the mount root (lost+found on some CSI) isn't
+            # the data dir; scram auth for the store password.
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+            - name: POSTGRES_INITDB_ARGS
+              value: "--auth-host=scram-sha-256"
+          ports:
+            - name: postgres
+              containerPort: {{ $p.service.port }}
+          {{- with $p.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", {{ $p.auth.user | quote }}, "-d", {{ $p.auth.database | quote }}]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", {{ $p.auth.user | quote }}, "-d", {{ $p.auth.database | quote }}]
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: run
+              mountPath: /var/run/postgresql
+      {{- if not $p.persistence.enabled }}
+      volumes:
+        - name: data
+          emptyDir: {}
+        - name: run
+          emptyDir: {}
+      {{- else }}
+      volumes:
+        - name: run
+          emptyDir: {}
+      {{- end }}
+  {{- if $p.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [{{ $p.persistence.accessMode | quote }}]
+        {{- if $p.persistence.storageClass }}
+        storageClassName: {{ $p.persistence.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ $p.persistence.size | quote }}
+  {{- end }}
+{{- end }}

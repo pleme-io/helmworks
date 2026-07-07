@@ -1,0 +1,73 @@
+# camelot super-cache-ci sui daemon — the FluxCD HelmRelease (enjulho).
+#
+# DROP-IN for the camelot cluster GitOps tree (akeylesslabs/k8s/clusters/tendril/
+# — ours, main branch). Declare-and-observe: commit this; FluxCD reconciles it;
+# observe via `kubectl get` + the enjulho SuperCacheCiOverview dashboard + the
+# breathe MCP. Do NOT `helm install` by hand (★★ GITOPS-NATIVE).
+#
+# ⚠ TWO GATES before this converges to a serving cache (see the runbook):
+#   1. IMAGE — pleme-sui.image.tag must be an image built `--features tiered`
+#      AND carrying the ground-truth `cache serve --backend-config` wiring.
+#      The published amd64-latest has NEITHER. Set the exact autobump tag here.
+#   2. SECRET — postgres.auth.password must be a real per-env credential (a
+#      cofre-rendered / SOPS Secret via postgres.auth.existingSecret), NOT the
+#      chart default.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: camelot-builders
+  labels:
+    pleme.io/environment: camelot
+    pleme.io/component: super-cache-ci
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: lareira-sui
+  namespace: camelot-builders
+spec:
+  interval: 10m
+  chart:
+    spec:
+      chart: lareira-sui
+      version: "0.1.x"
+      sourceRef:
+        # Fleet-standard OCI HelmRepository (oci://ghcr.io/pleme-io/charts).
+        # Confirm this source exists in the camelot cluster's flux-system; if the
+        # tendril cluster names it differently, match that name here.
+        kind: HelmRepository
+        name: pleme-charts
+        namespace: flux-system
+  install:
+    remediation:
+      retries: 3
+    createNamespace: false
+  upgrade:
+    remediation:
+      retries: 3
+  values:
+    pleme-sui:
+      image:
+        # ← set the EXACT tiered autobump tag (amd64-r<run>-<sha>); never :latest.
+        tag: "amd64-tiered-latest"
+    # L3 durable object tier — point at the camelot object store (rustfs/minio/S3)
+    # for real durability; default `local` is the ground-truth floor.
+    tiered:
+      l3:
+        kind: local
+        # kind: s3
+        # s3:
+        #   bucket: camelot-sui-cache
+        #   region: us-east-1
+        #   endpoint: http://rustfs.camelot-builders.svc:9000
+    postgres:
+      # Use a cofre/SOPS-rendered Secret with keys POSTGRES_PASSWORD + password.
+      auth:
+        existingSecret: sui-postgres-cred   # create out-of-band; remove chart default
+      persistence:
+        enabled: true
+        size: 50Gi
+    # Bands ship SHADOW-FIRST; promote off the ladder after the shadow window holds.
+    memoryBand:
+      dryRun: true

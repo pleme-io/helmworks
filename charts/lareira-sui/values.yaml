@@ -1,0 +1,207 @@
+# lareira-sui — the camelot super-cache-ci sui daemon (RAM-native content-addressed
+# Nix build cache). Packages the PROVEN ground-truth posture (sui/contrib/ground-truth,
+# ran 2026-07-06) at cluster scale as ONE enjulho artifact.
+#
+# The operator's two verbs: DECLARE (edit these values, commit) + OBSERVE
+# (kubectl get / the enjulho SuperCacheCiOverview dashboard + the breathe MCP).
+# Every band ships SHADOW-FIRST (dryRun: true) — observe ShadowWouldApply, then
+# flip deliberately. Never round the tiers up: the daemon serves the tiered store
+# ONLY on an image built `--features tiered` (see `image gap` in the runbook).
+
+# ── Camelot posture — where the super-cache runs. ──────────────────────────────
+# The sui daemon is pinned to the camelot-builder spot floor (task requirement).
+# The backing Redis/Postgres default to the SAME floor (the whole super-cache
+# footprint co-located on the builder nodes); override postgres.nodeSelector to
+# role:camelot for L2 durability if the builder floor scale-to-zero must not drop
+# the store (see the runbook's durability note).
+camelot:
+  # The builder-fleet node role + taint (matches lareira-camelot-builders nodeGroup).
+  builderNodeSelector:
+    role: camelot-builder
+    kubernetes.io/arch: amd64
+  builderTolerations:
+    - key: camelot-builder
+      value: "true"
+      effect: NoSchedule
+
+# ── Redis L1 — hot cache (redis:7-alpine, allkeys-lru at the band ceiling). ─────
+# Ephemeral by design: an L1 loss re-warms from the Postgres L2 store, so emptyDir
+# is correct (no PVC). maxmemory is the static band ceiling until a breathe
+# MemoryBand live-manages it.
+redis:
+  enabled: true
+  image:
+    repository: redis
+    tag: "7-alpine"
+    pullPolicy: IfNotPresent
+  service:
+    name: sui-redis
+    port: 6379
+  maxmemory: "2gb"
+  maxmemoryPolicy: allkeys-lru
+  # rdb/aof off — a cache, not a store (warm restart re-warms from L2).
+  extraArgs: ["--save", "", "--appendonly", "no"]
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits:   { cpu: "1",  memory: 2Gi }
+  nodeSelector:
+    role: camelot-builder
+    kubernetes.io/arch: amd64
+  tolerations:
+    - key: camelot-builder
+      value: "true"
+      effect: NoSchedule
+
+# ── Postgres L2 — durable content-addressed store (postgres:17-alpine). ─────────
+# THIS is the durable tier. persistence.enabled uses a PVC (EBS gp3) so a spot
+# reclaim does NOT lose the store. The store is content-addressed (re-derivable),
+# so even total loss costs only a cold rebuild — but a PVC avoids that.
+postgres:
+  enabled: true
+  image:
+    repository: postgres
+    tag: "17-alpine"
+    pullPolicy: IfNotPresent
+  service:
+    name: sui-postgres
+    port: 5432
+  auth:
+    user: sui
+    database: sui
+    # L2 store password. Lives ONLY in the sui-postgres Secret + the tiered
+    # backend Secret (never a ConfigMap). Override per-env (a cofre-rendered
+    # Secret is the destination); the store holds public content-addressed nix
+    # paths, so the password is a network-hop control, not a data boundary.
+    password: "changeme-camelot-sui-l2"
+    # OR reference an existing Secret with keys POSTGRES_PASSWORD + password.
+    existingSecret: ""
+  persistence:
+    enabled: true
+    storageClass: ""          # "" = cluster default (EBS gp3 on mte-staging)
+    size: 50Gi
+    accessMode: ReadWriteOnce
+  resources:
+    requests: { cpu: 250m, memory: 512Mi }
+    limits:   { cpu: "2",  memory: 4Gi }
+  # L2 default: keep on the builder floor with the rest of the super-cache.
+  # Set to role:camelot for an always-on durable store (see runbook durability note).
+  nodeSelector:
+    role: camelot-builder
+    kubernetes.io/arch: amd64
+  tolerations:
+    - key: camelot-builder
+      value: "true"
+      effect: NoSchedule
+
+# ── Tiered BackendConfig (sui_cache::BackendConfig::Tiered). ────────────────────
+# Rendered into the `sui-tiered-backend` Secret (DSN carries the L2 password →
+# Secret, never a ConfigMap) and mounted at the daemon's --backend-config path.
+# Mirror of sui/contrib/ground-truth/tiered-backend.toml, DSNs pointed at the
+# in-cluster service names above. write-through: a write reaches L2 (+L3) before
+# warming L1, so a crash never strands data in the hot tier alone.
+tiered:
+  secretName: sui-tiered-backend
+  writePolicy: write-through
+  l1:
+    # Redis L1 — bounded by maxmemory LRU (no wall-clock TTL).
+    url: ""                   # "" → derived: redis://<redis.service.name>:<port>
+  l2:
+    # Postgres L2 — DSN derived from postgres.* unless overridden.
+    url: ""                   # "" → derived: postgres://user:pass@<svc>:<port>/db
+    maxConns: 16
+  l3:
+    # L3 floor. kind: local (default, matches ground-truth — a never-touch-disk
+    # node's own writes never reach it) OR s3 (the camelot durable destination).
+    kind: local               # local | s3
+    path: /var/cache/sui-l3
+    sizeLimit: 20Gi
+    # when kind: s3
+    s3:
+      bucket: ""
+      region: us-east-1
+      endpoint: ""             # rustfs/minio in camelot, or an AWS S3 endpoint
+
+# ── RAMDISK MemoryBand — the never-touch-disk carve (breathe, SHADOW-FIRST). ────
+# Couples the daemon pod memory limit AND the emptyDir{Memory} sizeLimit so
+# `limit ≥ tmpfs + build-RSS headroom` by construction. Targets the daemon
+# Deployment (`sui`). dryRun: true — observe ShadowWouldApply, carve nothing,
+# until promoted (shadow → shadowConfirmEffect → effect), same ladder as rio.
+memoryBand:
+  enabled: true
+  # The Deployment the band carves (= pleme-sui.fullnameOverride below).
+  targetDeployment: sui
+  mountPath: /build            # == pleme-sui.sandbox.ramdisk.mountPath
+  setpoint: 0.80
+  growAbove: 0.85
+  shrinkBelow: 0.70
+  floor: "512Mi"
+  ceiling: "8Gi"
+  cooldownSeconds: 300
+  maxStalenessSeconds: 120
+  dryRun: true                 # SHADOW-FIRST
+  disruptionPolicy: restartFreeOnly
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# The sui daemon itself = the canonical `pleme-sui` chart (subchart) in tiered
+# cache-serve mode. This block is the subchart's values; lareira-sui owns the
+# backing deps + wiring above and hands the daemon its camelot posture here.
+# ═══════════════════════════════════════════════════════════════════════════════
+pleme-sui:
+  enabled: true
+  fullnameOverride: sui        # → Deployment/Service named `sui`; band targets it
+  image:
+    repository: ghcr.io/pleme-io/sui
+    # ⚠ IMAGE GAP: the tiered serve capability needs an image built with
+    #   `--features tiered` (Redis L1 + Postgres L2 arms) AND carrying the
+    #   ground-truth `cache serve --backend-config` wiring. NEITHER is in the
+    #   published `amd64-latest` (main builds no features + no --backend-config).
+    #   This tag is a PLACEHOLDER — see the runbook "image sourcing" section.
+    tag: "amd64-tiered-latest"
+    pullPolicy: IfNotPresent
+  replicaCount: 1
+  mode:
+    agent:
+      enabled: false           # pure cache-serve super-cache (no NATS agent)
+    cache:
+      enabled: true
+      listen: "0.0.0.0:5000"
+      backend: tiered
+      tiered:
+        secretName: sui-tiered-backend   # the Secret lareira-sui renders
+        mountPath: /etc/sui/tiered
+        l3:
+          emptyDir: true
+          path: /var/cache/sui-l3
+          sizeLimit: 20Gi
+  sandbox:
+    ramdisk:
+      enabled: true            # the tmpfs RAMDISK build sandbox
+      mountPath: /build
+      sizeLimit: 8Gi
+      setTmpdir: true          # TMPDIR=/build → LocalBuilder stays off durable disk
+  # Keep the cache warm — vertical carve is the breathe MemoryBand's job, not
+  # horizontal scale-to-zero. KEDA/NATS breathability off; delivery off.
+  breathability:
+    enabled: false
+  delivery:
+    enabled: false
+  alerts:
+    enabled: true
+  pdb:
+    enabled: true
+  resources:
+    requests: { cpu: "1", memory: 2Gi }
+    limits:   { cpu: "4", memory: 8Gi }
+  nodeSelector:
+    role: camelot-builder
+    kubernetes.io/arch: amd64
+  tolerations:
+    - key: camelot-builder
+      value: "true"
+      effect: NoSchedule
+  service:
+    type: ClusterIP
+    ports:
+      - name: cache
+        port: 80
+        targetPort: cache
