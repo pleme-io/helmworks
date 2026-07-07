@@ -1,0 +1,60 @@
+{{- if .Values.xrd.install }}
+{{- $x := .Values.xrd }}
+---
+# The Composition — the SEAM. It wires the generic engine (function-camelot-pitr-drill,
+# by digest) to camelot's RestoreInput. Everything under input is CAMELOT CONFIG the
+# engine reads; the engine owns correlation, per-drill ns, per-step Jobs, the result
+# observer, the status lifecycle, and the generic extraResources emitter. camelot owns
+# every value + the restore vector.
+#
+# The RestoreInput's TypeMeta kind is cosmetic to the engine (it parses via the
+# `drillKind` json tag, NOT `kind` — config.go), so kind: RestoreInput dispatches the
+# default PITR kind. sourceDbInstances is EMPTY ⇒ emitRDS returns nil (no RDS) — the
+# restore vector rides extraResources instead (§2.4).
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: {{ $x.compositionName }}
+  labels:
+    {{- include "camelot-pitr.labels" . | nindent 4 }}
+    camelot.pleme.io/composition: "true"
+spec:
+  compositeTypeRef:
+    apiVersion: {{ $x.group }}/v1
+    kind: {{ $x.kind }}
+  mode: Pipeline
+  pipeline:
+    - step: orchestrate-restore
+      functionRef:
+        name: function-camelot-pitr-drill
+      input:
+        apiVersion: {{ $x.group }}/v1
+        kind: RestoreInput
+        {{- with .Values.composition }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        releaseNamespace: {{ .Release.Namespace | quote }}
+        diagnosticsBucket: {{ (.Values.failureHandling).defaultDiagnosticsBucket | default "" | quote }}
+        notificationEnabled: {{ .Values.notification.enabled }}
+        drillImage: {{ .Values.images.pitrTools | quote }}
+        jobServiceAccount: {{ .Values.serviceAccount.name | quote }}
+        jobPodLabels:
+          logs-type: saas
+          camelot.pleme.io/surface: pitr
+        # camelot-scoped cofre SecretRef — the drill authenticates to CAMELOT's OWN
+        # akeyless, NEVER the resident akeyless pitr-akeyless-admin-creds.
+        jobEnv:
+          - name: AKEYLESS_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.externalSecrets.secretName | quote }}
+                key: access-key
+                optional: true
+        drillSteps:
+        {{- include "camelot-pitr.drillSteps" . | nindent 8 }}
+        # the restore VECTOR (VolumeSnapshot + restore PVC + restore StatefulSet) — the
+        # engine emits each verbatim (provider-kubernetes Objects) with the runtime
+        # placeholder vocabulary substituted.
+        extraResources:
+        {{- include "camelot-pitr.restoreVector" . | nindent 8 }}
+{{- end }}

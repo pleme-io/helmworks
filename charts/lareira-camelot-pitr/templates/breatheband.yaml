@@ -1,0 +1,120 @@
+{{/*
+The restore workload is breathe-managed (CAMELOT §III #4). Every band carries an
+EXPLICIT dryRun (shadow-first, the camelot footgun guard). Bands only render when the
+restore workload exists (restore.enabled) — no band on a non-existent target.
+
+The drill's own create→verify→teardown lifecycle IS the scale-to-zero; these bands
+right-size the TRANSIENT restore StatefulSet + PVC while it exists. 100% spot + the
+role: camelot pin come from the workloads themselves (the restore vector + this ns).
+*/}}
+{{- if and .Values.breathe.enabled .Values.restore.enabled }}
+{{- $b := .Values.breathe.restoreDb }}
+{{- $r := .Values.restore }}
+---
+apiVersion: breathe.pleme.io/v1
+kind: MemoryBand
+metadata:
+  name: {{ $r.restoreStatefulSetName }}-mem
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "camelot-pitr.labels" . | nindent 4 }}
+    pleme.io/breathe-class: pitr-restore
+spec:
+  targetRef:
+    kind: StatefulSet
+    name: {{ $r.restoreStatefulSetName }}
+  setpoint: {{ $b.setpoint }}
+  growAbove: {{ $b.growAbove }}
+  shrinkBelow: {{ $b.shrinkBelow }}
+  floor: {{ $b.memFloor | quote }}
+  ceiling: {{ $b.memCeiling | quote }}
+  cooldownSeconds: {{ $b.cooldownSeconds }}
+  maxStalenessSeconds: {{ $b.maxStalenessSeconds }}
+  mode: {{ $b.mode | quote }}
+  dryRun: {{ $b.dryRun }}
+---
+apiVersion: breathe.pleme.io/v1
+kind: CpuBand
+metadata:
+  name: {{ $r.restoreStatefulSetName }}-cpu
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "camelot-pitr.labels" . | nindent 4 }}
+    pleme.io/breathe-class: pitr-restore
+spec:
+  targetRef:
+    kind: StatefulSet
+    name: {{ $r.restoreStatefulSetName }}
+  setpoint: {{ $b.setpoint }}
+  growAbove: {{ $b.growAbove }}
+  shrinkBelow: {{ $b.shrinkBelow }}
+  floor: {{ $b.cpuFloor | quote }}
+  ceiling: {{ $b.cpuCeiling | quote }}
+  cooldownSeconds: {{ $b.cooldownSeconds }}
+  maxStalenessSeconds: {{ $b.maxStalenessSeconds }}
+  mode: {{ $b.mode | quote }}
+  dryRun: {{ $b.dryRun }}
+{{- if .Values.breathe.storage.enabled }}
+{{- $s := .Values.breathe.storage }}
+---
+apiVersion: breathe.pleme.io/v1
+kind: StorageBand
+metadata:
+  name: {{ $r.restoreStatefulSetName }}-storage
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "camelot-pitr.labels" . | nindent 4 }}
+    pleme.io/breathe-class: pitr-restore
+    lareira.pleme.io/dimension: storage
+spec:
+  targetRef:
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    name: {{ $r.restorePvcName }}
+  setpoint: {{ $s.setpoint }}
+  growAbove: {{ $s.growAbove }}
+  shrinkBelow: {{ $s.shrinkBelow }}
+  growFactor: {{ $s.growFactor }}
+  shrinkFactor: {{ $s.shrinkFactor }}
+  floor: {{ $s.floor | quote }}
+  ceiling: {{ $s.ceiling | quote }}
+  cooldownSeconds: {{ $s.cooldownSeconds }}
+  maxStalenessSeconds: {{ $s.maxStalenessSeconds }}
+  mode: {{ $s.mode | quote }}
+  disruptionPolicy: {{ $s.disruptionPolicy | quote }}
+  dryRun: {{ $s.dryRun }}
+{{- end }}
+{{- if and .Values.breathe.database.enabled .Values.breathe.database.emitCR }}
+{{- $d := .Values.breathe.database }}
+---
+# DatabaseBand — LANDING (typed contract + CI; the CRD is NOT installed in
+# camelot/tendril → emitCR:false by default). The transient restore is a SingleWriter
+# with NO failover target: failover management is VACUOUS (nothing to promote, torn
+# down after verify). Flip emitCR:true ONLY where the DatabaseBand CRD + controller
+# exist. Because camelot's restore DB is a POD (not RDS), Mem/Cpu bands genuinely reach
+# it — a cleaner breathe fit than the RDS-backed case.
+apiVersion: breathe.pleme.io/v1
+kind: DatabaseBand
+metadata:
+  name: {{ $r.restoreStatefulSetName }}-db
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "camelot-pitr.labels" . | nindent 4 }}
+    pleme.io/breathe-class: pitr-restore
+    lareira.pleme.io/tier: restore
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: StatefulSet
+    name: {{ $r.restoreStatefulSetName }}
+  engine: {{ $d.engine | quote }}
+  class: {{ $d.class | quote }}
+  topology:
+    kind: {{ $d.topology | quote }}
+  spot: {{ $d.spot | quote }}
+  replicaPolicy: {{ $d.replicaPolicy | quote }}
+  failoverPolicy: {{ $d.failoverPolicy | quote }}
+  mode: shadow
+  dryRun: true
+{{- end }}
+{{- end }}

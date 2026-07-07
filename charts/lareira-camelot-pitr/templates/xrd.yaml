@@ -1,0 +1,97 @@
+{{- if .Values.xrd.install }}
+{{- $x := .Values.xrd }}
+---
+# The camelot-scoped composite type — the client-facing PITR trigger surface.
+#
+# GENTLEMANLY GUEST: camelot uses its OWN group ({{ $x.group }}, kind {{ $x.kind }}) so
+# the CLUSTER-SCOPED CRD this XRD generates can NEVER collide with the team's
+# pitr.akeyless.io/PITRSession if both land in mte-staging. Same client-facing signature
+# invariant — (spec.restoreTime, spec.secretNames) → status.retrievedSecrets — camelot
+# group. OPERATOR-GATED: requires Crossplane core.
+apiVersion: apiextensions.crossplane.io/v1
+kind: CompositeResourceDefinition
+metadata:
+  name: {{ $x.plural }}.{{ $x.group }}
+  labels:
+    {{- include "camelot-pitr.labels" . | nindent 4 }}
+spec:
+  group: {{ $x.group }}
+  names:
+    kind: {{ $x.kind }}
+    listKind: {{ $x.kind }}List
+    plural: {{ $x.plural }}
+    singular: {{ $x.singular }}
+  defaultCompositionRef:
+    name: {{ $x.compositionName }}
+  defaultCompositionUpdatePolicy: Manual
+  versions:
+    - name: v1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          description: >-
+            A single camelot PITR drill: restore camelot's OWN in-cluster akeyless data
+            plane (gp3-PVC MySQL) to a snapshot point and prove a canary written before
+            it is retrievable after restore. The engine runs the drill; the restore
+            VECTOR (CSI VolumeSnapshot) is camelot config, not RDS.
+          properties:
+            spec:
+              type: object
+              required: [restoreTime]
+              properties:
+                restoreTime:
+                  type: string
+                  format: date-time
+                  description: RFC3339 UTC snapshot point to restore to. Explicit only.
+                secretNames:
+                  type: array
+                  items: { type: string }
+                  default: []
+                  description: >-
+                    camelot akeyless paths to verify in the restored env. Empty ⇒
+                    auto-canary at /drill-canary/<correlationId>.
+                retention:
+                  type: object
+                  default: {}
+                  properties:
+                    mode:
+                      type: string
+                      enum: [Drill, Recover]
+                      default: Drill
+                    maxHold:
+                      type: string
+                      default: "6h"
+                    release:
+                      type: boolean
+                      default: false
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum: [Pending, Restoring, Verifying, Succeeded, Held, Releasing, Failed, Canceling, Canceled]
+                correlationId: { type: string }
+                restoreNamespace: { type: string }
+                retrievedSecrets:
+                  type: array
+                  items: { type: string }
+                canarySecretsCreated:
+                  type: array
+                  items: { type: string }
+                cleanupStatus: { type: string }
+                failureReason: { type: string }
+                startTime: { type: string, format: date-time }
+                completionTime: { type: string, format: date-time }
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type: { type: string }
+                      status: { type: string, enum: ["True", "False", "Unknown"] }
+                      reason: { type: string }
+                      message: { type: string }
+                      lastTransitionTime: { type: string, format: date-time }
+{{- end }}

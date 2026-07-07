@@ -1,0 +1,45 @@
+apiVersion: v2
+name: lareira-camelot-pitr
+description: >-
+  Camelot PITR — the enjulho WRAPPER that lets camelot restore its own secrets to
+  a point in time. A SEPARATE, PARALLEL consumer of the generic pleme-io PITR
+  engine: it pins the SAME ghcr.io/pleme-io/{pitr-tools,function-pitr-drill}@sha256
+  digests (TOOL-DISTRIBUTION — consume, never fork/edit) and fills the SAME typed
+  RestoreInput surface with CAMELOT values. It NEVER touches the engine repos or the
+  team's in-review pitr-akeyless chart in akeyless-environments — the team reviews
+  THEIR consumer, camelot runs OURS, the two never touch (different repo · branch ·
+  Flux scope · ns · creds · data-plane · config). Camelot's data plane is in-cluster
+  gp3-PVC MySQL (not RDS), so the restore vector is a CSI VolumeSnapshot of the gp3
+  PVC fed to the UNCHANGED engine as extraResources with empty sourceDbInstances
+  (the engine skips RDS emission — emitRDS iterates an empty map → nil). breathe-
+  managed (Mem/Cpu/Storage bands + 100% spot + scale-to-zero-by-drill-lifecycle),
+  camelot-isolated (role: camelot taint + toleration). Peer of lareira-autorevivy.
+  Tier-honest: the chart renders + lints + unit-tests green (the layer is WIRED);
+  the LIVE drill is OPERATOR-GATED on Crossplane-on-the-camelot-floor + a
+  VolumeSnapshotClass + camelot akeyless cofre creds — named, never claimed working.
+  Recovery is snapshot-point (the snapshot cadence), NOT arbitrary-second PITR
+  (binlog replay is a further increment); a canary round-trip is a recovery
+  MITIGATION, not a no-row-lost theorem. See the camelot skill + pitr research.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - camelot
+  - pitr
+  - point-in-time-restore
+  - drill
+  - enjulho
+  - breathability
+  - tool-distribution
+  - volume-snapshot
+home: https://github.com/pleme-io/theory
+sources:
+  - https://github.com/pleme-io/helmworks
+  - https://github.com/pleme-io/pitr-tools
+maintainers:
+  - name: drzzln
+    email: drzzln@protonmail.com
+dependencies:
+  - name: pleme-lib
+    version: ">=0.28.0"
+    repository: "file://../pleme-lib"

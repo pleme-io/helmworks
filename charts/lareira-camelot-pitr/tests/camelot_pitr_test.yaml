@@ -1,0 +1,147 @@
+suite: lareira-camelot-pitr — the parallel PITR consumer (digest, isolation, restore vector, breathe)
+templates:
+  - templates/composition.yaml
+  - templates/xrd.yaml
+  - templates/function.yaml
+  - templates/pitrsession.yaml
+  - templates/rbac.yaml
+  - templates/breatheband.yaml
+  - templates/external-secrets.yaml
+tests:
+  # ── TOOL-DISTRIBUTION: consume the engine BY DIGEST ────────────────────────
+  - it: installs the engine Function pinned by @sha256 (never a moving tag)
+    template: templates/function.yaml
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: kind
+          value: Function
+      - matchRegex:
+          path: spec.package
+          pattern: "^ghcr\\.io/pleme-io/function-pitr-drill@sha256:[a-f0-9]{64}$"
+
+  - it: fails the render when pitrTools is not @sha256-pinned (HERMETIC SUPPLY CHAIN)
+    template: templates/function.yaml
+    set:
+      images.pitrTools: "ghcr.io/pleme-io/pitr-tools:amd64-latest"
+    asserts:
+      - failedTemplate:
+          errorMessage: 'images.pitrTools="ghcr.io/pleme-io/pitr-tools:amd64-latest" must be @sha256-pinned (HERMETIC SUPPLY CHAIN): a release must never resolve a moving tag. Pin the immutable digest read from ghcr.io/pleme-io/pitr-tools.'
+
+  # ── THE ENGINE SEAM: Composition wires the camelot RestoreInput ────────────
+  - it: wires the generic engine to the camelot RestoreInput with the pitr-tools digest
+    template: templates/composition.yaml
+    asserts:
+      - equal:
+          path: kind
+          value: Composition
+      - equal:
+          path: spec.pipeline[0].functionRef.name
+          value: function-camelot-pitr-drill
+      - matchRegex:
+          path: spec.pipeline[0].input.drillImage
+          pattern: "^ghcr\\.io/pleme-io/pitr-tools@sha256:[a-f0-9]{64}$"
+
+  # ── THE HONEST DIVERGENCE: no RDS — sourceDbInstances is EMPTY ─────────────
+  - it: supplies EMPTY sourceDbInstances (camelot has no RDS — engine skips emitRDS)
+    template: templates/composition.yaml
+    asserts:
+      - isEmpty:
+          path: spec.pipeline[0].input.sourceDbInstances
+
+  # ── THE RESTORE VECTOR: CSI VolumeSnapshot → restore PVC → restore StatefulSet ──
+  - it: emits the camelot restore vector as engine extraResources (snapshot, pvc, sts)
+    template: templates/composition.yaml
+    asserts:
+      - equal:
+          path: spec.pipeline[0].input.extraResources[0].kind
+          value: VolumeSnapshot
+      - equal:
+          path: spec.pipeline[0].input.extraResources[1].kind
+          value: PersistentVolumeClaim
+      - equal:
+          path: spec.pipeline[0].input.extraResources[2].kind
+          value: StatefulSet
+      - equal:
+          path: spec.pipeline[0].input.extraResources[0].spec.source.persistentVolumeClaimName
+          value: akeyless-saas-akeyless-mysql-data
+
+  - it: pins the restore StatefulSet to the role=camelot tainted nodes (isolation)
+    template: templates/composition.yaml
+    asserts:
+      - equal:
+          path: spec.pipeline[0].input.extraResources[2].spec.template.spec.nodeSelector.role
+          value: camelot
+
+  # ── THE DECLARE TRIGGER: camelot-scoped CR (collision-free) ────────────────
+  - it: renders the CamelotPITRSession trigger under the camelot-scoped group
+    template: templates/pitrsession.yaml
+    asserts:
+      - equal:
+          path: apiVersion
+          value: pitr.camelot.pleme.io/v1
+      - equal:
+          path: kind
+          value: CamelotPITRSession
+      - matchRegex:
+          path: spec.restoreTime
+          pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T"
+
+  - it: the XRD uses the camelot group — NEVER the team's pitr.akeyless.io
+    template: templates/xrd.yaml
+    asserts:
+      - equal:
+          path: spec.group
+          value: pitr.camelot.pleme.io
+      - notEqual:
+          path: spec.group
+          value: pitr.akeyless.io
+
+  # ── BREATHE: every restore band carries an EXPLICIT dryRun (shadow-first) ───
+  - it: renders Mem + Cpu breathe bands for the transient restore DB with dryRun true
+    template: templates/breatheband.yaml
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: kind
+          value: MemoryBand
+      - equal:
+          path: spec.dryRun
+          value: true
+      - equal:
+          path: spec.targetRef.name
+          value: camelot-mysql-restore
+
+  - it: renders a StorageBand for the restore PVC (grow-on-demand, shadow)
+    template: templates/breatheband.yaml
+    documentIndex: 2
+    asserts:
+      - equal:
+          path: kind
+          value: StorageBand
+      - equal:
+          path: spec.dryRun
+          value: true
+
+  # ── LEAST-PRIVILEGE RBAC: ns-scoped Role, never ClusterRole ────────────────
+  - it: grants a namespace-scoped Role (never cluster-scoped — gentlemanly guest)
+    template: templates/rbac.yaml
+    documentIndex: 1
+    asserts:
+      - equal:
+          path: kind
+          value: Role
+      - notEqual:
+          path: kind
+          value: ClusterRole
+
+  # ── COFRE: camelot-scoped SecretRef, NEVER the akeyless one ────────────────
+  - it: materializes a camelot-scoped SecretRef (never pitr-akeyless-admin-creds)
+    template: templates/external-secrets.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: camelot-pitr-admin-creds
+      - notEqual:
+          path: metadata.name
+          value: pitr-akeyless-admin-creds
