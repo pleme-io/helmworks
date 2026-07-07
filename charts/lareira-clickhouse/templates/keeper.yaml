@@ -194,16 +194,24 @@ spec:
               {{- toYaml $k.resources.requests | nindent 14 }}
             limits:
               {{- toYaml $k.resources.requests | nindent 14 }}
+          # A Keeper voter only accepts client connections once it has joined the
+          # Raft quorum — a tcpSocket on the client port is the reliable ready
+          # signal (the 4LW-over-/dev/tcp probe was flaky). startupProbe gives the
+          # ensemble time to elect a leader before liveness/readiness run.
+          startupProbe:
+            tcpSocket:
+              port: client
+            periodSeconds: 10
+            failureThreshold: 30
           readinessProbe:
-            exec:
-              command: ["/bin/bash", "-c", "echo ruok | timeout 2 bash -c 'cat > /dev/tcp/127.0.0.1/{{ $k.ports.client }}; head -c4 <&0' | grep -q imok"]
-            initialDelaySeconds: 15
+            tcpSocket:
+              port: client
             periodSeconds: 15
           livenessProbe:
             tcpSocket:
-              port: client
-            initialDelaySeconds: 30
+              port: raft
             periodSeconds: 30
+            failureThreshold: 6
       volumes:
         - name: config
           configMap:
