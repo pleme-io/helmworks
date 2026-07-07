@@ -54,6 +54,36 @@ strategy). It invents no new mechanism.
 
 Set `perfClass: guaranteed-wake` for the measurement / release streams.
 
+## Perpetual cache-warming (`preheat`)
+
+Keeps the sui super-cache **HOT** so a build **substitutes** pre-built closures
+(warm, ~seconds) instead of cold-compiling (~minutes). `preheat.enabled` renders
+the Viggy `(defpromessa)` **"cache stays warm"** CR — the declared outcome the
+loop reconciles toward — mirroring `clusters/camelot/warming/promessa.yaml` so a
+GitOps flip is a no-surprise swap.
+
+```yaml
+preheat:
+  enabled: false            # render the Promessa CR (dryRun — actuates nothing)
+  cadenceSeconds: 21600     # 6h — re-warm at least this often
+  warmFractionTargetPct: 99 # the warm-fraction objective
+  floorSpin: { warmFloor: 1, idleFloor: 0, maxFloor: 8 }  # spin the floor ONLY while warming
+  targets: []               # [{name: akeyless-auth, arch: amd64, inputs: [flake.lock]}]
+```
+
+- **The pure decision core** is `sui-supercacheci::preheat` (WHEN/WHICH to warm +
+  the floor-spin plan + the typed `WarmthPromessa`).
+- **The executable preheat** is the `akeyless-nix-images` `camelot-cache-warm`
+  workflow (6h cadence + on tracked-input change), which spins the 100%-spot
+  scale-to-zero builder floor **only while warming**.
+- **The closed loop** that proves the promessa is autorevivy's CLEAN face
+  (`superCacheCiRef`) — a named LiveTODO.
+
+**Tier-honest:** the sui substituter is **LIVE**; keeping it *perpetually* warm
+is behind (a) the `camelot-cache-warm` workflow going green and (b) the sui
+`TieredBackend` store keystone. Rendering the CR declares the outcome — it does
+not make the cache warm.
+
 ## Minimum values
 
 ```yaml
@@ -61,6 +91,8 @@ arches: [arm64, amd64]
 perfClass: cost-floor       # per-stream override → guaranteed-wake for release builds
 tierB:
   enabled: false            # LiveTODO — flip when TieredBackend + sui REAPI worker land
+preheat:
+  enabled: false            # flip on to declare the "cache stays warm" promessa (shadow)
 ```
 
 ## Operator path to green (the unblock)

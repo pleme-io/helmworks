@@ -202,6 +202,57 @@ dashboard:
     arches: [arm64, amd64]
     queueMetric: build_queue_depth
     poolPrefix: camelot-builder
+    # Perpetual-warming (preheat) OBSERVE signals — the enjulho catalog IS the
+    # agent's reasoning surface (dashboard-as-code). These name the warmth
+    # metrics the "cache stays warm" promessa is proven against; a mixin that
+    # doesn't yet render them ignores the extra keys (forward-safe).
+    warmthPromessa: camelot-cache-warm
+    warmFractionMetric: sui_cache_warm_fraction
+    lastWarmMetric: camelot_cache_warm_last_run_seconds
+
+# ── Perpetual cache-warming (preheat) — the "cache stays warm" outcome. ────────
+# Keeps the sui super-cache HOT so a build SUBSTITUTES pre-built closures (warm,
+# ~seconds) instead of cold-compiling (~minutes). SHADOW-FIRST + GATED OFF:
+# `preheat.enabled` renders the Viggy Promessa CR (the declared outcome); it
+# declares `dryRun: true` and actuates nothing. The EXECUTABLE preheat is the
+# akeyless-nix-images `camelot-cache-warm` workflow (6h cadence + on tracked-input
+# change), which spins the 100%-spot scale-to-zero builder floor ONLY while
+# warming. The pure decision core is sui-supercacheci::preheat (WHEN/WHICH to warm
+# + the floor-spin plan); the closed loop that PROVES this promessa is autorevivy's
+# CLEAN face (superCacheCiRef) — a named LiveTODO.
+#
+# Tier-honest: the sui substituter is LIVE (a build fetches closures from
+# sui.camelot-build.svc); keeping it PERPETUALLY warm is behind (a) the
+# camelot-cache-warm workflow going green and (b) the sui TieredBackend store
+# keystone (Redis-L1 / Postgres-L2 persistence). Rendering this CR does not make
+# the cache warm — it declares the outcome the loop reconciles toward.
+preheat:
+  enabled: false             # render the Viggy Promessa CR (safe: dryRun, actuates nothing)
+  dryRun: true               # SHADOW-first — observe warmth, spin nothing until flipped LIVE
+  cadenceSeconds: 21600      # 6h — re-warm at least this often (matches the workflow)
+  stalenessSlackSeconds: 3600
+  warmFractionTargetPct: 99  # the warm-fraction objective
+  # Spin the 100%-spot scale-to-zero builder floor ONLY while warming.
+  floorSpin:
+    warmFloor: 1             # min runners raised to WHILE a warm is in flight
+    idleFloor: 0             # min runners at rest (scale-to-zero — cost at rest is zero)
+    maxFloor: 8              # never climb past the ARC maxRunners wall
+  # The warm targets (dep/service → builder arch → tracked inputs). Empty = an
+  # honest empty plan (no fabricated microservice names); supply the real set.
+  targets: []
+  #   - name: akeyless-auth
+  #     arch: amd64
+  #     inputs: [flake.lock]
+  # The Viggy (defpromessa) the loop reconciles toward.
+  promessa:
+    name: camelot-cache-warm
+    scope: camelot
+    canaryService: auth        # the warm-build-substitutes canary
+    slaObjective: "0.99"
+    slaWindow: "7d"
+    remediationPolicy: AutoCorrect
+    autorevivyRef: camelot-self-maintenance
+    outcomeChain: true
 
 # ── Camelot posture (CAMELOT §III non-negotiables). ───────────────────────────
 # In-cluster workloads (attic, exporter) run on camelot nodes with the camelot
