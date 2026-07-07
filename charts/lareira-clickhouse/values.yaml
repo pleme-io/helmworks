@@ -1,8 +1,29 @@
-# lareira-clickhouse — the columnar tap store for the tendril nervous system.
+# lareira-clickhouse — the columnar tap store AND the breathable analytics lake
+# for the tendril nervous system.
 #
-# Posture: zero-scale by default (KEDA wakes the StatefulSet on NATS lag),
-# breathable on every dimension (memory + cpu + disk bands), auto-initialized
-# (idempotent schema runs on first start so it comes up ready to receive).
+# TWO postures, one lattice (design: clickhouse-breathable-design.md):
+#
+#   • TAP  (default) — the degenerate `1 shard × 1 replica × 0 Keeper` corner:
+#     zero-scale by default (KEDA wakes the StatefulSet on NATS lag), plain
+#     MergeTree, a single `events` table, NATS-JetStream-as-WAL. Correct for the
+#     tap role; renders identically to the pre-lake chart.
+#
+#   • LAKE (opt-in) — fill out the two banded tiers:
+#       – ClickHouse Keeper: an ODD Raft ensemble (FullyDistributed → Quorum),
+#         Guaranteed QoS, anti-affine + AZ-spread, Critical-sealed. `voters` odd
+#         ≥ 3; a single-AZ spot storm takes ≤ 1 voter → majority survives.
+#       – Data plane: S shards × R replicas of ReplicatedMergeTree — every
+#         replica writable (MultiWriter); a lost replica RE-REPLICATES from a
+#         peer, it does not fail over. HA floor = replicasPerShard ≥ 2.
+#     ReplicatedMergeTree + macros ({shard}/{replica}) + remote_servers +
+#     zookeeper→Keeper + a tiered storage_policy (hot → cold → s3) + the
+#     logs/metrics/traces OTel lake schema.
+#
+# Breathable on every dimension breathe can carve (memory + cpu + disk bands,
+# shadow-first). The DatabaseBand architecture intent (Keeper = fully-distributed
+# quorum, data = multi-writer shards) is recorded as declarative annotations —
+# the DatabaseBand CRD/controller is "Landing" (a typed Rust contract, no live
+# k8s controller yet), so the chart does NOT emit a DatabaseBand CR by default.
 
 nameOverride: ""
 fullnameOverride: ""
@@ -19,6 +40,60 @@ clickhouse:
   ports:
     http: 8123
     native: 9000
+    # The Keeper-coordinated interserver port (ReplicatedMergeTree fetches).
+    interserver: 9009
+
+  # ── Topology — the two scale axes of the ClickHouse lattice. ───────────────
+  #   axis A — replicasPerShard: HA copies within a shard (also readers).
+  #   axis B — shards:           horizontal capacity partitions.
+  # `1 × 1` = the tap corner. The I0 interim StatefulSet realizes ONE logical
+  # shard (shard "0") with `replicasPerShard` ReplicatedMergeTree replicas —
+  # genuine Keeper-coordinated replication HA. Multi-shard (shards > 1, an
+  # add-shard reshard/rebalance) is the D1 Altinity-operator destination.
+  topology:
+    shards: 1
+    replicasPerShard: 1
+    # The logical shard id stamped into the {shard} macro (interim: single shard).
+    shardId: "0"
+    clusterName: tendril
+
+  # ── ClickHouse Keeper — the coordination tier (FullyDistributed/Quorum). ───
+  # enabled:false = the tap (NATS-as-WAL, no Keeper). enabled:true arms the odd
+  # Raft ensemble that coordinates the ReplicatedMergeTree replication queue,
+  # part metadata, distributed DDL, and merge leases.
+  keeper:
+    enabled: false
+    image:
+      repository: clickhouse/clickhouse-keeper
+      tag: "24.8"
+      pullPolicy: IfNotPresent
+    # ODD ≥ 3 — breathe's Quorum.has_failover_target() guard is voters>=3 && odd.
+    voters: 3
+    ports:
+      client: 9181       # ZooKeeper-compatible client port the data nodes reach
+      raft: 9234         # inter-Keeper Raft port
+      prometheus: 9363
+    # Guaranteed QoS (requests == limits, both cpu AND memory) — the isolation
+    # Critical seal for the coordination tier. Never BestEffort, never zero-floor.
+    # The keeper StatefulSet renders limits == requests structurally, so this
+    # block is Guaranteed by construction; keep them equal here too.
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+    persistence:
+      enabled: true
+      # Fast SSD for the raft log + snapshots (latency-sensitive); anti-affine to
+      # the data PVCs. MUST be allowVolumeExpansion:true for the StorageBand grow.
+      storageClass: ""
+      size: 2Gi
+    # AZ anti-affinity + topology spread — 3 voters across ≥ 3 AZs so a
+    # single-AZ spot storm takes at most 1 voter (majority survives, re-elect).
+    antiAffinity: true
+    topologySpreadZone: true
 
   # Resources are BREATHE-managed (the bands below carve the real limits in
   # band); these are the conservative starting envelope before the first band
@@ -30,6 +105,31 @@ clickhouse:
     limits:
       cpu: "2"
       memory: 4Gi
+
+  # ── ClickHouse's OWN tiered storage_policy (app-level carve, complementary to
+  # the breathe StorageBand's volume-level carve). hot (SSD PVC, StorageBand-
+  # banded) → cold (optional cheap HDD) → s3 (unbounded object-store cold). The
+  # right posture is a SMALL hot PVC + an unbounded S3 cold disk: the StorageBand
+  # grows the small hot tier on ingest pressure while `TTL … TO DISK 's3'`
+  # evacuates cold parts off it. Off by default (the tap keeps a plain default
+  # disk). ───────────────────────────────────────────────────────────────────
+  storagePolicy:
+    enabled: false
+    name: tiered
+    moveFactor: 0.1
+    cold:
+      enabled: false
+      # A second (cheaper/larger) PVC-backed disk. Left minimal in the interim.
+      class: ""
+      size: 50Gi
+    s3:
+      enabled: false
+      endpoint: ""           # e.g. https://s3.us-east-2.amazonaws.com/<bucket>/ch/
+      region: us-east-2
+      # cofre/SOPS-sealed Secret carrying the S3 access key id / secret key.
+      existingSecret: ""
+      accessKeyIdKey: access-key-id
+      secretAccessKeyKey: secret-access-key
 
   persistence:
     enabled: true
@@ -50,14 +150,29 @@ clickhouse:
   # Idempotent auto-initialization. Rendered into /docker-entrypoint-initdb.d
   # so ClickHouse runs it on first start (empty data dir); the PVC then persists
   # the schema across wake/sleep cycles. Every statement is IF NOT EXISTS so a
-  # re-run is a no-op. Override `extraSQL` to add tables; the default `events`
-  # table ingests the NATS-fed JSON log/event stream.
+  # re-run is a no-op. In LAKE mode (replication.enabled), the tables become
+  # ReplicatedMergeTree so each replica registers the same Keeper path.
   init:
     enabled: true
     # Analytical retention tier — longer than the 3h hot VictoriaOps buffer
     # (ClickHouse is the deep-query store). Disk grows GrowOnly via StorageBand.
     ttl: "7 DAY"
+    # DESTINATION: evacuate cold parts to cheap S3 cold instead of DELETE, so
+    # retention is cheap-cold-forever. Set to "TO DISK 's3'" (or
+    # "TO VOLUME 'cold'") in lake mode with storagePolicy.enabled. "DELETE" is
+    # the tap default (no S3 tier).
+    ttlAction: "DELETE"
+    # Schema shape: "events" (the tap's single-table corner) or "lake"
+    # (logs/metrics/traces OTel-shaped tables). Lake mode auto-selects "lake".
+    schema: events
     extraSQL: ""
+
+  # ── ReplicatedMergeTree replication. When enabled, the init schema uses
+  # ReplicatedMergeTree('/clickhouse/tables/{shard}/<table>','{replica}') so
+  # every replica coordinates through Keeper. REQUIRES keeper.enabled. Off by
+  # default (the tap runs plain MergeTree). ──────────────────────────────────
+  replication:
+    enabled: false
 
   podSecurityContext:
     fsGroup: 101
@@ -66,10 +181,12 @@ clickhouse:
     runAsNonRoot: true
     allowPrivilegeEscalation: false
 
-# ── Zero-scale: KEDA scales the StatefulSet 0<->1 on NATS-JetStream lag. ──────
-# The store wakes on the SAME MTE_STAGING lag that wakes its respiro consumer,
-# so the consumer always has a live ClickHouse to write into. min:0 = true
-# zero-scale; the 3h NATS buffer makes a sleeping store lossless.
+# ── Zero-scale: KEDA scales the DATA StatefulSet 0<->1 on NATS-JetStream lag. ─
+# TAP MODE ONLY. In lake mode (keeper.enabled) the data StatefulSet runs a fixed
+# `replicasPerShard` floor (HA — a sleeping replica can't hold a Keeper quorum
+# seat), so KEDA zero-scale is disabled. The store wakes on the SAME MTE_STAGING
+# lag that wakes its respiro consumer; the 3h NATS buffer makes a sleeping tap
+# lossless.
 breathability:
   enabled: true
   targetKind: StatefulSet
@@ -88,11 +205,19 @@ breathability:
       activationLagThreshold: "0"
 
 # ── Breathe homeostasis: memory + cpu limits carved in-band, disk grown
-# GrowOnly via StorageBand. SHADOW-first (dryRun / mode:shadow) like the rest of
-# tendril — observe the decisions, then flip to actuate. The memory + cpu bands
-# are emitted by the canonical pleme-lib.breatheBand helper (targeting THIS
-# chart's StatefulSet, not the helper-default Deployment); the StorageBand is
-# hand-emitted in templates/breathe.yaml (a band on a PVC, not a workload). ────
+# GrowOnly via StorageBand. SHADOW-first (dryRun / mode:shadow) — observe the
+# decisions, then flip to actuate. The data-tier memory + cpu bands are emitted
+# by the canonical pleme-lib.breatheBand helper (targeting the data StatefulSet);
+# the StorageBand + the Keeper band-set are hand-emitted in templates/breathe.yaml.
+#
+# CH-AWARE MEMORY (design §2): a MemoryBand that ignores ClickHouse's own memory
+# tracker either OOM-kills (cgroup shrunk below what CH thinks it may use) or
+# wastes. So the LAKE floor exceeds the reserved caches (5Gi default mark cache +
+# a per-query working set), and `appParamCotune.max_server_memory_usage` keeps
+# CH's ceiling ≤ ratioOfLimit × the carved cgroup limit — the kernel OOM-killer
+# can never front-run CH's tracker. The tap keeps a small 512Mi floor (tiny
+# caches). appParamCotune is a DECLARED intent today (the live co-tune actuator
+# is the DatabaseBand/config-reload destination — recorded, not yet actuated).
 breathe:
   enabled: true
   targetRef:
@@ -107,7 +232,15 @@ breathe:
     shrinkBelow: 0.70
     cooldownSeconds: 600
     disruptionPolicy: restartFreeOnly
+    # shadow-first: mode:shadow AND dryRun:true both mean "observe the band's
+    # decision, don't actuate the limit" — flip mode:live once trusted.
+    mode: shadow
     dryRun: true
+    # CH-aware co-tune (design §2, gap G4). Declared intent for the paired
+    # AppParam carve; the live actuator is the DatabaseBand destination.
+    appParamCotune:
+      knob: max_server_memory_usage
+      ratioOfLimit: 0.90
   cpu:
     enabled: true
     setpoint: 0.80
@@ -117,7 +250,12 @@ breathe:
     shrinkBelow: 0.70
     cooldownSeconds: 600
     disruptionPolicy: restartFreeOnly
+    mode: shadow
     dryRun: true
+    # Never starve the merges (design §4.1): CpuBand co-tunes background_pool_size
+    # up with CPU; a shrink that starves merge threads yields `too many parts`.
+    appParamCotune:
+      knob: background_pool_size
   storage:
     enabled: true
     setpoint: 0.80
@@ -131,6 +269,98 @@ breathe:
     maxStalenessSeconds: 300
     mode: shadow
     disruptionPolicy: restartFreeOnly
+  # Keeper band-set (hand-emitted, external targetRef = the Keeper StatefulSet).
+  # Only rendered when keeper.enabled. Guaranteed-QoS floor for the Critical
+  # coordination tier; small fast-SSD StorageBand for the raft log/snapshots.
+  keeper:
+    memory:
+      enabled: true
+      setpoint: 0.80
+      floor: "512Mi"
+      ceiling: "2Gi"
+      cooldownSeconds: 600
+      disruptionPolicy: restartFreeOnly
+      mode: shadow
+      dryRun: true
+    cpu:
+      enabled: true
+      setpoint: 0.80
+      floor: "200m"
+      ceiling: "1000m"
+      cooldownSeconds: 600
+      disruptionPolicy: restartFreeOnly
+      mode: shadow
+      dryRun: true
+    storage:
+      enabled: true
+      setpoint: 0.80
+      floor: "2Gi"
+      ceiling: "20Gi"
+      growFactor: 1.25
+      shrinkFactor: 0.90
+      cooldownSeconds: 600
+      maxStalenessSeconds: 300
+      mode: shadow
+      disruptionPolicy: restartFreeOnly
+  # ── DatabaseBand architecture INTENT (the ReplicationOverlay). ─────────────
+  # The DatabaseBand CRD/controller is "Landing" (a typed Rust contract in
+  # breathe-invariant, fa9468e — no deployable k8s controller yet), so the chart
+  # records the two-tier architecture as DECLARATIVE ANNOTATIONS on the Keeper +
+  # data StatefulSets rather than emitting a DatabaseBand CR. `emitCR:false` is
+  # the honest default; flip it only where the DatabaseBand CRD + controller are
+  # installed. The Keeper mapping (fully-distributed / quorum) uses SHIPPED
+  # breathe types; the data mapping (multi-writer / re-replicate) names the
+  # G2 gap (no MultiWriter ReplicationClass arm ships yet).
+  database:
+    enabled: true
+    emitCR: false
+    keeper:
+      class: fully-distributed      # ReplicationClass::FullyDistributed (shipped)
+      topology: quorum              # ReplicationTopology::Quorum { voters } (shipped)
+      spot: spot-even-primary
+      replica: quorum-odd-steps
+      failover: quorum-re-elect
+    data:
+      class: multi-writer           # G2 gap: no MultiWriter arm ships yet
+      topology: sharded-multi-writer
+      spot: spot-even-primary
+      replica: scale-readers-freely
+      failover: re-replicate-from-peer
+
+# ── ReplicaBand architecture INTENT. The ReplicaBand CRD is NOT installed in
+# the camelot/tendril cluster (only Memory/Cpu/Storage bands are live), so the
+# chart records the two scale axes as annotations and does NOT emit a ReplicaBand
+# CR by default. Flip emitCR only where the ReplicaBand CRD is installed. ──────
+replicaBand:
+  enabled: true
+  emitCR: false
+  data:
+    topologyKind: multiWriter
+    floor: 2            # HA floor: replicasPerShard >= 2
+  keeper:
+    topologyKind: fullyDistributed
+    floor: 3            # odd quorum floor
+    ceiling: 5
+
+# ── Lockdown: deny-all NetworkPolicy via the canonical pleme-lib helper. ─────
+# DELIBERATELY EMPTY. pleme-lib resolves `.Values.networkPolicy | default
+# global.networkPolicy`, and sprig's `default` only falls back on an EMPTY
+# value — so a populated per-chart block here (even `enabled: false`) would
+# DEFEAT the global fallback. Leaving it empty is what lets the tendril /
+# Camelot release lock this store "born locked" (deny-all ingress + egress)
+# from ONE top-level `global.networkPolicy.enabled: true`, with DNS + the
+# respiro-consumer ingress added back as explicit allow rules. To take
+# chart-level control instead, populate a full block here
+# (e.g. `networkPolicy: { enabled: true, allowDns: true, additionalIngress: [ … ] }`)
+# — it then wins wholesale over the global fallback.
+networkPolicy: {}
+
+# ── Global fallbacks (pleme-lib 0.36.0). Normally set at the top level and
+# propagated by Helm to every subchart; declared here (empty) only to document
+# the surface. nodeSelector/tolerations fall back to global.* in the
+# StatefulSet, breathe to global.breathe in the band helper, networkPolicy to
+# global.networkPolicy in the lock helper. ───────────────────────────────────
+global: {}
 
 serviceMonitor:
   enabled: false

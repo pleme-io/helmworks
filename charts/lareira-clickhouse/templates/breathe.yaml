@@ -1,36 +1,55 @@
 {{/*
-breathe.yaml — homeostasis on every dimension breathe can carve for a store.
+breathe.yaml — homeostasis on every dimension breathe can carve, BOTH tiers.
 
-  • MemoryBand + CpuBand — emitted by the canonical pleme-lib.breatheBand helper
-    (reads .Values.breathe; targetRef pins THIS chart's StatefulSet). The
-    controller holds resources.limits.{memory,cpu} at the 80/20 setpoint.
-  • StorageBand — hand-emitted (the helper bands a workload; a StorageBand bands
-    a PVC). GrowOnly: it grows requests.storage as the disk fills, never shrinks
-    data, restartFreeOnly via online CSI resize. Targets the StatefulSet's
-    volumeClaimTemplate PVC `data-<fullname>-0`.
+DATA tier:
+  • MemoryBand + CpuBand — the canonical pleme-lib.breatheBand helper (reads
+    .Values.breathe; targetRef pins the data StatefulSet). CH-aware memory floor
+    (design §2): the lake floor exceeds the reserved mark cache + a query working
+    set so a carve can't let the kernel OOM-killer front-run CH's tracker.
+  • StorageBand — hand-emitted per data replica PVC (data-<fullname>-<n>).
+    GrowOnly: grows requests.storage as parts land, never shrinks, restartFreeOnly
+    (online CSI resize). Bands the HOT tier only — the S3 cold tier absorbs the
+    long tail (TTL … TO DISK 's3').
 
-SHADOW-first throughout (mem/cpu dryRun:true, storage mode:shadow) — observe the
-decisions before flipping to actuate, per the tendril rollout posture.
+KEEPER tier (lake only): a hand-emitted band-set targeting the Keeper StatefulSet
+— a small Guaranteed-floor Memory/Cpu band + a small fast-SSD StorageBand per
+voter (raft log/snapshots grow with znode count).
+
+DatabaseBand / ReplicaBand: recorded as ARCHITECTURE INTENT annotations on the
+StatefulSets (keeper.yaml / statefulset.yaml). CR emission is gated OFF
+(database.emitCR / replicaBand.emitCR default false) because those CRDs are
+"Landing" / not installed in the camelot/tendril cluster — flip emitCR only where
+the CRD + controller exist.
+
+SHADOW-first throughout (dryRun:true / mode:shadow) — observe, then flip to live.
 */}}
 {{- if .Values.breathe.enabled }}
+{{- $fullname := include "pleme-lib.fullname" . }}
+{{- $ns := include "pleme-lib.namespace" . }}
+{{- $labels := include "pleme-lib.labels" . }}
+{{- $lake := .Values.clickhouse.keeper.enabled }}
+{{/* ── DATA tier: MemoryBand + CpuBand via the canonical helper ──────────── */}}
 {{- include "pleme-lib.breatheBand" . }}
+{{/* ── DATA tier: StorageBand per replica PVC ────────────────────────────── */}}
 {{- $s := .Values.breathe.storage | default dict }}
 {{- if $s.enabled }}
-{{- $fullname := include "pleme-lib.fullname" . }}
+{{- $replicas := ternary (int .Values.clickhouse.topology.replicasPerShard) 1 $lake }}
+{{- range $i := until $replicas }}
 ---
 apiVersion: breathe.pleme.io/v1
 kind: StorageBand
 metadata:
-  name: {{ $fullname }}-storage
-  namespace: {{ include "pleme-lib.namespace" . }}
+  name: {{ $fullname }}-storage-{{ $i }}
+  namespace: {{ $ns }}
   labels:
-    {{- include "pleme-lib.labels" . | nindent 4 }}
+    {{- $labels | nindent 4 }}
     lareira.pleme.io/dimension: storage
+    lareira.pleme.io/tier: data
 spec:
   targetRef:
     apiVersion: v1
     kind: PersistentVolumeClaim
-    name: data-{{ $fullname }}-0
+    name: data-{{ $fullname }}-{{ $i }}
   setpoint: {{ $s.setpoint | default 0.80 }}
   growAbove: {{ $s.growAbove | default 0.85 }}
   shrinkBelow: {{ $s.shrinkBelow | default 0.70 }}
@@ -42,5 +61,103 @@ spec:
   maxStalenessSeconds: {{ $s.maxStalenessSeconds | default 300 }}
   mode: {{ $s.mode | default "shadow" }}
   disruptionPolicy: {{ $s.disruptionPolicy | default "restartFreeOnly" }}
+{{- end }}
+{{- end }}
+{{/* ── KEEPER tier band-set (lake only) ──────────────────────────────────── */}}
+{{- if $lake }}
+{{- $k := .Values.clickhouse.keeper }}
+{{- $kb := .Values.breathe.keeper | default dict }}
+{{- $keeperName := include "lareira-clickhouse.keeper.fullname" . }}
+{{- $km := $kb.memory | default dict }}
+{{- if (default true $km.enabled) }}
+---
+apiVersion: breathe.pleme.io/v1
+kind: MemoryBand
+metadata:
+  name: {{ $keeperName }}-memory
+  namespace: {{ $ns }}
+  labels:
+    {{- $labels | nindent 4 }}
+    lareira.pleme.io/dimension: memory
+    lareira.pleme.io/tier: keeper
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: StatefulSet
+    name: {{ $keeperName }}
+  setpoint: {{ $km.setpoint | default 0.80 }}
+  floor: {{ $km.floor | default "512Mi" | quote }}
+  ceiling: {{ $km.ceiling | default "2Gi" | quote }}
+  growAbove: {{ $km.growAbove | default 0.85 }}
+  growFactor: {{ $km.growFactor | default 1.25 }}
+  shrinkBelow: {{ $km.shrinkBelow | default 0.70 }}
+  shrinkFactor: {{ $km.shrinkFactor | default 0.90 }}
+  cooldownSeconds: {{ $km.cooldownSeconds | default 600 }}
+  disruptionPolicy: {{ $km.disruptionPolicy | default "restartFreeOnly" }}
+  dryRun: {{ $km.dryRun | default true }}
+  mode: {{ $km.mode | default "shadow" }}
+  maxStalenessSeconds: {{ $km.maxStalenessSeconds | default 120 }}
+{{- end }}
+{{- $kc := $kb.cpu | default dict }}
+{{- if (default true $kc.enabled) }}
+---
+apiVersion: breathe.pleme.io/v1
+kind: CpuBand
+metadata:
+  name: {{ $keeperName }}-cpu
+  namespace: {{ $ns }}
+  labels:
+    {{- $labels | nindent 4 }}
+    lareira.pleme.io/dimension: cpu
+    lareira.pleme.io/tier: keeper
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: StatefulSet
+    name: {{ $keeperName }}
+  setpoint: {{ $kc.setpoint | default 0.80 }}
+  floor: {{ $kc.floor | default "200m" | quote }}
+  ceiling: {{ $kc.ceiling | default "1000m" | quote }}
+  growAbove: {{ $kc.growAbove | default 0.85 }}
+  growFactor: {{ $kc.growFactor | default 1.25 }}
+  shrinkBelow: {{ $kc.shrinkBelow | default 0.70 }}
+  shrinkFactor: {{ $kc.shrinkFactor | default 0.90 }}
+  cooldownSeconds: {{ $kc.cooldownSeconds | default 600 }}
+  disruptionPolicy: {{ $kc.disruptionPolicy | default "restartFreeOnly" }}
+  dryRun: {{ $kc.dryRun | default true }}
+  mode: {{ $kc.mode | default "shadow" }}
+  maxStalenessSeconds: {{ $kc.maxStalenessSeconds | default 120 }}
+{{- end }}
+{{- $ks := $kb.storage | default dict }}
+{{- if (default true $ks.enabled) }}
+{{- range $i := until (int $k.voters) }}
+---
+apiVersion: breathe.pleme.io/v1
+kind: StorageBand
+metadata:
+  name: {{ $keeperName }}-storage-{{ $i }}
+  namespace: {{ $ns }}
+  labels:
+    {{- $labels | nindent 4 }}
+    lareira.pleme.io/dimension: storage
+    lareira.pleme.io/tier: keeper
+spec:
+  targetRef:
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    name: data-{{ $keeperName }}-{{ $i }}
+  setpoint: {{ $ks.setpoint | default 0.80 }}
+  growAbove: {{ $ks.growAbove | default 0.85 }}
+  shrinkBelow: {{ $ks.shrinkBelow | default 0.70 }}
+  growFactor: {{ $ks.growFactor | default 1.25 }}
+  shrinkFactor: {{ $ks.shrinkFactor | default 0.90 }}
+  floor: {{ $ks.floor | default "2Gi" | quote }}
+  ceiling: {{ $ks.ceiling | default "20Gi" | quote }}
+  cooldownSeconds: {{ $ks.cooldownSeconds | default 600 }}
+  maxStalenessSeconds: {{ $ks.maxStalenessSeconds | default 300 }}
+  mode: {{ $ks.mode | default "shadow" }}
+  disruptionPolicy: {{ $ks.disruptionPolicy | default "restartFreeOnly" }}
+{{- end }}
+{{- end }}
 {{- end }}
 {{- end }}

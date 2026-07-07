@@ -1,0 +1,16 @@
+{{/*
+networkpolicy.yaml — LOCK via the canonical pleme-lib.networkpolicy helper.
+
+The helper reads `.Values.networkPolicy | default .Values.global.networkPolicy`,
+so a top-level `global.networkPolicy.enabled: true` (propagated by Helm to every
+subchart) locks THIS store behind a deny-all NetworkPolicy (ingress + egress)
+from one toggle — the "born locked" Camelot floor, the lockdown analogue of the
+global.nodeSelector / global.breathe fallbacks. Access is added back only as
+explicit allow rules (allowDns for cluster DNS, allowPrometheus for the scrape,
+additionalIngress for the respiro consumer + query clients). A per-chart
+`networkPolicy` block still wins wholesale over the global fallback.
+
+At compliance.baseline moderate+ the helper instead renders the full
+compliance.network / egress / airgap policy trio unconditionally.
+*/}}
+{{- include "pleme-lib.networkpolicy" . }}

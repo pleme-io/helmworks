@@ -1,19 +1,40 @@
 {{/*
 init-sql.yaml — AUTOMATED INITIALIZATION.
 
-Rendered into /docker-entrypoint-initdb.d so the official clickhouse-server
-image runs it on FIRST start (empty data dir). The PVC then persists the schema
-across the zero-scale wake/sleep cycles, so the store always comes up ready to
-receive. Every statement is IF NOT EXISTS — a re-run (e.g. a fresh PVC after a
-disk replace) is a safe no-op.
+Rendered into /docker-entrypoint-initdb.d so the official clickhouse-server image
+runs it on FIRST start (empty data dir). The PVC persists the schema across the
+zero-scale wake/sleep cycles. Every statement is IF NOT EXISTS — a re-run is a
+safe no-op, AND (lake mode) each replica running the same ReplicatedMergeTree
+CREATE registers itself under the same Keeper path (the standard CH pattern).
 
-The default `events` table ingests the NATS-fed JSON log/event stream: a small
-typed prefix (timestamp/source/level/message) for fast filtering plus a `raw`
-column holding the full original payload for ad-hoc querying. Override
-`clickhouse.init.extraSQL` to add more tables.
+Two schema shapes:
+  • events (TAP, default)  — one table: a typed prefix (timestamp/source/level/
+    message) + a `raw` blob for ad-hoc querying. The NATS-fed JSON stream lands
+    here.
+  • lake  (LAKE)           — three OTel-shaped tables (logs / metrics / traces),
+    LowCardinality + Map columns, columnar, ORDER BY the query keys.
+
+Engine:
+  • replication disabled → MergeTree (the tap).
+  • replication enabled  → ReplicatedMergeTree('/clickhouse/tables/{shard}/<t>','{replica}')
+    so every replica coordinates through Keeper.
+
+Retention:
+  • ttlAction DELETE (tap default) → drop old parts.
+  • ttlAction "TO DISK 's3'" (lake) → EVACUATE cold parts to the S3 cold tier
+    (cheap-cold-forever, not gone) — pairs with the storage_policy in config.yaml.
 */}}
 {{- if .Values.clickhouse.init.enabled }}
-{{- $db := .Values.clickhouse.auth.database }}
+{{- $ch := .Values.clickhouse }}
+{{- $db := $ch.auth.database }}
+{{- $ttl := $ch.init.ttl }}
+{{- $ttlAction := $ch.init.ttlAction | default "DELETE" }}
+{{- /* lake mode auto-selects the "lake" schema unless explicitly overridden. */}}
+{{- $schema := $ch.init.schema }}
+{{- if and $ch.keeper.enabled (eq $schema "events") }}{{- $schema = "lake" }}{{- end }}
+{{- $repl := $ch.replication.enabled }}
+{{- $storageSetting := "" }}
+{{- if $ch.storagePolicy.enabled }}{{- $storageSetting = printf ", storage_policy = '%s'" $ch.storagePolicy.name }}{{- end }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -24,7 +45,64 @@ metadata:
 data:
   00-schema.sql: |
     CREATE DATABASE IF NOT EXISTS {{ $db }};
+    {{- if eq $schema "lake" }}
 
+    -- ── logs — the OTel ClickHouse-exporter shape ────────────────────────────
+    CREATE TABLE IF NOT EXISTS {{ $db }}.logs
+    (
+      timestamp   DateTime64(9) DEFAULT now64(9),
+      trace_id    String DEFAULT '',
+      span_id     String DEFAULT '',
+      severity    LowCardinality(String) DEFAULT '',
+      service     LowCardinality(String) DEFAULT '',
+      body        String DEFAULT '',
+      resource    Map(LowCardinality(String), String),
+      attributes  Map(LowCardinality(String), String)
+    )
+    ENGINE = {{ if $repl }}ReplicatedMergeTree('/clickhouse/tables/{shard}/logs', '{replica}'){{ else }}MergeTree{{ end }}
+    PARTITION BY toYYYYMMDD(timestamp)
+    ORDER BY (service, severity, timestamp)
+    TTL toDateTime(timestamp) + INTERVAL {{ $ttl }} {{ $ttlAction }}
+    SETTINGS index_granularity = 8192{{ $storageSetting }};
+
+    -- ── metrics — name + label Map + value ──────────────────────────────────
+    CREATE TABLE IF NOT EXISTS {{ $db }}.metrics
+    (
+      timestamp   DateTime64(9) DEFAULT now64(9),
+      name        LowCardinality(String) DEFAULT '',
+      service     LowCardinality(String) DEFAULT '',
+      value       Float64 DEFAULT 0,
+      labels      Map(LowCardinality(String), String),
+      resource    Map(LowCardinality(String), String)
+    )
+    ENGINE = {{ if $repl }}ReplicatedMergeTree('/clickhouse/tables/{shard}/metrics', '{replica}'){{ else }}MergeTree{{ end }}
+    PARTITION BY toYYYYMMDD(timestamp)
+    ORDER BY (name, service, timestamp)
+    TTL toDateTime(timestamp) + INTERVAL {{ $ttl }} {{ $ttlAction }}
+    SETTINGS index_granularity = 8192{{ $storageSetting }};
+
+    -- ── traces — spans, ORDER BY the query keys + a trace_id skip-index ──────
+    CREATE TABLE IF NOT EXISTS {{ $db }}.traces
+    (
+      timestamp    DateTime64(9) DEFAULT now64(9),
+      trace_id     String DEFAULT '',
+      span_id      String DEFAULT '',
+      parent_id    String DEFAULT '',
+      service      LowCardinality(String) DEFAULT '',
+      operation    LowCardinality(String) DEFAULT '',
+      duration_ns  UInt64 DEFAULT 0,
+      status_code  LowCardinality(String) DEFAULT '',
+      attributes   Map(LowCardinality(String), String),
+      INDEX idx_trace_id trace_id TYPE bloom_filter GRANULARITY 4
+    )
+    ENGINE = {{ if $repl }}ReplicatedMergeTree('/clickhouse/tables/{shard}/traces', '{replica}'){{ else }}MergeTree{{ end }}
+    PARTITION BY toYYYYMMDD(timestamp)
+    ORDER BY (service, operation, timestamp)
+    TTL toDateTime(timestamp) + INTERVAL {{ $ttl }} {{ $ttlAction }}
+    SETTINGS index_granularity = 8192{{ $storageSetting }};
+    {{- else }}
+
+    -- ── events — the tap's single-table corner ───────────────────────────────
     CREATE TABLE IF NOT EXISTS {{ $db }}.events
     (
       timestamp   DateTime64(3) DEFAULT now64(3),
@@ -33,12 +111,13 @@ data:
       message     String DEFAULT '',
       raw         String DEFAULT ''
     )
-    ENGINE = MergeTree
+    ENGINE = {{ if $repl }}ReplicatedMergeTree('/clickhouse/tables/{shard}/events', '{replica}'){{ else }}MergeTree{{ end }}
     PARTITION BY toYYYYMMDD(timestamp)
     ORDER BY (source, timestamp)
-    TTL toDateTime(timestamp) + INTERVAL {{ .Values.clickhouse.init.ttl }}
-    SETTINGS index_granularity = 8192;
-{{- with .Values.clickhouse.init.extraSQL }}
+    TTL toDateTime(timestamp) + INTERVAL {{ $ttl }} {{ $ttlAction }}
+    SETTINGS index_granularity = 8192{{ $storageSetting }};
+    {{- end }}
+{{- with $ch.init.extraSQL }}
 {{ . | indent 4 }}
 {{- end }}
 {{- end }}

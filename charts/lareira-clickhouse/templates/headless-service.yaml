@@ -1,0 +1,30 @@
+{{/*
+headless-service.yaml — stable per-replica pod DNS for the data StatefulSet
+(LAKE mode). data-<n>.<headless> is what remote_servers.xml + ReplicatedMergeTree
+interserver fetches resolve. The ClusterIP service (service.yaml) stays the
+stable query/ingest endpoint; this headless one is the replication fabric.
+*/}}
+{{- if .Values.clickhouse.keeper.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "lareira-clickhouse.data.headless" . }}
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    {{- include "pleme-lib.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.clickhouse.ports.http }}
+      targetPort: http
+    - name: native
+      port: {{ .Values.clickhouse.ports.native }}
+      targetPort: native
+    - name: interserver
+      port: {{ .Values.clickhouse.ports.interserver }}
+      targetPort: interserver
+{{- end }}

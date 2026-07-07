@@ -1,0 +1,129 @@
+{{/*
+config.yaml — the LAKE-mode ClickHouse server config.d overlay ConfigMap.
+
+Only rendered when clickhouse.keeper.enabled (lake). Mounted into
+/etc/clickhouse-server/config.d/ on the data pods (the official image merges
+config.d/*.xml). Four typed fragments, each an INDUSTRY-STANDARD ClickHouse
+config surface:
+
+  • macros.xml         — {cluster}/{shard}/{replica} substituted into every
+    ReplicatedMergeTree Keeper path + Distributed table. {replica} = pod name
+    (unique per pod, the replication identity); {shard} = clickhouse.topology
+    .shardId (interim: single logical shard). from_env reads the value the
+    StatefulSet injects per-pod via the downward API.
+  • zookeeper.xml      — points the data nodes at the Keeper ensemble (ZK-wire
+    client port 9181) so ReplicatedMergeTree can coordinate the replication
+    queue + part metadata + distributed DDL.
+  • remote_servers.xml — the `tendril` cluster layout (one shard, N replicas,
+    internal_replication=true) enabling Distributed tables + ON CLUSTER DDL.
+  • storage.xml        — the tiered storage_policy (hot → [cold] → [s3]) +
+    move_factor, when clickhouse.storagePolicy.enabled. The StorageBand bands
+    the small hot tier; TTL … TO DISK 's3' evacuates cold parts off it.
+*/}}
+{{- if .Values.clickhouse.keeper.enabled }}
+{{- $fullname := include "pleme-lib.fullname" . }}
+{{- $ns := include "pleme-lib.namespace" . }}
+{{- $ch := .Values.clickhouse }}
+{{- $keeperName := include "lareira-clickhouse.keeper.fullname" . }}
+{{- $keeperHeadless := include "lareira-clickhouse.keeper.headless" . }}
+{{- $dataName := include "lareira-clickhouse.data.fullname" . }}
+{{- $dataHeadless := include "lareira-clickhouse.data.headless" . }}
+{{- $replicas := int (include "lareira-clickhouse.data.replicas" .) }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullname }}-config
+  namespace: {{ $ns }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+data:
+  macros.xml: |
+    <clickhouse>
+      <macros>
+        <cluster>{{ $ch.topology.clusterName }}</cluster>
+        <shard from_env="CH_SHARD"></shard>
+        <replica from_env="CH_REPLICA"></replica>
+      </macros>
+    </clickhouse>
+  zookeeper.xml: |
+    <clickhouse>
+      <zookeeper>
+        {{- range $i := until (int $ch.keeper.voters) }}
+        <node>
+          <host>{{ $keeperName }}-{{ $i }}.{{ $keeperHeadless }}.{{ $ns }}.svc.cluster.local</host>
+          <port>{{ $ch.keeper.ports.client }}</port>
+        </node>
+        {{- end }}
+      </zookeeper>
+      <distributed_ddl>
+        <path>/clickhouse/task_queue/ddl</path>
+      </distributed_ddl>
+    </clickhouse>
+  remote_servers.xml: |
+    <clickhouse>
+      <remote_servers>
+        <{{ $ch.topology.clusterName }}>
+          <shard>
+            <internal_replication>true</internal_replication>
+            {{- range $i := until $replicas }}
+            <replica>
+              <host>{{ $dataName }}-{{ $i }}.{{ $dataHeadless }}.{{ $ns }}.svc.cluster.local</host>
+              <port>{{ $ch.ports.native }}</port>
+            </replica>
+            {{- end }}
+          </shard>
+        </{{ $ch.topology.clusterName }}>
+      </remote_servers>
+    </clickhouse>
+  interserver.xml: |
+    <clickhouse>
+      <interserver_http_port>{{ $ch.ports.interserver }}</interserver_http_port>
+      <interserver_http_host from_env="CH_INTERSERVER_HOST"></interserver_http_host>
+    </clickhouse>
+  {{- if $ch.storagePolicy.enabled }}
+  storage.xml: |
+    <clickhouse>
+      <storage_configuration>
+        <disks>
+          {{- if $ch.storagePolicy.cold.enabled }}
+          <cold>
+            <type>local</type>
+            <path>/var/lib/clickhouse/cold/</path>
+          </cold>
+          {{- end }}
+          {{- if $ch.storagePolicy.s3.enabled }}
+          <s3>
+            <type>s3</type>
+            <endpoint>{{ $ch.storagePolicy.s3.endpoint }}</endpoint>
+            {{- if $ch.storagePolicy.s3.existingSecret }}
+            <access_key_id from_env="CH_S3_ACCESS_KEY_ID"></access_key_id>
+            <secret_access_key from_env="CH_S3_SECRET_ACCESS_KEY"></secret_access_key>
+            {{- end }}
+            <region>{{ $ch.storagePolicy.s3.region }}</region>
+          </s3>
+          {{- end }}
+        </disks>
+        <policies>
+          <{{ $ch.storagePolicy.name }}>
+            <volumes>
+              <hot>
+                <disk>default</disk>
+              </hot>
+              {{- if $ch.storagePolicy.cold.enabled }}
+              <cold>
+                <disk>cold</disk>
+              </cold>
+              {{- end }}
+              {{- if $ch.storagePolicy.s3.enabled }}
+              <s3>
+                <disk>s3</disk>
+              </s3>
+              {{- end }}
+            </volumes>
+            <move_factor>{{ $ch.storagePolicy.moveFactor }}</move_factor>
+          </{{ $ch.storagePolicy.name }}>
+        </policies>
+      </storage_configuration>
+    </clickhouse>
+  {{- end }}
+{{- end }}

@@ -1,0 +1,226 @@
+{{/*
+keeper.yaml — the ClickHouse Keeper coordination tier (LAKE mode).
+
+The odd Raft ensemble (NuRaft) that coordinates the ReplicatedMergeTree
+replication queue, part metadata, distributed DDL, and merge leases — breathe's
+FullyDistributed / Quorum{voters} tier, mapped with ZERO new algebra
+(has_failover_target = voters>=3 && odd).
+
+Isolation: Critical-sealed by construction —
+  • Guaranteed QoS (this template renders limits == requests for BOTH cpu and
+    memory, so the seal cannot be built BestEffort or zero-floor).
+  • pod anti-affinity — no two voters on one node.
+  • AZ topology spread (topology.kubernetes.io/zone) — 3 voters across ≥ 3 AZs,
+    so a single-AZ spot storm takes ≤ 1 voter → majority survives → re-elect.
+
+server_id is the StatefulSet ordinal + 1 (Raft ids are 1-indexed), computed from
+the pod hostname in the container command (the sanctioned 3-line glue) and read
+by keeper_config.xml via <server_id from_env>. Only rendered when keeper.enabled.
+*/}}
+{{- if .Values.clickhouse.keeper.enabled }}
+{{- $fullname := include "pleme-lib.fullname" . }}
+{{- $ns := include "pleme-lib.namespace" . }}
+{{- $ch := .Values.clickhouse }}
+{{- $k := $ch.keeper }}
+{{- $keeperName := include "lareira-clickhouse.keeper.fullname" . }}
+{{- $keeperHeadless := include "lareira-clickhouse.keeper.headless" . }}
+{{- $sched := .Values.global | default dict }}
+---
+{{/* Keeper server config — one ConfigMap the whole ensemble shares (server_id
+     comes from the per-pod env, so the file is identical across voters). */}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $keeperName }}-config
+  namespace: {{ $ns }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+    app.kubernetes.io/component: clickhouse-keeper
+data:
+  keeper_config.xml: |
+    <clickhouse>
+      <logger>
+        <level>information</level>
+        <console>1</console>
+      </logger>
+      <listen_host>0.0.0.0</listen_host>
+      <keeper_server>
+        <tcp_port>{{ $k.ports.client }}</tcp_port>
+        <server_id from_env="KEEPER_SERVER_ID"></server_id>
+        <log_storage_path>/var/lib/clickhouse-keeper/coordination/log</log_storage_path>
+        <snapshot_storage_path>/var/lib/clickhouse-keeper/coordination/snapshots</snapshot_storage_path>
+        <coordination_settings>
+          <operation_timeout_ms>10000</operation_timeout_ms>
+          <session_timeout_ms>30000</session_timeout_ms>
+          <raft_logs_level>information</raft_logs_level>
+        </coordination_settings>
+        <raft_configuration>
+          {{- range $i := until (int $k.voters) }}
+          <server>
+            <id>{{ add $i 1 }}</id>
+            <hostname>{{ $keeperName }}-{{ $i }}.{{ $keeperHeadless }}.{{ $ns }}.svc.cluster.local</hostname>
+            <port>{{ $k.ports.raft }}</port>
+          </server>
+          {{- end }}
+        </raft_configuration>
+      </keeper_server>
+      <prometheus>
+        <endpoint>/metrics</endpoint>
+        <port>{{ $k.ports.prometheus }}</port>
+        <metrics>true</metrics>
+        <events>true</events>
+        <asynchronous_metrics>true</asynchronous_metrics>
+      </prometheus>
+    </clickhouse>
+---
+{{/* Headless service — stable per-voter pod DNS keeper-<n>.<headless>. */}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $keeperHeadless }}
+  namespace: {{ $ns }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+    app.kubernetes.io/component: clickhouse-keeper
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    {{- include "pleme-lib.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: clickhouse-keeper
+  ports:
+    - name: client
+      port: {{ $k.ports.client }}
+      targetPort: client
+    - name: raft
+      port: {{ $k.ports.raft }}
+      targetPort: raft
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $keeperName }}
+  namespace: {{ $ns }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+    app.kubernetes.io/component: clickhouse-keeper
+  annotations:
+    # DatabaseBand architecture INTENT (Landing — no live CR). The Keeper tier is
+    # breathe's FullyDistributed/Quorum, spot-survivable per-voter, never-cross-majority.
+    breathe.pleme.io/db-class: {{ .Values.breathe.database.keeper.class | quote }}
+    breathe.pleme.io/db-topology: {{ .Values.breathe.database.keeper.topology | quote }}
+    breathe.pleme.io/db-replica-policy: {{ .Values.breathe.database.keeper.replica | quote }}
+    breathe.pleme.io/db-failover-policy: {{ .Values.breathe.database.keeper.failover | quote }}
+    breathe.pleme.io/db-spot: {{ .Values.breathe.database.keeper.spot | quote }}
+    breathe.pleme.io/db-quorum-voters: {{ $k.voters | quote }}
+    breathe.pleme.io/isolation-class: "critical"
+    breathe.pleme.io/qos: "guaranteed"
+spec:
+  serviceName: {{ $keeperHeadless }}
+  replicas: {{ $k.voters }}
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      {{- include "pleme-lib.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: clickhouse-keeper
+  template:
+    metadata:
+      labels:
+        {{- include "pleme-lib.labels" . | nindent 8 }}
+        app.kubernetes.io/component: clickhouse-keeper
+    spec:
+      {{- with $ch.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with (.Values.nodeSelector | default $sched.nodeSelector) }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with (.Values.tolerations | default $sched.tolerations) }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      affinity:
+        {{- if $k.antiAffinity }}
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  {{- include "pleme-lib.selectorLabels" . | nindent 18 }}
+                  app.kubernetes.io/component: clickhouse-keeper
+              topologyKey: kubernetes.io/hostname
+        {{- end }}
+      {{- if $k.topologySpreadZone }}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              {{- include "pleme-lib.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: clickhouse-keeper
+      {{- end }}
+      containers:
+        - name: clickhouse-keeper
+          image: "{{ $k.image.repository }}:{{ $k.image.tag }}"
+          imagePullPolicy: {{ $k.image.pullPolicy }}
+          {{- with $ch.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          command: ["/bin/bash", "-c"]
+          args:
+            # server_id = ordinal + 1 (Raft ids 1-indexed). Sanctioned glue.
+            - |
+              export KEEPER_SERVER_ID=$(( ${HOSTNAME##*-} + 1 ))
+              exec clickhouse-keeper --config-file=/etc/clickhouse-keeper/keeper_config.xml
+          ports:
+            - name: client
+              containerPort: {{ $k.ports.client }}
+            - name: raft
+              containerPort: {{ $k.ports.raft }}
+            - name: metrics
+              containerPort: {{ $k.ports.prometheus }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/clickhouse-keeper
+              readOnly: true
+            - name: data
+              mountPath: /var/lib/clickhouse-keeper
+          resources:
+            # Guaranteed QoS by construction: limits == requests for cpu AND memory.
+            requests:
+              {{- toYaml $k.resources.requests | nindent 14 }}
+            limits:
+              {{- toYaml $k.resources.requests | nindent 14 }}
+          readinessProbe:
+            exec:
+              command: ["/bin/bash", "-c", "echo ruok | timeout 2 bash -c 'cat > /dev/tcp/127.0.0.1/{{ $k.ports.client }}; head -c4 <&0' | grep -q imok"]
+            initialDelaySeconds: 15
+            periodSeconds: 15
+          livenessProbe:
+            tcpSocket:
+              port: client
+            initialDelaySeconds: 30
+            periodSeconds: 30
+      volumes:
+        - name: config
+          configMap:
+            name: {{ $keeperName }}-config
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels:
+          {{- include "pleme-lib.labels" . | nindent 10 }}
+          app.kubernetes.io/component: clickhouse-keeper
+          breathe.pleme.io/expandable: "true"
+      spec:
+        accessModes: [ReadWriteOnce]
+        {{- if $k.persistence.storageClass }}
+        storageClassName: {{ $k.persistence.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ $k.persistence.size }}
+{{- end }}

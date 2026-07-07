@@ -1,26 +1,54 @@
 {{/*
-statefulset.yaml — the single-node ClickHouse store.
+statefulset.yaml — the DATA tier ClickHouse StatefulSet.
 
-Zero-scale: replicas start at 0; KEDA (templates/breathability.yaml) owns the
-replica count and wakes it 0->1 on NATS-JetStream lag, falling back to 0 after
-the idle cooldown. The PVC (volumeClaimTemplates) persists data + schema across
-sleep/wake — a sleeping store loses nothing because the 3h NATS buffer holds the
-in-flight stream. The PVC is labelled breathe-expandable so a StorageBand grows
-it GrowOnly as it fills.
+TAP  (keeper disabled): replicas start at 0; KEDA (templates/breathability.yaml)
+owns the count and wakes it 0->1 on NATS-JetStream lag, back to 0 on idle. The
+PVC persists data + schema across sleep/wake; the 3h NATS buffer makes a sleeping
+tap lossless. Plain MergeTree, single `events` table.
+
+LAKE (keeper enabled): a fixed `replicasPerShard` HA floor (KEDA off — a sleeping
+replica can't hold a Keeper-coordinated seat). Each pod is a ReplicatedMergeTree
+replica of shard {shardId}, coordinating through Keeper (zookeeper.xml) — a lost
+replica RE-REPLICATES from a peer (MultiWriter), it does not fail over. The
+config.d overlay (config.yaml) carries macros/remote_servers/zookeeper/storage.
+
+The PVC is labelled breathe-expandable so a StorageBand grows it GrowOnly.
 */}}
 {{- $fullname := include "pleme-lib.fullname" . }}
 {{- $ch := .Values.clickhouse }}
+{{- $ns := include "pleme-lib.namespace" . }}
 {{- $secretName := $ch.auth.existingSecret | default (printf "%s-auth" $fullname) }}
+{{- $lake := $ch.keeper.enabled }}
+{{- $replicas := include "lareira-clickhouse.data.replicas" . }}
+{{- $serviceName := ternary (include "lareira-clickhouse.data.headless" .) $fullname $lake }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: {{ $fullname }}
-  namespace: {{ include "pleme-lib.namespace" . }}
+  namespace: {{ $ns }}
   labels:
     {{- include "pleme-lib.labels" . | nindent 4 }}
+  {{- if $lake }}
+  annotations:
+    # DatabaseBand architecture INTENT (Landing — no live CR). The data plane is
+    # breathe's MultiWriter (G2 gap): every replica writable, a reclaim
+    # re-replicates from a peer (never a promotion). ShardSurvivorWitness intent.
+    breathe.pleme.io/db-class: {{ .Values.breathe.database.data.class | quote }}
+    breathe.pleme.io/db-topology: {{ .Values.breathe.database.data.topology | quote }}
+    breathe.pleme.io/db-replica-policy: {{ .Values.breathe.database.data.replica | quote }}
+    breathe.pleme.io/db-failover-policy: {{ .Values.breathe.database.data.failover | quote }}
+    breathe.pleme.io/db-spot: {{ .Values.breathe.database.data.spot | quote }}
+    breathe.pleme.io/db-shards: {{ $ch.topology.shards | quote }}
+    breathe.pleme.io/db-replicas-per-shard: {{ $ch.topology.replicasPerShard | quote }}
+    breathe.pleme.io/isolation-class: "standard"
+    breathe.pleme.io/qos: "burstable"
+  {{- end }}
 spec:
-  serviceName: {{ $fullname }}
-  replicas: 0
+  serviceName: {{ $serviceName }}
+  replicas: {{ $replicas }}
+  {{- if $lake }}
+  podManagementPolicy: Parallel
+  {{- end }}
   selector:
     matchLabels:
       {{- include "pleme-lib.selectorLabels" . | nindent 6 }}
@@ -33,22 +61,60 @@ spec:
         {{- if $ch.init.enabled }}
         checksum/initdb: {{ include (print $.Template.BasePath "/init-sql.yaml") . | sha256sum }}
         {{- end }}
+        {{- if $lake }}
+        checksum/config: {{ include (print $.Template.BasePath "/config.yaml") . | sha256sum }}
+        {{- end }}
     spec:
       {{- with $ch.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.nodeSelector }}
+      {{- /* nodeSelector + tolerations honor the pleme-lib 0.36.0 global.*
+             fallback: a chart-level value wins, else the top-level global
+             (propagated by Helm to every subchart) applies. This is how the
+             tendril release pins the whole cluster onto the tainted
+             `role: tendril` scale-to-zero pool from ONE global block. */}}
+      {{- $sched := .Values.global | default dict }}
+      {{- with (.Values.nodeSelector | default $sched.nodeSelector) }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.tolerations }}
+      {{- with (.Values.tolerations | default $sched.tolerations) }}
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- if $lake }}
+      {{- /* In lake mode, spread a shard's replicas across nodes/AZs so a
+             single-AZ spot storm never takes a whole shard (design §5/§6). A
+             chart-level affinity override still wins. */}}
+      {{- if .Values.affinity }}
+      affinity:
+        {{- toYaml .Values.affinity | nindent 8 }}
+      {{- else }}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    {{- include "pleme-lib.selectorLabels" . | nindent 20 }}
+                    app.kubernetes.io/component: clickhouse-store
+                topologyKey: kubernetes.io/hostname
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              {{- include "pleme-lib.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: clickhouse-store
+      {{- end }}
+      {{- else }}
       {{- with .Values.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
+      {{- end }}
       {{- end }}
       containers:
         - name: clickhouse
@@ -63,6 +129,10 @@ spec:
               containerPort: {{ $ch.ports.http }}
             - name: native
               containerPort: {{ $ch.ports.native }}
+            {{- if $lake }}
+            - name: interserver
+              containerPort: {{ $ch.ports.interserver }}
+            {{- end }}
           env:
             - name: CLICKHOUSE_DB
               value: {{ $ch.auth.database | quote }}
@@ -75,9 +145,41 @@ spec:
                   key: {{ $ch.auth.passwordKey }}
             - name: CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT
               value: "1"
+            {{- if $lake }}
+            # {shard}/{replica} macros — {replica} = pod name (the per-pod
+            # replication identity), {shard} = the logical shard id.
+            - name: CH_SHARD
+              value: {{ $ch.topology.shardId | quote }}
+            - name: CH_REPLICA
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            # interserver_http_host — the pod IP so peers can fetch parts.
+            - name: CH_INTERSERVER_HOST
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            {{- if and $ch.storagePolicy.enabled $ch.storagePolicy.s3.enabled $ch.storagePolicy.s3.existingSecret }}
+            - name: CH_S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $ch.storagePolicy.s3.existingSecret }}
+                  key: {{ $ch.storagePolicy.s3.accessKeyIdKey }}
+            - name: CH_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $ch.storagePolicy.s3.existingSecret }}
+                  key: {{ $ch.storagePolicy.s3.secretAccessKeyKey }}
+            {{- end }}
+            {{- end }}
           volumeMounts:
             - name: data
               mountPath: /var/lib/clickhouse
+            {{- if $lake }}
+            - name: config
+              mountPath: /etc/clickhouse-server/config.d
+              readOnly: true
+            {{- end }}
             {{- if $ch.init.enabled }}
             - name: initdb
               mountPath: /docker-entrypoint-initdb.d
@@ -98,6 +200,11 @@ spec:
             initialDelaySeconds: 30
             periodSeconds: 30
       volumes:
+        {{- if $lake }}
+        - name: config
+          configMap:
+            name: {{ $fullname }}-config
+        {{- end }}
         {{- if $ch.init.enabled }}
         - name: initdb
           configMap:

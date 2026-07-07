@@ -1,25 +1,37 @@
 apiVersion: v2
 name: lareira-clickhouse
 description: |
-  ClickHouse single-node MergeTree store for the lareira/tendril nervous
-  system. The high-cardinality, columnar tap store — a third durable
-  destination alongside VictoriaLogs (logs) and VictoriaMetrics (metrics),
-  fed from NATS JetStream by its own KEDA-scaled respiro consumer.
+  ClickHouse for the lareira/tendril nervous system — the high-cardinality,
+  columnar observability store. Two postures on one lattice:
 
-  Designed for the tendril posture: DEFAULT ZERO-SCALE (the StatefulSet wakes
-  on NATS-JetStream lag and falls back to 0 on idle — the 3h NATS buffer makes
-  a sleeping store lossless), AUTOMATED INITIALIZATION (idempotent
-  CREATE DATABASE / MergeTree schema runs on first start so it comes up ready
-  to receive), and BREATHABLE on every dimension (memory + cpu + disk bands
-  via breathe, the PVC labelled for StorageBand grow-only expansion).
+  • TAP  (default) — the degenerate 1×1×0 corner: zero-scale (KEDA wakes the
+    StatefulSet on NATS-JetStream lag, back to 0 on idle — the 3h NATS buffer
+    makes a sleeping tap lossless), plain MergeTree, a single `events` table.
+  • LAKE (opt-in) — the breathable analytics lake: a ClickHouse Keeper odd Raft
+    ensemble (FullyDistributed/Quorum, Guaranteed-QoS Critical-sealed, anti-affine
+    + AZ-spread), S×R ReplicatedMergeTree replicas (MultiWriter — a lost replica
+    re-replicates, never fails over), a tiered storage_policy (hot→cold→S3 with
+    TTL evacuate), and the logs/metrics/traces OTel lake schema.
+
+  BREATHABLE on every dimension breathe can carve (memory + cpu + disk bands on
+  BOTH tiers, shadow-first) with a CH-aware memory floor that respects
+  max_server_memory_usage (the kernel OOM-killer can never front-run CH's
+  tracker). 100% spot per plane. The DatabaseBand/ReplicaBand architecture
+  (Keeper=fully-distributed/quorum, data=multi-writer/re-replicate) is recorded
+  as declarative annotations — the CRs are gated off (those CRDs are Landing/not
+  installed). Design: clickhouse-breathable-design.md.
 type: application
-version: 0.1.0
+version: 0.2.0
 appVersion: "24.8"
 keywords: [clickhouse, olap, columnar, observability, lareira, tendril]
 maintainers:
   - name: drzzln
     email: drzzln@protonmail.com
 dependencies:
+  # >=0.36.0 is load-bearing: the global.* fallbacks this chart honors
+  # (global.nodeSelector / global.tolerations in the StatefulSet,
+  # global.breathe in pleme-lib.breatheBand, global.networkPolicy in
+  # pleme-lib.networkpolicy) all land in the 0.36.0 line of the library.
   - name: pleme-lib
-    version: ">=0.32.0"
+    version: ">=0.36.0"
     repository: "file://../pleme-lib"

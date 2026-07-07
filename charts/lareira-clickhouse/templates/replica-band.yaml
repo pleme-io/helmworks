@@ -1,0 +1,60 @@
+{{/*
+replica-band.yaml — the two-axis ReplicaBand CRs (DESTINATION wiring, gated).
+
+The ReplicaBand CRD is NOT installed in the camelot/tendril cluster (only
+Memory/Cpu/Storage band CRDs are live). So this template is GATED OFF by default
+(replicaBand.emitCR: false) and the two scale axes are recorded as annotations
+on the StatefulSets instead. Flip replicaBand.emitCR: true ONLY where the
+ReplicaBand CRD + controller are installed.
+
+Two topology-safe axes (design §4.2):
+  • data   — topology.kind multiWriter, floor replicasPerShard ≥ 2 (HA; a
+    scale-in re-replicates from a peer, never below floor).
+  • keeper — topology.kind fullyDistributed, floor 3 / ceiling 5, odd steps,
+    never crossing majority.
+*/}}
+{{- if and .Values.replicaBand.enabled .Values.replicaBand.emitCR .Values.clickhouse.keeper.enabled }}
+{{- $fullname := include "pleme-lib.fullname" . }}
+{{- $ns := include "pleme-lib.namespace" . }}
+{{- $labels := include "pleme-lib.labels" . }}
+{{- $rb := .Values.replicaBand }}
+---
+apiVersion: breathe.pleme.io/v1
+kind: ReplicaBand
+metadata:
+  name: {{ $fullname }}-replica
+  namespace: {{ $ns }}
+  labels:
+    {{- $labels | nindent 4 }}
+    lareira.pleme.io/tier: data
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: StatefulSet
+    name: {{ $fullname }}
+  topology:
+    kind: {{ $rb.data.topologyKind | quote }}
+  floor: {{ $rb.data.floor }}
+  mode: shadow
+  dryRun: true
+---
+apiVersion: breathe.pleme.io/v1
+kind: ReplicaBand
+metadata:
+  name: {{ include "lareira-clickhouse.keeper.fullname" . }}-replica
+  namespace: {{ $ns }}
+  labels:
+    {{- $labels | nindent 4 }}
+    lareira.pleme.io/tier: keeper
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: StatefulSet
+    name: {{ include "lareira-clickhouse.keeper.fullname" . }}
+  topology:
+    kind: {{ $rb.keeper.topologyKind | quote }}
+  floor: {{ $rb.keeper.floor }}
+  ceiling: {{ $rb.keeper.ceiling }}
+  mode: shadow
+  dryRun: true
+{{- end }}

@@ -1,0 +1,73 @@
+{{/*
+database-band.yaml — the two-tier DatabaseBand CRs (DESTINATION wiring, gated).
+
+The DatabaseBand is "Landing" — a typed Rust contract in breathe-invariant
+(fa9468e: ReplicationClass / ReplicationTopology / FailoverMachine / the
+DatabasePermutation legality lattice + the proof-carrying reclaim authorization)
+with NO deployable k8s controller yet, and the DatabaseBand CRD is not installed
+in the camelot/tendril cluster. So this template is GATED OFF by default
+(breathe.database.emitCR: false) and the architecture is instead recorded as
+annotations on the StatefulSets (keeper.yaml / statefulset.yaml).
+
+Flip breathe.database.emitCR: true ONLY where the DatabaseBand CRD + controller
+are installed. The spec shape follows the design (clickhouse-breathable-design.md
+§1/§7.3): Keeper = FullyDistributed/Quorum (shipped types, never-cross-majority),
+data = MultiWriter/ReReplicateFromPeer (the G2 gap — no MultiWriter arm ships yet,
+so a controller must treat the data arm as intent until G2 lands).
+*/}}
+{{- if and .Values.breathe.enabled .Values.breathe.database.enabled .Values.breathe.database.emitCR .Values.clickhouse.keeper.enabled }}
+{{- $fullname := include "pleme-lib.fullname" . }}
+{{- $ns := include "pleme-lib.namespace" . }}
+{{- $labels := include "pleme-lib.labels" . }}
+{{- $ch := .Values.clickhouse }}
+{{- $d := .Values.breathe.database }}
+---
+apiVersion: breathe.pleme.io/v1
+kind: DatabaseBand
+metadata:
+  name: {{ include "lareira-clickhouse.keeper.fullname" . }}-db
+  namespace: {{ $ns }}
+  labels:
+    {{- $labels | nindent 4 }}
+    lareira.pleme.io/tier: keeper
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: StatefulSet
+    name: {{ include "lareira-clickhouse.keeper.fullname" . }}
+  engine: clickhouse-keeper
+  class: {{ $d.keeper.class | quote }}
+  topology:
+    kind: {{ $d.keeper.topology | quote }}
+    voters: {{ $ch.keeper.voters }}
+  spot: {{ $d.keeper.spot | quote }}
+  replicaPolicy: {{ $d.keeper.replica | quote }}
+  failoverPolicy: {{ $d.keeper.failover | quote }}
+  mode: shadow
+  dryRun: true
+---
+apiVersion: breathe.pleme.io/v1
+kind: DatabaseBand
+metadata:
+  name: {{ $fullname }}-db
+  namespace: {{ $ns }}
+  labels:
+    {{- $labels | nindent 4 }}
+    lareira.pleme.io/tier: data
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: StatefulSet
+    name: {{ $fullname }}
+  engine: clickhouse-data
+  class: {{ $d.data.class | quote }}
+  topology:
+    kind: {{ $d.data.topology | quote }}
+    shards: {{ $ch.topology.shards }}
+    replicasPerShard: {{ $ch.topology.replicasPerShard }}
+  spot: {{ $d.data.spot | quote }}
+  replicaPolicy: {{ $d.data.replica | quote }}
+  failoverPolicy: {{ $d.data.failover | quote }}
+  mode: shadow
+  dryRun: true
+{{- end }}

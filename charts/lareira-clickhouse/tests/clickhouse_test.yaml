@@ -1,10 +1,13 @@
-suite: lareira-clickhouse — zero-scale, breathable-every-dimension, auto-initialized
+suite: lareira-clickhouse — tap (zero-scale) + lake (Keeper/ReplicatedMergeTree/tiered/banded)
 templates:
   - templates/statefulset.yaml
   - templates/breathability.yaml
   - templates/breathe.yaml
   - templates/init-sql.yaml
+  - templates/keeper.yaml
+  - templates/config.yaml
 tests:
+  # ── TAP posture (default) ─────────────────────────────────────────────────
   - it: the StatefulSet starts asleep at 0 replicas (zero-scale by default) with a breathe-expandable PVC
     template: templates/statefulset.yaml
     asserts:
@@ -15,7 +18,7 @@ tests:
           path: spec.volumeClaimTemplates[0].metadata.labels["breathe.pleme.io/expandable"]
           value: "true"
 
-  - it: KEDA wakes the StatefulSet 0->1 on NATS-JetStream lag (wake-on-data)
+  - it: KEDA wakes the StatefulSet 0->1 on NATS-JetStream lag (wake-on-data) in tap mode
     template: templates/breathability.yaml
     documentSelector:
       path: kind
@@ -88,3 +91,147 @@ tests:
       - matchRegex:
           path: data["00-schema.sql"]
           pattern: "ENGINE = MergeTree"
+
+  # ── LAKE posture (keeper + replication enabled) ───────────────────────────
+  - it: lake mode runs a fixed replicasPerShard HA floor (no zero-scale), MultiWriter-annotated
+    set:
+      clickhouse.keeper.enabled: true
+      clickhouse.replication.enabled: true
+      clickhouse.topology.replicasPerShard: 2
+    template: templates/statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 2
+      - equal:
+          path: metadata.annotations["breathe.pleme.io/db-class"]
+          value: multi-writer
+      - equal:
+          path: metadata.annotations["breathe.pleme.io/db-failover-policy"]
+          value: re-replicate-from-peer
+
+  - it: lake mode DISABLES the KEDA zero-scale ScaledObject
+    set:
+      clickhouse.keeper.enabled: true
+    template: templates/breathability.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: lake mode brings up the Keeper ensemble — odd voters, Guaranteed QoS, Critical-sealed
+    set:
+      clickhouse.keeper.enabled: true
+      clickhouse.keeper.voters: 3
+    template: templates/keeper.yaml
+    documentSelector:
+      path: kind
+      value: StatefulSet
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+      - equal:
+          path: metadata.annotations["breathe.pleme.io/isolation-class"]
+          value: critical
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 500m
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: 500m
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 1Gi
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 1Gi
+
+  - it: lake mode Keeper spreads voters across nodes + AZs (spot-survivable quorum)
+    set:
+      clickhouse.keeper.enabled: true
+    template: templates/keeper.yaml
+    documentSelector:
+      path: kind
+      value: StatefulSet
+    asserts:
+      - equal:
+          path: spec.template.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].topologyKey
+          value: kubernetes.io/hostname
+      - equal:
+          path: spec.template.spec.topologySpreadConstraints[0].topologyKey
+          value: topology.kubernetes.io/zone
+
+  - it: lake mode switches the schema to ReplicatedMergeTree with the logs/metrics/traces lake tables
+    set:
+      clickhouse.keeper.enabled: true
+      clickhouse.replication.enabled: true
+    template: templates/init-sql.yaml
+    documentSelector:
+      path: kind
+      value: ConfigMap
+    asserts:
+      - matchRegex:
+          path: data["00-schema.sql"]
+          pattern: "CREATE TABLE IF NOT EXISTS tendril.logs"
+      - matchRegex:
+          path: data["00-schema.sql"]
+          pattern: "CREATE TABLE IF NOT EXISTS tendril.traces"
+      - matchRegex:
+          path: data["00-schema.sql"]
+          pattern: "ReplicatedMergeTree../clickhouse/tables/.shard./logs"
+
+  - it: lake mode with S3 tiering evacuates cold parts (TTL … TO DISK 's3'), not DELETE
+    set:
+      clickhouse.keeper.enabled: true
+      clickhouse.replication.enabled: true
+      clickhouse.storagePolicy.enabled: true
+      clickhouse.storagePolicy.s3.enabled: true
+      clickhouse.init.ttlAction: "TO DISK 's3'"
+    template: templates/init-sql.yaml
+    documentSelector:
+      path: kind
+      value: ConfigMap
+    asserts:
+      - matchRegex:
+          path: data["00-schema.sql"]
+          pattern: "TO DISK 's3'"
+      - matchRegex:
+          path: data["00-schema.sql"]
+          pattern: "storage_policy = 'tiered'"
+
+  - it: lake mode points the data nodes at the Keeper ensemble (zookeeper config) with per-pod macros
+    set:
+      clickhouse.keeper.enabled: true
+      clickhouse.keeper.voters: 3
+    template: templates/config.yaml
+    documentSelector:
+      path: kind
+      value: ConfigMap
+    asserts:
+      - matchRegex:
+          path: data["zookeeper.xml"]
+          pattern: "clickhouse-keeper-0"
+      - matchRegex:
+          path: data["macros.xml"]
+          pattern: 'replica from_env="CH_REPLICA"'
+      - matchRegex:
+          path: data["remote_servers.xml"]
+          pattern: "internal_replication.true"
+
+  - it: lake mode bands BOTH tiers — a Keeper MemoryBand targets the Keeper StatefulSet, shadow-first
+    set:
+      clickhouse.keeper.enabled: true
+    template: templates/breathe.yaml
+    documentSelector:
+      path: metadata.name
+      value: RELEASE-NAME-lareira-clickhouse-keeper-memory
+    asserts:
+      - equal:
+          path: kind
+          value: MemoryBand
+      - equal:
+          path: spec.targetRef.name
+          value: RELEASE-NAME-lareira-clickhouse-keeper
+      - equal:
+          path: spec.dryRun
+          value: true
