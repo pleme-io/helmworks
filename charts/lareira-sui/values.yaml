@@ -151,12 +151,14 @@ pleme-sui:
   fullnameOverride: sui        # → Deployment/Service named `sui`; band targets it
   image:
     repository: ghcr.io/pleme-io/sui
-    # ⚠ IMAGE GAP: the tiered serve capability needs an image built with
-    #   `--features tiered` (Redis L1 + Postgres L2 arms) AND carrying the
-    #   ground-truth `cache serve --backend-config` wiring. NEITHER is in the
-    #   published `amd64-latest` (main builds no features + no --backend-config).
-    #   This tag is a PLACEHOLDER — see the runbook "image sourcing" section.
-    tag: "amd64-tiered-latest"
+    # Tiered serve image — built `--features tiered` (Redis L1 + Postgres L2 arms)
+    #   AND carrying the `cache serve --backend-config` wiring. Built natively
+    #   (amd64, no QEMU) on the camelot-builder spot floor from sui main eda3b5a
+    #   and published to ghcr.io/pleme-io/sui:amd64-tiered-eda3b5a
+    #   (sha256:42a05ecc3556e97a0fe41026d60516bb4f87e1b01b26fce673e7f4a1222afc03).
+    #   Qualified live 2026-07-07: daemon Running on the spot floor, TieredBackend
+    #   serving PUT/GET hits, /build a real tmpfs (noswap).
+    tag: "amd64-tiered-eda3b5a"
     pullPolicy: IfNotPresent
   replicaCount: 1
   mode:
