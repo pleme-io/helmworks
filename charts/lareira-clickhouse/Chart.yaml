@@ -21,7 +21,7 @@ description: |
   as declarative annotations — the CRs are gated off (those CRDs are Landing/not
   installed). Design: clickhouse-breathable-design.md.
 type: application
-version: 0.2.1
+version: 0.2.2
 appVersion: "24.8"
 keywords: [clickhouse, olap, columnar, observability, lareira, tendril]
 maintainers:

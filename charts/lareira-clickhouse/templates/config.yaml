@@ -89,21 +89,26 @@ data:
            from front-running CH's tracker on a small node. This is the G4
            co-tune rendered as real config (the live band-driven actuator is the
            DatabaseBand destination). */}}
+    {{- /* int64-coerce every numeric — a large byte count passed as a YAML
+           number is otherwise float64-rendered in scientific notation
+           (1.61e+09), which ClickHouse's integer settings parser rejects
+           (CANNOT_PARSE_INPUT_ASSERTION_FAILED). int64 renders a plain integer
+           whether the value arrived as a number or a quoted string. */}}
     <clickhouse>
       {{- with $t.maxServerMemoryUsage }}
-      <max_server_memory_usage>{{ . }}</max_server_memory_usage>
+      <max_server_memory_usage>{{ int64 . }}</max_server_memory_usage>
       {{- end }}
       {{- with $t.markCacheSize }}
-      <mark_cache_size>{{ . }}</mark_cache_size>
+      <mark_cache_size>{{ int64 . }}</mark_cache_size>
       {{- end }}
       {{- with $t.uncompressedCacheSize }}
-      <uncompressed_cache_size>{{ . }}</uncompressed_cache_size>
+      <uncompressed_cache_size>{{ int64 . }}</uncompressed_cache_size>
       {{- end }}
       {{- with $t.backgroundPoolSize }}
-      <background_pool_size>{{ . }}</background_pool_size>
+      <background_pool_size>{{ int64 . }}</background_pool_size>
       {{- end }}
       {{- with $t.maxConcurrentQueries }}
-      <max_concurrent_queries>{{ . }}</max_concurrent_queries>
+      <max_concurrent_queries>{{ int64 . }}</max_concurrent_queries>
       {{- end }}
     </clickhouse>
   {{- end }}
