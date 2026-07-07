@@ -54,12 +54,20 @@ spec:
             - --cache-url=http://localhost:5000
             - --cache-name={{ default "main" .Values.mode.cache.s3.bucket }}
             - --strategy={{ .Values.mode.agent.strategy }}
+            {{- if .Values.mode.cache.signing.secretName }}
+            # Per-derivation cache signing: sign every ingested narinfo with
+            # the ed25519 key materialized from a cofre/ESO-backed Secret.
+            - --signing-key=/etc/sui/signing/{{ .Values.mode.cache.signing.secretKey }}
+            {{- end }}
           {{- else if .Values.mode.cache.enabled }}
           # Cache-only mode
           args:
             - cache
             - serve
             - --listen={{ .Values.mode.cache.listen }}
+            {{- if .Values.mode.cache.signing.secretName }}
+            - --signing-key=/etc/sui/signing/{{ .Values.mode.cache.signing.secretKey }}
+            {{- end }}
           {{- else if .Values.mode.agent.enabled }}
           # Agent-only mode
           args:
@@ -99,17 +107,29 @@ spec:
               mountPath: /nix/var
             - name: tmp
               mountPath: /tmp
+            {{- if .Values.mode.cache.signing.secretName }}
+            - name: signing-key
+              mountPath: /etc/sui/signing
+              readOnly: true
+            {{- end }}
           {{- else }}
           {{- with .Values.securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- if .Values.mode.agent.enabled }}
+          {{- if or .Values.mode.agent.enabled .Values.mode.cache.signing.secretName }}
           volumeMounts:
+            {{- if .Values.mode.agent.enabled }}
             - name: tmp
               mountPath: /tmp
             - name: eval-cache
               mountPath: /var/lib/sui
+            {{- end }}
+            {{- if .Values.mode.cache.signing.secretName }}
+            - name: signing-key
+              mountPath: /etc/sui/signing
+              readOnly: true
+            {{- end }}
           {{- end }}
           {{- end }}
           {{- with .Values.resources }}
@@ -132,20 +152,28 @@ spec:
               path: {{ .Values.health.path }}
               port: {{ .Values.health.port }}
             periodSeconds: {{ .Values.health.readinessPeriodSeconds }}
-      {{- if .Values.nixAgent.enabled }}
+      {{- if or .Values.nixAgent.enabled .Values.mode.agent.enabled .Values.mode.cache.signing.secretName }}
       volumes:
+        {{- if .Values.nixAgent.enabled }}
         - name: nix-store
           emptyDir:
             sizeLimit: {{ .Values.nixAgent.storageSize }}
         - name: tmp
           emptyDir:
             sizeLimit: 10Gi
-      {{- else if .Values.mode.agent.enabled }}
-      volumes:
+        {{- else if .Values.mode.agent.enabled }}
         - name: tmp
           emptyDir:
             sizeLimit: 10Gi
         - name: eval-cache
           emptyDir:
             sizeLimit: 20Gi
+        {{- end }}
+        {{- if .Values.mode.cache.signing.secretName }}
+        # ed25519 cache signing key — materialized by cofre/ESO into this
+        # Secret; mounted read-only, consumed by `--signing-key`.
+        - name: signing-key
+          secret:
+            secretName: {{ .Values.mode.cache.signing.secretName }}
+        {{- end }}
       {{- end }}

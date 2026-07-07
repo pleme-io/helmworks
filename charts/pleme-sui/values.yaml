@@ -38,6 +38,14 @@ mode:
       bucket: ""
       region: us-east-1
       endpoint: ""
+    # Per-derivation cache signing (ed25519, Nix-native — the super-cache-ci
+    # security layer's first move). When secretName is set, the daemon signs
+    # every ingested narinfo and consumers can verify against the published
+    # public key. The Secret is materialized by cofre/ESO (never a plaintext
+    # literal); it is mounted read-only at /etc/sui/signing and consumed via
+    # `--signing-key`. Leave secretName empty to serve unsigned (legacy
+    # fail-open). The Secret's `secretKey` entry holds the Nix-format
+    # `keyname:base64(secret||public)` signing key.
     signing:
       secretName: ""
       secretKey: signing-key
