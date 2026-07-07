@@ -80,6 +80,33 @@ data:
       <interserver_http_port>{{ $ch.ports.interserver }}</interserver_http_port>
       <interserver_http_host from_env="CH_INTERSERVER_HOST"></interserver_http_host>
     </clickhouse>
+  {{- $t := $ch.serverSettings | default dict }}
+  {{- if or $t.maxServerMemoryUsage $t.markCacheSize $t.uncompressedCacheSize $t.backgroundPoolSize $t.maxConcurrentQueries }}
+  tuning.xml: |
+    {{- /* The CH-aware memory + merge co-tune (design §2/§4). Shrinking
+           mark_cache_size off ClickHouse's 5Gi default + capping
+           max_server_memory_usage <= 0.9 x cgroup keeps the kernel OOM-killer
+           from front-running CH's tracker on a small node. This is the G4
+           co-tune rendered as real config (the live band-driven actuator is the
+           DatabaseBand destination). */}}
+    <clickhouse>
+      {{- with $t.maxServerMemoryUsage }}
+      <max_server_memory_usage>{{ . }}</max_server_memory_usage>
+      {{- end }}
+      {{- with $t.markCacheSize }}
+      <mark_cache_size>{{ . }}</mark_cache_size>
+      {{- end }}
+      {{- with $t.uncompressedCacheSize }}
+      <uncompressed_cache_size>{{ . }}</uncompressed_cache_size>
+      {{- end }}
+      {{- with $t.backgroundPoolSize }}
+      <background_pool_size>{{ . }}</background_pool_size>
+      {{- end }}
+      {{- with $t.maxConcurrentQueries }}
+      <max_concurrent_queries>{{ . }}</max_concurrent_queries>
+      {{- end }}
+    </clickhouse>
+  {{- end }}
   {{- if $ch.storagePolicy.enabled }}
   storage.xml: |
     <clickhouse>
