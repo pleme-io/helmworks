@@ -291,6 +291,47 @@ breathe:
     dryRun: false
     # -- Reject metric samples older than this many seconds
     maxStalenessSeconds: 120
+  storage:
+    # -- Emit a StorageBand. Off by default (M2Typed maturity). Unlike the
+    # memory/cpu bands (which carve a workload's resources.limits), a StorageBand
+    # carves a PVC's spec.resources.requests.storage — GROW-ONLY: EBS online-
+    # expand (PVC resize → CSI → aws ec2 modify-volume where the driver supports
+    # it). A shrink is mechanically unrepresentable (the down-cliff has no code
+    # path; EBS cannot shrink in place). The shape is provision-minimal FLOOR +
+    # grow-on-demand-to-SETPOINT: the PVC is created/held at `floor` and the band
+    # expands it online toward `ceiling` as `used/capacity` crosses `growAbove`.
+    enabled: false
+    # -- The PVC this band carves. REQUIRED when storage.enabled — a PVC name has
+    # no fullname default (a StatefulSet PVC is <vct>-<sts>-<ordinal>, an operator
+    # PVC is its own shape), so the operator names it explicitly. Empty ⇒ no
+    # StorageBand is emitted even when enabled.
+    pvcName: ""
+    # -- Band center utilization (0.0-1.0). Grow to hold used/capacity here.
+    setpoint: 0.8
+    # -- Provision-minimal floor — the smallest the PVC is ever held at (storage
+    # quantity, e.g. 1Gi). The one-time reset to this floor is a recreate (EBS
+    # can't shrink in place); thereafter the band only ever grows from it.
+    floor: 1Gi
+    # -- Grow cap — the band never expands the PVC beyond this (storage quantity).
+    ceiling: 100Gi
+    # -- Grow the PVC when observed used/capacity exceeds this (0.0-1.0).
+    growAbove: 0.8
+    # -- Multiplier applied to the request when growing. Storage grows in larger
+    # steps than memory/cpu (EBS modify-volume rate-limits to ~1/6h per volume),
+    # so pre-grow generously rather than chase.
+    growFactor: 1.5
+    # -- Seconds the controller waits between carves. Kept well above the EBS
+    # modify-volume rate limit (~6h per volume).
+    cooldownSeconds: 3600
+    # -- Online EBS expand resizes the mounted filesystem with no restart.
+    disruptionPolicy: allowRestart
+    # -- Shadow-first: observe the would-grow decision before any live PVC expand.
+    # Default TRUE for storage (grow is cheap+safe, but a live PVC mutation is
+    # observed first; flip to false to arm live grow-on-demand).
+    dryRun: true
+    # -- Reject volume-stat samples older than this many seconds (PromQL
+    # kubelet_volume_stats has no metrics-server analog; a wider window is safe).
+    maxStalenessSeconds: 300
 
 # -- costGuard: default-on, shadow-first cost-leak prevention. Composes WITH
 # breathe + the 100%-spot auction + the intentional time-floor supercharge

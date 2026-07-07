@@ -1,9 +1,11 @@
 {{/*
 pleme-lib: breatheBand named template — the breathe.pleme.io homeostasis primitive.
 
-Emits ZERO, ONE, or TWO documents from a `.Values.breathe` block:
+Emits ZERO..THREE documents from a `.Values.breathe` block:
   - a breathe.pleme.io/v1 MemoryBand  (when breathe.memory.enabled, default true)
   - a breathe.pleme.io/v1 CpuBand     (when breathe.cpu.enabled,    default false)
+  - a breathe.pleme.io/v1 StorageBand (when breathe.storage.enabled + a pvcName;
+    GROW-ONLY — carves a PVC's spec.resources.requests.storage, EBS online-expand)
 
 A *band* is a NAMESPACED CR. The breathe controller carves
 `resources.limits.{memory,cpu}` on the band's targetRef workload to hold that
@@ -116,6 +118,43 @@ spec:
   mode: {{ . }}
   {{- end }}
   maxStalenessSeconds: {{ $cpu.maxStalenessSeconds | default 120 }}
+{{- end }}
+{{/* ── StorageBand ─────────────────────────────────────────────── */}}
+{{- $sto := $breathe.storage | default dict -}}
+{{- /* storage band defaults OFF (M2Typed); only an explicit `enabled: true`
+       turns it on. Unlike memory/cpu the StorageBand targets a PVC, not the
+       chart's workload — so it renders ONLY when a pvcName is given (there is
+       no fullname default for a PVC). GROW-ONLY: the descriptor clamps shrink,
+       so only floor/ceiling/grow* are load-bearing. */ -}}
+{{- $stoEnabled := false -}}
+{{- if hasKey $sto "enabled" -}}{{- $stoEnabled = $sto.enabled -}}{{- end -}}
+{{- $stoPvc := $sto.pvcName | default (($sto.targetRef | default dict).name) | default "" -}}
+{{- if and $stoEnabled $stoPvc }}
+---
+apiVersion: breathe.pleme.io/v1
+kind: StorageBand
+metadata:
+  name: {{ $stoPvc }}-storage
+  namespace: {{ $namespace }}
+  labels:
+    {{- $labels | nindent 4 }}
+spec:
+  targetRef:
+    apiVersion: {{ ($sto.targetRef | default dict).apiVersion | default "v1" }}
+    kind: {{ ($sto.targetRef | default dict).kind | default "PersistentVolumeClaim" }}
+    name: {{ $stoPvc }}
+  setpoint: {{ $sto.setpoint | default 0.8 }}
+  floor: {{ $sto.floor | default "1Gi" | quote }}
+  ceiling: {{ $sto.ceiling | default "100Gi" | quote }}
+  growAbove: {{ $sto.growAbove | default 0.8 }}
+  growFactor: {{ $sto.growFactor | default 1.5 }}
+  cooldownSeconds: {{ $sto.cooldownSeconds | default 3600 }}
+  disruptionPolicy: {{ $sto.disruptionPolicy | default "allowRestart" }}
+  dryRun: {{ $sto.dryRun | default true }}
+  {{- with $sto.mode }}
+  mode: {{ . }}
+  {{- end }}
+  maxStalenessSeconds: {{ $sto.maxStalenessSeconds | default 300 }}
 {{- end }}
 {{- end }}
 {{- end }}
