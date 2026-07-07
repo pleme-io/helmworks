@@ -9,18 +9,21 @@
 # ONLY on an image built `--features tiered` (see `image gap` in the runbook).
 
 # ── Camelot posture — where the super-cache runs. ──────────────────────────────
-# The sui daemon is pinned to the camelot-builder spot floor (task requirement).
-# The backing Redis/Postgres default to the SAME floor (the whole super-cache
-# footprint co-located on the builder nodes); override postgres.nodeSelector to
-# role:camelot for L2 durability if the builder floor scale-to-zero must not drop
-# the store (see the runbook's durability note).
+# The sui daemon + its Redis/Postgres are a PERSISTENT service, so they run on the
+# small always-on `camelot` SaaS floor (role:camelot / taint camelot-only,
+# m5a.large), NOT on the transient `camelot-builder` pools. The builder pools
+# (regular + `time-floor`) must stay pure scale-to-zero build capacity — a tiny
+# persistent pod pinned to `role: camelot-builder` keeps a huge (up to 48xlarge)
+# spot node warm forever (the 2026-07-07 cost leak). The store PVC (postgres L2)
+# is zone-locked; the multi-AZ `camelot` pool has nodes in every AZ, so it lands
+# in the PVC's AZ. See the runbook's placement note.
 camelot:
-  # The builder-fleet node role + taint (matches lareira-camelot-builders nodeGroup).
+  # The always-on SaaS-floor node role + taint (matches the `camelot` nodeGroup).
   builderNodeSelector:
-    role: camelot-builder
+    role: camelot
     kubernetes.io/arch: amd64
   builderTolerations:
-    - key: camelot-builder
+    - key: camelot-only
       value: "true"
       effect: NoSchedule
 
@@ -45,10 +48,10 @@ redis:
     requests: { cpu: 100m, memory: 256Mi }
     limits:   { cpu: "1",  memory: 2Gi }
   nodeSelector:
-    role: camelot-builder
+    role: camelot
     kubernetes.io/arch: amd64
   tolerations:
-    - key: camelot-builder
+    - key: camelot-only
       value: "true"
       effect: NoSchedule
 
@@ -83,13 +86,15 @@ postgres:
   resources:
     requests: { cpu: 250m, memory: 512Mi }
     limits:   { cpu: "2",  memory: 4Gi }
-  # L2 default: keep on the builder floor with the rest of the super-cache.
-  # Set to role:camelot for an always-on durable store (see runbook durability note).
+  # L2 durable store lives on the always-on `camelot` SaaS floor (role:camelot).
+  # The multi-AZ `camelot` pool has a node in the PVC's zone, so the gp3 volume
+  # (zone-locked, RWO) reattaches after any reschedule. Never the builder pools —
+  # they are transient scale-to-zero and would strand or drop the store.
   nodeSelector:
-    role: camelot-builder
+    role: camelot
     kubernetes.io/arch: amd64
   tolerations:
-    - key: camelot-builder
+    - key: camelot-only
       value: "true"
       effect: NoSchedule
 
@@ -194,11 +199,15 @@ pleme-sui:
   resources:
     requests: { cpu: "1", memory: 2Gi }
     limits:   { cpu: "4", memory: 8Gi }
+  # The daemon is a persistent cache server → the always-on `camelot` SaaS floor,
+  # never the transient `camelot-builder` pools (a persistent pod there pins a
+  # huge spot node warm — the 2026-07-07 leak). Build runners still run on the
+  # builder pools; the cache they hit is served from here over the cluster network.
   nodeSelector:
-    role: camelot-builder
+    role: camelot
     kubernetes.io/arch: amd64
   tolerations:
-    - key: camelot-builder
+    - key: camelot-only
       value: "true"
       effect: NoSchedule
   service:
