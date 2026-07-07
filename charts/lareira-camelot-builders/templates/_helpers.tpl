@@ -40,6 +40,25 @@ beefy_spot_amd64
 {{- end -}}
 
 {{/*
+poolLifecycle — resolve a builder pool's LIFECYCLE class (cost-guard leak
+class 1). Returns the `pleme.io/pool-lifecycle` value that travels to the pool's
+nodes (via node_label) + is stamped on the CR metadata, or "" when
+poolLifecycle.enabled is false. Precedence: per-arch builders.<arch>.poolLifecycle
+override → byPerfClass[<class>] → default. Every camelot builder pool is a
+transient build pool; a time-floor / supercharge perf class maps to
+transient-build-supercharge, else transient-build. Authored ONCE here and reused
+by infraTemplate + nodeGroupTierB (generation-over-composition, Pillar 12).
+Args: (dict "root" . "builder" <builder> "class" <perfClass>)
+*/}}
+{{- define "lareira-camelot-builders.poolLifecycle" -}}
+{{- $pl := .root.Values.poolLifecycle -}}
+{{- if and $pl $pl.enabled -}}
+{{- $mapped := index $pl.byPerfClass .class -}}
+{{- default $pl.default (default $mapped .builder.poolLifecycle) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 infraTemplate — an InfrastructureTemplate CR whose inline Pangea Ruby calls
 Pangea::Architectures::CamelotBuilderNodeGroup.build (design §2b). magma renders
 it into an aws_autoscaling_group (MixedInstancesAsg) + aws_iam_role + a launch
@@ -60,7 +79,9 @@ Args: (dict "root" . "arch" "<arm64|amd64>")
 {{- $odBase := $prof.onDemandBaseCapacity -}}
 {{- if eq (toString $odBase) "ceiling" -}}{{- $odBase = $b.ceiling -}}{{- end -}}
 {{- $taint := dict "key" $ng.taint.key "value" $ng.taint.value "effect" $ng.taint.effect -}}
+{{- $poolLifecycle := include "lareira-camelot-builders.poolLifecycle" (dict "root" $root "builder" $b "class" $class) -}}
 {{- $nodeLabel := dict "kubernetes.io/arch" $b.k8sArch "role" $ng.role -}}
+{{- if $poolLifecycle -}}{{- $_ := set $nodeLabel "pleme.io/pool-lifecycle" $poolLifecycle -}}{{- end -}}
 {{- $ami := dict "kind" $ng.ami.kind "arch" $arch -}}
 {{- $cfg := dict
       "cluster" $root.Values.cluster
@@ -98,6 +119,9 @@ metadata:
     pleme.io/pangea-kind: template
     kubernetes.io/arch: {{ $b.k8sArch }}
     role: camelot-builder
+    {{- if $poolLifecycle }}
+    pleme.io/pool-lifecycle: {{ $poolLifecycle }}
+    {{- end }}
 spec:
   pangeaNamespace: {{ $root.Values.pangeaNamespace | quote }}
   executor: {{ $root.Values.executor | quote }}
@@ -143,6 +167,8 @@ Args: (dict "root" . "arch" "<arm64|amd64>")
 {{- $arch := .arch -}}
 {{- $b := index $root.Values.builders $arch -}}
 {{- $cp := $root.Values.cloudPool -}}
+{{- $class := default $root.Values.perfClass $b.perfClass -}}
+{{- $poolLifecycle := include "lareira-camelot-builders.poolLifecycle" (dict "root" $root "builder" $b "class" $class) -}}
 apiVersion: breathe.pleme.io/v1
 kind: BreatheCloudPool
 metadata:
@@ -152,6 +178,9 @@ metadata:
     {{- include "lareira-camelot-builders.labels" $root | nindent 4 }}
     kubernetes.io/arch: {{ $b.k8sArch }}
     role: camelot-builder
+    {{- if $poolLifecycle }}
+    pleme.io/pool-lifecycle: {{ $poolLifecycle }}
+    {{- end }}
 spec:
   forma: {{ $cp.forma }}
   target:
@@ -254,7 +283,9 @@ Args: (dict "root" . "arch" "<arm64|amd64>")
 {{- $prof := index $root.Values.perfClassProfiles $class -}}
 {{- $catalogProfile := include "lareira-camelot-builders.catalogProfile" (dict "base" $prof.catalogProfile "arch" $arch) -}}
 {{- $taint := dict "key" $ng.taint.key "value" $ng.taint.value "effect" $ng.taint.effect -}}
+{{- $poolLifecycle := include "lareira-camelot-builders.poolLifecycle" (dict "root" $root "builder" $b "class" $class) -}}
 {{- $nodeLabel := dict "kubernetes.io/arch" $b.k8sArch "role" $ng.role -}}
+{{- if $poolLifecycle -}}{{- $_ := set $nodeLabel "pleme.io/pool-lifecycle" $poolLifecycle -}}{{- end -}}
 {{- $cfg := dict
       "cluster" $root.Values.cluster
       "arch" $arch
@@ -284,6 +315,9 @@ metadata:
     pleme.io/tier: b
     kubernetes.io/arch: {{ $b.k8sArch }}
     role: camelot-builder
+    {{- if $poolLifecycle }}
+    pleme.io/pool-lifecycle: {{ $poolLifecycle }}
+    {{- end }}
 spec:
   pangeaNamespace: {{ $root.Values.pangeaNamespace | quote }}
   executor: {{ $root.Values.executor | quote }}

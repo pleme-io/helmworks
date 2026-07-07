@@ -62,6 +62,41 @@ perfClassProfiles:
     bidInterruptionTolerance: Critical
     allocationStrategy: price_capacity_optimized
 
+# ── Pool-lifecycle class (cost-guard leak class 1 — the lifecycle travels to the
+#    node). ──────────────────────────────────────────────────────────────────
+# Emits the `pleme.io/pool-lifecycle` node label on each builder node group so a
+# pool's LIFECYCLE class travels to its nodes. This label is what lets a
+# persistent always-on service anti-select (nodeAffinity NotIn) a transient
+# build pool and never ride it — the sui-on-timefloor leak (a small always-on
+# service scheduled onto a huge, expensive transient build node because both
+# pools only shared `role=camelot-builder`). It ONLY labels — it changes no
+# build-worker scheduling, no taint, no spot, no breathe setting. A runtime
+# cost-guard also reads this label to classify a node. Additive + backward-
+# compatible: disabling it or an unmapped perfClass simply omits/defaults the
+# label. Derived per perfClass from the map below; override per-arch via
+# builders.<arch>.poolLifecycle.
+#
+# Every pool in THIS chart is a transient build pool (role=camelot-builder,
+# scale-to-zero, 100% spot) — none is a persistent service. A time-floor /
+# supercharge perf class (a huge cost-for-speed pool) maps to
+# `transient-build-supercharge`; every other builder perf class maps to
+# `transient-build`. This chart ships only cost-floor/guaranteed-wake/dedicated,
+# so all its pools default to `transient-build`; the supercharge row of the map
+# exists so a FUTURE time-floor perfClass gets the specific supercharge label.
+poolLifecycle:
+  # -- Emit the pleme.io/pool-lifecycle node label on builder node groups.
+  enabled: true
+  # -- Default lifecycle class per perfClass. Add a row when a new perfClass is
+  # introduced; a time-floor / supercharge class → transient-build-supercharge,
+  # every other builder class → transient-build.
+  byPerfClass:
+    cost-floor:      transient-build
+    guaranteed-wake: transient-build
+    dedicated:       transient-build
+  # -- Fallback lifecycle when a perfClass is absent from byPerfClass above
+  # (backward-compatible: a new/unmapped perfClass still gets a label).
+  default: transient-build
+
 # ── Per-arch builder config (§2b — the CamelotBuilderNodeGroup delta). ─────────
 # The SAME stack per arch; arch is a parameter. Shared node-group shape lives
 # below in `nodeGroup`; per-arch here overrides only what differs.
@@ -75,6 +110,7 @@ builders:
     ceiling: 8               # max ASG size = the L2 budget wall
     costSlaCents: 40000      # per-period cost ceiling → EnvelopeExausto→Escalate
     # perfClass: guaranteed-wake   # optional per-arch override of the top-level knob
+    # poolLifecycle: transient-build-supercharge   # optional per-arch override; else derived from perfClass
     interruptionHandler:
       enabled: false         # §2f — retirada drain-ahead seam is OPT-IN (off by default)
   amd64:
@@ -86,6 +122,7 @@ builders:
     ceiling: 8
     costSlaCents: 40000
     # perfClass: guaranteed-wake
+    # poolLifecycle: transient-build-supercharge   # optional per-arch override; else derived from perfClass
     interruptionHandler:
       enabled: false
 

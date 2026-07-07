@@ -292,6 +292,58 @@ breathe:
     # -- Reject metric samples older than this many seconds
     maxStalenessSeconds: 120
 
+# -- costGuard: default-on, shadow-first cost-leak prevention. Composes WITH
+# breathe + the 100%-spot auction + the intentional time-floor supercharge
+# pools — it forbids the leak SHAPES, it never disables breathability.
+# Enforcement lives in autorevivy (the cost-guard CLEAN maintenance jobs + the
+# CostBudget promessa, shadow-first) and in pangea-architectures (the
+# build-time WorkloadPlacement invariant: a persistent-service pinned to a
+# transient-build-supercharge pool is refused at render/spec time). This
+# section is the DECLARED fleet default — pleme-lib is a library chart, so these
+# are documentation-only defaults inherited by app charts, not a rendered CR.
+costGuard:
+  # -- Master toggle. Default ON — cost-leak prevention is a fleet default, like
+  # breathe. Forbids leak shapes; never disables breathe/auction/supercharge.
+  enabled: true
+  # -- Shadow-first (mirrors breathe dryRun): observe the would-reap decision
+  # before any enforcement. NEVER reaps live by default — flip to false only
+  # after a workload's cost-guard decisions have been observed as correct.
+  dryRun: true
+  # -- Leak class 1 — a persistent service riding a transient-build-supercharge
+  # pool (the sui-on-timefloor leak: a small always-on service scheduled onto a
+  # huge, expensive transient time-floor build node). Runtime detector; the
+  # build-time catch is the pangea-architectures WorkloadPlacement invariant.
+  # This value is THIS workload's placement class.
+  workloadClass: persistent-service        # persistent-service | transient-build-job
+  # -- The pool-lifecycle class a workload REQUIRES / a pool ADVERTISES via the
+  # `pleme.io/pool-lifecycle` node label (always-on-service | transient-build |
+  # transient-build-supercharge). Empty = inherit / not asserted. A
+  # persistent-service SHOULD anti-select (nodeAffinity NotIn) the
+  # transient-build-supercharge class so it can never ride a supercharge node.
+  requiredPoolLifecycle: ""
+  # -- Leak class 2 — a build pool node left idle with no active build. The
+  # idle-node reaper drains it toward desired=0 (composes with breathe
+  # scale-to-zero; it forbids the idle SHAPE, it does not fight the auction).
+  idleNodeReap:
+    # -- Enable the idle-build-node reaper (shadow-first via costGuard.dryRun).
+    enabled: true
+    # -- Reap toward desired=0 after a build pool node is idle this long.
+    idleAfterSeconds: 900
+  # -- Leak class 3 — orphaned cloud cost-residue (unattached EBS volumes,
+  # orphaned LB/NLB, stale PVC, old snapshot) left behind after a workload or
+  # pool is gone. The orphan reaper is an autorevivy CLEAN maintenance job.
+  orphanCostReap:
+    # -- Enable orphan cost-residue reaping (shadow-first via costGuard.dryRun).
+    enabled: true
+    # -- Cloud residue classes the reaper considers.
+    targets: [ebs, lb, pvc, snapshot]
+  # -- The Viggy CostBudget (defpromessa) that proves "no leak class present" —
+  # a continuously-attested cost theorem (OutcomeChain). Empty = not yet wired
+  # to a promessa; set to the CostBudget promessa name to bind enforcement proof.
+  costBudget:
+    # -- Name/ref of the CostBudget (defpromessa) proving no leak class present.
+    promessaRef: ""
+
 # -- NetworkPolicy configuration
 networkPolicy:
   # -- Enable NetworkPolicy creation
