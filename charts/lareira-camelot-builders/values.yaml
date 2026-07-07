@@ -254,6 +254,40 @@ preheat:
     autorevivyRef: camelot-self-maintenance
     outcomeChain: true
 
+# ── Cache-wipe lever — the enjulho INVERSE of preheat. ────────────────────────
+# Clears ALL three sui super-cache tiers (Redis L1 + Postgres L2 + local/object
+# L3) so the next build runs COLD — the operator's clean-cold-baseline lever for
+# repeatable cold/warm benchmarking:
+#   WIPE (→cold) → build (measure cold) → warm push-back → build (measure warm).
+# On-demand + GitOps-native: bump `runId` (commit) to fire a fresh IMMUTABLE wipe
+# Job; enabled:false renders nothing (a reconcile never re-wipes by accident).
+# ZERO-SHELL — the Job runs the typed `sui cache wipe` subcommand (config-selects
+# the daemon's tiered backend, clears every tier via StorageBackend::wipe_all,
+# emits a JSON receipt); the cache is regenerable, so a wipe is safe.
+#
+# TIER-HONEST: the subcommand + the `wipe_all` fan-out ship in sui (114 tests
+# green); this Job is functional once `image.tag` is a sui image carrying it.
+cacheWipe:
+  enabled: false
+  runId: "1"                          # bump + commit to trigger a new wipe
+  namespace: camelot-build            # where sui-redis / sui-postgres / the secret live
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 3600
+  image:
+    repository: ghcr.io/pleme-io/sui
+    tag: amd64-latest                 # MUST carry the `cache wipe` subcommand
+    pullPolicy: IfNotPresent
+  imagePullSecrets: []
+  backend:
+    secretName: sui-tiered-backend    # the tiered backend.toml the daemon serves
+    configPath: /etc/sui/tiered/backend.toml
+  nodeSelector:
+    role: camelot
+  tolerations:
+    - key: camelot-only
+      operator: Exists
+      effect: NoSchedule
+
 # ── Camelot posture (CAMELOT §III non-negotiables). ───────────────────────────
 # In-cluster workloads (attic, exporter) run on camelot nodes with the camelot
 # toleration — NOT on the builder-tainted nodes (those are for build workers only).

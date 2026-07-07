@@ -1,0 +1,72 @@
+{{- /*
+Cache-wipe lever — the enjulho INVERSE of preheat (warming-promessa.yaml).
+
+Clears EVERY sui super-cache tier (Redis L1 + Postgres L2 + local/object L3) so
+the next build runs COLD — the operator's clean-cold-baseline lever for
+repeatable cold/warm benchmarking. The benchmarking loop is:
+  WIPE (→cold) → build (measure cold) → warm push-back → build (measure warm).
+
+On-demand + GitOps-native: a distinct `cacheWipe.runId` names a fresh IMMUTABLE
+Job (bump + commit to fire another wipe); `enabled:false` renders nothing, so a
+reconcile never re-wipes by accident. ZERO-SHELL per the camelot law — the Job
+runs the typed `sui cache wipe --backend-config <backend.toml>` subcommand, which
+config-selects the SAME tiered backend the daemon serves and clears all tiers via
+the typed `StorageBackend::wipe_all`, emitting a JSON receipt. The cache is
+regenerable by construction, so a wipe is safe — it only forces the next build
+cold.
+
+TIER-HONEST: the `sui cache wipe` subcommand + the `wipe_all` tiered fan-out ship
+in sui (114 sui-cache tests green); this Job becomes functional once the daemon
+image (`cacheWipe.image.tag`) is bumped to a tag that carries the subcommand.
+*/ -}}
+{{- if .Values.cacheWipe.enabled }}
+{{- $w := .Values.cacheWipe }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: sui-cache-wipe-{{ $w.runId }}
+  namespace: {{ $w.namespace }}
+  labels:
+    {{- include "lareira-camelot-builders.labels" . | nindent 4 }}
+    app.kubernetes.io/component: sui-cache-wipe
+  annotations:
+    pleme.io/cache-wipe-run: {{ $w.runId | quote }}
+spec:
+  backoffLimit: {{ $w.backoffLimit | default 2 }}
+  ttlSecondsAfterFinished: {{ $w.ttlSecondsAfterFinished | default 3600 }}
+  template:
+    metadata:
+      labels:
+        {{- include "lareira-camelot-builders.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: sui-cache-wipe
+    spec:
+      restartPolicy: Never
+      {{- with $w.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $w.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $w.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: wipe
+          image: "{{ $w.image.repository }}:{{ $w.image.tag }}"
+          imagePullPolicy: {{ $w.image.pullPolicy | default "IfNotPresent" }}
+          args:
+            - cache
+            - wipe
+            - --backend-config={{ $w.backend.configPath }}
+          volumeMounts:
+            - name: tiered-config
+              mountPath: {{ dir $w.backend.configPath }}
+              readOnly: true
+      volumes:
+        - name: tiered-config
+          secret:
+            secretName: {{ $w.backend.secretName }}
+{{- end }}
