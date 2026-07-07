@@ -77,6 +77,12 @@ data:
     </clickhouse>
   interserver.xml: |
     <clickhouse>
+      {{- /* Bind HTTP/native/interserver on ALL interfaces (the pod IP), not just
+             127.0.0.1 (the image default). Without this the k8s probes, the
+             Service, and inter-replica interserver part-fetches all hit the pod IP
+             and get 'connection refused' — the node is only reachable via
+             localhost. Load-bearing for a lake (replicas fetch from each other). */}}
+      <listen_host>0.0.0.0</listen_host>
       <interserver_http_port>{{ $ch.ports.interserver }}</interserver_http_port>
       <interserver_http_host from_env="CH_INTERSERVER_HOST"></interserver_http_host>
     </clickhouse>
