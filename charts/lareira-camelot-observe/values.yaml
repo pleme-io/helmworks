@@ -1,0 +1,87 @@
+# lareira-camelot-observe — the parameterized enjulho observability CELL.
+#
+# The ENTIRE deliverable is this `observe:` surface. Keyed by `observe.env`,
+# it spawns the whole dashboards + alerts + routing structure for one akeyless
+# SaaS mesh. A DIFFERENT env is a DIFFERENT value of this same chart — camelot
+# is one instantiation (the FedRAMP-Istio one).
+#
+# What it emits (all pangea-operator CRs — NO pods, so no breatheBand):
+#   • range observe.services       → one WorkloadOverview PangeaDashboard per service
+#   • range observe.platformBoards → one PangeaDashboard per cross-service board
+#   • range observe.services       → one WorkloadBaseline PangeaAlert per service
+# Every CR carries the routing `dest:` label + the compliance overlay marker.
+
+observe:
+  # env — THE instantiation key. Drives every CR id/name prefix (<env>-<svc>).
+  # A different env = a different cell over the same generic structure.
+  env: camelot
+
+  # namespace — the CR namespace AND the workload namespace the signals select.
+  namespace: camelot
+
+  # folder — the Grafana folder every emitted dashboard lands in.
+  folder: camelot
+
+  # datasource — the metrics datasource uid (matches lookout; VictoriaMetrics).
+  datasource: vm
+
+  # logsDatasource — the logs datasource uid (VictoriaLogs).
+  logsDatasource: vlogs
+
+  # logsStream — the LogQL/stream selector the WorkloadOverview logs row uses.
+  logsStream: '{namespace="camelot"}'
+
+  # routing — ONE destination enum (luis|akeyless|2f). Stamped as `dest: <v>` on
+  # every CR + as spec.routing.destination on every PangeaAlert (via the shared
+  # pleme-lib.routing seam). camelot = luis (zero-egress ntfy — the operator's
+  # own stream). The concrete receiver is wired cluster-side by respiro.
+  routing:
+    destination: luis
+
+  # services — the 9-service camelot akeyless mesh topology. Looped into one
+  # WorkloadOverview dashboard + one WorkloadBaseline alert each.
+  #   name  the workload/CR-suffix name (pod=~"<name>.*")
+  #   job   the scrape job label (up{job="<job>"})
+  #   port  the metrics port (topology metadata; carried for completeness)
+  services:
+    - { name: auth,     job: auth,     port: 2770 }
+    - { name: authcert, job: authcert, port: 2770 }
+    - { name: bis,      job: bis,      port: 2771 }
+    - { name: uam,      job: uam,      port: 2772 }
+    - { name: uamop,    job: uamop,    port: 2772 }
+    - { name: kfm,      job: kfm,      port: 2773 }
+    - { name: sdr,      job: sdr,      port: 2774 }
+    - { name: gator,    job: gator,    port: 2779 }
+    - { name: logan,    job: logan,    port: 2780 }
+
+  # platformBoards — cross-service, akeyless-shaped boards. Looped into one
+  # PangeaDashboard each; the architecture is a Pangea::Dashboards::Library
+  # full-dashboard mixin (see grafana_dashboard_workspace KNOWN_ARCHITECTURES).
+  platformBoards:
+    - { name: secrets-platform, architecture: SecretsPlatformOverview }
+    - { name: auth-methods,     architecture: AuthMethodHealth }
+    - { name: audit,            architecture: AuditExplorer }
+    - { name: security-posture, architecture: SecurityPostureBoard }
+
+  # alerts — per-service WorkloadBaseline alerts.
+  #   perService  when true, emit one PangeaAlert per observe.services entry
+  #   backend     render target: vmrule (VMRule, default) | prometheusrule
+  alerts:
+    perService: true
+    backend: vmrule
+
+# compliance — PER-CELL overlay marker (no global seam). fedramp-high stamps
+# the compliance.pleme.io/* overlay annotations onto every CR. SHADOW-FIRST:
+# enforce=false means the marker is recorded but chart-time validators do NOT
+# block render (this cell emits only CRs — there are no pods to validate).
+compliance:
+  overlays:
+    - fedramp-high
+  enforce: false
+
+# global — nodeSelector / tolerations / breathe are INHERITED from the umbrella
+# global and are intentionally NOT set here. This cell emits only CRs (no
+# pod-bearing template), so there is nothing to schedule and no breatheBand to
+# carry; camelot isolation + breathe + fedramp-high apply by construction of the
+# umbrella, not by anything hardcoded in this chart.
+global: {}

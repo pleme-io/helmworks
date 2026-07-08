@@ -1,0 +1,14 @@
+# Patterns to ignore when packaging the Helm chart.
+# NOTE: deliberately does NOT exclude `charts/` or `*.tgz` — this monorepo
+# vendors subcharts into charts/ at release time (`helm dependency build`), and
+# excluding them here makes Helm report the dep as "missing" at load time.
+# Git exclusion of vendored subcharts + Chart.lock is handled at commit time
+# (charts/*/charts/ and charts/*/*.tgz are in the repo-root .gitignore; Chart.lock
+# is removed before commit — this cell is a draft, its lock is not durable state).
+.DS_Store
+.git/
+.gitignore
+*.tmproj
+*.bak
+*.orig
+*~
