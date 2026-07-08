@@ -55,7 +55,7 @@
       "signals" $signals
       "stream" $stream
       "logs_datasource" $lds
--}}
+}}
 ---
 apiVersion: pangea.pleme.io/v1alpha1
 kind: PangeaDashboard
@@ -88,10 +88,11 @@ spec:
 {{- if not $board.architecture }}{{ fail (printf "observe.platformBoards[%s]: .architecture is required" $board.name) }}{{ end }}
 {{- $bid := printf "%s-%s" $o.env $board.name -}}
 {{- $bparams := dict
+      "id" $bid
       "datasource" $ds
       "namespace" $ns
       "folder" $folder
--}}
+}}
 ---
 apiVersion: pangea.pleme.io/v1alpha1
 kind: PangeaDashboard
