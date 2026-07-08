@@ -106,20 +106,6 @@ clickhouse:
       cpu: "2"
       memory: 4Gi
 
-  # ── CH-aware server tuning (design §2/§4) — the memory + merge co-tune as
-  # real config.d (lake mode). All optional (unset = upstream defaults). On a
-  # SMALL node, ClickHouse's 5Gi default mark_cache_size can let the kernel
-  # OOM-killer front-run CH's own tracker — shrink it + cap max_server_memory_usage
-  # to <= 0.9 x the cgroup limit. background_pool_size co-tunes up with CPU so a
-  # CpuBand shrink can't starve merges (`too many parts`). Values are bytes
-  # (memory/cache) or counts (pool/queries). ───────────────────────────────────
-  serverSettings:
-    maxServerMemoryUsage: ""      # e.g. 3221225472 (3Gi) — <= 0.9 x cgroup limit
-    markCacheSize: ""             # e.g. 536870912 (512Mi) — off the 5Gi default
-    uncompressedCacheSize: ""
-    backgroundPoolSize: ""        # co-tune up with CpuBand (never starve merges)
-    maxConcurrentQueries: ""
-
   # ── ClickHouse's OWN tiered storage_policy (app-level carve, complementary to
   # the breathe StorageBand's volume-level carve). hot (SSD PVC, StorageBand-
   # banded) → cold (optional cheap HDD) → s3 (unbounded object-store cold). The

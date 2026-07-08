@@ -53,6 +53,19 @@ data:
         url: {{ .url | quote }}
         isDefault: {{ .isDefault | default false }}
         editable: false
+        {{- /* Plugin datasources (e.g. grafana-clickhouse-datasource) carry
+               their connection in jsonData.{server,port,protocol,username} +
+               secureJsonData.{password}, not the bare `url`. Pass both through
+               verbatim so a face can declare any datasource the provisioning
+               schema supports, not just url-only stores. */}}
+        {{- with .jsonData }}
+        jsonData:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with .secureJsonData }}
+        secureJsonData:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
     {{- end }}
 {{- if .Values.persistence.enabled }}
 ---

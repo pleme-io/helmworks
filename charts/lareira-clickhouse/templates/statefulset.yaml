@@ -187,29 +187,18 @@ spec:
             {{- end }}
           resources:
             {{- toYaml $ch.resources | nindent 12 }}
-          # startupProbe gates liveness/readiness until the server is actually
-          # serving. A ReplicatedMergeTree replica must connect to Keeper and
-          # replay its replication queue before HTTP comes up — that can exceed a
-          # 30s liveness initialDelay, so without this gate a slow-starting replica
-          # is killed by liveness ("/ping connection refused") in a restart loop.
-          # 30 x 10s = up to 5m of startup grace; liveness/readiness only run after.
-          startupProbe:
-            httpGet:
-              path: /ping
-              port: http
-            periodSeconds: 10
-            failureThreshold: 30
           readinessProbe:
             httpGet:
               path: /ping
               port: http
+            initialDelaySeconds: 10
             periodSeconds: 10
           livenessProbe:
             httpGet:
               path: /ping
               port: http
+            initialDelaySeconds: 30
             periodSeconds: 30
-            failureThreshold: 6
       volumes:
         {{- if $lake }}
         - name: config
