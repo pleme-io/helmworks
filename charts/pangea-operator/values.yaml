@@ -230,6 +230,47 @@ env:
 # -- Extra environment variables from ConfigMaps or Secrets
 envFrom: []
 
+# -- Tiered progressive-discovery config (enjulho: config-as-reconciled-Helm).
+#
+# The pleme-lib.tieredConfig mixin renders the operator's shikumi
+# `OperatorConfig` FILE tier as a reconciled ConfigMap the `ConfigStore`
+# discovers + hot-reloads. Schema-shaped to `OperatorConfig` (see
+# pangea-operator/pangea-operator/src/config.rs).
+#
+# DESTINATION FORM — tier-honest. Today the operator resolves its config
+# through env + the pod-identity discovered tier only (its `env:` above
+# already wires POD_NAME; the executor/leader/db env is rendered by
+# `deployment.yaml`). It does NOT yet have a shikumi `ConfigStore` FILE
+# discovery. So `config.file.enabled` defaults **false** and the live
+# deployment renders byte-identical to today. Flipping it true renders the
+# ConfigMap ahead of the config.rs follow-on that teaches `OperatorConfig`
+# to discover `/etc/pangea/config.yaml` as its file tier (the
+# kustomize/env → reconciled-Helm cutover). Until then this is the
+# committed target, not a live read.
+#
+# SECRET BOUNDARY (non-negotiable): PGPASSWORD / PANGEA_API_TOKEN /
+# PANGEA_GEM_AUTH_TOKEN are NEVER rendered here — they stay direct env /
+# secretKeyRef (see gemAuth + the operator's deliberate secret exclusion).
+config:
+  app: pangea-operator
+  configMapName: pangea-operator-config
+  file:
+    enabled: false            # DESTINATION: flip true once config.rs discovers the file tier
+    fileName: config.yaml
+    mountPath: /etc/pangea
+    # The non-secret OperatorConfig surface. Example shape (leave {} to
+    # render nothing; the mixin no-ops on empty data):
+    #   executor: { backend: magma, forbid_tofu: true }
+    #   database: { host: pangea-database-rw..., port: 5432, user: postgres, database: pangea_state }
+    #   reconcile: { workers: 4, budget_per_workspace: 4, budget_global: 16 }
+    #   observability: { log_format: pretty, otel_service_name: pangea-operator }
+    data: {}
+  # discovered tier is already wired via `env:` (POD_NAME) above; the mixin's
+  # downward-API env is not injected into this chart's custom deployment.
+  discovered:
+    podNamespace: false
+    podName: false
+
 # -- Compiler sidecar endpoint (operator connects here for DSL compilation)
 # Ignored when useEmbeddedRuby=true (operator dispatches in-process).
 compilerEndpoint: http://localhost:8082

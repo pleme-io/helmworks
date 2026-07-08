@@ -1,0 +1,15 @@
+{{/*
+The verification MATRIX (★★ CLOSED-LOOP MASS-SYNTHESIS rule): render the
+pleme-lib.tieredConfig file-tier ConfigMap once per service row in
+.Values.tieredConfigMatrix. One ConfigMap document per supported service ⇒ a
+`hasDocuments count` assertion is the forcing-function: drop a service row (or
+break the mixin for one) and the count / per-service selector assertion fails.
+Each row carries its own `config` block (the service's chart-values shape),
+rendered through a per-row synthetic context (deepCopy $ + set .Values.config),
+mirroring the pangea-operator deployment.yaml idiom.
+*/}}
+{{- range $row := .Values.tieredConfigMatrix }}
+{{- $ctx := deepCopy $ }}
+{{- $_ := set $ctx.Values "config" $row.config }}
+{{ include "pleme-lib.tieredConfig.configMap" $ctx }}
+{{- end }}

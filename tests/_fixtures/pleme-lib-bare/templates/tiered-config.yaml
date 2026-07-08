@@ -1,0 +1,23 @@
+{{/*
+Single-service host for the pleme-lib.tieredConfig mixin. Renders the file-tier
+ConfigMap plus a minimal Deployment whose pod embeds the env-tier + discovered-
+tier env, the file-tier volume, and the file-tier volumeMount — so a test can
+assert the whole operator-overlay surface wires correctly from .Values.config.
+*/}}
+{{- include "pleme-lib.tieredConfig.configMap" . }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}
+spec:
+  template:
+    spec:
+      volumes:
+        {{- include "pleme-lib.tieredConfig.volume" . | nindent 8 }}
+      containers:
+        - name: app
+          env:
+            {{- include "pleme-lib.tieredConfig.env" . | nindent 12 }}
+          volumeMounts:
+            {{- include "pleme-lib.tieredConfig.volumeMount" . | nindent 12 }}

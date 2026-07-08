@@ -1,0 +1,280 @@
+suite: pleme-lib bare-fixture — pleme-lib.tieredConfig mixin (enjulho config-as-reconciled-Helm)
+# The shikumi tiered progressive-discovery operator-overlay surface rendered as
+# declarative Helm: file tier (a reconciled ConfigMap the ConfigStore discovers +
+# hot-reloads), env tier (<PREFIX>_ overrides), discovered tier (k8s downward API).
+# ★★ CLOSED-LOOP MASS-SYNTHESIS: the matrix suite renders one file-tier ConfigMap
+# per service row — a forcing-function count over the supported consumers.
+# ★★ SECRET BOUNDARY: no assertion below tolerates a secret in the rendered config.
+templates:
+  - templates/tiered-config.yaml
+  - templates/tiered-config-matrix.yaml
+release:
+  name: t
+  namespace: testns
+defaults: &defaults
+  image.repository: ghcr.io/x/y
+  image.tag: "1.0.0"
+
+# ── the two service profiles (matrix rows), single source of truth ──────────
+engenhoConfig: &engenhoConfig
+  app: engenho
+  configMapName: engenho-config
+  file:
+    enabled: true
+    mountPath: /etc/engenho
+    data:
+      cluster:
+        name: rio
+        region: us-east-2
+      scheduler:
+        strategy: round_robin
+        tick_interval_seconds: 5
+      consistency:
+        default_tier: strong
+  env:
+    ENGENHO_LOG: info
+  discovered:
+    podNamespace: true
+    podName: true
+
+pangeaOperatorConfig: &pangeaOperatorConfig
+  app: pangea-operator
+  configMapName: pangea-operator-config
+  file:
+    enabled: true
+    fileName: config.yaml
+    mountPath: /etc/pangea
+    data:
+      executor:
+        backend: magma
+        forbid_tofu: true
+      database:
+        host: pangea-database-rw.pangea-system.svc.cluster.local
+        port: 5432
+        user: postgres
+        database: pangea_state
+      reconcile:
+        workers: 4
+        budget_global: 16
+  env:
+    PANGEA_ENABLE_PLAYGROUND: "true"
+  discovered:
+    podNamespace: true
+    podName: true
+
+tests:
+  # ── the matrix forcing-function ──────────────────────────────────────────
+  - it: "matrix renders exactly one file-tier ConfigMap per supported service"
+    template: templates/tiered-config-matrix.yaml
+    set:
+      <<: *defaults
+      tieredConfigMatrix:
+        - name: engenho
+          config: *engenhoConfig
+        - name: pangea-operator
+          config: *pangeaOperatorConfig
+    asserts:
+      # Drop a service row (or break the mixin for one) and this count fails.
+      - hasDocuments:
+          count: 2
+      # Row 0 — engenho: keyed <app>.yaml, carries engenho's typed surface.
+      - isKind:
+          of: ConfigMap
+        documentIndex: 0
+      - equal:
+          path: metadata.name
+          value: engenho-config
+        documentIndex: 0
+      - equal:
+          path: metadata.annotations["pleme.io/config-tier"]
+          value: file
+        documentIndex: 0
+      - matchRegex:
+          path: data["engenho.yaml"]
+          pattern: "cluster:"
+        documentIndex: 0
+      - matchRegex:
+          path: data["engenho.yaml"]
+          pattern: "region: us-east-2"
+        documentIndex: 0
+      # SECRET BOUNDARY — the rendered engenho config file carries no secret.
+      - notMatchRegex:
+          path: data["engenho.yaml"]
+          pattern: "(?i)(password|secret|token|api[_-]?key)"
+        documentIndex: 0
+      # Row 1 — pangea-operator: keyed by an explicit fileName, magma-native.
+      - isKind:
+          of: ConfigMap
+        documentIndex: 1
+      - equal:
+          path: metadata.name
+          value: pangea-operator-config
+        documentIndex: 1
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: "backend: magma"
+        documentIndex: 1
+      # SECRET BOUNDARY — no PGPASSWORD / api token in the operator config file.
+      - notMatchRegex:
+          path: data["config.yaml"]
+          pattern: "(?i)(password|pgpassword|secret|token|api[_-]?key)"
+        documentIndex: 1
+
+  # ── engenho: the full operator-overlay surface wires through a pod ───────
+  - it: "engenho — file tier ConfigMap + mount + downward-API discovered env"
+    template: templates/tiered-config.yaml
+    set:
+      <<: *defaults
+      config: *engenhoConfig
+    asserts:
+      - hasDocuments:
+          count: 2
+      - isKind:
+          of: ConfigMap
+        documentIndex: 0
+      - isKind:
+          of: Deployment
+        documentIndex: 1
+      # discovered tier — declared in the chart (POD_NAMESPACE via downward API).
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+        documentIndex: 1
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+        documentIndex: 1
+      # env tier — the <PREFIX>_ overlay.
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ENGENHO_LOG
+            value: "info"
+        documentIndex: 1
+      # Exactly 3 env entries ⇒ the mixin injected NO extra (secret) env.
+      - lengthEqual:
+          path: spec.template.spec.containers[0].env
+          count: 3
+        documentIndex: 1
+      # file tier plumbing — volume + read-only mount at the ConfigStore path.
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: engenho-config
+            configMap:
+              name: engenho-config
+        documentIndex: 1
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: engenho-config
+            mountPath: /etc/engenho
+            readOnly: true
+        documentIndex: 1
+      # SECRET BOUNDARY — no secretKeyRef anywhere in the pod's env.
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].env[0].name
+          pattern: "(?i)(password|token|secret)"
+        documentIndex: 1
+
+  # ── pangea-operator: env tier + downward API + explicit fileName mount ───
+  - it: "pangea-operator — magma-native file tier at /etc/pangea/config.yaml"
+    template: templates/tiered-config.yaml
+    set:
+      <<: *defaults
+      config: *pangeaOperatorConfig
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: metadata.name
+          value: pangea-operator-config
+        documentIndex: 0
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: pangea-operator-config
+            mountPath: /etc/pangea
+            readOnly: true
+        documentIndex: 1
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PANGEA_ENABLE_PLAYGROUND
+            value: "true"
+        documentIndex: 1
+
+  # ── discovered tier defaults ON when config.discovered is unset ──────────
+  - it: "discovered tier defaults on (POD_NAMESPACE + POD_NAME) with no config"
+    template: templates/tiered-config.yaml
+    set:
+      <<: *defaults
+      config: {}
+    asserts:
+      # No file tier ⇒ no ConfigMap; just the pod host document.
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Deployment
+      - lengthEqual:
+          path: spec.template.spec.containers[0].env
+          count: 2
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+
+  # ── explicit discovered:false is respected (no `default true` re-enable) ─
+  - it: "discovered tier suppressed when explicitly false"
+    template: templates/tiered-config.yaml
+    set:
+      <<: *defaults
+      config:
+        discovered:
+          podNamespace: false
+          podName: false
+    asserts:
+      - lengthEqual:
+          path: spec.template.spec.containers[0].env
+          count: 0
+
+  # ── file tier is opt-in: disabled ⇒ no ConfigMap, no volume, no mount ────
+  - it: "file tier disabled renders no ConfigMap, no volume, no mount"
+    template: templates/tiered-config.yaml
+    set:
+      <<: *defaults
+      config:
+        app: engenho
+        file:
+          enabled: false
+          data:
+            cluster:
+              name: rio
+        env:
+          ENGENHO_LOG: info
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Deployment
+      - isNullOrEmpty:
+          path: spec.template.spec.volumes
+      - isNullOrEmpty:
+          path: spec.template.spec.containers[0].volumeMounts
+      # env tier still flows even with the file tier off.
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ENGENHO_LOG
+            value: "info"
