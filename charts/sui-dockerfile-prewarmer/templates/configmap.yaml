@@ -1,0 +1,29 @@
+{{/*
+The typed prewarmer.yaml the binary loads via SUI_DOCKERFILE_PREWARMER_CONFIG —
+sui_dockerfile_prewarmer::config::RawPrewarmerConfig's exact deserialize shape.
+`toYaml` of `.Values.prewarmer` renders it verbatim; every field name below is
+camelCase to match the struct's `#[serde(rename_all)]`-free field names as
+authored (owner/repo/ref/path/imageTag/pollIntervalSecs/...).
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sui-dockerfile-prewarmer-config
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+data:
+  prewarmer.yaml: |
+    poll_interval_secs: {{ .Values.prewarmer.pollIntervalSecs | default 900 }}
+    github_api_base: {{ .Values.prewarmer.githubApiBase | default "https://api.github.com" | quote }}
+    github_raw_base: {{ .Values.prewarmer.githubRawBase | default "https://raw.githubusercontent.com" | quote }}
+    watched:
+      {{- range .Values.prewarmer.watched }}
+      - owner: {{ .owner | quote }}
+        repo: {{ .repo | quote }}
+        ref: {{ .ref | quote }}
+        path: {{ .path | quote }}
+        image_tag: {{ .imageTag | quote }}
+      {{- end }}
+    cache_backend:
+      {{- toYaml .Values.prewarmer.cacheBackend | nindent 6 }}

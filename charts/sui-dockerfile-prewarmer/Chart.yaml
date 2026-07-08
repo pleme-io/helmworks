@@ -1,0 +1,25 @@
+apiVersion: v2
+name: sui-dockerfile-prewarmer
+description: >-
+  The standing pre-warming service for supa-charge-akeyless-ci Phase 3 — polls a
+  watched list of public Dockerfiles for new commits via the GitHub REST API (zero
+  cluster access) and invokes sui-dockerfile-wrapper in cache-miss mode on any
+  change, keeping sui's tiered cache warm ahead of any real CI build. Single
+  replica; no served ports; config-only watched-Dockerfile list.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - sui
+  - dockerfile
+  - cache
+  - pre-warming
+  - supa-charge-akeyless-ci
+home: https://github.com/pleme-io/sui/tree/main/sui-dockerfile-prewarmer
+sources:
+  - https://github.com/pleme-io/sui
+  - https://github.com/pleme-io/helmworks
+dependencies:
+  - name: pleme-lib
+    version: ">=0.28.0"
+    repository: "file://../pleme-lib"

@@ -1,0 +1,117 @@
+# sui-dockerfile-prewarmer — values. Every block is a pleme-lib reusable's typed
+# border; the chart templates are one-line includes (per the catch chart pattern).
+#
+# No served ports — this workload is a pure background poll loop (GitHub REST API
+# in, sui-cache backend out). Liveness/readiness use an Exec probe (process alive)
+# rather than an HTTP probe.
+
+image:
+  repository: ghcr.io/pleme-io/sui-dockerfile-prewarmer
+  tag: amd64-latest
+  pullPolicy: IfNotPresent
+
+imagePullSecrets:
+  - name: ghcr-pull
+
+nameOverride: ""
+fullnameOverride: ""
+replicaCount: 1 # a single standing poller; two replicas would double-poll GitHub + double-prewarm
+
+serviceAccount:
+  create: true
+
+# No HTTP/gRPC ports served — pure background loop. Config is mounted, not env-var
+# soup (SUI_DOCKERFILE_PREWARMER_CONFIG points at the mounted file).
+ports: []
+
+health:
+  type: Exec
+  execCommand:
+    - pgrep
+    - -f
+    - sui-dockerfile-prewarmer
+
+# Mandatory limits so breathe can carve.
+resources:
+  requests: { cpu: 25m, memory: 64Mi }
+  limits: { cpu: 250m, memory: 256Mi }
+
+env:
+  - name: SUI_DOCKERFILE_PREWARMER_CONFIG
+    value: /etc/sui-dockerfile-prewarmer/prewarmer.yaml
+  - name: RUST_LOG
+    value: info
+
+volumes:
+  - name: config
+    configMap:
+      name: sui-dockerfile-prewarmer-config
+volumeMounts:
+  - name: config
+    mountPath: /etc/sui-dockerfile-prewarmer
+    readOnly: true
+
+# ── The typed watched-Dockerfile list + poll interval + cache backend ─────────
+# Rendered verbatim into templates/configmap.yaml as prewarmer.yaml — the exact
+# shape sui_dockerfile_prewarmer::config::RawPrewarmerConfig deserializes.
+prewarmer:
+  pollIntervalSecs: 900 # 15 minutes, per the Phase 3 spec
+  githubApiBase: https://api.github.com
+  githubRawBase: https://raw.githubusercontent.com
+  watched:
+    - owner: akeylesslabs
+      repo: akeyless-main-repo
+      ref: master
+      path: tools/deployment/docker/base/Dockerfile
+      imageTag: akeyless/base:prewarm
+    - owner: akeylesslabs
+      repo: akeyless-main-repo
+      ref: master
+      path: tools/deployment/docker/base/Dockerfile.nonroot_gateway
+      imageTag: akeyless/gateway-nonroot:prewarm
+  # Tiered L1(Redis)/L2(Postgres) cache — the same super-cache-ci backend
+  # sui-dockerfile-wrapper falls through against. See sui-cache's BackendConfig.
+  cacheBackend:
+    type: tiered
+    writePolicy: write-through
+    l1:
+      type: redis
+      url: redis://redis.super-cache-ci.svc:6379
+    l2:
+      type: pg
+      url: postgres://sui@postgres.super-cache-ci.svc:5432/sui
+      maxConns: 8
+
+# breathe — the engine Deployment band (inline targetRef → this chart's Deployment).
+# Shadow-first: dryRun:true, never auto-promoted to write.
+breathe:
+  enabled: true
+  memory: { setpoint: 0.8, floor: 64Mi, ceiling: 256Mi, dryRun: true }
+  cpu: { enabled: true, setpoint: 0.8, floor: 25m, ceiling: 250m, dryRun: true }
+
+# NetworkPolicy — default-deny + DNS + explicit egress to the GitHub API/raw-content
+# hosts + the in-cluster super-cache-ci Redis/Postgres backends. No ingress: this
+# workload serves no ports, so no allow-ingress rule is added.
+networkPolicy:
+  enabled: true
+  allowDns: true
+  additionalEgress:
+    - name: allow-github
+      rules:
+        - to:
+            - ipBlock: { cidr: 0.0.0.0/0 }
+          ports:
+            - { protocol: TCP, port: 443 } # api.github.com + raw.githubusercontent.com
+    - name: allow-super-cache-ci
+      rules:
+        - to:
+            - namespaceSelector:
+                matchLabels: { kubernetes.io/metadata.name: super-cache-ci }
+          ports:
+            - { protocol: TCP, port: 6379 } # redis
+            - { protocol: TCP, port: 5432 } # postgres
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
