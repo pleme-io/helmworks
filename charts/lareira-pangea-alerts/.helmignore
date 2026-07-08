@@ -1,0 +1,13 @@
+# Patterns to ignore when packaging the Helm chart.
+# NOTE: deliberately does NOT exclude `charts/` or `*.tgz` — this monorepo
+# vendors the pleme-lib subchart into charts/ at release time
+# (`helm dependency build`), and excluding them here makes Helm report the dep
+# as "missing" at load time. Git exclusion of vendored subcharts is handled by
+# the repo-root .gitignore (`charts/*/charts/`, `charts/*/*.tgz`).
+.DS_Store
+.git/
+.gitignore
+*.tmproj
+*.bak
+*.orig
+*~

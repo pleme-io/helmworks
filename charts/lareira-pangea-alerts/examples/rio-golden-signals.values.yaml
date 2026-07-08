@@ -1,0 +1,78 @@
+# rio-golden-signals.values.yaml — a worked, applies-as-is example for the
+# lareira-pangea-alerts chart.
+#
+# THREE real alert groups for rio workloads, one per routing destination, to
+# exercise the full luis|akeyless|2f seam:
+#
+#   (1) tend-operator golden signals   → luis     (the operator's own ntfy stream)
+#   (2) victoria-logs saturation       → akeyless (inert-if-empty webhook, wired later)
+#   (3) nats pod health                → 2f       (inert-if-empty webhook, wired later)
+#
+# Pipeline (mirrors lareira-pangea-dashboards):
+#   this values list
+#     → lareira-pangea-alerts renders one PangeaAlert CR per entry
+#     → the CR's spec.source.inline.ruby calls
+#       Pangea::Architectures::AlertWorkspace.render_ast(
+#         architecture: <arch>, params: <below>, id: <below>)
+#       which dispatches to Pangea::Alerts::Library::<arch>.build
+#     → pangea-operator's AlertController evals it → a Pangea::Alerts AST
+#     → renders a VMRule (backend: vmrule) or PrometheusRule (backend: prometheusrule)
+#     → the `dest:` label routes it through Alertmanager to the destination receiver
+#       (that receiver is wired cluster-side by lareira-respiro's OBSERVE stage)
+#
+# Render it locally:
+#   helm template rio-alerts charts/lareira-pangea-alerts \
+#     -f charts/lareira-pangea-alerts/examples/rio-golden-signals.values.yaml
+
+alerts:
+  # ── (1) tend-operator — golden signals → luis (ntfy) ──────────────────────
+  - name: tend-operator-golden
+    backend: vmrule
+    architecture: GoldenSignals
+    id: rio-tend-operator-golden
+    message: "rio tend-operator — golden signals (VMRule → luis)"
+    routing:
+      destination: luis
+    params:
+      name: tend-operator
+      job: tend-operator
+      namespace: tend-system
+      signals:
+        - name: "Reconcile errors (1h)"
+          expr: 'sum(increase(tend_operator_reconcile_errors_total[1h]))'
+          for: 5m
+          severity: warning
+          threshold: 1
+        - name: "Applies failed (24h)"
+          expr: 'sum(increase(tend_operator_applies_total{outcome="failed"}[24h]))'
+          for: 15m
+          severity: critical
+          threshold: 3
+
+  # ── (2) victoria-logs — saturation → akeyless (inert webhook) ─────────────
+  - name: victoria-logs-saturation
+    backend: vmrule
+    architecture: Saturation
+    id: rio-victoria-logs-saturation
+    message: "rio victoria-logs — saturation (VMRule → akeyless, inert until wired)"
+    routing:
+      destination: akeyless
+    params:
+      name: victoria-logs
+      namespace: monitoring
+      memory_limit_ratio: 0.9
+      disk_used_ratio: 0.85
+
+  # ── (3) nats — pod health → 2f (inert webhook) ────────────────────────────
+  - name: nats-pod-health
+    backend: prometheusrule
+    architecture: PodHealth
+    id: rio-nats-pod-health
+    message: "rio nats — pod health (PrometheusRule → 2f, inert until wired)"
+    routing:
+      destination: 2f
+    params:
+      name: nats
+      namespace: nats
+      restart_threshold: 3
+      restart_window: 1h

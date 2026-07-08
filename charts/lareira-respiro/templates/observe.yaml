@@ -81,6 +81,9 @@ spec:
             ntfy-topic: {{ . }}
             {{- end }}
             {{- end }}
+            {{- if ($obs.routing).enabled }}
+            {{- include "pleme-lib.routing.labels" (dict "destination" ($obs.routing).destination "ctx" $consName) | nindent 12 }}
+            {{- end }}
           {{- with $rule.annotations }}
           annotations:
             {{- toYaml . | nindent 12 }}
@@ -121,5 +124,39 @@ spec:
       webhookConfigs:
         - url: {{ $url | quote }}
           sendResolved: {{ $obs.ntfyRouting.sendResolved | default true }}
+{{- end }}
+{{- /* ── AlertmanagerConfig (pleme-lib.routing dest → receiver) ─────────── */}}
+{{- /*
+  ADDITIVE, default-off (observe.routing.enabled) wiring that lets ONE
+  routing.destination (luis|akeyless|2f) drive BOTH the `dest:` label stamped on
+  every rule above AND a matching AlertmanagerConfig receiver — both from the
+  shared pleme-lib.routing seam, so respiro and lareira-pangea-alerts never fork
+  the mapping. The legacy observe.ntfyRouting path above is independent and
+  untouched; this block has a distinct CR name ("-routing") so the two coexist.
+*/ -}}
+{{- if ($obs.routing).enabled }}
+{{- $dest := include "pleme-lib.routing.destination" (dict "destination" ($obs.routing).destination "ctx" $consName) }}
+{{- $recvName := include "pleme-lib.routing.receiverName" (dict "destination" $dest "ctx" $consName) }}
+---
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: {{ $consName }}-routing
+  namespace: {{ $ns }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+    {{- include "pleme-lib.routing.labels" (dict "destination" $dest "ctx" $consName) | nindent 4 }}
+spec:
+  route:
+    receiver: {{ $recvName }}
+    groupBy: {{ ($obs.routing).groupBy | default (list "alertname" "target") | toJson }}
+    groupWait: {{ ($obs.routing).groupWait | default "30s" }}
+    groupInterval: {{ ($obs.routing).groupInterval | default "5m" }}
+    repeatInterval: {{ ($obs.routing).repeatInterval | default "4h" }}
+    matchers:
+      - name: dest
+        value: {{ $dest }}
+  receivers:
+    {{- include "pleme-lib.routing.receiver" (dict "destination" $dest "routing" ($obs.routing) "ctx" $consName) | nindent 4 }}
 {{- end }}
 {{- end }}

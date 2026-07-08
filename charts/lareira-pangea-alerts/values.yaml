@@ -1,0 +1,37 @@
+# lareira-pangea-alerts — declare alerting rules as code.
+#
+# Each entry in `alerts` emits one PangeaAlert CR. pangea-operator's
+# AlertController evals its inline Pangea Ruby (calling a Pangea::Alerts::Library
+# mixin through Pangea::Architectures::AlertWorkspace) into a Pangea::Alerts AST
+# and renders it to a VMRule or a PrometheusRule (per `backend`), stamping the
+# routing destination onto the rule so Alertmanager routes it (via the shared
+# pleme-lib.routing seam: the `dest: <v>` label + a matching receiver, the latter
+# wired cluster-side by lareira-respiro's OBSERVE stage).
+
+alerts:
+  # A single golden-signals alert group for the "payments" service, routed to
+  # the operator's own ntfy stream (destination: luis).
+  - name: payments
+    # Render target: vmrule (VictoriaMetrics VMRule — the default) | prometheusrule
+    # (Prometheus-Operator PrometheusRule). REQUIRED (no silent default).
+    backend: vmrule
+    # A Pangea::Alerts::Library mixin/architecture name.
+    architecture: GoldenSignals
+    # Optional stable alert identity (drives the AST id); defaults to `name`.
+    id: payments-golden
+    # Routing — ONE destination enum (luis|akeyless|2f). Stamped as a `dest:`
+    # label on every emitted rule + as spec.routing.destination on the CR. The
+    # CONCRETE receiver (ntfy URL / webhook) is wired cluster-side by respiro.
+    routing:
+      destination: luis
+    # YAML hash passed verbatim to the mixin (emitted as JSON, parsed in Ruby
+    # with symbolize_names: true). Shape is mixin-specific.
+    params:
+      name: payments
+      job: payments
+      namespace: payments
+      error_ratio_threshold: 0.05
+      latency_p99_ms: 1000
+    # message: "payments — golden signals"   # optional version-tracking note
+    # suspend: false                          # when true, the operator skips synthesis
+    # namespace: payments                     # defaults to the release namespace

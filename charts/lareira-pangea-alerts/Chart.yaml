@@ -1,0 +1,24 @@
+apiVersion: v2
+name: lareira-pangea-alerts
+description: |
+  Alert-as-code workspace KIND — from an `alerts:` values list, emits one
+  PangeaAlert CR per alert. Each CR carries inline Pangea Ruby that calls
+  Pangea::Architectures::AlertWorkspace.render_ast(architecture:, params:, id:)
+  against a Pangea::Alerts::Library mixin. pangea-operator's AlertController
+  evals that Ruby → a Pangea::Alerts AST → renders a VMRule or a PrometheusRule
+  per spec.backend (vmrule default | prometheusrule) and stamps the destination
+  (spec.routing.destination ∈ luis|akeyless|2f) via the shared pleme-lib.routing
+  seam so Alertmanager routes the alert to the right receiver. An alert becomes
+  one entry in a values list — no hand-authored rule YAML, no kubectl apply. The
+  "alert kind" of the lareira-pangea-* workspace family; the sibling of
+  lareira-pangea-dashboards (the "dashboard kind").
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+# lareira-pangea-alerts depends on pleme-lib ONLY for the destination-routing
+# seam (pleme-lib.routing.* — the `dest:` label stamp + the enum guard). The
+# PangeaAlert CR itself is hand-authored (mirroring lareira-pangea-dashboards).
+dependencies:
+  - name: pleme-lib
+    version: ">=0.37.0"
+    repository: "file://../pleme-lib"

@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["alerts"],
+  "properties": {
+    "alerts": {
+      "type": "array",
+      "description": "One PangeaAlert CR is emitted per entry.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "architecture"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+            "description": "CR metadata.name (RFC 1123 DNS label)."
+          },
+          "backend": {
+            "type": "string",
+            "enum": ["vmrule", "prometheusrule"],
+            "description": "Render target: vmrule (VMRule, the default choice) | prometheusrule (PrometheusRule). Required at render time; absence fails template with a clear message."
+          },
+          "architecture": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A Pangea::Alerts::Library mixin name, e.g. GoldenSignals."
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Stable alert identity (drives the AST id); defaults to name."
+          },
+          "routing": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["destination"],
+            "description": "Destination-routing seam. The concrete receiver (ntfy/webhook) is wired cluster-side by lareira-respiro.",
+            "properties": {
+              "destination": {
+                "type": "string",
+                "enum": ["luis", "akeyless", "2f"],
+                "description": "Routing destination. luis (ntfy, wired) | akeyless (inert-if-empty) | 2f (inert-if-empty)."
+              }
+            }
+          },
+          "params": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "YAML hash passed to the mixin (shape is mixin-specific)."
+          },
+          "message": {
+            "type": "string",
+            "description": "Optional version-tracking commit message."
+          },
+          "suspend": {
+            "type": "boolean",
+            "description": "When true, the operator skips synthesis + publish for this alert."
+          },
+          "namespace": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+            "description": "Namespace for the CR; defaults to the release namespace."
+          }
+        }
+      }
+    }
+  }
+}

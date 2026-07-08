@@ -147,6 +147,28 @@ respiro:
       topic: ""
       ntfyUrl: ""
       sendResolved: true
+    # routing — the destination-routing seam (pleme-lib.routing ≥ 0.37.0).
+    # ADDITIVE + default-off. When enabled, ONE `destination` (luis|akeyless|2f)
+    # drives BOTH the `dest:` label stamped on every rule AND a matching
+    # AlertmanagerConfig receiver — from the SAME pleme-lib.routing helpers the
+    # lareira-pangea-alerts chart uses, so the mapping is authored once. The
+    # legacy ntfyRouting path above is independent and untouched.
+    routing:
+      enabled: false
+      # destination ∈ { luis | akeyless | 2f }.
+      destination: luis
+      # luis (WIRED → ntfy): both required when destination=luis + enabled;
+      # an empty ntfyTopic fails render (a luis alert with nowhere to go is a bug).
+      ntfyTopic: ""
+      ntfyUrl: ""
+      # akeyless | 2f (INERT-IF-EMPTY → webhookConfigs [] until wired).
+      webhookUrl: ""
+      sendResolved: true
+      # Alertmanager route knobs (defaults shown).
+      groupBy: [alertname, target]
+      groupWait: 30s
+      groupInterval: 5m
+      repeatInterval: 4h
     # attach — route the OBSERVE stage through the lareira-observe SUBCHART
     # instead of the native templates. Default false: respiro emits the
     # observe attachments natively against the consumer so the chart renders

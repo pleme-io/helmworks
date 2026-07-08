@@ -1,0 +1,68 @@
+{{- /*
+  Alert-as-code: one PangeaAlert CR per `.Values.alerts` entry.
+
+  Each entry { name, backend, architecture, params, routing, id?, suspend?,
+  namespace? } renders a PangeaAlert whose spec.source.inline.ruby calls the
+  typed seam Pangea::Architectures::AlertWorkspace.render_ast(architecture:,
+  params:, id:) against a Pangea::Alerts::Library mixin. pangea-operator's
+  AlertController evals that Ruby → a Pangea::Alerts AST → renders a VMRule
+  (spec.backend=vmrule, the default) or a PrometheusRule (spec.backend=
+  prometheusrule). The LAST Ruby expression is a BARE render_ast(...) call —
+  NO .to_json — because the operator renders the returned AST per spec.backend.
+
+  Routing: ONE `routing.destination` enum (luis|akeyless|2f) is stamped BOTH as
+  a `dest: <v>` label on the CR AND as spec.routing.destination, via the shared
+  pleme-lib.routing seam. The concrete Alertmanager receiver for a destination
+  (ntfy URL for luis; webhook for akeyless/2f) is wired cluster-side by
+  lareira-respiro's OBSERVE stage — this chart only declares the destination.
+
+  params (a YAML hash) is emitted as JSON and parsed back in Ruby via
+  JSON.parse(<json>, symbolize_names: true) — the JSON-through-Ruby path,
+  carried in a single-quoted squiggly heredoc (<<~'PANGEA_PARAMS') so any
+  { } ( ) " #{ inside a param value is inert (no delimiter collision, no
+  interpolation).
+*/ -}}
+{{- $root := . -}}
+{{- range $i, $a := .Values.alerts }}
+{{- if not $a.name }}{{ fail (printf "alerts[%d]: .name is required" $i) }}{{ end }}
+{{- if not $a.backend }}{{ fail (printf "alerts[%s]: .backend is required (vmrule|prometheusrule)" $a.name) }}{{ end }}
+{{- if not (has $a.backend (list "vmrule" "prometheusrule")) }}{{ fail (printf "alerts[%s]: unknown .backend %q — must be vmrule|prometheusrule" $a.name $a.backend) }}{{ end }}
+{{- if not $a.architecture }}{{ fail (printf "alerts[%s]: .architecture is required" $a.name) }}{{ end }}
+{{- $routing := $a.routing | default dict }}
+{{- $dest := include "pleme-lib.routing.destination" (dict "destination" $routing.destination "ctx" $a.name) }}
+{{- $ns := $a.namespace | default $root.Release.Namespace }}
+{{- $params := $a.params | default dict }}
+---
+apiVersion: pangea.pleme.io/v1alpha1
+kind: PangeaAlert
+metadata:
+  name: {{ $a.name }}
+  namespace: {{ $ns }}
+  labels:
+    app.kubernetes.io/name: lareira-pangea-alerts
+    app.kubernetes.io/managed-by: {{ $root.Release.Service }}
+    app.kubernetes.io/instance: {{ $root.Release.Name }}
+    pleme.io/alert-architecture: {{ $a.architecture | quote }}
+    {{- include "pleme-lib.routing.labels" (dict "destination" $dest "ctx" $a.name) | nindent 4 }}
+spec:
+  backend: {{ $a.backend | quote }}
+  routing:
+    destination: {{ $dest | quote }}
+  {{- if $a.message }}
+  message: {{ $a.message | quote }}
+  {{- end }}
+  {{- if $a.suspend }}
+  suspend: true
+  {{- end }}
+  source:
+    inline:
+      ruby: |
+        require 'pangea-dashboards'
+        Pangea::Architectures::AlertWorkspace.render_ast(
+          architecture: {{ $a.architecture | quote }},
+          params: JSON.parse(<<~'PANGEA_PARAMS', symbolize_names: true),
+        {{ $params | toJson | indent 8 }}
+        PANGEA_PARAMS
+          id: {{ $a.id | default $a.name | quote }},
+        )
+{{- end }}
