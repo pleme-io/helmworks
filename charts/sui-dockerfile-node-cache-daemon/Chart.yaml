@@ -1,0 +1,26 @@
+apiVersion: v2
+name: sui-dockerfile-node-cache-daemon
+description: >-
+  Phase 3b of supa-charge-akeyless-ci — a node-local L0 disk cache daemon.
+  Runs as a DaemonSet (one pod per node): a Unix-domain-socket server that
+  caches recently-used Dockerfile-graph node artifacts on node-local disk,
+  falling through to the existing remote sui-cache StorageBackend (Redis
+  L1 / Postgres L2) on a local miss, so same-node CI workflow pods are
+  served with zero network hop on repeat lookups.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - sui
+  - dockerfile
+  - cache
+  - daemonset
+  - supa-charge-akeyless-ci
+home: https://github.com/pleme-io/sui/tree/main/sui-dockerfile-node-cache-daemon
+sources:
+  - https://github.com/pleme-io/sui
+  - https://github.com/pleme-io/helmworks
+dependencies:
+  - name: pleme-lib
+    version: ">=0.28.0"
+    repository: "file://../pleme-lib"

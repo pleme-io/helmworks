@@ -1,0 +1,138 @@
+# sui-dockerfile-node-cache-daemon — values.
+#
+# Why a NEW chart rather than a DaemonSet template bolted onto the existing
+# sui-dockerfile-prewarmer chart: the two workloads differ on every axis that
+# matters to a Helm chart's shape —
+#   - Kind: this is a DaemonSet (exactly one pod per node); the prewarmer is a
+#     single-replica Deployment (a singleton poller). Toggling between the two
+#     Kinds in one chart would mean the prewarmer's singleton semantics
+#     (`replicaCount: 1`, no node affinity) leaking DaemonSet-only fields, or
+#     vice versa.
+#   - Volumes: this workload needs a `hostPath` disk cache dir AND a shared
+#     socket directory other pods on the same node must mount — the prewarmer
+#     has neither, it's ConfigMap-only.
+#   - Cross-workload contract: THIS chart defines an integration contract other
+#     charts (GitHub Actions runner pods) must satisfy (mount the same
+#     `hostPath`) — a contract the prewarmer chart has no business advertising.
+# Two small, single-purpose charts beat one chart with a `kind: Deployment |
+# DaemonSet` toggle and two incompatible volume models.
+
+image:
+  repository: ghcr.io/pleme-io/sui-dockerfile-node-cache-daemon
+  tag: amd64-latest
+  pullPolicy: IfNotPresent
+
+imagePullSecrets:
+  - name: ghcr-pull
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+
+# No served ports — the daemon speaks only the Unix-domain-socket protocol,
+# reachable exclusively by other pods on the same node via the shared
+# hostPath volume below. There is nothing to expose over the pod network.
+ports: []
+
+# ── The integration contract every same-node consumer (a GitHub Actions
+# runner pod) MUST satisfy ────────────────────────────────────────────────
+# This DaemonSet writes its Unix domain socket at
+# `<socketDir.hostPath>/node-cache.sock` on the node — the exact path
+# `sui_dockerfile_node_cache_daemon::default_socket_path()` returns
+# (`/var/run/sui-dockerfile-cache/node-cache.sock`) when `socketDir.hostPath`
+# is left at its default. A runner pod scheduled on the SAME node reaches this
+# daemon by mounting the SAME hostPath directory (read-write, so it can also
+# see the socket file appear) at the SAME in-container path. There is no
+# other discovery mechanism (no Service, no DNS, no port) — the shared
+# hostPath directory IS the contract. If `socketDir.hostPath` is overridden,
+# every consuming runner-pod chart must be updated to match.
+socketDir:
+  hostPath: /var/run/sui-dockerfile-cache
+
+# The node-local L0 disk cache directory. Backed by hostPath so cache
+# entries survive a pod restart/rollout on the same node (only a node
+# replacement or manual eviction loses the local cache — always safe,
+# since a miss here just falls through to the remote L1/L2 tiers).
+cacheDir:
+  hostPath: /var/lib/sui-dockerfile-cache
+
+env:
+  - name: SUI_NODE_CACHE_SOCKET_PATH
+    value: /var/run/sui-dockerfile-cache/node-cache.sock
+  - name: SUI_NODE_CACHE_DIR
+    value: /var/lib/sui-dockerfile-cache
+  - name: RUST_LOG
+    value: info
+  # SUI_CACHE_BACKEND_CONFIG (the remote L1/L2 sui_cache::config::BackendConfig,
+  # JSON-encoded) is intentionally NOT defaulted here — it names the shared
+  # super-cache-ci Redis/Postgres endpoints and should come from a
+  # cofre-materialized Secret in any real deployment. Left unset, the daemon
+  # binary falls back to a local-disk-only remote tier (see its `main.rs`
+  # doc comment) rather than refusing to start.
+
+# Mandatory limits so breathe can carve — a DaemonSet's per-node footprint
+# multiplies by node count, so keep this workload's footprint small.
+resources:
+  requests: { cpu: 25m, memory: 64Mi }
+  limits: { cpu: 250m, memory: 256Mi }
+
+health:
+  type: Exec
+  execCommand:
+    - pgrep
+    - -f
+    - sui-dockerfile-node-cache-daemon
+
+volumes:
+  - name: socket-dir
+    hostPath:
+      path: /var/run/sui-dockerfile-cache
+      type: DirectoryOrCreate
+  - name: cache-dir
+    hostPath:
+      path: /var/lib/sui-dockerfile-cache
+      type: DirectoryOrCreate
+volumeMounts:
+  - name: socket-dir
+    mountPath: /var/run/sui-dockerfile-cache
+  - name: cache-dir
+    mountPath: /var/lib/sui-dockerfile-cache
+
+# breathe — shadow-first (dryRun:true), never auto-promoted to write. A
+# DaemonSet's band applies per-pod, same as a Deployment's. `targetRef.kind`
+# MUST be set explicitly to DaemonSet — pleme-lib.breatheBand's inline
+# default targetRef assumes `apps/v1 Deployment`, which is wrong here.
+breathe:
+  enabled: true
+  targetRef: { kind: DaemonSet }
+  memory: { setpoint: 0.8, floor: 64Mi, ceiling: 256Mi, dryRun: true }
+  cpu: { enabled: true, setpoint: 0.8, floor: 25m, ceiling: 250m, dryRun: true }
+
+# NetworkPolicy — default-deny + DNS + explicit egress to the in-cluster
+# super-cache-ci Redis/Postgres backends only. No ingress: the daemon serves
+# no ports over the pod network (only the node-local Unix socket, which is
+# outside NetworkPolicy's scope entirely).
+networkPolicy:
+  enabled: true
+  allowDns: true
+  additionalEgress:
+    - name: allow-super-cache-ci
+      rules:
+        - to:
+            - namespaceSelector:
+                matchLabels: { kubernetes.io/metadata.name: super-cache-ci }
+          ports:
+            - { protocol: TCP, port: 6379 } # redis
+            - { protocol: TCP, port: 5432 } # postgres
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+updateStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 1

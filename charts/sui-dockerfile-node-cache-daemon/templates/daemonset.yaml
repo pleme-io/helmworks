@@ -1,0 +1,85 @@
+{{/*
+Hand-authored DaemonSet — pleme-lib ships no `pleme-lib.daemonset` named
+template (only `pleme-lib.deployment`), so this chart composes the
+lower-level pleme-lib helpers (name/fullname/namespace/labels/
+selectorLabels/serviceAccountName/image/probes) directly rather than
+duplicating the full compliance-overlay machinery `_deployment.tpl` wires
+in. If a future chart needs a second DaemonSet, that's the trigger to
+extract a `pleme-lib.daemonset` named template from this file.
+*/}}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "pleme-lib.selectorLabels" . | nindent 6 }}
+  {{- with .Values.updateStrategy }}
+  updateStrategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  template:
+    metadata:
+      labels:
+        {{- include "pleme-lib.selectorLabels" . | nindent 8 }}
+        app: {{ include "pleme-lib.fullname" . }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "pleme-lib.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ include "pleme-lib.name" . }}
+          image: {{ include "pleme-lib.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy | default "IfNotPresent" }}
+          {{- with .Values.env }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if eq (.Values.health.type | default "Exec") "Exec" }}
+          livenessProbe:
+            exec:
+              command:
+                {{- toYaml .Values.health.execCommand | nindent 16 }}
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          readinessProbe:
+            exec:
+              command:
+                {{- toYaml .Values.health.execCommand | nindent 16 }}
+            initialDelaySeconds: 2
+            periodSeconds: 10
+          {{- end }}
+          {{- with .Values.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.volumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
