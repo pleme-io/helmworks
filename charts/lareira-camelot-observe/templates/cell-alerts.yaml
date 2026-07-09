@@ -1,0 +1,93 @@
+{{- /*
+  cell-alerts.yaml — the cross-cutting cell-baseline alerts (typed enjulho path).
+
+  Replaces the interim hand-authored VMRule `camelot-alerts` (ns monitoring,
+  label pleme.io/alert-source=interim-vmrule) with ONE typed PangeaAlert whose
+  inline Ruby builds a Pangea::Alerts AST via the AlertsBuilder DSL. The
+  pangea-operator AlertController evaluates the inline Ruby, takes its last
+  expression (a Pangea::Alerts::Types::Alerts AST), and renders it per
+  spec.backend into an owned VMRule — so these env-wide rules become a
+  first-class, GC-tracked CR instead of a hand-applied VMRule.
+
+  These are ENV-WIDE cross-cutting rules (presence / workload / breathe /
+  clickhouse), distinct from the per-service WorkloadBaseline alerts in
+  alerts.yaml. The alertnames + exprs + severities + `dest`/`env` rule labels
+  mirror the interim VMRule 1:1 (the renderer camelizes the rule id, e.g.
+  :akeyless_service_oom_killed → AkeylessServiceOOMKilled, :click_house_* →
+  ClickHouseLivenessUnknownOrDown).
+
+  Note: the PangeaAlert CRD is strict-decoded and has NO spec.message field
+  (unlike PangeaDashboard) — do not add one here.
+*/ -}}
+{{- $root := . -}}
+{{- $o := .Values.observe -}}
+{{- $ca := $o.cellAlerts | default dict -}}
+{{- if $ca.enabled }}
+{{- $ns := $o.namespace -}}
+{{- $backend := $o.alerts.backend | default "vmrule" -}}
+{{- if not (has $backend (list "vmrule" "prometheusrule")) }}{{ fail (printf "observe.alerts.backend %q unknown — must be vmrule|prometheusrule" $backend) }}{{ end }}
+{{- $dest := include "lareira-camelot-observe.dest" $root -}}
+{{- $aid := printf "%s-cell-baseline" $o.env -}}
+---
+apiVersion: pangea.pleme.io/v1alpha1
+kind: PangeaAlert
+metadata:
+  name: {{ $aid }}
+  namespace: {{ $ns }}
+  labels:
+    {{- include "lareira-camelot-observe.labels" $root | nindent 4 }}
+    pleme.io/alert-architecture: "CellBaseline"
+    {{- include "pleme-lib.routing.labels" (dict "destination" $dest "ctx" "cell-baseline") | nindent 4 }}
+  annotations:
+    {{- include "lareira-camelot-observe.complianceAnnotations" $root | nindent 4 }}
+spec:
+  backend: {{ $backend | quote }}
+  routing:
+    destination: {{ $dest | quote }}
+  source:
+    inline:
+      ruby: |
+        require 'pangea-dashboards'
+        Pangea::Alerts::DSL::AlertsBuilder.new(id: :{{ $o.env }}_cell_baseline).tap do |b|
+          b.namespace {{ $ns | quote }}
+          b.labels('app.kubernetes.io/part-of' => 'lareira-camelot-observe')
+          b.group 'camelot.presence', interval: '30s' do
+            alert :akeyless_service_down,
+              expr: 'min by (job, namespace) (up{namespace="{{ $ns }}", job!="pangea-operator"}) == 0',
+              for: '5m', severity: 'critical',
+              summary: 'akeyless service {{ "{{" }} $labels.job {{ "}}" }} is DOWN in {{ $o.env }} (up==0)',
+              description: 'No scrape target for {{ "{{" }} $labels.job {{ "}}" }} in namespace {{ $ns }} is up (min(up)==0) for >5m. Service is absent or crash-looping.',
+              labels: { 'env' => {{ $o.env | quote }}, 'dest' => {{ $dest | quote }} }
+          end
+          b.group 'camelot.workload', interval: '30s' do
+            alert :akeyless_service_restarting,
+              expr: 'increase(kube_pod_container_status_restarts_total{namespace="{{ $ns }}"}[15m]) > 3',
+              for: '0s', severity: 'warning',
+              summary: 'container restart storm: {{ "{{" }} $labels.namespace {{ "}}" }}/{{ "{{" }} $labels.pod {{ "}}" }}',
+              description: 'Container {{ "{{" }} $labels.container {{ "}}" }} in {{ "{{" }} $labels.pod {{ "}}" }} restarted >3 times in 15m.',
+              labels: { 'env' => {{ $o.env | quote }}, 'dest' => {{ $dest | quote }} }
+            alert :akeyless_service_oom_killed,
+              expr: 'kube_pod_container_status_last_terminated_reason{namespace="{{ $ns }}",reason="OOMKilled"} == 1',
+              for: '0s', severity: 'warning',
+              summary: 'OOMKilled: {{ "{{" }} $labels.namespace {{ "}}" }}/{{ "{{" }} $labels.pod {{ "}}" }}',
+              description: 'Container {{ "{{" }} $labels.container {{ "}}" }} in {{ "{{" }} $labels.pod {{ "}}" }} was last terminated by the OOM killer.',
+              labels: { 'env' => {{ $o.env | quote }}, 'dest' => {{ $dest | quote }} }
+          end
+          b.group 'camelot.breathe', interval: '30s' do
+            alert :breathe_band_over_ceiling,
+              expr: 'breathe_band_util_ratio > 0.95',
+              for: '10m', severity: 'warning',
+              summary: 'breathe band over ceiling: {{ "{{" }} $labels.name {{ "}}" }} ({{ "{{" }} $labels.dim {{ "}}" }})',
+              description: 'breathe_band_util_ratio for band {{ "{{" }} $labels.name {{ "}}" }} dim {{ "{{" }} $labels.dim {{ "}}" }} has exceeded 0.95 (band over ceiling) for >10m — breathe cannot carve it down further.',
+              labels: { 'env' => {{ $o.env | quote }}, 'dest' => {{ $dest | quote }} }
+          end
+          b.group 'camelot.clickhouse', interval: '30s' do
+            alert :click_house_liveness_unknown_or_down,
+              expr: 'absent(up{job=~".*clickhouse.*"}) or (up{job=~".*clickhouse.*"} == 0)',
+              for: '5m', severity: 'critical',
+              summary: 'ClickHouse liveness is down or unobservable',
+              description: 'No clickhouse up-metric is present (not scraped) or it reports down for >5m. ClickHouse liveness on this cluster is unmonitored/at risk.',
+              labels: { 'env' => {{ $o.env | quote }}, 'dest' => {{ $dest | quote }} }
+          end
+        end.build
+{{- end }}

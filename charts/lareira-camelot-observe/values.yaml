@@ -85,8 +85,15 @@ observe:
   #   perService  when true, emit one PangeaAlert per observe.services entry
   #   backend     render target: vmrule (VMRule, default) | prometheusrule
   alerts:
-    perService: true
+    perService: false
     backend: vmrule
+
+  # cellAlerts — the ONE cross-cutting cell-baseline PangeaAlert (presence /
+  # workload / breathe / clickhouse). Typed enjulho replacement for the interim
+  # hand-authored VMRule `camelot-alerts` in ns monitoring. Env-wide rules,
+  # distinct from the per-service WorkloadBaseline alerts above.
+  cellAlerts:
+    enabled: true
 
 # compliance — PER-CELL overlay marker (no global seam). fedramp-high stamps
 # the compliance.pleme.io/* overlay annotations onto every CR. SHADOW-FIRST:

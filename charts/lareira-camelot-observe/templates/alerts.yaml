@@ -50,7 +50,6 @@ spec:
   backend: {{ $backend | quote }}
   routing:
     destination: {{ $dest | quote }}
-  message: {{ printf "%s · %s — workload baseline" $o.env $svc.name | quote }}
   source:
     inline:
       ruby: |

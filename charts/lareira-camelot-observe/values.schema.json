@@ -125,7 +125,7 @@
         "clickhouseBoard": {
           "type": "object",
           "additionalProperties": false,
-          "description": "Bespoke inline-ruby ClickHouse analytics board (Path B — raw SQL targets via options.grafana). Not a Library mixin.",
+          "description": "ClickHouse analytics board (Path A — Pangea::Dashboards::Library::ClickHouseAnalyticsBoard typed-SQL mixin entry).",
           "properties": {
             "enabled": {
               "type": "boolean",
@@ -156,6 +156,17 @@
               "type": "string",
               "enum": ["vmrule", "prometheusrule"],
               "description": "Render target: vmrule (VMRule, default) | prometheusrule."
+            }
+          }
+        },
+        "cellAlerts": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "The cross-cutting cell-baseline PangeaAlert (presence/workload/breathe/clickhouse). Typed enjulho replacement for the interim hand-authored VMRule camelot-alerts in ns monitoring.",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Emit the cell-baseline PangeaAlert (AlertsBuilder AST → VMRule)."
             }
           }
         }
