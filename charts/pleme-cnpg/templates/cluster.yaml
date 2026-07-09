@@ -41,11 +41,31 @@ spec:
     enablePodMonitor: true
   {{- end }}
 
-  {{- if .Values.affinity.enabled }}
+  {{- /*
+    CNPG's `spec.affinity` (AffinityConfiguration) is where BOTH pod
+    anti-affinity AND the pods' nodeSelector/tolerations live — CNPG does not
+    expose a top-level spec.nodeSelector. So a caller that needs to PIN the
+    Postgres pods to a specific node pool (e.g. the supacharge-only tainted
+    isolation pool — the whole point of Option A) supplies
+    `.Values.nodeSelector` / `.Values.tolerations` here and the block renders
+    even when anti-affinity is off. Emit the affinity block if ANY of the three
+    is requested.
+  */}}
+  {{- if or .Values.affinity.enabled .Values.nodeSelector .Values.tolerations }}
   affinity:
+    {{- if .Values.affinity.enabled }}
     enablePodAntiAffinity: true
     topologyKey: {{ .Values.affinity.topologyKey }}
     podAntiAffinityType: preferred
+    {{- end }}
+    {{- with .Values.nodeSelector }}
+    nodeSelector:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with .Values.tolerations }}
+    tolerations:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
   {{- end }}
 
   {{- if .Values.walArchive.enabled }}

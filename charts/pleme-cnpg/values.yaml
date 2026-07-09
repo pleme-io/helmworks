@@ -54,6 +54,16 @@ affinity:
   enabled: true
   topologyKey: kubernetes.io/hostname
 
+# ── Pin the Postgres pods to a node pool (CNPG spec.affinity.{nodeSelector,
+# tolerations}) ────────────────────────────────────────────────────────────
+# CNPG has no top-level spec.nodeSelector — the pods' nodeSelector + tolerations
+# live inside spec.affinity. Empty by default (schedule anywhere). Set these to
+# pin the CNPG pods onto an isolated tainted pool — e.g. the supacharge-only
+# pool (`nodeSelector: {role: supacharge}` + a `supacharge-only:NoSchedule`
+# toleration) so the store keystone shares nothing with resident nodes.
+nodeSelector: {}
+tolerations: []
+
 clusterLabels: {}
 
 # ── Bootstrap mode switch ──────────────────────────────────────────
