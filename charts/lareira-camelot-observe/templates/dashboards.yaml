@@ -1,0 +1,125 @@
+{{- /*
+  Dashboards-as-code for the camelot cell — TWO ranges:
+
+  (1) range observe.services       → one WorkloadOverview PangeaDashboard per
+      service. params = { id: <env>-<name>, name, datasource, jobs: [<job>],
+      namespace, signals (presence + restart + OOM defects), stream: logsStream,
+      logs_datasource }. Mirrors lareira-pangea-dashboards' JSON-through-heredoc
+      emitter (params → JSON in a single-quoted squiggly heredoc, parsed in Ruby
+      via JSON.parse(…, symbolize_names: true)) so any { } ( ) " inside a signal
+      expr is inert.
+  (2) range observe.platformBoards → one PangeaDashboard per cross-service board.
+      params = { id } ∪ board.params — the chart injects only the id; each
+      board's `params` dict carries its mixin kwargs (datasource /
+      logs_datasource / stream / …). No platform mixin accepts namespace:/
+      folder:, so neither is splatted; folder rides as the render_json kwarg.
+
+  Every CR carries the routing `dest:` label (pleme-lib.routing.labels) + the
+  per-cell compliance overlay marker. pangea-operator's DashboardController evals
+  the inline Ruby → Grafana JSON → a sidecar-labelled ConfigMap.
+*/ -}}
+{{- $root := . -}}
+{{- $o := .Values.observe -}}
+{{- $ns := $o.namespace -}}
+{{- $ds := $o.datasource -}}
+{{- $lds := $o.logsDatasource -}}
+{{- $stream := $o.logsStream -}}
+{{- $folder := $o.folder | default $o.env -}}
+{{- /* Resolve + validate the destination ONCE — a bad enum fail()s here. */ -}}
+{{- $dest := include "lareira-camelot-observe.dest" $root -}}
+{{- range $svc := $o.services }}
+{{- if not $svc.name }}{{ fail "observe.services[]: .name is required" }}{{ end }}
+{{- if not $svc.job }}{{ fail (printf "observe.services[%s]: .job is required" $svc.name) }}{{ end }}
+{{- $id := printf "%s-%s" $o.env $svc.name -}}
+{{- /* presence + defect signals (StatusOverview shape: name/expr/warn/crit). */ -}}
+{{- $signals := list
+      (dict
+        "name" (printf "%s down" $svc.name)
+        "expr" (printf "min(up{job=\"%s\",namespace=\"%s\"})" $svc.job $ns)
+        "warn" 0 "crit" 0 "unit" "short"
+        "desc" (printf "0 ⇒ %s is not reporting (job=%s). Presence, not health." $svc.name $svc.job))
+      (dict
+        "name" (printf "%s restarts /1h" $svc.name)
+        "expr" (printf "increase(kube_pod_container_status_restarts_total{namespace=\"%s\",pod=~\"%s.*\"}[1h])" $ns $svc.name)
+        "warn" 1 "crit" 3 "unit" "short"
+        "desc" (printf "Container restarts for %s in the last hour." $svc.name))
+      (dict
+        "name" (printf "%s OOMKilled" $svc.name)
+        "expr" (printf "kube_pod_container_status_last_terminated_reason{namespace=\"%s\",reason=\"OOMKilled\",pod=~\"%s.*\"}" $ns $svc.name)
+        "warn" 1 "crit" 1 "unit" "short"
+        "desc" (printf "A %s pod was terminated by the OOM killer — raise the memory limit or find the leak." $svc.name))
+-}}
+{{- $params := dict
+      "id" $id
+      "name" $svc.name
+      "datasource" $ds
+      "jobs" (list $svc.job)
+      "namespace" $ns
+      "signals" $signals
+      "stream" $stream
+      "logs_datasource" $lds
+}}
+---
+apiVersion: pangea.pleme.io/v1alpha1
+kind: PangeaDashboard
+metadata:
+  name: {{ $id }}
+  namespace: {{ $ns }}
+  labels:
+    {{- include "lareira-camelot-observe.labels" $root | nindent 4 }}
+    pleme.io/dashboard-architecture: "WorkloadOverview"
+    {{- include "pleme-lib.routing.labels" (dict "destination" $dest "ctx" $svc.name) | nindent 4 }}
+  annotations:
+    {{- include "lareira-camelot-observe.complianceAnnotations" $root | nindent 4 }}
+spec:
+  folder: {{ $folder | quote }}
+  message: {{ printf "%s · %s — workload overview" $o.env $svc.name | quote }}
+  source:
+    inline:
+      ruby: |
+        require 'pangea-dashboards'
+        Pangea::Architectures::GrafanaDashboardWorkspace.render_json(
+          architecture: "WorkloadOverview",
+          params: JSON.parse(<<~'PANGEA_PARAMS', symbolize_names: true),
+        {{ $params | toJson | indent 8 }}
+        PANGEA_PARAMS
+          folder: {{ $folder | quote }},
+        )
+{{- end }}
+{{- range $board := $o.platformBoards }}
+{{- if not $board.name }}{{ fail "observe.platformBoards[]: .name is required" }}{{ end }}
+{{- if not $board.architecture }}{{ fail (printf "observe.platformBoards[%s]: .architecture is required" $board.name) }}{{ end }}
+{{- $bid := printf "%s-%s" $o.env $board.name -}}
+{{- /* Per-board params: inject ONLY the id; each board's own `params` dict
+       carries its mixin kwargs (datasource / logs_datasource / stream / …).
+       No platform mixin accepts `namespace:` or `folder:` — splatting them
+       raised ArgumentError. `folder` still rides as the render_json folder
+       kwarg below (advisory), never inside params. */ -}}
+{{- $bparams := merge (dict "id" $bid) ($board.params | default dict) }}
+---
+apiVersion: pangea.pleme.io/v1alpha1
+kind: PangeaDashboard
+metadata:
+  name: {{ $bid }}
+  namespace: {{ $ns }}
+  labels:
+    {{- include "lareira-camelot-observe.labels" $root | nindent 4 }}
+    pleme.io/dashboard-architecture: {{ $board.architecture | quote }}
+    {{- include "pleme-lib.routing.labels" (dict "destination" $dest "ctx" $board.name) | nindent 4 }}
+  annotations:
+    {{- include "lareira-camelot-observe.complianceAnnotations" $root | nindent 4 }}
+spec:
+  folder: {{ $folder | quote }}
+  message: {{ printf "%s · %s — platform board" $o.env $board.name | quote }}
+  source:
+    inline:
+      ruby: |
+        require 'pangea-dashboards'
+        Pangea::Architectures::GrafanaDashboardWorkspace.render_json(
+          architecture: {{ $board.architecture | quote }},
+          params: JSON.parse(<<~'PANGEA_PARAMS', symbolize_names: true),
+        {{ $bparams | toJson | indent 8 }}
+        PANGEA_PARAMS
+          folder: {{ $folder | quote }},
+        )
+{{- end }}

@@ -1,0 +1,186 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["observe"],
+  "properties": {
+    "observe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "env",
+        "namespace",
+        "folder",
+        "datasource",
+        "logsDatasource",
+        "logsStream",
+        "routing",
+        "services",
+        "platformBoards",
+        "alerts"
+      ],
+      "description": "The parameterized observability cell. Keyed by env, spawns the whole dashboards + alerts + routing structure.",
+      "properties": {
+        "env": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+          "description": "The instantiation key. Prefixes every CR id/name (<env>-<svc>). A different env is a different cell."
+        },
+        "namespace": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+          "description": "CR namespace AND the workload namespace the signals select."
+        },
+        "folder": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Grafana folder every emitted dashboard lands in."
+        },
+        "datasource": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Metrics datasource uid (matches lookout; VictoriaMetrics)."
+        },
+        "logsDatasource": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Logs datasource uid (VictoriaLogs)."
+        },
+        "logsStream": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Stream selector the WorkloadOverview logs row uses."
+        },
+        "routing": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["destination"],
+          "description": "ONE destination enum, stamped as `dest:` label + spec.routing.destination via the shared pleme-lib.routing seam.",
+          "properties": {
+            "destination": {
+              "type": "string",
+              "enum": ["luis", "akeyless", "2f"],
+              "description": "Routing destination. camelot = luis (zero-egress ntfy)."
+            }
+          }
+        },
+        "services": {
+          "type": "array",
+          "minItems": 1,
+          "description": "The service mesh topology. One WorkloadOverview dashboard + one WorkloadBaseline alert per entry.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "job"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+                "description": "Workload/CR-suffix name (pod=~\"<name>.*\")."
+              },
+              "job": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Scrape job label (up{job=\"<job>\"})."
+              },
+              "port": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 65535,
+                "description": "Metrics port (topology metadata)."
+              }
+            }
+          }
+        },
+        "platformBoards": {
+          "type": "array",
+          "description": "Cross-service akeyless-shaped boards. One PangeaDashboard per entry.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "architecture"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+                "description": "CR-suffix name (<env>-<name>)."
+              },
+              "architecture": {
+                "type": "string",
+                "minLength": 1,
+                "description": "A Pangea::Dashboards::Library full-dashboard mixin name (KNOWN_ARCHITECTURES)."
+              },
+              "params": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Per-board mixin kwargs splatted into the architecture's build (datasource / logs_datasource / stream / root_label / metric overrides / …). The chart injects `id`; no mixin accepts namespace:/folder:."
+              }
+            }
+          }
+        },
+        "clickhouseBoard": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Bespoke inline-ruby ClickHouse analytics board (Path B — raw SQL targets via options.grafana). Not a Library mixin.",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Emit the ClickHouse analytics PangeaDashboard."
+            },
+            "datasourceUid": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Grafana grafana-clickhouse-datasource uid (matches lookout: clickhouse)."
+            },
+            "database": {
+              "type": "string",
+              "minLength": 1,
+              "description": "ClickHouse database the panels query (tendril)."
+            }
+          }
+        },
+        "alerts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["perService", "backend"],
+          "properties": {
+            "perService": {
+              "type": "boolean",
+              "description": "When true, emit one WorkloadBaseline PangeaAlert per service."
+            },
+            "backend": {
+              "type": "string",
+              "enum": ["vmrule", "prometheusrule"],
+              "description": "Render target: vmrule (VMRule, default) | prometheusrule."
+            }
+          }
+        }
+      }
+    },
+    "compliance": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Per-cell compliance overlay set (delegated to pleme-lib.overlay.*).",
+      "properties": {
+        "overlays": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Overlay names, e.g. [fedramp-high]. Stamps compliance.pleme.io/* markers."
+        },
+        "enforce": {
+          "type": "boolean",
+          "description": "Shadow-first: false records the marker without blocking render on validators."
+        }
+      }
+    },
+    "global": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Umbrella global (nodeSelector/tolerations/breathe) — inherited, not set here."
+    }
+  }
+}

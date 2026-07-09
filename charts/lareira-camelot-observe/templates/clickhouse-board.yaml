@@ -1,0 +1,94 @@
+{{- /*
+  clickhouse-board.yaml — the ClickHouse analytics board (Path B).
+
+  There is NO ClickHouse Library mixin, so this board is authored as BESPOKE
+  inline Ruby that constructs the Dashboard AST directly (DSL::DashboardBuilder)
+  with panels carrying options.grafana.targets = [{ rawSql, datasource, format }].
+  The Grafana renderer shallow-merges panel.options[:grafana] over the
+  auto-generated panel JSON (render/grafana.rb render_panel: h.merge!(...)), so
+  the raw ClickHouse targets OVERRIDE the (empty) auto targets and ride through
+  untouched — the PromQL validation path is never entered (zero PromQL queries).
+
+  The inline Ruby's LAST expression returns the JSON string
+  (Render::Grafana.render_json), which is exactly what the operator's
+  render_dashboard eval contract consumes (owner.rs: Json::String => Ok).
+
+  Queries use explicit `now() - INTERVAL` windows (not the $__timeFilter macro)
+  so a panel returns rows deterministically regardless of the dashboard time
+  picker — this is a "does the ClickHouse path return rows" board.
+*/ -}}
+{{- $root := . -}}
+{{- $o := .Values.observe -}}
+{{- $cb := $o.clickhouseBoard | default dict -}}
+{{- if $cb.enabled }}
+{{- $ns := $o.namespace -}}
+{{- $folder := $o.folder | default $o.env -}}
+{{- $chUid := $cb.datasourceUid | default "clickhouse" -}}
+{{- $db := $cb.database | default "tendril" -}}
+{{- $bid := printf "%s-clickhouse" $o.env -}}
+{{- $dest := include "lareira-camelot-observe.dest" $root -}}
+---
+apiVersion: pangea.pleme.io/v1alpha1
+kind: PangeaDashboard
+metadata:
+  name: {{ $bid }}
+  namespace: {{ $ns }}
+  labels:
+    {{- include "lareira-camelot-observe.labels" $root | nindent 4 }}
+    pleme.io/dashboard-architecture: "ClickHouseAnalyticsInline"
+    {{- include "pleme-lib.routing.labels" (dict "destination" $dest "ctx" "clickhouse") | nindent 4 }}
+  annotations:
+    {{- include "lareira-camelot-observe.complianceAnnotations" $root | nindent 4 }}
+spec:
+  folder: {{ $folder | quote }}
+  message: {{ printf "%s · clickhouse — tendril analytics (inline)" $o.env | quote }}
+  source:
+    inline:
+      ruby: |
+        require 'pangea-dashboards'
+
+        CH_DS = { 'type' => 'grafana-clickhouse-datasource', 'uid' => {{ $chUid | quote }} }.freeze
+        DB    = {{ $db | quote }}
+
+        def ch_targets(sql)
+          [ { 'refId' => 'A', 'rawSql' => sql, 'datasource' => CH_DS, 'format' => 1, 'queryType' => 'sql' } ]
+        end
+
+        dash = Pangea::Dashboards::DSL::DashboardBuilder.new(id: :{{ $o.env }}_clickhouse).tap do |b|
+          b.title {{ printf "%s · ClickHouse analytics (tendril)" $o.env | quote }}
+          b.uid {{ $bid | quote }}
+          b.tags 'clickhouse', 'tendril', 'analytics', {{ $o.env | quote }}
+          b.refresh '30s'
+          b.row 'events' do
+            panel :ch_events_by_source, kind: :table, width: 12, height: 9,
+                  options: { grafana: { 'datasource' => CH_DS, 'targets' => ch_targets(
+                    "SELECT source, count() AS events FROM #{DB}.events " \
+                    "WHERE timestamp > now() - INTERVAL 24 HOUR GROUP BY source ORDER BY events DESC LIMIT 20") } } do
+              title 'Events by source (24h)'
+            end
+            panel :ch_levels, kind: :table, width: 12, height: 9,
+                  options: { grafana: { 'datasource' => CH_DS, 'targets' => ch_targets(
+                    "SELECT level, count() AS events FROM #{DB}.events " \
+                    "WHERE timestamp > now() - INTERVAL 24 HOUR GROUP BY level ORDER BY events DESC") } } do
+              title 'Top log levels (24h)'
+            end
+          end
+          b.row 'timeline' do
+            panel :ch_events_per_min, kind: :timeseries, width: 18, height: 8,
+                  options: { grafana: { 'datasource' => CH_DS, 'targets' => ch_targets(
+                    "SELECT toStartOfMinute(timestamp) AS time, count() AS events FROM #{DB}.events " \
+                    "WHERE timestamp > now() - INTERVAL 6 HOUR GROUP BY time ORDER BY time") } } do
+              title 'Events / min (6h)'
+              unit 'short'
+            end
+            panel :ch_audit_count, kind: :stat, width: 6, height: 8,
+                  options: { grafana: { 'datasource' => CH_DS, 'targets' => ch_targets(
+                    "SELECT count() AS audit_events FROM #{DB}.akeyless_audit " \
+                    "WHERE timestamp > now() - INTERVAL 24 HOUR") } } do
+              title 'Audit events (24h)'
+            end
+          end
+        end.build
+
+        Pangea::Dashboards::Render::Grafana.render_json(dash)
+{{- end }}
