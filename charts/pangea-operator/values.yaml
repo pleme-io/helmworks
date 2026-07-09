@@ -77,6 +77,24 @@ rbac:
     - apiGroups: ["pangea.pleme.io"]
       resources: ["pangeadashboards", "pangeadashboards/status"]
       verbs: ["get", "list", "watch", "patch", "update"]
+    # ── PangeaAlert (declare-once alert rules; AlertController reconciles
+    # each into an owned VMRule / PrometheusRule). The controller self-
+    # patches status and GC-owns the rendered rule CR, so it needs the
+    # full verb set on the CR and its /status subresource.
+    - apiGroups: ["pangea.pleme.io"]
+      resources: ["pangeaalerts", "pangeaalerts/status"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    # ── Alert-rule CRs the AlertController renders + owns via
+    # ownerReference: VMRule (operator.victoriametrics.com/v1beta1, the rio
+    # default — vmalert reads VMRule) and PrometheusRule
+    # (monitoring.coreos.com/v1, the prometheus-operator shape). Without
+    # these the controller 403s on the rule upsert.
+    - apiGroups: ["operator.victoriametrics.com"]
+      resources: ["vmrules"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    - apiGroups: ["monitoring.coreos.com"]
+      resources: ["prometheusrules"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
     # ── 0.8.9: PangeaFleetStatus (cluster-scoped operator-driven
     # fleet aggregation singleton; bypasses globalSuspend so this
     # CR keeps refreshing under a pause). The operator self-creates
