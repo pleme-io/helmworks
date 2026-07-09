@@ -1,5 +1,9 @@
-{{/* service.yaml — the face's ClusterIP; the ACCESS overlay + the HTTP scaler
-front this, and the SA-token MCP queries it. */}}
+{{/* service.yaml — the face's Service. Default ClusterIP (the ACCESS overlay +
+the HTTP scaler front this, and the SA-token MCP queries it). service.type may be
+overridden (e.g. NodePort) with an optional fixed service.nodePort so a
+single-node popup face is reachable directly on a node port without the overlay. */}}
+{{- $svc := .Values.service | default dict }}
+{{- $svcType := $svc.type | default "ClusterIP" }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -8,10 +12,13 @@ metadata:
   labels:
     {{- include "pleme-lib.labels" . | nindent 4 }}
 spec:
-  type: ClusterIP
+  type: {{ $svcType }}
   selector:
     {{- include "pleme-lib.selectorLabels" . | nindent 4 }}
   ports:
     - name: http
       port: {{ .Values.grafana.port }}
       targetPort: http
+      {{- if and (eq $svcType "NodePort") $svc.nodePort }}
+      nodePort: {{ $svc.nodePort }}
+      {{- end }}

@@ -16,6 +16,13 @@ lookout:
   # The publicly-NAMED DNS record this face answers on -> GF_SERVER_ROOT_URL.
   host: lookout.example.dev
 
+# Service exposure. Default ClusterIP (the ACCESS overlay + the HTTP scaler front
+# it). Set type: NodePort with an optional fixed nodePort to expose a single-node
+# popup face directly on a node port (e.g. a disposable dev vantage with no overlay).
+service:
+  type: ClusterIP
+  nodePort: null
+
 grafana:
   image:
     repository: grafana/grafana
