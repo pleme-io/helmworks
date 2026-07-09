@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": true,
+  "description": "lareira-clickhouse values. Only the M0 ENJULHO `clickhouse.model` block is schema-constrained; the rest of the chart's values are validated at the template layer.",
+  "properties": {
+    "clickhouse": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "model": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "description": "M0 ENJULHO: the ClickHouse schema as a typed analitico model rendered into a shinka DatabaseMigration CRD (values -> CRD -> reconcile). null/absent -> no DatabaseMigration is emitted.",
+          "required": ["name", "connection"],
+          "properties": {
+            "name": {
+              "type": "string",
+              "enum": ["events"],
+              "description": "enum ClickHouseModel { events }. M0 ships exactly the clustered, Keeper-replicated events model (analitico::Ddl::events)."
+            },
+            "connection": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["host", "database", "cluster"],
+              "description": "The CH connection the typed model converges against (renders spec.database.clickhouseRef).",
+              "properties": {
+                "host": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "CH HTTP host (CRD clickhouseRef.host), e.g. clickhouse.monitoring.svc."
+                },
+                "port": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 65535,
+                  "description": "CH HTTP port (optional; CRD effective_port() = 8123)."
+                },
+                "database": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Target database (CRD clickhouseRef.database), e.g. tendril."
+                },
+                "cluster": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "ON CLUSTER distributed-DDL cluster (CRD clickhouseRef.cluster), e.g. tendril."
+                },
+                "table": {
+                  "type": "string",
+                  "description": "Table-name override (optional). \"\" -> the model canonical name (events); set e.g. events_m0 to prove a converge without clobbering a live events table."
+                },
+                "username": {
+                  "type": "string",
+                  "description": "CH username (optional; CRD effective_username() = \"default\")."
+                },
+                "credentialsSecretRef": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "description": "Secret holding the CH password (CRD credentialsSecretRef).",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "Secret name. \"\" -> the chart's {fullname}-auth Secret (or clickhouse.auth.existingSecret)."
+                    }
+                  }
+                },
+                "passwordKey": {
+                  "type": "string",
+                  "description": "Key within credentialsSecretRef (optional; CRD default clickhouse-password)."
+                }
+              }
+            },
+            "tables": {
+              "type": "object",
+              "additionalProperties": true,
+              "description": "DOCUMENTATION of the typed analitico model shape the shinka CH executor renders server-side. The model is a closed enum in analitico; these fields are the typed contract, not a knob (editing them does not change what shinka renders)."
+            }
+          }
+        }
+      }
+    }
+  }
+}

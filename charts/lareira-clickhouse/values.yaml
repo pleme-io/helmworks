@@ -166,20 +166,93 @@ clickhouse:
   # the schema across wake/sleep cycles. Every statement is IF NOT EXISTS so a
   # re-run is a no-op. In LAKE mode (replication.enabled), the tables become
   # ReplicatedMergeTree so each replica registers the same Keeper path.
+  # Idempotent FIRST-BOOT bootstrap ONLY. Since v0.3.0 (M0 ENJULHO) the events
+  # table is NO LONGER created here — it is a typed shinka DatabaseMigration
+  # (see `clickhouse.model` below). init-sql now renders just
+  # `CREATE DATABASE IF NOT EXISTS <db>` in the tap posture; the lake posture
+  # (keeper.enabled) still renders the logs/metrics/traces OTel tables here
+  # (those models are not yet covered by an analitico typed model).
   init:
     enabled: true
     # Analytical retention tier — longer than the 3h hot VictoriaOps buffer
     # (ClickHouse is the deep-query store). Disk grows GrowOnly via StorageBand.
+    # Applies to the LAKE tables only (the events TTL now lives in the typed
+    # analitico model: 30 DAY).
     ttl: "7 DAY"
     # DESTINATION: evacuate cold parts to cheap S3 cold instead of DELETE, so
     # retention is cheap-cold-forever. Set to "TO DISK 's3'" (or
     # "TO VOLUME 'cold'") in lake mode with storagePolicy.enabled. "DELETE" is
     # the tap default (no S3 tier).
     ttlAction: "DELETE"
-    # Schema shape: "events" (the tap's single-table corner) or "lake"
-    # (logs/metrics/traces OTel-shaped tables). Lake mode auto-selects "lake".
+    # Schema shape: "events" (the tap posture — now bootstraps the DATABASE
+    # only, no table) or "lake" (logs/metrics/traces OTel tables). Lake mode
+    # auto-selects "lake".
     schema: events
-    extraSQL: ""
+
+  # ── M0 ENJULHO — the events table as a TYPED shinka DatabaseMigration ────────
+  # `clickhouse.model` declares the ClickHouse schema as typed values that render
+  # a shinka DatabaseMigration CRD (values → CRD → reconcile), the ENJULHO
+  # replacement for the hand-hacked init.extraSQL events CREATE TABLE. The shinka
+  # controller (DatabaseSource::ClickHouse arm, gated by source()'s exactly-one
+  # guard + require_clickhouse_ref) renders the named `analitico` typed model
+  # SERVER-SIDE and converges it create-only (ON CLUSTER, ReplicatedMergeTree).
+  # The chart carries NO DDL — only the model name + the connection coordinates.
+  #
+  # GATED: set `clickhouse.model: null` (or delete the block) to skip emitting the
+  # DatabaseMigration — e.g. before the shinka image carrying the ClickHouse
+  # executor is rebuilt + the operator is deployed in-cluster (M0.5).
+  #
+  # Requires: the shinka operator + the DatabaseMigration CRD installed in-cluster
+  # AND a shinka image carrying the ClickHouse executor (NOT yet rebuilt — M0.5).
+  model:
+    # enum ClickHouseModel { events }; default events. M0 ships exactly the
+    # clustered, Keeper-replicated events model (analitico::Ddl::events).
+    name: events
+
+    # ── The connection the typed model converges against. Defaults target the
+    # camelot/tendril ClickHouse (clickhouse.monitoring.svc:8123, db + cluster
+    # `tendril`). ──────────────────────────────────────────────────────────────
+    connection:
+      # CH HTTP host (REQUIRED). CRD field: clickhouseRef.host.
+      host: clickhouse.monitoring.svc
+      # CH HTTP port (optional; CRD effective_port() = 8123).
+      port: 8123
+      # Target database (REQUIRED). CRD field: clickhouseRef.database.
+      database: tendril
+      # ON CLUSTER distributed-DDL cluster (REQUIRED). CRD field: clickhouseRef.cluster.
+      cluster: tendril
+      # Table-name override (optional). "" → the shinka controller defaults the
+      # table to the model's canonical name ("events"). Set e.g. `events_m0` to
+      # prove a converge without clobbering a live `events` table.
+      table: ""
+      # CH username (optional; CRD effective_username() = "default").
+      username: tendril
+      # Secret holding the CH password (CRD credentialsSecretRef). "" → the
+      # chart's own {fullname}-auth Secret (or clickhouse.auth.existingSecret).
+      credentialsSecretRef:
+        name: ""
+      # Key within credentialsSecretRef (optional; CRD default clickhouse-password).
+      passwordKey: clickhouse-password
+
+    # ── The typed model shape (schema-shaped to the analitico events model). ────
+    # DOCUMENTATION of the model the shinka CH executor renders server-side — the
+    # chart does NOT emit this DDL. The model is a CLOSED ENUM in analitico
+    # (single-source COLUMNS/TYPES); this mirrors the events-table typed shape so
+    # a values reviewer sees exactly what the migration converges. Editing these
+    # does NOT change what shinka renders (they are the typed contract, not a knob).
+    tables:
+      events:
+        engine: ReplicatedMergeTree      # ('/clickhouse/tables/{shard}/events', '{replica}')
+        onCluster: tendril
+        partitionBy: toYYYYMMDD(timestamp)
+        orderBy: [source, timestamp]
+        ttl: toDateTime(timestamp) + INTERVAL 30 DAY
+        columns:
+          - { name: timestamp, type: "DateTime64(3)" }
+          - { name: source,    type: "LowCardinality(String)" }
+          - { name: level,     type: "LowCardinality(String)" }
+          - { name: message,   type: "String" }
+          - { name: raw,       type: "String" }
 
   # ── ReplicatedMergeTree replication. When enabled, the init schema uses
   # ReplicatedMergeTree('/clickhouse/tables/{shard}/<table>','{replica}') so

@@ -1,0 +1,38 @@
+{{/*
+clickhouse-migration.yaml — M0 ENJULHO.
+
+The events table as a TYPED shinka DatabaseMigration CRD (values → CRD →
+reconcile), replacing the hand-hacked init.extraSQL events CREATE TABLE. The
+shinka controller (DatabaseSource::ClickHouse arm) renders the named `analitico`
+typed model SERVER-SIDE and converges it create-only (ON CLUSTER,
+ReplicatedMergeTree). The chart carries NO DDL — only the model name + the
+connection coordinates.
+
+Rendered by the canonical pleme-lib.shinkaClickHouseMigration named template
+(the sibling of pleme-lib.shinkaDatabaseMigration, the CNPG source), so the CRD
+surface is defined once fleet-wide.
+
+Gated on `.Values.clickhouse.model` — set it to null (or delete the block) to
+skip emitting the migration (e.g. before the shinka image carrying the ClickHouse
+executor is rebuilt + the operator is deployed in-cluster; that is M0.5).
+*/}}
+{{- if .Values.clickhouse.model }}
+{{- $ch := .Values.clickhouse }}
+{{- $model := $ch.model }}
+{{- $conn := $model.connection }}
+{{- /* Default the credentials Secret to the chart's own CH Secret (existingSecret, else {fullname}-auth). */}}
+{{- $secretName := $conn.credentialsSecretRef.name | default $ch.auth.existingSecret | default (printf "%s-auth" (include "pleme-lib.fullname" .)) }}
+{{- include "pleme-lib.shinkaClickHouseMigration" (dict
+    "ctx" .
+    "name" (printf "%s-events" (include "pleme-lib.fullname" .))
+    "model" $model.name
+    "host" $conn.host
+    "port" $conn.port
+    "database" $conn.database
+    "cluster" $conn.cluster
+    "table" $conn.table
+    "username" $conn.username
+    "secretName" $secretName
+    "passwordKey" $conn.passwordKey
+) }}
+{{- end }}

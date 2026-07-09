@@ -1,28 +1,28 @@
 {{/*
-init-sql.yaml — AUTOMATED INITIALIZATION.
+init-sql.yaml — FIRST-BOOT bootstrap.
 
 Rendered into /docker-entrypoint-initdb.d so the official clickhouse-server image
-runs it on FIRST start (empty data dir). The PVC persists the schema across the
-zero-scale wake/sleep cycles. Every statement is IF NOT EXISTS — a re-run is a
-safe no-op, AND (lake mode) each replica running the same ReplicatedMergeTree
-CREATE registers itself under the same Keeper path (the standard CH pattern).
+runs it on FIRST start (empty data dir). The PVC persists across the zero-scale
+wake/sleep cycles. Every statement is IF NOT EXISTS — a re-run is a safe no-op.
 
-Two schema shapes:
-  • events (TAP, default)  — one table: a typed prefix (timestamp/source/level/
-    message) + a `raw` blob for ad-hoc querying. The NATS-fed JSON stream lands
-    here.
-  • lake  (LAKE)           — three OTel-shaped tables (logs / metrics / traces),
-    LowCardinality + Map columns, columnar, ORDER BY the query keys.
+Since v0.3.0 (M0 ENJULHO) the `events` table is NO LONGER created here — it is a
+typed shinka DatabaseMigration (`clickhouse.model` → templates/clickhouse-migration.yaml
+→ the DatabaseSource::ClickHouse converge). init-sql keeps only:
 
-Engine:
-  • replication disabled → MergeTree (the tap).
+  • the DATABASE bootstrap — CREATE DATABASE IF NOT EXISTS <db> — so the target
+    database exists before the shinka converge (or the NATS-fed inserts) run; and
+  • the LAKE posture (keeper.enabled) — the three OTel-shaped tables
+    (logs / metrics / traces). Those models are not yet covered by an analitico
+    typed model, so they stay here until they follow the events table into shinka.
+
+Engine (lake tables):
+  • replication disabled → MergeTree.
   • replication enabled  → ReplicatedMergeTree('/clickhouse/tables/{shard}/<t>','{replica}')
     so every replica coordinates through Keeper.
 
-Retention:
-  • ttlAction DELETE (tap default) → drop old parts.
-  • ttlAction "TO DISK 's3'" (lake) → EVACUATE cold parts to the S3 cold tier
-    (cheap-cold-forever, not gone) — pairs with the storage_policy in config.yaml.
+Retention (lake tables):
+  • ttlAction DELETE (default) → drop old parts.
+  • ttlAction "TO DISK 's3'" (lake) → EVACUATE cold parts to the S3 cold tier.
 */}}
 {{- if .Values.clickhouse.init.enabled }}
 {{- $ch := .Values.clickhouse }}
@@ -44,6 +44,8 @@ metadata:
     {{- include "pleme-lib.labels" . | nindent 4 }}
 data:
   00-schema.sql: |
+    -- First-boot bootstrap: ensure the target database exists. The `events`
+    -- table is created by the shinka DatabaseMigration, NOT here (M0 ENJULHO).
     CREATE DATABASE IF NOT EXISTS {{ $db }};
     {{- if eq $schema "lake" }}
 
@@ -100,24 +102,5 @@ data:
     ORDER BY (service, operation, timestamp)
     TTL toDateTime(timestamp) + INTERVAL {{ $ttl }} {{ $ttlAction }}
     SETTINGS index_granularity = 8192{{ $storageSetting }};
-    {{- else }}
-
-    -- ── events — the tap's single-table corner ───────────────────────────────
-    CREATE TABLE IF NOT EXISTS {{ $db }}.events
-    (
-      timestamp   DateTime64(3) DEFAULT now64(3),
-      source      LowCardinality(String) DEFAULT '',
-      level       LowCardinality(String) DEFAULT '',
-      message     String DEFAULT '',
-      raw         String DEFAULT ''
-    )
-    ENGINE = {{ if $repl }}ReplicatedMergeTree('/clickhouse/tables/{shard}/events', '{replica}'){{ else }}MergeTree{{ end }}
-    PARTITION BY toYYYYMMDD(timestamp)
-    ORDER BY (source, timestamp)
-    TTL toDateTime(timestamp) + INTERVAL {{ $ttl }} {{ $ttlAction }}
-    SETTINGS index_granularity = 8192{{ $storageSetting }};
     {{- end }}
-{{- with $ch.init.extraSQL }}
-{{ . | indent 4 }}
-{{- end }}
 {{- end }}

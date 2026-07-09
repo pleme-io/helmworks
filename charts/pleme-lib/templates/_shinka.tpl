@@ -190,3 +190,72 @@ on the CNPG cluster + all its migrations being ready.
     {{- toYaml ($w.resources | default (dict "requests" (dict "cpu" "10m" "memory" "16Mi") "limits" (dict "cpu" "100m" "memory" "32Mi"))) | nindent 4 }}
 {{- end }}
 {{- end }}
+
+{{/*
+pleme-lib.shinkaClickHouseMigration — renders a Shinka DatabaseMigration CR whose
+source is the DatabaseSource::ClickHouse arm (spec.database.clickhouseRef), the
+third arm of the DatabaseSpec sum type alongside cnpgClusterRef / directRef.
+
+Unlike pleme-lib.shinkaDatabaseMigration (a CNPG source that runs a migrator Job
+off a deployment image), a ClickHouse migration carries NO migrator: the shinka
+controller resolves the source through require_clickhouse_ref() (which IS the
+health-skip — a ClickHouse source has no CNPG cluster to poll), renders the named
+typed `analitico` model server-side, and converges it create-only (ON CLUSTER,
+ReplicatedMergeTree). The rendered model is content-addressed into
+status.lastMigration.imageTag as chmodel-<hex>. So this template emits
+spec.database only — never migrator / migrators.
+
+Dict arg (a typed model + the CH connection + the cluster name):
+  ctx           — the root chart context (REQUIRED; for labels/fullname/namespace)
+  name          — DatabaseMigration name        (default: ctx fullname)
+  namespace     — namespace                      (default: ctx namespace)
+  model         — ClickHouseModel enum           (default: events)
+  host          — CH HTTP host                   (REQUIRED; e.g. clickhouse.monitoring.svc)
+  port          — CH HTTP port                   (optional; CRD effective_port()=8123)
+  database      — target database                (REQUIRED; e.g. tendril)
+  cluster       — ON CLUSTER distributed-DDL cluster (REQUIRED; e.g. tendril)
+  table         — table-name override            (optional; CRD default = model canonical name)
+  username      — CH username                    (optional; CRD effective_username()="default")
+  secretName    — Secret holding the CH password (REQUIRED)
+  passwordKey   — key within secretName          (optional; CRD default "clickhouse-password")
+  annotations   — extra metadata annotations     (optional map; e.g. the shinka.pleme.io/retry signal)
+*/}}
+{{- define "pleme-lib.shinkaClickHouseMigration" -}}
+{{- $ctx := .ctx | required "pleme-lib.shinkaClickHouseMigration: .ctx is required" -}}
+{{- $host := .host | required "pleme-lib.shinkaClickHouseMigration: .host is required" -}}
+{{- $database := .database | required "pleme-lib.shinkaClickHouseMigration: .database is required" -}}
+{{- $cluster := .cluster | required "pleme-lib.shinkaClickHouseMigration: .cluster is required" -}}
+{{- $secretName := .secretName | required "pleme-lib.shinkaClickHouseMigration: .secretName is required" -}}
+apiVersion: shinka.pleme.io/v1alpha1
+kind: DatabaseMigration
+metadata:
+  name: {{ .name | default (include "pleme-lib.fullname" $ctx) }}
+  namespace: {{ .namespace | default (include "pleme-lib.namespace" $ctx) }}
+  labels:
+    {{- include "pleme-lib.labels" $ctx | nindent 4 }}
+    component: migrations
+    job-type: migration
+  {{- with .annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  database:
+    clickhouseRef:
+      model: {{ .model | default "events" }}
+      host: {{ $host | quote }}
+      {{- with .port }}
+      port: {{ . }}
+      {{- end }}
+      database: {{ $database | quote }}
+      cluster: {{ $cluster | quote }}
+      {{- with .table }}
+      table: {{ . | quote }}
+      {{- end }}
+      {{- with .username }}
+      username: {{ . | quote }}
+      {{- end }}
+      credentialsSecretRef:
+        name: {{ $secretName | quote }}
+      passwordKey: {{ .passwordKey | default "clickhouse-password" | quote }}
+{{- end -}}
