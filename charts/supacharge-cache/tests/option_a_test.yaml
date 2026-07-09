@@ -1,0 +1,106 @@
+suite: supacharge-cache — OPTION A (strict no-sharing · nodeCache toggle · prepared-not-live)
+templates:
+  - templates/namespace.yaml
+  - templates/infratemplate.yaml
+  - templates/flux-kustomization.yaml
+release:
+  name: supacharge-cache
+  namespace: supacharge-cache
+tests:
+  # ══ (b) OWN NAMESPACE — labelled with the guest-ownership marker ══════════
+  - it: stamps our OWN namespace with the guest-ownership + isolation-mode labels
+    template: templates/namespace.yaml
+    asserts:
+      - equal:
+          path: kind
+          value: Namespace
+      - equal:
+          path: metadata.name
+          value: supacharge-cache
+      - equal:
+          path: metadata.labels['kubernetes.io/metadata.name']
+          value: supacharge-cache
+      # The guest marker a broad resident ArgoCD/Flux selector can EXCLUDE.
+      - equal:
+          path: metadata.labels['pleme.io/guest']
+          value: "true"
+      - equal:
+          path: metadata.labels['pleme.io/isolation-mode']
+          value: own-nodes-only
+
+  # ══ (isolation floor) THE SUPACHARGE NODE GROUP — double-gated ═══════════
+  - it: renders NO InfrastructureTemplate by default (infraTemplate.enabled=false)
+    template: templates/infratemplate.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: REFUSES to render a node group when enabled but subnets are empty (PENDING re-auth — never guessed)
+    template: templates/infratemplate.yaml
+    set:
+      infraTemplate.enabled: true
+      infraTemplate.subnetIds: []
+    asserts:
+      - failedTemplate:
+          errorMessage: "supacharge-cache: infraTemplate.enabled=true but infraTemplate.subnetIds is empty. The resident subnets are PENDING akeyless-cicd re-auth and must not be guessed — supply OUR OWN isolated subnet id(s) in values-cicd.yaml before enabling. Refusing to render a node group with no subnets."
+
+  - it: renders the Option-A SupachargeNodeGroup InfraTemplate when enabled + subnets supplied
+    template: templates/infratemplate.yaml
+    set:
+      infraTemplate.enabled: true
+      infraTemplate.subnetIds: ["subnet-OUR-isolated-aaa"]
+    asserts:
+      - equal:
+          path: kind
+          value: InfrastructureTemplate
+      - equal:
+          path: metadata.name
+          value: supacharge-node-group
+      - equal:
+          path: metadata.labels.role
+          value: supacharge
+      - equal:
+          path: metadata.labels['pleme.io/isolation-mode']
+          value: own-nodes-only
+      # The inline Ruby calls the SupachargeNodeGroup architecture (Option A).
+      - matchRegex:
+          path: spec.source.inline
+          pattern: 'Pangea::Architectures::SupachargeNodeGroup\.build'
+      # The Option-B DaemonSet arm is OFF in the emitted config JSON.
+      - matchRegex:
+          path: spec.source.inline
+          pattern: '"daemonset":\{"enabled":false\}'
+      # Scale-from-zero is the Option-A default (min/desired 0).
+      - matchRegex:
+          path: spec.source.inline
+          pattern: '"min_size":0'
+      - matchRegex:
+          path: spec.source.inline
+          pattern: '"desired_size":0'
+
+  # ══ PREPARED-NOT-LIVE — the Flux Kustomization ships SUSPENDED ════════════
+  - it: renders NO Flux Kustomization by default (fluxKustomization.enabled=false)
+    template: templates/flux-kustomization.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: ships the Flux Kustomization SUSPENDED (prepared-not-live) when enabled
+    template: templates/flux-kustomization.yaml
+    set:
+      fluxKustomization.enabled: true
+    asserts:
+      - equal:
+          path: kind
+          value: Kustomization
+      - equal:
+          path: apiVersion
+          value: kustomize.toolkit.fluxcd.io/v1
+      # THE STRUCTURAL PREPARED-NOT-LIVE GATE.
+      - equal:
+          path: spec.suspend
+          value: true
+      # Reconciles from OUR OWN source, never an akeyless repo / their ArgoCD.
+      - equal:
+          path: spec.sourceRef.name
+          value: supacharge-cache

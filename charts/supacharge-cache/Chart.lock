@@ -1,0 +1,18 @@
+dependencies:
+- name: pleme-lib
+  repository: file://../pleme-lib
+  version: 0.40.0
+- name: super-cache-ci
+  repository: file://../super-cache-ci
+  version: 0.1.0
+- name: pleme-spegel
+  repository: file://../pleme-spegel
+  version: 0.1.0
+- name: sui-dockerfile-prewarmer
+  repository: file://../sui-dockerfile-prewarmer
+  version: 0.1.0
+- name: sui-dockerfile-node-cache-daemon
+  repository: file://../sui-dockerfile-node-cache-daemon
+  version: 0.1.0
+digest: sha256:9aee2b280f0534fe334e3f1bcc6637820db3f2643027a39f5721caf916f7c227
+generated: "2026-07-09T03:56:21.45005-07:00"

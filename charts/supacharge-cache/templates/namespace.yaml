@@ -1,0 +1,26 @@
+{{/*
+The umbrella's OWN namespace — Option A: everything of ours lives in one
+namespace we own, labelled with the guest-ownership marker so a broad resident
+ArgoCD/Flux selector can EXCLUDE ours (and so ownership is never ambiguous).
+
+Stamps `kubernetes.io/metadata.name` so any egress netpol selecting our
+namespace matches even on a CNI that doesn't auto-label. Off when the namespace
+is managed elsewhere (a Flux Kustomization that already labels it).
+
+NOTE: the super-cache-ci STORE keystone keeps its OWN `super-cache-ci` namespace
+(its DNS contract) — this stamps the umbrella's own `supacharge-cache` namespace
+for the InfraTemplate + the Kustomization + any umbrella-owned netpol.
+*/}}
+{{- if .Values.namespaces.own }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.namespaces.own }}
+  labels:
+    kubernetes.io/metadata.name: {{ .Values.namespaces.own }}
+    app.kubernetes.io/part-of: supacharge-cache
+    {{- with .Values.isolation.guestLabel }}
+    {{ .key }}: {{ .value | quote }}
+    {{- end }}
+    pleme.io/isolation-mode: own-nodes-only
+{{- end }}

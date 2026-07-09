@@ -1,0 +1,38 @@
+{{/*
+PREPARED-NOT-LIVE — a Flux Kustomization shipped SUSPENDED.
+
+This is the STRUCTURAL prepared-not-live gate (not a branch trick): with
+`spec.suspend: true`, even a fully-installed Flux in the resident cluster would
+NOT reconcile this — it is inert by construction. Combined with (a) never
+applying the SupachargeNodeGroup InfraTemplate and (b) never bootstrapping Flux
+into the cicd cluster, committing this whole umbrella to main is safe + inert.
+
+Reconciles from OUR OWN GitRepository (never an akeyless repo, never their
+ArgoCD/Flux — argocd.akeyless.io lives in this cluster and we never register in
+it). Un-suspend is a deliberate later operator act, post-confidence.
+
+Off by default (fluxKustomization.enabled=false) — usually this umbrella is a
+subchart of a HelmRelease, not self-Kustomized. When on, it is SUSPENDED.
+*/}}
+{{- if .Values.fluxKustomization.enabled }}
+{{- $k := .Values.fluxKustomization -}}
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: supacharge-cache
+  namespace: {{ $k.sourceRef.namespace | default "flux-system" }}
+  labels:
+    {{- include "supacharge-cache.labels" . | nindent 4 }}
+    pleme.io/isolation-mode: own-nodes-only
+spec:
+  # THE PREPARED-NOT-LIVE GATE — inert until a human un-suspends.
+  suspend: {{ $k.suspend }}
+  interval: {{ $k.interval | quote }}
+  prune: {{ $k.prune }}
+  targetNamespace: {{ $k.targetNamespace | quote }}
+  path: {{ $k.path | quote }}
+  sourceRef:
+    kind: {{ $k.sourceRef.kind }}
+    name: {{ $k.sourceRef.name }}
+    namespace: {{ $k.sourceRef.namespace }}
+{{- end }}

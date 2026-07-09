@@ -1,0 +1,98 @@
+apiVersion: v2
+name: supacharge-cache
+description: >-
+  The OPTION-A parked-cache umbrella — the ISOLATED, strict-no-sharing
+  composition of the four shipped supa-charge-akeyless-ci pieces into ONE
+  version-controlled Helm artifact, wound onto OUR OWN tainted node group inside
+  a resident CI cluster (default target: akeyless's us-east-1-cicd-eks, acct
+  730335276278 — the LIVE prod-image CI cluster).
+
+  OPTION A — STRICT NO-SHARING (the whole point). Every workload runs ONLY on
+  OUR nodes and shares NOTHING of theirs:
+    - the ISOLATION TRIPLE on every pod — nodeSelector `role: supacharge` +
+      toleration `supacharge-only:NoSchedule` + (node-side) the matching taint —
+      so nothing but the cache lands on our nodes AND the cache never lands on a
+      resident runner node. Their taints are NEVER tolerated.
+    - OUR OWN namespace (`supacharge-cache`); nothing of ours outside it except
+      the node-group taint.
+    - breathe MemoryBand/CpuBand/StorageBand SHADOW-FIRST (dryRun:true) — the
+      controller emits ShadowWouldApply and mutates nothing until a human flips
+      a band's dryRun per workload.
+    - an egress-scoped default-deny NetworkPolicy — egress to ghcr + the public
+      GitHub API only (+ DNS + the in-namespace store tiers); ingress only from
+      the served cache ports.
+
+  THE OPTION-B DOOR IS PARAMETERIZED OFF. The L0 host-socket node-cache
+  DaemonSet on the RESIDENT runner nodes (`nodeCache.enabled: false` by default)
+  is present as a CLEAN off-by-default toggle. When OFF (the default) NO
+  DaemonSet renders at all — runners reach the cache over the in-cluster LAN
+  (pleme-spegel P2P among OUR nodes + the sui serve endpoint), sharing nothing.
+  Flipping it on is the Option-B increment (a pod on their nodes) and is gated
+  externally on a measured warmth benchmark + a human gate + akeyless buy-in —
+  never a silent footprint. The door is typed-open but shut.
+
+  COMPOSES (nothing new is invented — a thin umbrella + Option-A values):
+    - super-cache-ci                     — the L1(Redis)+L2(Postgres)+serve STORE keystone
+    - pleme-spegel                       — the co-located P2P image-layer SERVE tier (OUR nodes only)
+    - sui-dockerfile-prewarmer           — the standing pre-warmer (public GitHub API; zero cluster access)
+    - sui-dockerfile-node-cache-daemon   — the L0 host-socket DaemonSet, GATED OFF (nodeCache.enabled:false)
+
+  PREPARED-NOT-LIVE (structural, not via branches). The umbrella ships a Flux
+  Kustomization with `suspend: true` (fluxKustomization.suspend, default true),
+  so even a present Flux would NOT reconcile it. Combined with never applying the
+  node group and never bootstrapping Flux into the CICD cluster, committing this
+  to main is safe + inert. The isolation FLOOR (the supacharge node group) is a
+  pangea-architectures SupachargeNodeGroup InfrastructureTemplate; the live
+  topology (subnets/AZs) is PENDING akeyless-cicd re-auth and is a REQUIRED
+  value, never guessed.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - supacharge
+  - super-cache-ci
+  - parked-cache
+  - option-a
+  - strict-isolation
+  - spegel
+  - sui
+  - dockerfile-cache
+  - gentlemanly-guest
+  - us-east-1-cicd-eks
+home: https://github.com/pleme-io/helmworks
+sources:
+  - https://github.com/pleme-io/helmworks
+  - https://github.com/pleme-io/sui
+maintainers:
+  - name: drzzln
+    email: drzzln@protonmail.com
+dependencies:
+  - name: pleme-lib
+    version: ">=0.40.0"
+    repository: "file://../pleme-lib"
+  # Aliased so the umbrella addresses each subchart by a friendly Option-A key
+  # (storeKeystone / spegel / prewarmer / nodeCacheDaemon) — Helm routes values
+  # under the ALIAS to the subchart. (Same pattern super-cache-ci uses to alias
+  # pleme-cnpg → postgres.)
+  - name: super-cache-ci
+    alias: store-keystone
+    version: ">=0.1.0"
+    repository: "file://../super-cache-ci"
+    condition: store-keystone.enabled
+  - name: pleme-spegel
+    alias: spegel
+    version: ">=0.1.0"
+    repository: "file://../pleme-spegel"
+    condition: spegel.enabled
+  - name: sui-dockerfile-prewarmer
+    alias: prewarmer
+    version: ">=0.1.0"
+    repository: "file://../sui-dockerfile-prewarmer"
+    condition: prewarmer.enabled
+  - name: sui-dockerfile-node-cache-daemon
+    alias: node-cache
+    version: ">=0.1.0"
+    repository: "file://../sui-dockerfile-node-cache-daemon"
+    # THE OPTION-B TOGGLE — off by default (Option A). When false NO DaemonSet
+    # renders; runners use Spegel P2P + LAN serve, sharing nothing.
+    condition: nodeCache.enabled

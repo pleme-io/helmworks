@@ -1,0 +1,76 @@
+{{/*
+The SUPACHARGE NODE GROUP — an InfrastructureTemplate CR whose inline Pangea
+Ruby calls Pangea::Architectures::SupachargeNodeGroup.build (the Option-A
+isolation floor: our own `supacharge-only=true:NoSchedule`-tainted, 100%-spot,
+scale-FROM-zero EKS node group in the resident cluster, the Option-B DaemonSet
+arm OFF). magma renders it into an aws_eks_node_group + aws_iam_role +
+cluster-autoscaler scale-from-zero ASG tags, in one Postgres-atomic apply. The
+config is passed as compact JSON through a squiggly single-quoted heredoc
+(JSON.parse … symbolize_names:true) — the escaping-free path the camelot-builders
+InfraTemplate uses.
+
+DOUBLE-GATED — renders ONLY when:
+  1. infraTemplate.enabled = true, AND
+  2. infraTemplate.subnetIds is NON-EMPTY.
+The live topology (subnets/AZs) is PENDING akeyless-cicd re-auth and MUST NOT be
+guessed — so with the default empty subnetIds this renders NOTHING, and a
+misconfigured enable can never produce a node group with no subnets.
+
+PREPARED-NOT-LIVE: even when rendered, this CR is only reconciled if the
+pangea-operator applies it — which the operator does NOT do at authoring time
+(declare + observe; the deploy is the deliberate later reality step).
+*/}}
+{{- if .Values.infraTemplate.enabled }}
+{{- $it := .Values.infraTemplate -}}
+{{- if not $it.subnetIds }}
+{{- fail "supacharge-cache: infraTemplate.enabled=true but infraTemplate.subnetIds is empty. The resident subnets are PENDING akeyless-cicd re-auth and must not be guessed — supply OUR OWN isolated subnet id(s) in values-cicd.yaml before enabling. Refusing to render a node group with no subnets." }}
+{{- end }}
+{{- $cfg := dict
+      "cluster_name" $it.cluster
+      "cluster_ref" $it.cluster
+      "subnet_ids" $it.subnetIds
+      "account_id" $it.accountId
+      "min_size" (int $it.minSize)
+      "desired_size" (int $it.desiredSize)
+      "max_size" (int $it.maxSize)
+      "daemonset" (dict "enabled" false)
+-}}
+{{- if $it.nodeRoleArn }}{{- $_ := set $cfg "node_role_arn" $it.nodeRoleArn -}}{{- end }}
+{{- if $it.instanceTypes }}{{- $_ := set $cfg "instance_types" $it.instanceTypes -}}{{- end }}
+{{- if $it.spotInterruption }}{{- $_ := set $cfg "spot_interruption" (dict "policy" $it.spotInterruption) -}}{{- end }}
+apiVersion: pangea.pleme.io/v1alpha1
+kind: InfrastructureTemplate
+metadata:
+  name: supacharge-node-group
+  namespace: {{ .Values.namespaces.own }}
+  labels:
+    {{- include "supacharge-cache.labels" . | nindent 4 }}
+    pleme.io/pangea-kind: template
+    role: supacharge
+    pleme.io/isolation-mode: own-nodes-only
+spec:
+  pangeaNamespace: {{ $it.pangeaNamespace | quote }}
+  executor: {{ $it.executor | quote }}
+  {{- if $it.aws.credentialsSecret.name }}
+  providerCredentials:
+    aws:
+      secretRef:
+        name: {{ $it.aws.credentialsSecret.name }}
+        namespace: {{ $it.aws.credentialsSecret.namespace }}
+  {{- end }}
+  source:
+    inline: |
+      # OPTION A — the isolated supacharge parked-cache node group.
+      # supacharge-only=true:NoSchedule taint · role: supacharge · 100% spot ·
+      # scale-FROM-zero (min/desired 0; cluster-autoscaler wakes it) · the
+      # Option-B runner-node DaemonSet arm OFF. Resident cluster carve-out —
+      # NO new cluster. Live topology PENDING re-auth (subnets supplied by value).
+      template :supacharge_cache_in_cluster do
+        provider :aws, region: {{ $it.region | quote }}
+        self.extend(Pangea::Resources::Aws)
+        Pangea::Architectures::SupachargeNodeGroup.build(self,
+          JSON.parse(<<~'PANGEA_SUPACHARGE', symbolize_names: true))
+{{ $cfg | toJson | indent 10 }}
+        PANGEA_SUPACHARGE
+      end
+{{- end }}

@@ -1,0 +1,37 @@
+supacharge-cache {{ .Chart.Version }} — the OPTION-A parked cache (strict no-sharing)
+
+ISOLATION MODE: own-nodes-only (Option A)
+  Every workload pins nodeSelector `role: supacharge` + tolerates ONLY
+  `supacharge-only:NoSchedule`. Nothing lands on a resident runner node;
+  the cache shares NOTHING of theirs.
+
+RENDERED THIS RELEASE:
+  store keystone : {{ ternary "ON" "off" (index .Values "store-keystone" "enabled") }}   (super-cache-ci — L1 Redis + L2 Postgres + serve)
+  spegel serve   : {{ ternary "ON" "off" .Values.spegel.enabled }}   (pleme-spegel — P2P layer mirror, OUR nodes only)
+  prewarmer      : {{ ternary "ON" "off" .Values.prewarmer.enabled }}   (public GitHub API; zero cluster access)
+  node-cache L0  : {{ ternary "ON — OPTION B (pod on RESIDENT runner nodes)" "off — OPTION A (no pod on their nodes)" .Values.nodeCache.enabled }}
+
+{{- if .Values.nodeCache.enabled }}
+
+  ⚠ nodeCache.enabled=true — the L0 host-socket DaemonSet WILL render on the
+    RESIDENT runner nodes. This is the OPTION-B increment (a pod on their nodes
+    + a bounded slice of their disk/cpu/mem). It is gated externally on a
+    measured warmth benchmark + a human gate + akeyless buy-in. Supply the
+    runner-node nodeSelector/tolerations + a HARD hostPath sizeLimit before
+    enabling — never let it ENOSPC their prod build.
+{{- else }}
+
+  ✓ nodeCache.enabled=false (default) — NO DaemonSet on their runner nodes.
+    Runners reach the cache over the in-cluster LAN: pleme-spegel P2P across
+    OUR nodes + the sui serve endpoint. Zero footprint on their nodes.
+{{- end }}
+
+SHADOW-FIRST: every breathe band ships dryRun:true — the controller emits
+  ShadowWouldApply and mutates nothing until a human flips a band's dryRun.
+
+PREPARED-NOT-LIVE:
+  - the SupachargeNodeGroup InfrastructureTemplate renders only when
+    infraTemplate.enabled=true AND infraTemplate.subnetIds is non-empty
+    (live topology PENDING akeyless-cicd re-auth — never guessed).
+  - the Flux Kustomization (if enabled) ships suspend:{{ .Values.fluxKustomization.suspend }} — even a
+    present Flux will not reconcile it.

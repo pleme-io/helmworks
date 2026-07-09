@@ -1,0 +1,133 @@
+# ═════════════════════════════════════════════════════════════════════════════
+# supacharge-cache — values-cicd.yaml
+#
+# The us-east-1-cicd-eks environment binding (akeyless acct 730335276278,
+# profile akeyless-cicd — the LIVE prod-image CI cluster). Layers on top of the
+# umbrella's Option-A defaults (values.yaml); overrides ONLY the environment
+# identity + the prepared-not-live gates. Everything Option-A (the isolation
+# triple, own namespace, shadow-first bands, egress-scoped netpol,
+# nodeCache.enabled=false) is inherited unchanged.
+#
+# HIGHER GUEST BAR. us-east-1-cicd-eks builds + pushes akeyless's PRODUCTION
+# images and hosts central argocd.akeyless.io. Read-resident-only, mutate
+# nothing of theirs, minimal blast radius, one-line-revertable.
+#
+# PREPARED-NOT-LIVE (structural). Committed to main, safe + inert:
+#   (a) infraTemplate.enabled=false + empty subnetIds — the node group is never
+#       applied and cannot render without OUR-OWN isolated subnets (PENDING
+#       akeyless-cicd re-auth; NEVER guessed).
+#   (b) no Flux is bootstrapped into the cicd cluster.
+#   (c) fluxKustomization.suspend=true — even a present Flux would not reconcile.
+#
+# Usage (deploy is the deliberate LATER reality step — declare + observe):
+#   helm template supacharge-cache . -f values-cicd.yaml            # inspect
+#   # (a real install is gated on operator confidence + re-auth + a human go)
+# ═════════════════════════════════════════════════════════════════════════════
+
+# ── OPTION A — strict no-sharing (inherited; restated for clarity) ───────────
+# The L0 host-socket node-cache DaemonSet on the RESIDENT runner nodes is OFF.
+# Runners reach the cache over the in-cluster LAN (Spegel P2P on OUR nodes + the
+# sui serve endpoint). Zero footprint on their runner nodes.
+nodeCache:
+  enabled: false
+
+# ── The isolation triple (inherited; restated so a reader sees the whole shape)
+isolation:
+  nodeSelector:
+    role: supacharge
+  tolerations:
+    - key: supacharge-only
+      operator: Exists
+      effect: NoSchedule
+  guestLabel:
+    key: pleme.io/guest
+    value: "true"
+
+# ═════════════════════════════════════════════════════════════════════════════
+# THE ISOLATION FLOOR — the SupachargeNodeGroup InfrastructureTemplate.
+# DISABLED until akeyless-cicd re-auth supplies OUR-OWN isolated subnets.
+# ═════════════════════════════════════════════════════════════════════════════
+infraTemplate:
+  # PREPARED-NOT-LIVE: off. Flipping true ALSO requires non-empty subnetIds
+  # (the template fails loudly otherwise) — so this cannot be enabled with
+  # guessed topology.
+  enabled: false
+
+  pangeaNamespace: cicd
+  executor: magma
+
+  # VERIFIED identity (live AWS + akeylesslabs/k8s repo) — not guessed.
+  cluster: us-east-1-cicd-eks
+  region: us-east-1
+  awsProfile: akeyless-cicd
+  accountId: "730335276278"
+
+  # ── PENDING akeyless-cicd re-auth — OUR OWN isolated private subnets ───────
+  # REQUIRED before infraTemplate.enabled=true. MUST be OUR OWN isolated
+  # subnet(s) in the us-east-1-cicd-eks VPC — chosen after a READ-ONLY re-auth,
+  # NEVER a runner subnet reused blindly. Single-AZ preferred (the store
+  # keystone rides gp3 EBS). Discover via:
+  #   aws --profile akeyless-cicd eks describe-cluster --name us-east-1-cicd-eks \
+  #     --region us-east-1 --query cluster.resourcesVpcConfig.subnetIds
+  # then CHOOSE our own isolated subnet(s).
+  subnetIds: []          # PENDING re-auth — e.g. [subnet-OUR-isolated-aaa]
+
+  # Mint our own least-privilege node role (guest posture). Set to reuse a role
+  # WE own only after re-auth. NB: the runner side is Karpenter, NOT a managed
+  # nodegroup, so there is no existing CI node-group role to inherit. Never guess.
+  nodeRoleArn: ""
+
+  # Option-A scale-from-zero sizing — near-free at rest.
+  minSize: 0
+  desiredSize: 0
+  maxSize: 8
+
+  # 100%-spot diversified families (the arch FORCES spot). Widen only if re-auth
+  # shows shallow spot depth in the chosen AZ — never on-demand. Empty = the
+  # architecture's default family set.
+  instanceTypes: []
+
+  # SCOPED retirada spot-drain — OFF (an unscoped account-wide rule would fire
+  # on THEIR host interruptions). Opt in only after re-auth confirms the scoping.
+  spotInterruption: ""
+
+  # ── PENDING re-auth — AWS provider credentials Secret the operator reads ───
+  # Supplied after re-auth (a cofre/ESO-materialized Secret WE own, in OUR
+  # namespace). Empty = no providerCredentials block rendered.
+  aws:
+    credentialsSecret:
+      name: ""            # PENDING re-auth — e.g. supacharge-aws-creds
+      namespace: ""       # PENDING re-auth — e.g. supacharge-cache
+
+# ═════════════════════════════════════════════════════════════════════════════
+# PREPARED-NOT-LIVE — Flux Kustomization SUSPENDED.
+# ═════════════════════════════════════════════════════════════════════════════
+fluxKustomization:
+  # Off by default; when the operator later wires OUR-OWN Flux (never their
+  # ArgoCD/Flux), it ships suspended until an explicit un-suspend post-confidence.
+  enabled: false
+  suspend: true
+  interval: "10m"
+  prune: true
+  targetNamespace: supacharge-cache
+  sourceRef:
+    kind: GitRepository
+    name: supacharge-cache
+    namespace: flux-system
+  path: "./clusters/us-east-1-cicd-eks/supacharge-cache"
+
+# ── spegel — serve OUR layers only (ghcr), OUR nodes only (inherited triple) ─
+spegel:
+  spegel:
+    mirroredRegistries:
+      - https://ghcr.io
+  registryMirror:
+    enabled: false   # SHADOW-FIRST — no containerd reroute until proven warm
+
+# ── nodeCache L0 (Option B) — runner-node topology PENDING re-auth ───────────
+# Only consulted when nodeCache.enabled=true (Option B, gated externally). The
+# runner-node selector/toleration + a HARD hostPath sizeLimit are supplied here
+# ONLY after re-auth + a warmth benchmark + a human gate + akeyless buy-in.
+node-cache:
+  nodeSelector: {}       # PENDING re-auth — the resident runner-node selector
+  tolerations: []        # PENDING re-auth — the resident runner-node taint
