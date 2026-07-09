@@ -1,0 +1,234 @@
+{{/*
+The Spegel DaemonSet — ONE pod per node, the co-located P2P OCI layer mirror.
+
+ADOPTED, NOT FORKED. The container spec below is the upstream Spegel v0.7.3
+`registry` command, verbatim flags — this chart adds no swarm logic. pleme-lib
+ships no `pleme-lib.daemonset` named template (only `.deployment`), so we
+compose the lower-level pleme-lib helpers (fullname/namespace/labels/
+selectorLabels) directly, exactly as sui-dockerfile-node-cache-daemon does. If
+a third chart needs a DaemonSet, that is the trigger to extract the named
+template — not this one.
+
+SHADOW-FIRST: the `configuration` initContainer — the ONLY thing that mutates a
+node (it writes the containerd /etc/containerd/certs.d mirror hosts, rerouting
+that node's pulls) — is emitted ONLY when `registryMirror.enabled`. Default
+false ⇒ the mesh forms + serves peer layers but reroutes nothing. Enabling it
+is the LIVE flip.
+*/}}
+{{- $sel := include "pleme-lib.selectorLabels" . -}}
+{{- $comp := "spegel" -}}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    app.kubernetes.io/component: {{ $comp }}
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+  {{- with .Values.daemonsetAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  revisionHistoryLimit: {{ .Values.revisionHistoryLimit }}
+  {{- with .Values.updateStrategy }}
+  updateStrategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: {{ $comp }}
+      {{- $sel | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: {{ $comp }}
+        {{- $sel | nindent 8 }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "pleme-spegel.serviceAccountName" . }}
+      priorityClassName: {{ .Values.priorityClassName }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.registryMirror.enabled }}
+      {{/*
+      LIVE-flip initContainer: writes containerd mirror hosts on the node.
+      Present ONLY when registryMirror is promoted. This is the one node
+      mutation the chart performs — gated behind the shadow-first default.
+      */}}
+      initContainers:
+        - name: configuration
+          image: {{ include "pleme-spegel.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          args:
+            - configuration
+            - --log-level={{ .Values.spegel.logLevel }}
+            - --containerd-registry-config-path={{ .Values.spegel.containerdRegistryConfigPath }}
+            {{- with .Values.spegel.mirroredRegistries }}
+            - --mirrored-registries
+            {{- range . }}
+            - {{ . | quote }}
+            {{- end }}
+            {{- end }}
+            - --mirror-targets
+            - http://$(NODE_IP):{{ .Values.ports.registryHostPort }}
+            - http://$(NODE_IP):{{ .Values.ports.registryNodePort }}
+            {{- with .Values.spegel.additionalMirrorTargets }}
+            {{- range . }}
+            - {{ . | quote }}
+            {{- end }}
+            {{- end }}
+            - --resolve-tags={{ .Values.spegel.resolveTags }}
+            - --prepend-existing={{ .Values.spegel.prependExisting }}
+          env:
+            - name: NODE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: containerd-config
+              mountPath: {{ .Values.spegel.containerdRegistryConfigPath }}
+      {{- end }}
+      containers:
+        - name: registry
+          image: {{ include "pleme-spegel.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          args:
+            - registry
+            - --log-level={{ .Values.spegel.logLevel }}
+            - --mirror-resolve-retries={{ .Values.spegel.mirrorResolveRetries }}
+            - --mirror-resolve-timeout={{ .Values.spegel.mirrorResolveTimeout }}
+            - --registry-addr=:{{ .Values.ports.registry }}
+            - --router-addr=:{{ .Values.ports.router }}
+            - --metrics-addr=:{{ .Values.ports.metrics }}
+            {{- with .Values.spegel.mirroredRegistries }}
+            - --mirrored-registries
+            {{- range . }}
+            - {{ . | quote }}
+            {{- end }}
+            {{- end }}
+            - --containerd-sock={{ .Values.spegel.containerdSock }}
+            - --containerd-namespace={{ .Values.spegel.containerdNamespace }}
+            - --bootstrap-kind=dns
+            - --dns-bootstrap-domain={{ include "pleme-spegel.dnsBootstrapDomain" . }}
+            {{- with .Values.spegel.registryFilters }}
+            - --registry-filters
+            {{- range . }}
+            - {{ . | quote }}
+            {{- end }}
+            {{- end }}
+            {{- with .Values.spegel.containerdContentPath }}
+            - --containerd-content-path={{ . }}
+            {{- end }}
+            - --debug-web-enabled={{ .Values.spegel.debugWebEnabled }}
+            {{- if .Values.spegel.persistence.enabled }}
+            - --data-dir={{ .Values.spegel.persistence.path }}
+            {{- end }}
+          env:
+            {{- if ((.Values.resources).limits).memory }}
+            - name: GOMEMLIMIT
+              valueFrom:
+                resourceFieldRef:
+                  resource: limits.memory
+                  divisor: 1
+            {{- end }}
+            - name: NODE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+          ports:
+            - name: registry
+              containerPort: {{ .Values.ports.registry }}
+              {{- if .Values.registryMirror.enabled }}
+              hostPort: {{ .Values.ports.registryHostPort }}
+              {{- end }}
+              protocol: TCP
+            - name: router-tcp
+              containerPort: {{ .Values.ports.router }}
+              protocol: TCP
+            - name: router-quic
+              containerPort: {{ .Values.ports.router }}
+              protocol: UDP
+            - name: metrics
+              containerPort: {{ .Values.ports.metrics }}
+              protocol: TCP
+          startupProbe:
+            periodSeconds: 3
+            failureThreshold: 60
+            httpGet:
+              path: /readyz
+              port: registry
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: registry
+          {{- if .Values.livenessProbe.enabled }}
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: registry
+          {{- end }}
+          volumeMounts:
+            {{- if .Values.spegel.persistence.enabled }}
+            - name: spegel-data
+              mountPath: {{ .Values.spegel.persistence.path }}
+            {{- end }}
+            - name: containerd-sock
+              mountPath: {{ .Values.spegel.containerdSock }}
+            {{- with .Values.spegel.containerdContentPath }}
+            - name: containerd-content
+              mountPath: {{ . }}
+              readOnly: true
+            {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        {{- if .Values.spegel.persistence.enabled }}
+        - name: spegel-data
+          hostPath:
+            path: {{ .Values.spegel.persistence.hostPath }}
+            type: DirectoryOrCreate
+        {{- end }}
+        - name: containerd-sock
+          hostPath:
+            path: {{ .Values.spegel.containerdSock }}
+            type: Socket
+        {{- with .Values.spegel.containerdContentPath }}
+        - name: containerd-content
+          hostPath:
+            path: {{ . }}
+            type: Directory
+        {{- end }}
+        {{- if .Values.registryMirror.enabled }}
+        - name: containerd-config
+          hostPath:
+            path: {{ .Values.spegel.containerdRegistryConfigPath }}
+            type: DirectoryOrCreate
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

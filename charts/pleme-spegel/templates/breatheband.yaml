@@ -1,0 +1,21 @@
+{{/*
+Shadow-first breathe bands on the Spegel DaemonSet, reusing the shipped
+`pleme-lib.breatheBand` helper (never re-rolling the MemoryBand/CpuBand
+emission). The band targets the DaemonSet by name via an EXTERNAL targetRef;
+we hand the helper a SCOPED context whose `.Values.breathe` is our block
+carrying that targetRef, while keeping the real `.Chart` / `.Release` /
+`.Capabilities` / `.Template` so `pleme-lib.fullname` / `.labels` / `.namespace`
+resolve correctly (the super-cache-ci pattern).
+
+Every band ships dryRun:true (asserted by the test suite): the controller emits
+ShadowWouldApply decisions and mutates nothing until an operator flips
+dryRun:false. StorageBand is intentionally absent — Spegel's P2P-identity
+persistence is a hostPath, not a PVC, so there is nothing for breathe to carve.
+*/}}
+{{- if .Values.breathe.enabled }}
+{{- $target := include "pleme-lib.fullname" . -}}
+{{- $b := deepCopy .Values.breathe -}}
+{{- $_ := set $b "targetRef" (dict "apiVersion" "apps/v1" "kind" "DaemonSet" "name" $target) -}}
+{{- $ctx := merge (dict "Values" (dict "breathe" $b "serviceAccount" dict)) (dict "Chart" .Chart "Release" .Release "Capabilities" .Capabilities "Template" .Template) -}}
+{{- include "pleme-lib.breatheBand" $ctx }}
+{{- end }}

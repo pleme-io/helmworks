@@ -1,0 +1,37 @@
+pleme-spegel — the CO-LOCATED SERVE tier is installed.
+
+ADOPTED upstream Spegel {{ .Chart.AppVersion }} ({{ include "pleme-spegel.image" . }})
+runs as a DaemonSet — one P2P OCI mirror per node. A layer pulled once onto any
+node is advertised into the mesh and served node-local at LAN speed to every
+other node, so super-cache-ci's warmed image layers stop re-hitting the registry.
+
+Peer discovery (DNS bootstrap):
+  {{ include "pleme-spegel.dnsBootstrapDomain" . }}
+
+Serve surface:
+  registry  :{{ .Values.ports.registry }}   (served mirror; NodePort {{ .Values.ports.registryNodePort }} via {{ include "pleme-spegel.registryService" . }})
+  router    :{{ .Values.ports.router }}   (libp2p P2P mesh, tcp + quic)
+  metrics   :{{ .Values.ports.metrics }}   ({{ include "pleme-lib.fullname" . }} Service)
+
+{{ if .Values.registryMirror.enabled -}}
+registryMirror = ENABLED (LIVE) — the containerd /etc/containerd/certs.d mirror
+hosts ARE written on each node; node image pulls flow through the same-node
+Spegel first (LAN-served on a mesh hit, upstream on a miss).
+{{- else -}}
+registryMirror = DISABLED (SHADOW, default) — the mesh forms + serves peer
+layers, but NO node reroutes its image pulls (the containerd mirror hosts are
+NOT written). Promote a node pool to live by setting:
+
+  registryMirror.enabled: true
+
+This is the analogue of a breathe band's dryRun:false — do it only once the
+mesh is proven warm.
+{{- end }}
+
+breathe bands are SHADOW-FIRST (dryRun:true) — the controller emits
+ShadowWouldApply decisions but mutates nothing. Flip a band's dryRun:false
+(and the node's writeEnabled) to promote it to live carving.
+
+Watch the mesh form:
+  kubectl -n {{ .Release.Namespace }} rollout status ds/{{ include "pleme-lib.fullname" . }}
+  kubectl -n {{ .Release.Namespace }} get endpoints {{ include "pleme-spegel.bootstrapService" . }}

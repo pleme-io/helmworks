@@ -1,0 +1,60 @@
+apiVersion: v2
+name: pleme-spegel
+description: >-
+  The CO-LOCATED SERVE tier — Spegel, an ADOPTED upstream P2P OCI registry
+  mirror, wrapped as one version-controlled pleme-lib Helm artifact so cached
+  image layers serve node-local at LAN speed instead of re-pulling from the
+  upstream registry.
+
+  This is the image-layer complement to the super-cache-ci STORE keystone:
+  super-cache-ci warms + stores BUILD artifacts (derivations) in the tiered
+  Redis/Postgres backend; pleme-spegel serves the resulting IMAGE LAYERS
+  node-to-node. A layer pulled once onto any node is advertised into the
+  Spegel P2P mesh and served locally to every other node without re-hitting
+  ghcr.io / ECR / DockerHub — the serve half of DLC-01 D3.
+
+  ADOPTED, NOT FORKED — every byte of P2P/swarm logic is the upstream
+  `ghcr.io/spegel-org/spegel` binary (pinned by digest); this chart is
+  CONFIG-ONLY. It owns zero swarm code: the templates are standard Kubernetes
+  (DaemonSet + headless bootstrap Service + registry NodePort Service +
+  metrics Service + NetworkPolicy + breathe bands), and the only behaviour is
+  Spegel's own `registry` command run with flags. No Rust, no bespoke skopeo,
+  no from-scratch enxame swarm.
+
+  SHADOW-FIRST by construction. Adopting the DaemonSet forms + warms the P2P
+  mesh (advertise + serve peer layers) but does NOT reroute any node's image
+  pulls: `registryMirror.enabled: false` (upstream `containerdMirrorAdd`) is
+  the default, so the containerd `/etc/containerd/certs.d` mirror hosts are
+  NOT written until an operator opts a node pool in. Advertise/serve is the
+  shadow; flipping the containerd mirror on is the live promotion — the exact
+  analogue of a breathe band's dryRun -> live gate. breathe MemoryBand/CpuBand
+  are likewise emitted dryRun:true.
+
+  NetworkPolicy-scoped: default-deny both directions, then open exactly the
+  P2P router (5001 tcp+udp), the served registry port (5000), DNS for
+  bootstrap, and the metrics scrape.
+type: application
+version: 0.1.0
+# Tracks the adopted upstream Spegel release the chart is pinned against.
+appVersion: "0.7.3"
+keywords:
+  - spegel
+  - super-cache-ci
+  - p2p
+  - oci
+  - registry-mirror
+  - layer-cache
+  - daemonset
+  - co-located-serve
+  - dlc-01
+home: https://github.com/pleme-io/helmworks
+sources:
+  - https://github.com/pleme-io/helmworks
+  - https://github.com/spegel-org/spegel
+maintainers:
+  - name: drzzln
+    email: drzzln@protonmail.com
+dependencies:
+  - name: pleme-lib
+    version: ">=0.40.0"
+    repository: "file://../pleme-lib"
