@@ -1,0 +1,71 @@
+{{/*
+Three Services, mirroring upstream Spegel's plane exactly:
+
+  1. <fullname>            — metrics (ClusterIP), the prometheus scrape target.
+  2. <fullname>-registry   — the mirror, NodePort, so a peer node can dial this
+                             node's cached-layer server as a cross-node target.
+  3. <fullname>-bootstrap   — headless (clusterIP: None, publishNotReadyAddresses)
+                             — the DNS the router's dns-bootstrap resolves peers
+                             through. Its name MUST match the DaemonSet's
+                             --dns-bootstrap-domain flag (both derive from
+                             pleme-spegel.bootstrapService).
+*/}}
+{{- $sel := include "pleme-lib.selectorLabels" . -}}
+{{- $comp := "spegel" -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    app.kubernetes.io/component: metrics
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+spec:
+  selector:
+    app.kubernetes.io/component: {{ $comp }}
+    {{- $sel | nindent 4 }}
+  ports:
+    - name: metrics
+      port: {{ .Values.ports.metrics }}
+      targetPort: metrics
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pleme-spegel.registryService" . }}
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    app.kubernetes.io/component: {{ $comp }}
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/component: {{ $comp }}
+    {{- $sel | nindent 4 }}
+  ports:
+    - name: registry
+      port: {{ .Values.ports.registry }}
+      targetPort: registry
+      nodePort: {{ .Values.ports.registryNodePort }}
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pleme-spegel.bootstrapService" . }}
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    app.kubernetes.io/component: {{ $comp }}
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/component: {{ $comp }}
+    {{- $sel | nindent 4 }}
+  ports:
+    - name: router-tcp
+      port: {{ .Values.ports.router }}
+      targetPort: router-tcp
+      protocol: TCP

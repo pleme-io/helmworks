@@ -1,0 +1,16 @@
+{{- if .Values.namespaceLabel.enabled }}
+{{/*
+Stamp `kubernetes.io/metadata.name: <ns>` on the release namespace so the
+NetworkPolicies below (which select the namespace by that well-known label for
+the router mesh + metrics rules) match even on clusters whose CNI does not
+auto-apply it. On most clusters the NamespaceDefaultLabelName admission plugin
+already applies it; this makes the match true by construction regardless.
+*/}}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Release.Namespace }}
+  labels:
+    kubernetes.io/metadata.name: {{ .Release.Namespace }}
+    app.kubernetes.io/part-of: pleme-spegel
+{{- end }}

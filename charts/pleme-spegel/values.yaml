@@ -1,0 +1,172 @@
+# pleme-spegel — the co-located SERVE tier for super-cache-ci.
+#
+# ADOPTED upstream Spegel (ghcr.io/spegel-org/spegel), config-only. This chart
+# owns NO swarm code; every knob below configures the upstream binary. It is
+# the image-layer serve complement to the super-cache-ci STORE keystone.
+
+# ── image: the ADOPTED upstream, pinned by DIGEST ────────────────────────────
+# Adopt-not-fork: this is the unmodified upstream Spegel image. Pin by digest
+# so the P2P mesh runs a byte-identical, attested binary on every node. The tag
+# is documentation only when digest is set; digest is load-bearing.
+image:
+  # Upstream Spegel — NOT a pleme-io fork. Config-only adoption.
+  repository: ghcr.io/spegel-org/spegel
+  # Matches Chart.appVersion; kept for readability. When `digest` is set the
+  # effective ref is repository@digest (see pleme-spegel.image helper).
+  tag: "v0.7.3"
+  # HARD PIN. Fill with the sha256 digest of ghcr.io/spegel-org/spegel:v0.7.3
+  # for the target arch(es). Empty = tag-pinned (acceptable for lint/template;
+  # a digest is the destination for hermetic, attested adoption).
+  # e.g. digest: "sha256:<64-hex>"
+  digest: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: "pleme-spegel"
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+# ── ports: the upstream Spegel plane, verbatim ───────────────────────────────
+# registry = the OCI mirror kubelet dials; router = the P2P libp2p mesh
+# (tcp + quic on the same port); metrics = prometheus scrape.
+ports:
+  registry: 5000
+  router: 5001
+  metrics: 9090
+  # hostPort the node-local kubelet reaches the same-node mirror on. Only used
+  # when registryMirror is promoted live (see below).
+  registryHostPort: 30020
+  # NodePort the registry Service publishes (cross-node mirror target).
+  registryNodePort: 30021
+
+# ── spegel: the upstream binary's own config, verbatim keys ───────────────────
+spegel:
+  logLevel: "INFO"
+  # containerd wiring — these are node-host paths mounted read-only (content)
+  # or as a socket. Standard containerd defaults; override per node OS.
+  containerdSock: "/run/containerd/containerd.sock"
+  containerdNamespace: "k8s.io"
+  containerdRegistryConfigPath: "/etc/containerd/certs.d"
+  containerdContentPath: "/var/lib/containerd/io.containerd.content.v1.content"
+  # Mirror ONLY these registries (empty = all). Scope this to exactly the
+  # registries super-cache-ci pushes to so Spegel serves OUR layers and stays
+  # out of everything else's pull path.
+  #   - https://ghcr.io
+  mirroredRegistries: []
+  additionalMirrorTargets: []
+  mirrorResolveRetries: 3
+  mirrorResolveTimeout: "20ms"
+  resolveTags: true
+  prependExisting: false
+  # Regex filters to keep Spegel out of tags/registries it must never resolve.
+  registryFilters: []
+  # P2P identity persistence across pod restarts (hostPath). Keeps a node's
+  # libp2p peer id stable so the mesh doesn't churn on rollout.
+  persistence:
+    enabled: true
+    path: "/var/lib/spegel"
+    hostPath: "/var/lib/spegel"
+  debugWebEnabled: false
+
+# ── registryMirror: THE SHADOW-FIRST GATE (upstream containerdMirrorAdd) ──────
+# When DISABLED (default): Spegel forms the P2P mesh, advertises this node's
+# cached layers, and SERVES peer layers on request — but it does NOT write the
+# containerd /etc/containerd/certs.d mirror hosts, so NO node reroutes its
+# image pulls. The mesh warms in observe-mode; nothing is intercepted.
+#
+# When ENABLED: an initContainer writes the containerd mirror hosts on each
+# node, so the node's kubelet pulls flow through the same-node Spegel first
+# (LAN-served on a mesh hit, upstream on a miss). This is the LIVE flip — the
+# analogue of a breathe band's dryRun:false. Promote a node pool by enabling
+# it here (optionally scoped via nodeSelector) once the mesh is proven warm.
+registryMirror:
+  enabled: false
+
+# ── serviceMonitor / podMonitor: metrics scrape (opt-in) ──────────────────────
+serviceMonitor:
+  enabled: false
+  interval: 60s
+  scrapeTimeout: 30s
+  labels: {}
+
+# ── scheduling ────────────────────────────────────────────────────────────────
+priorityClassName: system-node-critical
+nodeSelector:
+  kubernetes.io/os: linux
+# Run on every schedulable node incl. tainted ones (a node-local mirror is
+# only useful if it is on the node whose pulls it serves). Mirrors upstream.
+tolerations:
+  - key: CriticalAddonsOnly
+    operator: Exists
+  - effect: NoExecute
+    operator: Exists
+  - effect: NoSchedule
+    operator: Exists
+affinity: {}
+updateStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 1
+revisionHistoryLimit: 10
+
+podAnnotations: {}
+daemonsetAnnotations: {}
+
+# ── security ──────────────────────────────────────────────────────────────────
+# Spegel runs a read-only-rootfs container; it must reach the host containerd
+# socket + content store (privileged host paths), so it does NOT drop to
+# non-root the way a normal workload does. Kept identical to upstream so the
+# adopted binary behaves as tested.
+podSecurityContext: {}
+securityContext:
+  readOnlyRootFilesystem: true
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    memory: 256Mi
+
+livenessProbe:
+  enabled: true
+
+clusterDomain: cluster.local
+
+# ── networkPolicy: default-deny, then open exactly the P2P + serve surface ────
+networkPolicy:
+  enabled: true
+  # DNS resolver namespace (kube-system on most clusters) — the router's
+  # dns-bootstrap needs to resolve the headless -bootstrap Service.
+  dnsNamespace: kube-system
+
+# ── namespaceLabel: stamp kubernetes.io/metadata.name for netpol selectors ────
+namespaceLabel:
+  enabled: true
+
+# ── breathe: shadow-first homeostasis bands on the DaemonSet ──────────────────
+# The DaemonSet is the band target (kind: DaemonSet). Memory + Cpu carve; both
+# dryRun:true so the controller emits ShadowWouldApply and mutates nothing
+# until an operator flips dryRun:false. StorageBand is N/A (persistence is a
+# hostPath, not a PVC).
+breathe:
+  enabled: true
+  memory:
+    enabled: true
+    dryRun: true
+    setpoint: 0.8
+    floor: "128Mi"
+    ceiling: "512Mi"
+    cooldownSeconds: 600
+    disruptionPolicy: allowRestart
+  cpu:
+    enabled: true
+    dryRun: true
+    setpoint: 0.7
+    floor: "50m"
+    ceiling: "500m"
+    cooldownSeconds: 600

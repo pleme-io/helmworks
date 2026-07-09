@@ -1,0 +1,138 @@
+{{- if .Values.networkPolicy.enabled }}
+{{/*
+Default-deny-both-directions NetworkPolicy fronting the Spegel DaemonSet, then
+open exactly the P2P + serve surface — nothing else. Least-privilege by
+construction; no wildcard egress at all (Spegel never dials the internet — it
+serves layers already in the node's containerd content store and reaches peers
+over the in-cluster router mesh).
+
+  router  (5001 tcp+udp)  ↔  peer Spegel pods (the P2P mesh, both directions)
+  registry (5000)          ←  peers + the node kubelet (serve a cached layer)
+  metrics  (9090)          ←  the monitoring namespace (scrape)
+  DNS      (53 tcp+udp)     →  the resolver (dns-bootstrap needs the headless
+                               -bootstrap Service's A-records)
+
+Because a kubelet pull to the same-node mirror can arrive over the host network
+(hostPort / NodePort), the registry-ingress rule is left namespace-open on the
+served port only — the node dialing its own mirror is not always a pod source
+the CNI can label. This is the deliberate, minimal aperture; every other port
+stays default-denied.
+*/}}
+{{- $ns := .Release.Namespace -}}
+{{- $comp := "spegel" -}}
+{{- $sel := dict "app.kubernetes.io/component" $comp "app.kubernetes.io/name" (include "pleme-lib.name" .) "app.kubernetes.io/instance" .Release.Name -}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}-default-deny
+  namespace: {{ $ns }}
+  labels:
+    app.kubernetes.io/component: netpol
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- toYaml $sel | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}-allow-dns
+  namespace: {{ $ns }}
+  labels:
+    app.kubernetes.io/component: netpol
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- toYaml $sel | nindent 6 }}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.dnsNamespace }}
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}-allow-router-mesh
+  namespace: {{ $ns }}
+  labels:
+    app.kubernetes.io/component: netpol
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+spec:
+  # The P2P router mesh: Spegel pods talk to each other on the router port,
+  # both TCP and QUIC (UDP), in both directions. Peer = another pod carrying
+  # our own selector.
+  podSelector:
+    matchLabels:
+      {{- toYaml $sel | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- toYaml $sel | nindent 14 }}
+      ports:
+        - { protocol: TCP, port: {{ .Values.ports.router }} }
+        - { protocol: UDP, port: {{ .Values.ports.router }} }
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- toYaml $sel | nindent 14 }}
+      ports:
+        - { protocol: TCP, port: {{ .Values.ports.router }} }
+        - { protocol: UDP, port: {{ .Values.ports.router }} }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}-allow-registry-serve
+  namespace: {{ $ns }}
+  labels:
+    app.kubernetes.io/component: netpol
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+spec:
+  # The served mirror port — peers dial it to pull a cached layer, and the
+  # same-node kubelet dials it (possibly over host network) when the mirror is
+  # promoted live. Open the served port only; every other ingress stays denied.
+  podSelector:
+    matchLabels:
+      {{- toYaml $sel | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - { protocol: TCP, port: {{ .Values.ports.registry }} }
+{{- if .Values.serviceMonitor.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}-allow-metrics
+  namespace: {{ $ns }}
+  labels:
+    app.kubernetes.io/component: netpol
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- toYaml $sel | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - { protocol: TCP, port: {{ .Values.ports.metrics }} }
+{{- end }}
+{{- end }}
