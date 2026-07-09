@@ -53,6 +53,17 @@ data:
         url: {{ .url | quote }}
         isDefault: {{ .isDefault | default false }}
         editable: false
+        {{- /* Plugin datasources (e.g. grafana-clickhouse-datasource) read
+               their connection from jsonData/secureJsonData, not `url` —
+               pass both through verbatim when declared. */ -}}
+        {{- with .jsonData }}
+        jsonData:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with .secureJsonData }}
+        secureJsonData:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
     {{- end }}
 {{- if .Values.persistence.enabled }}
 ---
