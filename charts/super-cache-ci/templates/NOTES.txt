@@ -1,0 +1,19 @@
+super-cache-ci — the STORE KEYSTONE is installed.
+
+The tiered cache backend the prewarmer + node-cache-daemon front against:
+
+  L1  redis.super-cache-ci.svc:{{ .Values.store.redisPort }}                 (Valkey/Redis hot tier)
+  L2  postgres.super-cache-ci.svc:{{ .Values.store.postgresPort }}/{{ .Values.store.postgresDb }}     (CNPG durable tier, alias → {{ .Values.postgres.clusterName }}-rw)
+  serve  the sui daemon fronting sui_cache::TieredBackend
+
+The serve daemon reads SUI_CACHE_BACKEND_CONFIG from the ConfigMap
+`super-cache-ci-backend-config` (one source of truth for the tiers + DNS):
+
+  {{ include "super-cache-ci.backendConfigJson" . }}
+
+breathe bands are SHADOW-FIRST (dryRun:true) — the controller emits
+ShadowWouldApply decisions but mutates nothing. Flip a band's dryRun:false
+(and the node's writeEnabled) to promote it to live carving.
+
+Verify the endpoints resolve:
+  kubectl -n {{ .Release.Namespace }} get svc redis postgres {{ .Values.postgres.clusterName }}-rw

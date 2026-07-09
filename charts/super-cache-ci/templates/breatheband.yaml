@@ -1,0 +1,31 @@
+{{/*
+Shadow-first breathe bands — one per workload, reusing the shipped
+`pleme-lib.breatheBand` helper (never re-rolling the MemoryBand/CpuBand/
+StorageBand emission). The helper is single-`.Values.breathe`-block by design,
+so per workload we hand it a SCOPED context whose `.Values.breathe` is that
+workload's block (carrying an EXTERNAL targetRef → the subchart's workload by
+name) while keeping the real `.Chart` / `.Release` / `.Capabilities` so
+`pleme-lib.fullname` / `.labels` / `.namespace` resolve correctly.
+
+Every band ships dryRun:true (asserted by the umbrella values + the test suite):
+the controller emits ShadowWouldApply decisions and mutates nothing until an
+operator flips a band's dryRun:false. This is the shadow-first safety gate.
+*/}}
+
+{{- /* ── serve daemon: Memory + Cpu bands (targets the sui-serve Deployment) ── */ -}}
+{{- if .Values.breathe.serve.enabled }}
+{{- $serveTarget := .Values.serve.fullnameOverride | default "sui-serve" -}}
+{{- $serveBreathe := deepCopy .Values.breathe.serve -}}
+{{- $_ := set $serveBreathe "targetRef" (dict "apiVersion" "apps/v1" "kind" "Deployment" "name" $serveTarget) -}}
+{{- $serveCtx := merge (dict "Values" (dict "breathe" $serveBreathe "serviceAccount" dict)) (dict "Chart" .Chart "Release" .Release "Capabilities" .Capabilities "Template" .Template) -}}
+{{- include "pleme-lib.breatheBand" $serveCtx }}
+{{- end }}
+
+{{- /* ── Redis L1: Memory band + grow-only StorageBand on its PVC ── */ -}}
+{{- if and .Values.redis.enabled .Values.breathe.redis.enabled }}
+{{- $redisTarget := .Values.redis.fullnameOverride | default "redis" -}}
+{{- $redisBreathe := deepCopy .Values.breathe.redis -}}
+{{- $_ := set $redisBreathe "targetRef" (dict "apiVersion" "apps/v1" "kind" "StatefulSet" "name" $redisTarget) -}}
+{{- $redisCtx := merge (dict "Values" (dict "breathe" $redisBreathe "serviceAccount" dict)) (dict "Chart" .Chart "Release" .Release "Capabilities" .Capabilities "Template" .Template) -}}
+{{- include "pleme-lib.breatheBand" $redisCtx }}
+{{- end }}

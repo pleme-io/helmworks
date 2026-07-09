@@ -1,0 +1,65 @@
+apiVersion: v2
+name: super-cache-ci
+description: >-
+  The STORE KEYSTONE — the super-cache-ci tiered-cache backend as one
+  version-controlled Helm artifact. Stands up the L1(Redis) + L2(Postgres)
+  store the prewarmer + node-cache-daemon charts front against, plus the
+  sui serve daemon that fronts the sui_cache::TieredBackend over those tiers.
+
+  Composed entirely from shipped pleme-io primitives — no new engine:
+    - postgres  (pleme-cnpg)   — L2 durable tier: a CNPG Cluster bootstrapping
+                                 db=sui / owner=sui; a `postgres` ExternalName
+                                 aliases CNPG's `postgres-rw` Service so the
+                                 committed consumer contract
+                                 `postgres.super-cache-ci.svc:5432/sui` resolves.
+    - redis     (pleme-cache)  — L1 hot tier: a Valkey/Redis StatefulSet whose
+                                 Service is named `redis` (fullnameOverride) so
+                                 `redis.super-cache-ci.svc:6379` resolves.
+    - serve     (pleme-sui)    — the sui daemon fronting TieredBackend via
+                                 SUI_CACHE_BACKEND_CONFIG (the typed
+                                 sui_cache::BackendConfig JSON border).
+
+  breathe MemoryBand/CpuBand/StorageBand are emitted shadow-first (dryRun:true)
+  for the serve daemon + the Redis PVC; an egress-scoped default-deny
+  NetworkPolicy fronts the serve daemon.
+
+  DNS is the load-bearing contract: the emitted Service names MUST match the
+  names the prewarmer + node-cache-daemon reference. A helm-unittest suite
+  asserts both endpoints + the shadow-first band posture.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - super-cache-ci
+  - sui
+  - cache
+  - redis
+  - postgres
+  - tiered-backend
+  - store-keystone
+home: https://github.com/pleme-io/helmworks
+sources:
+  - https://github.com/pleme-io/helmworks
+  - https://github.com/pleme-io/sui
+maintainers:
+  - name: drzzln
+    email: drzzln@protonmail.com
+dependencies:
+  - name: pleme-lib
+    version: ">=0.40.0"
+    repository: "file://../pleme-lib"
+  - name: pleme-cnpg
+    alias: postgres
+    version: ">=0.1.0"
+    repository: "file://../pleme-cnpg"
+    condition: postgres.enabled
+  - name: pleme-cache
+    alias: redis
+    version: ">=0.1.0"
+    repository: "file://../pleme-cache"
+    condition: redis.enabled
+  - name: pleme-sui
+    alias: serve
+    version: ">=0.2.3"
+    repository: "file://../pleme-sui"
+    condition: serve.enabled

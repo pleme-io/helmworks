@@ -1,0 +1,15 @@
+dependencies:
+- name: pleme-lib
+  repository: file://../pleme-lib
+  version: 0.40.0
+- name: pleme-cnpg
+  repository: file://../pleme-cnpg
+  version: 0.1.0
+- name: pleme-cache
+  repository: file://../pleme-cache
+  version: 0.1.0
+- name: pleme-sui
+  repository: file://../pleme-sui
+  version: 0.2.3
+digest: sha256:91cacab0d472f3e9437628ba9ab8d881d2235b06cdc1047f07dc575494fffa50
+generated: "2026-07-09T01:20:49.282776-07:00"

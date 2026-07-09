@@ -1,0 +1,21 @@
+{{/*
+The tiered BackendConfig, projected as an env-var source for the serve daemon.
+
+The single data key is `SUI_CACHE_BACKEND_CONFIG` so `envFrom.configMapRef`
+sets the env var of the exact name `src/agent.rs::resolve_backend_config` reads.
+Content is computed from `store.*` via super-cache-ci.backendConfigJson — one
+source of truth for the tiered config + the advertised DNS.
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: super-cache-ci-backend-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: super-cache-ci
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: store-keystone
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    app.kubernetes.io/part-of: super-cache-ci
+data:
+  SUI_CACHE_BACKEND_CONFIG: {{ include "super-cache-ci.backendConfigJson" . | quote }}

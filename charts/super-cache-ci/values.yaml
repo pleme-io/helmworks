@@ -1,0 +1,227 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# super-cache-ci — the STORE KEYSTONE
+#
+# Every value here composes a shipped subchart or an umbrella-owned resource.
+# The three DNS names are the load-bearing contract the prewarmer + node-cache
+# daemon reference; do not rename them without updating those consumers:
+#
+#   redis.super-cache-ci.svc:6379            (L1 hot tier)
+#   postgres.super-cache-ci.svc:5432/sui     (L2 durable tier)
+#
+# Namespace is fixed to `super-cache-ci` at deploy time (the consumers' egress
+# NetworkPolicy selects `kubernetes.io/metadata.name: super-cache-ci`); the
+# namespace label is stamped by this chart's namespace.yaml.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── The tiered backend contract (umbrella-owned) ────────────────────────────
+# The single source of truth for the endpoint names + the sui_cache::BackendConfig
+# JSON the serve daemon fronts. Both the serve daemon's SUI_CACHE_BACKEND_CONFIG
+# env AND the consumer-facing DNS aliases derive from these values, so the two
+# can never drift.
+store:
+  # In-cluster DNS the tiers answer on. These MUST equal the Service names the
+  # subcharts emit (redis via fullnameOverride, postgres via the alias Service).
+  redisHost: redis.super-cache-ci.svc
+  redisPort: 6379
+  postgresHost: postgres.super-cache-ci.svc
+  postgresPort: 5432
+  postgresDb: sui
+  postgresUser: sui
+  # Connection-pool ceiling for the L2 Postgres tier.
+  postgresMaxConns: 8
+  # Optional per-write TTL (seconds) on the L1 Redis tier; empty relies on
+  # Redis maxmemory LRU (the pleme-cache default).
+  redisTtlSecs: ""
+  # L3 object tier the tiered resolver falls through to on an L1+L2 miss before
+  # re-deriving. `disabled` renders an L1→L2 (+re-derive) resolver — no S3
+  # dependency; the destination wires armázem/Attic here (see l3.* below).
+  l3:
+    kind: disabled          # disabled | s3
+    s3:
+      bucket: ""
+      region: us-east-1
+      endpoint: ""
+  # put() propagation across tiers. write-through keeps every tier warm.
+  writePolicy: write-through
+
+# ── Namespace label (umbrella-owned) ────────────────────────────────────────
+# Stamps `kubernetes.io/metadata.name` so the consumers' additionalEgress
+# namespaceSelector matches even on clusters whose CNI doesn't auto-label
+# namespaces. Off when the namespace is managed elsewhere (e.g. a Flux
+# Kustomization that already labels it).
+namespaceLabel:
+  enabled: true
+
+# ═════════════════════════════════════════════════════════════════════════════
+# L2 — Postgres durable tier (pleme-cnpg subchart, aliased `postgres`)
+# ═════════════════════════════════════════════════════════════════════════════
+postgres:
+  enabled: true
+  # CNPG Cluster name. The rw Service CNPG derives is `<clusterName>-rw`; this
+  # chart's `postgres` ExternalName Service aliases it to the flat `postgres`
+  # name the consumers expect.
+  clusterName: super-cache-ci-pg
+  instances: 2
+  imageName: ghcr.io/cloudnative-pg/postgresql:16.6
+  storage:
+    size: 20Gi
+    storageClass: local-path
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits:   { cpu: "2",  memory: 2Gi }
+  # The super-cache is regenerable-by-construction (a cold cache just
+  # re-derives), so WAL-archiving it is unnecessary complexity. Off by default;
+  # opt in per environment if point-in-time recovery of the L2 index is wanted.
+  walArchive:
+    enabled: false
+  garageNetworkPolicy:
+    enabled: false
+  monitoring:
+    enabled: true
+  bootstrap:
+    mode: initdb
+    initdb:
+      database: sui
+      owner: sui
+      # Owner-credentials Secret. Emitted self-contained by this chart's
+      # postgres-owner-secret.yaml (postgresOwnerSecret.create) so a first
+      # install needs no pre-seeded Secret. Point at a cofre/ESO-materialized
+      # Secret + set postgresOwnerSecret.create=false for the durable posture.
+      secretName: super-cache-ci-pg-owner
+
+# The owner-credentials Secret for the CNPG bootstrap (umbrella-owned).
+# `username: sui`; the password is generated once (kept stable across upgrades
+# via a live-Secret lookup) unless an external Secret is supplied.
+postgresOwnerSecret:
+  create: true
+  name: super-cache-ci-pg-owner
+  username: sui
+
+# ═════════════════════════════════════════════════════════════════════════════
+# L1 — Redis hot tier (pleme-cache subchart, aliased `redis`)
+# ═════════════════════════════════════════════════════════════════════════════
+redis:
+  enabled: true
+  # Service named literally `redis` → `redis.super-cache-ci.svc:6379`.
+  fullnameOverride: redis
+  replicaCount: 1
+  cache:
+    port: 6379
+    maxmemory: "1gb"
+    maxmemoryPolicy: allkeys-lru
+    persistence:
+      enabled: true
+      size: 2Gi
+      appendfsync: everysec
+  resources:
+    requests: { cpu: 50m,  memory: 128Mi }
+    limits:   { cpu: 500m, memory: 1280Mi }
+  # The L1's own breathe band is carved by THIS umbrella (see breathe.redis
+  # below), targeting the redis StatefulSet by name — keep the subchart's own
+  # band off so there is exactly one band per workload.
+
+# ═════════════════════════════════════════════════════════════════════════════
+# serve — the sui daemon fronting TieredBackend (pleme-sui subchart, `serve`)
+# ═════════════════════════════════════════════════════════════════════════════
+serve:
+  enabled: true
+  fullnameOverride: sui-serve
+  image:
+    repository: ghcr.io/pleme-io/sui
+    tag: amd64-latest
+    pullPolicy: Always
+  replicaCount: 1
+  mode:
+    # Agent mode is the path that both serves the binary-cache protocol AND
+    # honors SUI_CACHE_BACKEND_CONFIG (src/agent.rs → build_backend). It also
+    # consumes the fleet NATS BUILD stream.
+    agent:
+      enabled: true
+      strategy: lockfile
+      nats:
+        url: "nats://nats.nats.svc:4222"
+        stream: BUILD
+        consumer: sui-serve
+    cache:
+      enabled: true
+      listen: "0.0.0.0:5000"
+      priority: 40
+  extraEnv: []
+  # The serve daemon reads SUI_CACHE_BACKEND_CONFIG from this umbrella-owned
+  # ConfigMap (templates/backend-configmap.yaml), whose single key IS
+  # SUI_CACHE_BACKEND_CONFIG = the tiered sui_cache::BackendConfig JSON computed
+  # from store.* (the single source of truth). envFrom projects the key as the
+  # env var of the same name — so store.* drives both the served tier and the
+  # advertised DNS with zero drift.
+  extraEnvFrom:
+    - configMapRef:
+        name: super-cache-ci-backend-config
+  resources:
+    requests: { cpu: 250m, memory: 512Mi }
+    limits:   { cpu: "2",  memory: 4Gi }
+  # This umbrella carves the serve daemon's band (breathe.serve below); keep the
+  # subchart's KEDA/breathability off so scaling is band-driven + single-owned.
+  breathability:
+    enabled: false
+  delivery:
+    enabled: false
+  alerts:
+    enabled: false
+  pdb:
+    enabled: false
+
+# ═════════════════════════════════════════════════════════════════════════════
+# breathe — SHADOW-FIRST bands (umbrella-owned, dryRun:true everywhere)
+#
+# One band per workload, targeting the subchart's workload by explicit name.
+# Every band ships dryRun:true — the controller emits ShadowWouldApply decisions
+# but mutates nothing until an operator flips dryRun:false per band (the two
+# safety gates: a band's dryRun + a node's writeEnabled).
+# ═════════════════════════════════════════════════════════════════════════════
+breathe:
+  # The serve daemon's memory + cpu bands.
+  serve:
+    enabled: true
+    memory:
+      enabled: true
+      setpoint: 0.8
+      floor: "512Mi"
+      ceiling: "4Gi"
+      dryRun: true
+    cpu:
+      enabled: true
+      setpoint: 0.8
+      floor: "250m"
+      ceiling: "2000m"
+      dryRun: true
+  # The Redis L1's memory band + a grow-only StorageBand on its PVC.
+  redis:
+    enabled: true
+    memory:
+      enabled: true
+      setpoint: 0.8
+      floor: "128Mi"
+      ceiling: "1280Mi"
+      dryRun: true
+    storage:
+      enabled: true
+      # pleme-cache's PVC is the StatefulSet volumeClaimTemplate `data-redis-0`.
+      pvcName: data-redis-0
+      setpoint: 0.8
+      floor: "2Gi"
+      ceiling: "20Gi"
+      dryRun: true
+
+# ═════════════════════════════════════════════════════════════════════════════
+# NetworkPolicy — egress-scoped default-deny fronting the serve daemon
+#   (umbrella-owned). Default-deny + DNS + explicit egress to the in-namespace
+#   Redis/Postgres tiers + the fleet NATS + upstream binary-cache HTTPS; ingress
+#   allowed from any namespace to the served cache port (the CI consumers).
+# ═════════════════════════════════════════════════════════════════════════════
+networkPolicy:
+  enabled: true
+  # Cache-protocol port the serve daemon listens on (targetPort of the sui
+  # cache Service). Consumers dial this to substitute/warm.
+  servePort: 5000
+  # Fleet NATS endpoint the serve daemon's agent consumes from.
+  natsPort: 4222

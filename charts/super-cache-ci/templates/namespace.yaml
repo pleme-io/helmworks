@@ -1,0 +1,17 @@
+{{- if .Values.namespaceLabel.enabled }}
+{{/*
+Stamp `kubernetes.io/metadata.name: <ns>` on the release namespace so the
+prewarmer + node-cache-daemon egress NetworkPolicies (which select
+`namespaceSelector: { kubernetes.io/metadata.name: super-cache-ci }`) match even
+on clusters whose CNI does not auto-apply the well-known namespace label. On
+most clusters the label is applied by the NamespaceDefaultLabelName admission
+plugin already; this makes the match true by construction regardless.
+*/}}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Release.Namespace }}
+  labels:
+    kubernetes.io/metadata.name: {{ .Release.Namespace }}
+    app.kubernetes.io/part-of: super-cache-ci
+{{- end }}

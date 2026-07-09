@@ -42,6 +42,16 @@ mode:
       secretName: ""
       secretKey: signing-key
 
+# --- Extra environment ---
+# Additional container env vars appended to the fixed set. The super-cache-ci
+# umbrella uses this to inject SUI_CACHE_BACKEND_CONFIG (the JSON-encoded
+# sui_cache::BackendConfig the serve daemon fronts — the Redis L1 + Postgres L2
+# tiered posture). Standard k8s EnvVar list shape (name/value or valueFrom).
+extraEnv: []
+# Extra envFrom sources (configMapRef / secretRef). Use for a
+# cofre/ESO-materialized Secret carrying the backend config or credentials.
+extraEnvFrom: []
+
 # --- Resources ---
 resources:
   requests:

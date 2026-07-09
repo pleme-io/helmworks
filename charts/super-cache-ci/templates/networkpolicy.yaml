@@ -1,0 +1,153 @@
+{{- if and .Values.networkPolicy.enabled .Values.serve.enabled }}
+{{/*
+Egress-scoped default-deny NetworkPolicy fronting the sui serve daemon.
+
+The serve daemon pod carries pleme-sui's selector labels. As an ALIASED
+subchart the pod's `app.kubernetes.io/name` is the ALIAS (`serve`), not the
+chart name — Helm derives pleme-lib.name from the (aliased) Chart.Name. Match
+that. Default-deny both directions, then open exactly what the daemon needs:
+
+  egress  → DNS
+          → the in-namespace Redis L1 (:6379) + Postgres L2 (:5432) tiers
+          → the fleet NATS (:4222) it consumes the BUILD stream from
+          → upstream binary-cache HTTPS (:443) for substitution/mirroring
+  ingress ← the served cache-protocol port (:5000) from any namespace
+            (the CI consumers dial this to substitute + warm)
+
+Least-privilege by construction: no wildcard egress except the curated HTTPS
+substitution path.
+*/}}
+{{- $ns := .Release.Namespace -}}
+{{- $sel := dict "app.kubernetes.io/name" "serve" "app.kubernetes.io/instance" .Release.Name -}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: super-cache-ci-serve-default-deny
+  namespace: {{ $ns }}
+  labels:
+    app.kubernetes.io/name: super-cache-ci
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: serve-netpol
+    app.kubernetes.io/part-of: super-cache-ci
+spec:
+  podSelector:
+    matchLabels:
+      {{- toYaml $sel | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: super-cache-ci-serve-allow-dns
+  namespace: {{ $ns }}
+  labels:
+    app.kubernetes.io/name: super-cache-ci
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: serve-netpol
+    app.kubernetes.io/part-of: super-cache-ci
+spec:
+  podSelector:
+    matchLabels:
+      {{- toYaml $sel | nindent 6 }}
+  policyTypes:
+    - Egress
+  egress:
+    - ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: super-cache-ci-serve-allow-store
+  namespace: {{ $ns }}
+  labels:
+    app.kubernetes.io/name: super-cache-ci
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: serve-netpol
+    app.kubernetes.io/part-of: super-cache-ci
+spec:
+  podSelector:
+    matchLabels:
+      {{- toYaml $sel | nindent 6 }}
+  policyTypes:
+    - Egress
+  egress:
+    # In-namespace Redis L1 + Postgres L2 tiers.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $ns }}
+      ports:
+        - { protocol: TCP, port: {{ .Values.store.redisPort }} }
+        - { protocol: TCP, port: {{ .Values.store.postgresPort }} }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: super-cache-ci-serve-allow-nats
+  namespace: {{ $ns }}
+  labels:
+    app.kubernetes.io/name: super-cache-ci
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: serve-netpol
+    app.kubernetes.io/part-of: super-cache-ci
+spec:
+  podSelector:
+    matchLabels:
+      {{- toYaml $sel | nindent 6 }}
+  policyTypes:
+    - Egress
+  egress:
+    - ports:
+        - { protocol: TCP, port: {{ .Values.networkPolicy.natsPort }} }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: super-cache-ci-serve-allow-upstream-https
+  namespace: {{ $ns }}
+  labels:
+    app.kubernetes.io/name: super-cache-ci
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: serve-netpol
+    app.kubernetes.io/part-of: super-cache-ci
+spec:
+  podSelector:
+    matchLabels:
+      {{- toYaml $sel | nindent 6 }}
+  policyTypes:
+    - Egress
+  egress:
+    # Upstream binary-cache substitution (cache.nixos.org + any L3 S3 endpoint).
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 169.254.0.0/16
+      ports:
+        - { protocol: TCP, port: 443 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: super-cache-ci-serve-allow-consumers
+  namespace: {{ $ns }}
+  labels:
+    app.kubernetes.io/name: super-cache-ci
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: serve-netpol
+    app.kubernetes.io/part-of: super-cache-ci
+spec:
+  podSelector:
+    matchLabels:
+      {{- toYaml $sel | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    # The served cache-protocol port — CI consumers in any namespace dial it.
+    - ports:
+        - { protocol: TCP, port: {{ .Values.networkPolicy.servePort }} }
+{{- end }}
