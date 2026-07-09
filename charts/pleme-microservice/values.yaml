@@ -120,6 +120,30 @@ lifecycle: {}
 configMaps: []
 downwardApi:
   enabled: false
+
+# -- shikumi tieredConfig operator-overlay surface (enjulho config-as-Helm).
+# Disabled by default — the migration toggle. Flip `config.enabled: true` to
+# wire the file-tier ConfigMap + downward-API discovered env + mount from ONE
+# typed block instead of hand-authored env/volumes. Secrets NEVER land here —
+# they ride cofre/ESO (see config.file.secret for co-location). Schema +
+# semantics: pleme-lib/templates/_tiered_config.tpl.
+config:
+  enabled: false
+  # app: ""                  # ConfigMap key + default mount path; default chart name
+  # configMapName: ""        # default "<fullname>-config"
+  file:
+    enabled: false
+    # fileName: ""           # default "<app>.yaml"
+    # mountPath: ""          # default "/etc/<app>"
+    data: {}                # structured (YAML) file body — NO SECRETS
+    # raw: ""               # app-code border: verbatim (TOML/ini) body — NO SECRETS
+    secret:
+      enabled: false        # projected co-mount of a cofre/ESO Secret at mountPath
+      # name: ""            # default "<fullname>-secrets"
+  env: {}                   # <PREFIX>_ env-tier scalar overrides
+  discovered:
+    podNamespace: true      # POD_NAMESPACE ← downward API
+    podName: true           # POD_NAME     ← downward API
 istio:
   enabled: false
 podMonitor:

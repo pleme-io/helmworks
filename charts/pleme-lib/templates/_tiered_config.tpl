@@ -42,6 +42,22 @@ this mixin mirrors that boundary at the chart layer.
       fileName: ""            # default "<app>.yaml"
       mountPath: ""           # default "/etc/<app>"
       data: {}               # the typed shikumi surface (file tier) — NO SECRETS
+      # ── app-code border (CONFIGURATION-MANAGEMENT §IX) ── a non-Rust service
+      # (akeyless = Go/viper) reads a conf whose ON-DISK format is NOT YAML
+      # (TOML/ini/properties). `raw` carries that verbatim body — emitted
+      # byte-for-byte, no toYaml — so the service's UNCHANGED read-path consumes
+      # it. Mutually exclusive with `data` (raw wins). This is where the Go
+      # renderer's (camelot-bootstrap RenderConf) main-conf output lands.
+      raw: ""                # verbatim file body — NO SECRETS
+      # ── secret co-mount ── a viper read-path scans ONE dir for both main.conf
+      # AND secret.conf. When `secret.enabled`, the file-tier volume becomes a
+      # PROJECTED volume co-locating this ConfigMap (config) with a cofre/ESO
+      # Secret (secret.conf) at mountPath. tieredConfig NEVER renders secret
+      # CONTENT — it references a Secret ESO produces (the boundary holds).
+      secret:
+        enabled: false        # co-locate a cofre/ESO Secret at mountPath
+        name: ""             # default "<fullname>-secrets"
+        optional: true       # missing Secret ⇒ empty (ESO reconciles it in)
 
     # ── env tier ── simple <PREFIX>_ scalar overrides (name → value).
     env: {}
@@ -65,6 +81,8 @@ this mixin mirrors that boundary at the chart layer.
                                        into a container's `volumeMounts:`.
   pleme-lib.tieredConfig.configMapName string helper (ConfigMap name).
   pleme-lib.tieredConfig.volumeName    string helper (volume + mount name).
+  pleme-lib.tieredConfig.secretName    string helper (co-mounted cofre/ESO
+                                       Secret name; default "<fullname>-secrets").
 */}}
 
 {{/* ── string helpers (shared so name/path never drift across templates) ─── */}}
@@ -95,11 +113,18 @@ this mixin mirrors that boundary at the chart layer.
 {{- $file.mountPath | default (printf "/etc/%s" (include "pleme-lib.tieredConfig.app" .)) -}}
 {{- end -}}
 
+{{- define "pleme-lib.tieredConfig.secretName" -}}
+{{- $c := .Values.config | default dict -}}
+{{- $file := $c.file | default dict -}}
+{{- $secret := $file.secret | default dict -}}
+{{- $secret.name | default (printf "%s-secrets" (include "pleme-lib.fullname" .)) -}}
+{{- end -}}
+
 {{/* ── file tier: the reconciled ConfigMap the ConfigStore discovers ─────── */}}
 {{- define "pleme-lib.tieredConfig.configMap" -}}
 {{- $c := .Values.config | default dict -}}
 {{- $file := $c.file | default dict -}}
-{{- if and $file.enabled $file.data -}}
+{{- if and $file.enabled (or $file.data $file.raw) -}}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -113,9 +138,17 @@ metadata:
     # The enjulho contract: this ConfigMap IS the service's shikumi file tier.
     pleme.io/config-tier: file
     pleme.io/config-file: {{ include "pleme-lib.tieredConfig.fileName" . | quote }}
+    {{- if $file.raw }}
+    # app-code border: verbatim (non-YAML) body — the service's read-path format.
+    pleme.io/config-format: raw
+    {{- end }}
 data:
   {{ include "pleme-lib.tieredConfig.fileName" . }}: |
+    {{- if $file.raw }}
+    {{- $file.raw | nindent 4 }}
+    {{- else }}
     {{- toYaml $file.data | nindent 4 }}
+    {{- end }}
 {{- end -}}
 {{- end -}}
 
@@ -148,13 +181,30 @@ data:
 {{- end -}}
 
 {{/* ── file tier plumbing: pod volume list-item fragment ─────────────────── */}}
+{{/* Plain configMap volume by default. When config.file.secret.enabled, a
+     PROJECTED volume co-locating the file-tier ConfigMap (config) with a
+     cofre/ESO Secret (secret.conf) at one mountPath — the app-code border
+     idiom (a viper read-path scans one dir). Secret CONTENT is never rendered
+     here; only the Secret name is referenced. */}}
 {{- define "pleme-lib.tieredConfig.volume" -}}
 {{- $c := .Values.config | default dict -}}
 {{- $file := $c.file | default dict -}}
-{{- if and $file.enabled $file.data }}
+{{- $secret := $file.secret | default dict -}}
+{{- if and $file.enabled (or $file.data $file.raw) }}
+{{- if $secret.enabled }}
+- name: {{ include "pleme-lib.tieredConfig.volumeName" . }}
+  projected:
+    sources:
+      - configMap:
+          name: {{ include "pleme-lib.tieredConfig.configMapName" . }}
+      - secret:
+          name: {{ include "pleme-lib.tieredConfig.secretName" . }}
+          optional: {{ hasKey $secret "optional" | ternary $secret.optional true }}
+{{- else }}
 - name: {{ include "pleme-lib.tieredConfig.volumeName" . }}
   configMap:
     name: {{ include "pleme-lib.tieredConfig.configMapName" . }}
+{{- end }}
 {{- end }}
 {{- end -}}
 
@@ -162,7 +212,7 @@ data:
 {{- define "pleme-lib.tieredConfig.volumeMount" -}}
 {{- $c := .Values.config | default dict -}}
 {{- $file := $c.file | default dict -}}
-{{- if and $file.enabled $file.data }}
+{{- if and $file.enabled (or $file.data $file.raw) }}
 - name: {{ include "pleme-lib.tieredConfig.volumeName" . }}
   mountPath: {{ include "pleme-lib.tieredConfig.mountPath" . }}
   readOnly: true

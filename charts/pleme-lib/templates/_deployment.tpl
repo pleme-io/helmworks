@@ -93,7 +93,15 @@ spec:
                 applied overlay's `podEnv` surface (e.g. fips overlay
                 injects FIPS-mode env vars). Aggregated via dispatch. */ -}}
           {{- $overlayEnv := include "pleme-lib.overlay.dispatchAll" (list "podEnv" .) | trim }}
-          {{- if or (or (.Values.downwardApi).enabled (gt (len (.Values.env | default list)) 0)) $overlayEnv }}
+          {{- /* pleme-lib 0.42.0+: the shikumi tieredConfig operator-overlay env —
+                the downward-API discovered tier (POD_NAMESPACE/POD_NAME) + the
+                <PREFIX>_ env tier — gated on the `.Values.config.enabled` migration
+                toggle so un-migrated charts render byte-identical. */ -}}
+          {{- $tieredEnv := "" }}
+          {{- if (.Values.config).enabled }}
+          {{- $tieredEnv = include "pleme-lib.tieredConfig.env" . | trim }}
+          {{- end }}
+          {{- if or (or (.Values.downwardApi).enabled (gt (len (.Values.env | default list)) 0)) (or $overlayEnv $tieredEnv) }}
           env:
             {{- if (.Values.downwardApi).enabled }}
             - name: POD_NAME
@@ -108,6 +116,9 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            {{- end }}
+            {{- if $tieredEnv }}
+            {{- $tieredEnv | nindent 12 }}
             {{- end }}
             {{- if $overlayEnv }}
             {{- $overlayEnv | nindent 12 }}
@@ -134,9 +145,20 @@ spec:
           startupProbe:
             {{- include "pleme-lib.startupProbe" . | nindent 12 }}
           {{- end }}
-          {{- with .Values.volumeMounts }}
+          {{- /* pleme-lib 0.42.0+: the shikumi tieredConfig file-tier mount,
+                gated on the `.Values.config.enabled` migration toggle. */ -}}
+          {{- $tcMount := "" }}
+          {{- if (.Values.config).enabled }}
+          {{- $tcMount = include "pleme-lib.tieredConfig.volumeMount" . | trim }}
+          {{- end }}
+          {{- if or .Values.volumeMounts $tcMount }}
           volumeMounts:
+            {{- with .Values.volumeMounts }}
             {{- toYaml . | nindent 12 }}
+            {{- end }}
+            {{- if $tcMount }}
+            {{- $tcMount | nindent 12 }}
+            {{- end }}
           {{- end }}
           {{- with .Values.lifecycle }}
           lifecycle:
@@ -145,9 +167,23 @@ spec:
         {{- range .Values.sidecars }}
         - {{- toYaml . | nindent 10 }}
         {{- end }}
-      {{- with .Values.volumes }}
+      {{- /* pleme-lib 0.42.0+: the shikumi tieredConfig file-tier volume (plain
+            configMap, or a projected config+secret co-mount for the app-code
+            border), gated on the `.Values.config.enabled` migration toggle. The
+            volume is rendered IN-TEMPLATE (not from values) so the ConfigMap/
+            Secret names resolve via `include` — values `toYaml` does not tpl. */ -}}
+      {{- $tcVolume := "" }}
+      {{- if (.Values.config).enabled }}
+      {{- $tcVolume = include "pleme-lib.tieredConfig.volume" . | trim }}
+      {{- end }}
+      {{- if or .Values.volumes $tcVolume }}
       volumes:
+        {{- with .Values.volumes }}
         {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- if $tcVolume }}
+        {{- $tcVolume | nindent 8 }}
+        {{- end }}
       {{- end }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds | default 30 }}
       {{- with .Values.priorityClassName }}

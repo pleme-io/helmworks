@@ -1,1 +1,8 @@
 {{- include "pleme-lib.configmaps" . }}
+{{- /* shikumi tieredConfig file-tier ConfigMap (enjulho config-as-Helm). Gated on
+       the .Values.config.enabled migration toggle so config.enabled is the single
+       switch for the whole tieredConfig surface (ConfigMap + env + mount); the
+       helper itself stays file.enabled-gated for direct callers. */ -}}
+{{- if (.Values.config).enabled }}
+{{- include "pleme-lib.tieredConfig.configMap" . }}
+{{- end }}
