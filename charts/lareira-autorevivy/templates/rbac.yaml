@@ -1,0 +1,66 @@
+{{- if .Values.serviceAccount.create }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.serviceAccount.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: lareira-autorevivy
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end }}
+{{- if .Values.rbac.create }}
+---
+# The autorevivy coordinator OBSERVES broadly and MUTATES narrowly. It does NOT do
+# raw workload mutation — actuation is declare-and-observe (GitOps / breathe-CR /
+# cofre / promessa), so this role grants READ on the observed surfaces and PATCH
+# ONLY on its own Autorevivy status + the breathe band tune surface. The disjoint
+# verb set IS the "never a band-aid" contract (★★ GITOPS-NATIVE + PLATFORM-MEDIATED).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: lareira-autorevivy-controller
+  labels:
+    app.kubernetes.io/name: lareira-autorevivy
+rules:
+  # Own the Autorevivy CR + its status.
+  - apiGroups: ["autorevivy.pleme.io"]
+    resources: ["autorevivies", "autorevivies/status"]
+    verbs: ["get", "list", "watch", "patch", "update"]
+  # TUNE the breathe band surface (the PROTECT + cache-retune actuator). Patch only.
+  - apiGroups: ["breathe.pleme.io"]
+    resources:
+      - "memorybands"
+      - "cpubands"
+      - "storagebands"
+      - "replicabands"
+    verbs: ["get", "list", "watch", "patch"]
+  # OBSERVE the running estate (golden signals / saturation / drift / orphans).
+  # READ-ONLY — never delete/patch a workload directly (that is a reconciler's job).
+  - apiGroups: [""]
+    resources: ["pods", "services", "configmaps", "secrets", "persistentvolumeclaims", "events", "namespaces"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets", "daemonsets", "replicasets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["roles", "rolebindings", "clusterroles", "clusterrolebindings"]
+    verbs: ["get", "list", "watch"]     # RBAC-drift detection is READ; the fix is a GitOps commit
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["networkpolicies"]
+    verbs: ["get", "list", "watch"]     # netpol-posture detection is READ; the fix is a committed values edit
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: lareira-autorevivy-controller
+  labels:
+    app.kubernetes.io/name: lareira-autorevivy
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: lareira-autorevivy-controller
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.serviceAccount.name }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

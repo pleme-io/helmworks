@@ -1,0 +1,66 @@
+{{- if .Values.controller.enabled }}
+# ─────────────────────────────────────────────────────────────────────────────
+# The autorevivy coordinator controller. STUB / LiveTODO — the closed loop
+# (cron → shigoto Dag → autonomous Viggy seven-beat over the CLEAN/DEFEND/PROTECT
+# concern rows) is DESIGN (theory/AUTOREVIVY.md §VIII.2 M1). Disabled by default
+# (controller.enabled=false). Until it exists the loop runs MANUALLY over the
+# shipped MCPs; do not round this Deployment up to a running controller.
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: autorevivy-controller
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: lareira-autorevivy
+    app.kubernetes.io/component: controller
+spec:
+  replicas: {{ .Values.controller.replicaCount }}
+  strategy:
+    type: Recreate           # singleton coordinator; never two racing
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: lareira-autorevivy
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: lareira-autorevivy
+        app.kubernetes.io/component: controller
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: controller
+          image: "{{ .Values.controller.image.repository }}:{{ .Values.controller.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.controller.image.pullPolicy }}
+          env:
+            - name: RUST_LOG
+              value: {{ .Values.controller.logLevel | quote }}
+            - name: AUTOREVIVY_SCOPE
+              value: {{ .Values.autorevivy.scope | quote }}   # the gate; controller refuses non-camelot
+            - name: AUTOREVIVY_DRY_RUN
+              value: {{ .Values.autorevivy.dryRun | quote }}
+          resources:
+            {{- toYaml .Values.controller.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+{{- end }}

@@ -1,0 +1,25 @@
+{{- if and .Values.controller.enabled .Values.breatheBand.enabled }}
+{{- $b := .Values.breatheBand }}
+# Dogfood — the autorevivy controller breathes too (CAMELOT §III #4: explicit dryRun).
+# Only rendered when the controller is running (no band on a non-existent target).
+apiVersion: breathe.pleme.io/v1
+kind: MemoryBand
+metadata:
+  name: autorevivy-controller
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: lareira-autorevivy
+    app.kubernetes.io/component: controller
+spec:
+  targetRef:
+    kind: Deployment
+    name: autorevivy-controller
+  setpoint: {{ $b.setpoint }}
+  growAbove: {{ $b.growAbove }}
+  shrinkBelow: {{ $b.shrinkBelow }}
+  floor: {{ $b.floor | quote }}
+  ceiling: {{ $b.ceiling | quote }}
+  cooldownSeconds: {{ $b.cooldownSeconds }}
+  maxStalenessSeconds: {{ $b.maxStalenessSeconds }}
+  dryRun: {{ $b.dryRun }}
+{{- end }}

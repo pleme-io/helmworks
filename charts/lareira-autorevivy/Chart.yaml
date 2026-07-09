@@ -1,0 +1,38 @@
+apiVersion: v2
+name: lareira-autorevivy
+description: >-
+  Autorevivy — the system that watches systems and keeps them alive. The camelot-
+  scoped self-maintenance LAYER: one Autorevivy CRD + a coordinator controller that
+  runs CLEAN + DEFEND + PROTECT over the whole environment, live-tuning every running
+  quality (breathe bands, super-cache-ci Redis/Postgres cache tiers, the reactive
+  nervous system, 100% spot posture, every workload) on a cron + shigoto-DAG cycle
+  with a reactive clock in between. Owns MINIMAL new algebra — a composition index over
+  breathe + sarar + tendril + Viggy + shigoto + cron + super-cache-ci + tameshi; it
+  REFERENCES their CRs, never forks them. Algorithmic dominance, NOT ML. Reasonable
+  defaults that escalate by discoverability. CAMELOT-SCOPED NOW (spec.scope gate);
+  fleet-wide is the named destination. Peer of lareira-breathe-observability.
+  Tier-honest: the CRD + CR + RBAC ship deployable; the closed coordinator controller
+  is a stub (controller.enabled=false by default) — the loop runs MANUALLY today over
+  the shipped MCPs. See theory/AUTOREVIVY.md.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - autorevivy
+  - self-maintenance
+  - clean-defend-protect
+  - breathability
+  - auto-remediation
+  - camelot
+  - live-tune
+  - escalating-by-discoverability
+home: https://github.com/pleme-io/theory/blob/main/AUTOREVIVY.md
+sources:
+  - https://github.com/pleme-io/helmworks
+maintainers:
+  - name: drzzln
+    email: drzzln@protonmail.com
+dependencies:
+  - name: pleme-lib
+    version: ">=0.28.0"
+    repository: "file://../pleme-lib"

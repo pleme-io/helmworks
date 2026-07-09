@@ -1,0 +1,182 @@
+---
+# The Autorevivy CRD — the ONE new typed surface of the autorevivy doctrine.
+# It DECLARES a self-maintenance loop (CLEAN + DEFEND + PROTECT, live-tuned,
+# escalating-by-discoverability) over a target scope, REFERENCING the composed
+# primitives (breathe bands, sarar policy, promessas, super-cache-ci, the nervous
+# system) rather than re-declaring them — minimal new algebra.
+#
+# CAMELOT-SCOPED NOW; fleet-wide is the destination. spec.scope is the gate: the
+# running controller accepts `camelot` only. See theory/AUTOREVIVY.md §VII.
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: autorevivies.autorevivy.pleme.io
+spec:
+  group: autorevivy.pleme.io
+  names:
+    categories:
+      - autorevivy
+    kind: Autorevivy
+    plural: autorevivies
+    shortNames:
+      - arv
+    singular: autorevivy
+  scope: Namespaced
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      additionalPrinterColumns:
+        - jsonPath: .spec.scope
+          name: Scope
+          type: string
+        - jsonPath: .spec.dryRun
+          name: DryRun
+          type: boolean
+        - jsonPath: .status.phase
+          name: Phase
+          type: string
+        - jsonPath: .status.lastSweep.remediated
+          name: Remediated
+          type: integer
+        - jsonPath: .status.lastSweep.escalated
+          name: Escalated
+          type: integer
+        - jsonPath: .status.outcomeChainHead
+          name: ChainHead
+          type: string
+          priority: 1
+      schema:
+        openAPIV3Schema:
+          description: >-
+            A self-maintenance loop over a scope. Composition index over breathe +
+            sarar + tendril + Viggy + shigoto + cron + super-cache-ci + tameshi.
+          type: object
+          required: [spec]
+          properties:
+            spec:
+              type: object
+              required: [scope]
+              properties:
+                scope:
+                  description: >-
+                    THE GATE. The only value the shipped controller accepts is
+                    `camelot`; any other scope is refused (camelot-only by
+                    construction). `fleet` is the DESTINATION — off today.
+                  type: string
+                  enum: [camelot, fleet]
+                  default: camelot
+                dryRun:
+                  description: >-
+                    Shadow-first. When true, every remediation is computed and
+                    attested as DryRunWouldApply but mutates nothing. Footgun-safe
+                    default (mirrors breathe bands).
+                  type: boolean
+                  default: true
+                schedule:
+                  description: The scheduled clock (cron) — the systematic sweep.
+                  type: object
+                  properties:
+                    sweep:
+                      type: string
+                      default: "*/5 * * * *"
+                    deep:
+                      description: Nightly deep sweep (GC, drill, attestation completeness).
+                      type: string
+                      default: "0 3 * * *"
+                reactive:
+                  description: The reactive clock (escuta/NATS event → single tick NOW).
+                  type: object
+                  properties:
+                    nervousSystem:
+                      type: boolean
+                      default: true
+                faces:
+                  description: The three lenses on the one loop.
+                  type: object
+                  properties:
+                    protect:
+                      type: object
+                      properties:
+                        breatheCatalogRef: { type: string }
+                        haFloor: { type: integer, default: 2, minimum: 1 }
+                        retirada: { type: boolean, default: true }
+                        lapidar: { type: boolean, default: true }
+                        pitrDrillRef: { type: string }
+                    defend:
+                      type: object
+                      properties:
+                        cofreRotationMaxAgeDays: { type: integer, default: 30, minimum: 1 }
+                        certExpiryHorizonDays: { type: integer, default: 14, minimum: 1 }
+                        cvePinPolicy:
+                          type: string
+                          enum: [sustainable, escalate]
+                          default: sustainable
+                        attestation:
+                          type: string
+                          enum: [required, advisory]
+                          default: required
+                    clean:
+                      type: object
+                      properties:
+                        orphanReap: { type: boolean, default: true }
+                        superCacheCiRef: { type: string }
+                        retentionPolicyRef: { type: string }
+                discoverability:
+                  description: >-
+                    The escalating-by-discoverability ladder (§V). DESIGN — today the
+                    rung is chosen by the operator; the auto-selector is a LiveTODO.
+                  type: object
+                  properties:
+                    startRung:
+                      type: string
+                      enum: [Observe, Shadow, Knob, Structural, Escalate]
+                      default: Observe
+                    maxAutoRung:
+                      description: >-
+                        The most serious rung the loop climbs to automatically; R4
+                        Escalate always surfaces to a human.
+                      type: string
+                      enum: [Observe, Shadow, Knob, Structural]
+                      default: Structural
+                attest:
+                  type: object
+                  properties:
+                    outcomeChain: { type: boolean, default: true }
+            status:
+              type: object
+              x-kubernetes-preserve-unknown-fields: true
+              properties:
+                phase:
+                  type: string
+                  enum: [Pending, Reconciling, Ready, Escalated, Failed]
+                lastSweep:
+                  type: object
+                  properties:
+                    ts: { type: string }
+                    jobs: { type: integer }
+                    remediated: { type: integer }
+                    escalated: { type: integer }
+                    shadowed: { type: integer }
+                rungHistogram:
+                  type: object
+                  properties:
+                    observe: { type: integer }
+                    shadow: { type: integer }
+                    knob: { type: integer }
+                    structural: { type: integer }
+                    escalate: { type: integer }
+                outcomeChainHead:
+                  type: string
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type: { type: string }
+                      status: { type: string }
+                      reason: { type: string }
+                      message: { type: string }
+                      lastTransitionTime: { type: string }
+      subresources:
+        status: {}

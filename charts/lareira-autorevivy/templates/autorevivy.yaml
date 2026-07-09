@@ -1,0 +1,30 @@
+{{- if .Values.autorevivy.create }}
+{{- $a := .Values.autorevivy }}
+apiVersion: autorevivy.pleme.io/v1
+kind: Autorevivy
+metadata:
+  name: {{ $a.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: lareira-autorevivy
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  scope: {{ $a.scope }}
+  dryRun: {{ $a.dryRun }}
+  schedule:
+    sweep: {{ $a.schedule.sweep | quote }}
+    deep: {{ $a.schedule.deep | quote }}
+  reactive:
+    nervousSystem: {{ $a.reactive.nervousSystem }}
+  faces:
+    protect:
+      {{- toYaml $a.faces.protect | nindent 6 }}
+    defend:
+      {{- toYaml $a.faces.defend | nindent 6 }}
+    clean:
+      {{- toYaml $a.faces.clean | nindent 6 }}
+  discoverability:
+    {{- toYaml $a.discoverability | nindent 4 }}
+  attest:
+    outcomeChain: {{ $a.attest.outcomeChain }}
+{{- end }}
