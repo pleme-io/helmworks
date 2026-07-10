@@ -1,0 +1,7 @@
+{{/*
+Breathe CpuBand for pangea-operator's own Deployment. MemoryBand is
+deliberately OMITTED here (see values.yaml's breathe.memory.enabled: false
+comment) -- an external MemoryBand already targets this same Deployment,
+created outside this chart. Declaring a second one here would collide.
+*/}}
+{{- include "pleme-lib.breatheBand" . }}

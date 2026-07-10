@@ -1079,3 +1079,18 @@ operatorPolicy:
   workspaceSuspend:
     templates: {}
     catalogs: {}
+
+# breathe resource-homeostasis (breathe.pleme.io). CPU ONLY — an external
+# MemoryBand already targets this Deployment (created outside this chart,
+# by lareira-observe-operator on rio/camelot); declaring a second MemoryBand
+# from the chart itself would conflict/duplicate against the same target.
+# Shadow-first (dryRun: true); the operator's own reconcile-rate footprint
+# makes a live CPU carve worth observing before trusting.
+breathe:
+  enabled: true
+  memory:
+    enabled: false
+  cpu:
+    enabled: true
+    dryRun: true
+    disruptionPolicy: restartFreeOnly
