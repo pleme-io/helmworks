@@ -1,0 +1,9 @@
+{{/*
+Breathe resource-homeostasis bands for this service's own Deployment.
+Shadow-first by default (see values.yaml's breathe.memory/cpu.dryRun) —
+per ★★ Breathability, every workload is breathe-managed by default;
+this is the fleet-wide "solve once" wiring point for every
+pleme-microservice consumer (auth/bis/gator/kfm/kfm2/logan/sdr/uam and
+any future one), not a one-off per-chart template.
+*/}}
+{{- include "pleme-lib.breatheBand" . }}

@@ -43,6 +43,23 @@ resources:
     cpu: 200m
     memory: 256Mi
 
+# breathe resource-homeostasis bands (breathe.pleme.io) — carves
+# resources.limits.{memory,cpu} to hold this Deployment at a target
+# utilization band. Shadow-first (dryRun: true): the controller
+# decides + reports but never mutates until an operator flips it live
+# via the breathe MCP, matching every other pleme-microservice
+# consumer's safety posture. See helmworks/charts/pleme-lib/templates/
+# _breatheband.tpl for the full field set.
+breathe:
+  enabled: true
+  memory:
+    dryRun: true
+    disruptionPolicy: restartFreeOnly
+  cpu:
+    enabled: true
+    dryRun: true
+    disruptionPolicy: restartFreeOnly
+
 health:
   path: /healthz
   readyPath: /readyz
