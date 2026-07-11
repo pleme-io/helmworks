@@ -8,7 +8,7 @@ description: |
   mirrors pleme-breathe's own shape); depends on pleme-lib ONLY for the
   BREATHE_EVENTS JetStream stream declaration (pleme-lib.jetstream).
 type: application
-version: "0.1.0"
+version: "0.1.1"
 appVersion: "0.1.0"
 dependencies:
   - name: pleme-lib
