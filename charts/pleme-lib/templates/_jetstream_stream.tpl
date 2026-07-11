@@ -213,7 +213,12 @@ Args (passed via `dict`):
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ $fullname }}-jetstream-init
+  # Kubernetes auto-injects a `job-name: <this name>` label onto the Job's own
+  # pod template; label VALUES cap at 63 bytes even though object NAMES allow
+  # 253 -- an untruncated $fullname + "-jetstream-init" silently violates that
+  # the moment a consumer chart's release+chart name combo runs long (first
+  # hit: pleme-escuta-breathe-bridge, 2026-07-11).
+  name: {{ include "pleme-lib.fullname" $ctx | trunc 48 | trimSuffix "-" }}-jetstream-init
   namespace: {{ include "pleme-lib.namespace" $ctx }}
   labels:
     {{- include "pleme-lib.labels" $ctx | nindent 4 }}
