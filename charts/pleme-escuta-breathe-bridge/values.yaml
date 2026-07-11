@@ -32,7 +32,12 @@ serviceAccount:
   name: "escuta-breathe-bridge"
 
 # ─── Bridge config (env — matches src/bin/escuta_breathe_bridge.rs) ──
-natsUrl: "nats://pleme-nats.nats.svc:4222"
+# Helm fullname of the pleme-nats release in akeyless-k8s/.../infrastructure/nats
+# is "nats-pleme-nats" (release name "nats" + chart name "pleme-nats" — the
+# chart's own `pleme-lib.fullname` helper concatenates them since "pleme-nats"
+# does not contain "nats" as a prefix). Matches the fleet's own live precedent
+# in k8s/clusters/rio/infrastructure/{tend-throttle,tend-operator}/release.yaml.
+natsUrl: "nats://nats-pleme-nats.nats.svc:4222"
 logLevel: "info,escuta=debug,kube=info"
 
 resources:
@@ -56,7 +61,7 @@ affinity: {}
 # itself still buys durability/replay for any FUTURE subscriber.
 jetstream:
   enabled: true
-  serverUrl: "nats://pleme-nats.nats.svc:4222"
+  serverUrl: "nats://nats-pleme-nats.nats.svc:4222"
   streams:
     BREATHE_EVENTS:
       subjects:
