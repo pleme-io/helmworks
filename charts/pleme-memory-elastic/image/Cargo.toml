@@ -1,0 +1,46 @@
+[package]
+name = "pleme-memory-elastic"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.89"
+license = "MIT"
+authors = ["drzzln <drzzln@protonmail.com>"]
+description = "Bidirectional memory-limit band controller — the memory dimension of theory/BREATHABILITY.md"
+repository = "https://github.com/pleme-io/helmworks"
+
+[[bin]]
+name = "pleme-memory-elastic"
+path = "src/main.rs"
+
+[dependencies]
+# Kubernetes client + types + CRD derive
+kube         = { version = "0.96", features = ["runtime", "client", "derive", "rustls-tls"], default-features = false }
+k8s-openapi  = { version = "0.23", features = ["latest"] }
+schemars     = "0.8"
+# Async runtime
+tokio        = { version = "1.40", features = ["macros", "rt-multi-thread"] }
+# HTTP client for Prometheus/VictoriaMetrics queries
+reqwest      = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+# CLI / config / serde
+clap         = { version = "4.5", features = ["derive", "env"] }
+serde        = { version = "1.0", features = ["derive"] }
+serde_json   = "1.0"
+# Errors + logging
+anyhow       = "1.0"
+thiserror    = "2.0"
+tracing      = "0.1"
+tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
+# Time math (cooldown)
+chrono       = { version = "0.4", default-features = false, features = ["clock", "serde"] }
+# byte-quantity parsing ("512Mi" → bytes) + rendering
+parse-size   = "1.1"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "z"
+strip = true
+panic = "abort"
+
+[lints.clippy]
+pedantic = "warn"
