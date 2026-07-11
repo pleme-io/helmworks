@@ -1,0 +1,57 @@
+{{- if .Values.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: escuta-breathe-bridge
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: pleme-escuta-breathe-bridge
+    app.kubernetes.io/component: bridge
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: Recreate   # singleton; two replicas would double-publish every event
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: pleme-escuta-breathe-bridge
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: pleme-escuta-breathe-bridge
+        app.kubernetes.io/component: bridge
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: bridge
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: ESCUTA_NATS_URL
+              value: {{ .Values.natsUrl | quote }}
+            - name: RUST_LOG
+              value: {{ .Values.logLevel | quote }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+{{- end }}

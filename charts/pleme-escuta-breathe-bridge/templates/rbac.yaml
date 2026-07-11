@@ -1,0 +1,37 @@
+{{- if .Values.enabled }}
+# escuta-breathe-bridge is READ-ONLY on every kind it watches — it mines
+# status changes into the nervous system, it never mutates a band or a pool
+# (that stays breathe-controller's job, pleme-breathe's own ClusterRole).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: pleme-escuta-breathe-bridge
+  labels:
+    app.kubernetes.io/name: pleme-escuta-breathe-bridge
+rules:
+  - apiGroups: ["breathe.pleme.io"]
+    resources:
+      - "memorybands"
+      - "cpubands"
+      # BreatheCloudPool is cluster-scoped (no `namespaced` in its
+      # #[kube(...)] attrs, breathe-crd/src/lib.rs) — confirmed by reading
+      # the source, not assumed; the same get/list/watch verbs on a
+      # ClusterRole cover both scopes with no special-casing.
+      - "breathecloudpools"
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: pleme-escuta-breathe-bridge
+  labels:
+    app.kubernetes.io/name: pleme-escuta-breathe-bridge
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: pleme-escuta-breathe-bridge
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.serviceAccount.name }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

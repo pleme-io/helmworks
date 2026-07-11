@@ -1,0 +1,28 @@
+apiVersion: v2
+name: pleme-escuta-breathe-bridge
+description: |
+  The escuta-breathe-bridge — the first real escuta consumer/producer: watches
+  MemoryBand/CpuBand/BreatheCloudPool status changes on the cluster and
+  publishes each one onto the NATS reactive-nervous-system (escuta.<schema>.
+  <table>.<op>). Self-contained (no pleme-lib RBAC/deployment templates —
+  mirrors pleme-breathe's own shape); depends on pleme-lib ONLY for the
+  BREATHE_EVENTS JetStream stream declaration (pleme-lib.jetstream).
+type: application
+version: "0.1.0"
+appVersion: "0.1.0"
+dependencies:
+  - name: pleme-lib
+    version: ">=0.18.0"
+    repository: "file://../pleme-lib"
+keywords:
+  - escuta
+  - breathe
+  - nervous-system
+  - nats
+  - jetstream
+home: https://github.com/pleme-io/escuta
+sources:
+  - https://github.com/pleme-io/escuta
+maintainers:
+  - name: pleme-io
+    email: team@pleme.io
