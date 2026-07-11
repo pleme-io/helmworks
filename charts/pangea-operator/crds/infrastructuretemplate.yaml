@@ -495,6 +495,43 @@ spec:
                     minimum: 0.0
                     type: integer
                 type: object
+              secretFiles:
+                description: |-
+                  Secrets resolved into ephemeral, pod-local files under the template's tofu workspace — written once per Initializing-phase reconcile, immediately before `tofu init`, by `controller::template::secret_files::write_secret_files`. A rendered template references each by `${file("${path.module}/<name>")}` HCL interpolation.
+
+                  Generalizes the shape `handle_compiling`'s git-auth resolution already proves for git credentials (resolve a Secret → write to a file in the workspace → reference from rendered HCL) to ANY named secret a workspace's Ruby needs as a file on disk — not just git auth. First consumer: a raw (non-cloud-managed) `kubernetes { token = ... }` provider block, which has no Ruby `provider :xyz do` surface to inline an `ENV.fetch` into and isn't provider-block-shaped credential data (region, api_token, …) either.
+
+                  Deliberately OUTSIDE the `ProviderCredentials`/`ProviderKind` exhaustiveness chain (see that type's own doc comment) — this is not a provider credential the operator renders into `providers.tf.json`, it's an arbitrary named file the rendered HCL reads via `file(...)`. Never written to git; lives only in the pod-local emptyDir workspace (★★ MAGMA-NATIVE's one sanctioned filesystem reach — no new persistence surface, no new secret-at-rest concern beyond what `_git_user`/`_git_pass` already establish).
+
+                  Skipped entirely on the magma path (`load_config_routed` reads providers from the resolved config, never from workspace files) — same gating as `write_provider_config`. Empty (default) = no secret files written; existing templates pay nothing for this.
+                items:
+                  description: One named secret resolved into a workspace file. See `InfrastructureTemplateSpec::secret_files`.
+                  properties:
+                    key:
+                      description: Key within the Secret's `.data` map.
+                      type: string
+                    name:
+                      description: Filename written under the workspace directory, referenced from rendered HCL as `${file("${path.module}/<name>")}`. Must be a bare filename — no path separators, no `..`, no leading `.` (validated at write time by `secret_files::write_secret_files`, not at the schema layer, to keep the CRD a plain string field rather than a regex-pattern one).
+                      type: string
+                    secretRef:
+                      description: Secret to read the value from.
+                      properties:
+                        name:
+                          description: Name of the Secret.
+                          type: string
+                        namespace:
+                          description: Namespace of the Secret (defaults to same namespace as the resource).
+                          nullable: true
+                          type: string
+                      required:
+                      - name
+                      type: object
+                  required:
+                  - key
+                  - name
+                  - secretRef
+                  type: object
+                type: array
               settlingPolicy:
                 description: |-
                   Bounds on how long the operator may keep cycling through drift→apply→drift loops before declaring the template stuck. State settling is the operator's primary success metric — when it can't reach a settled state after the configured number of cycles, this is escalated loudly via a `Settled=False` condition + Warning event.
@@ -589,7 +626,6 @@ spec:
                   properties:
                     mockOutput:
                       description: Plan-time fallback value used when the upstream template's real output isn't available yet (Terragrunt `mock_outputs` parity, P2). With a mock, this template can PLAN before its upstream has applied; the operator still gates APPLY until the real output lands (a mocked value is never applied). `null`/absent ⇒ the upstream must be Ready before this template proceeds.
-                      nullable: true
                       x-kubernetes-preserve-unknown-fields: true
                     outputKey:
                       description: Key in the source template's status.outputs to read.
