@@ -18,6 +18,7 @@ embedded mode and drop the compiler sidecar from the pod spec.
 {{- end -}}
 {{- $gemAuthSecretName := (((.Values.gemAuth).tokenSecret).name | default "") -}}
 {{- $gemAuthSecretKey := (((.Values.gemAuth).tokenSecret).key | default "token") -}}
+{{- $magmaPg := ((.Values.executor.magma).postgres) | default dict -}}
 {{- $executorEnv := list
   (dict "name" "RUST_LOG" "value" (.Values.logLevel | default "pangea_operator=info"))
   (dict "name" "TOFU_BINARY" "value" (.Values.executor.tofu.binary | default "/usr/local/bin/tofu"))
@@ -57,6 +58,19 @@ embedded mode and drop the compiler sidecar from the pod spec.
 {{- if hasKey ((.Values.executor).magma) "planCheckpoint" }}
 {{- $executorEnv = append $executorEnv (dict "name" "PANGEA_MAGMA_PLAN_CHECKPOINT" "value" (printf "%v" .Values.executor.magma.planCheckpoint)) }}
 {{- end }}
+{{/* M1 convenience surface (theory/MAGMA-POSTGRES-LIFECYCLE.md M1):
+     when executor.magma.postgres.host is set, render the PG* env vars
+     the operator's main.rs reads to wire its state-backend pool,
+     instead of every consumer hand-authoring them. ($magmaPg is
+     declared at the top of this file so it's in scope for the
+     pg-wait initContainer block further down too.) */}}
+{{- if ne ($magmaPg.host | default "") "" }}
+{{- $executorEnv = append $executorEnv (dict "name" "PGHOST" "value" $magmaPg.host) }}
+{{- $executorEnv = append $executorEnv (dict "name" "PGPORT" "value" (printf "%v" ($magmaPg.port | default 5432))) }}
+{{- $executorEnv = append $executorEnv (dict "name" "PGDATABASE" "value" ($magmaPg.database | default "pangea_state")) }}
+{{- $executorEnv = append $executorEnv (dict "name" "PGUSER" "valueFrom" (dict "secretKeyRef" (dict "name" $magmaPg.passwordSecretName "key" ($magmaPg.userSecretKey | default "username")))) }}
+{{- $executorEnv = append $executorEnv (dict "name" "PGPASSWORD" "valueFrom" (dict "secretKeyRef" (dict "name" $magmaPg.passwordSecretName "key" ($magmaPg.passwordSecretKey | default "password")))) }}
+{{- end }}
 {{- end }}
 {{- if and $useEmbedded (ne $gemAuthSecretName "") }}
 {{- $executorEnv = append $executorEnv (dict
@@ -82,6 +96,33 @@ embedded mode and drop the compiler sidecar from the pod spec.
 {{- $cacheMount := dict "name" "pangea-gem-cache" "mountPath" $cacheDir }}
 {{- $_ := set $mergedValues "volumes" (append $existingVolumes $cacheVolume) }}
 {{- $_ := set $mergedValues "volumeMounts" (append $existingMounts $cacheMount) }}
+{{- end }}
+
+{{/* M1 convenience surface, continued: the pg-wait initContainer
+     (★★ UNREPRESENTABILITY gate — see the postgres.pgWait comment in
+     values.yaml). Prepended ahead of any consumer-supplied
+     initContainers so it is always the earliest gate. */}}
+{{- if and (ne ($magmaPg.host | default "") "") (($magmaPg.pgWait).enabled | default true) }}
+{{- $pgWait := dict
+    "name" "pg-wait"
+    "image" (($magmaPg.pgWait).image | default "ghcr.io/cloudnative-pg/postgresql:16.6")
+    "imagePullPolicy" "IfNotPresent"
+    "command" (list "pg_isready"
+        "-h" $magmaPg.host
+        "-p" (printf "%v" ($magmaPg.port | default 5432))
+        "-d" ($magmaPg.database | default "pangea_state")
+        "-U" "postgres"
+        "-t" (printf "%v" (($magmaPg.pgWait).timeoutSeconds | default 10)))
+    "securityContext" (dict
+        "allowPrivilegeEscalation" false
+        "runAsNonRoot" true
+        "capabilities" (dict "drop" (list "ALL"))
+        "seccompProfile" (dict "type" "RuntimeDefault"))
+    "resources" (dict
+        "requests" (dict "cpu" "10m" "memory" "16Mi")
+        "limits" (dict "cpu" "50m" "memory" "32Mi")) }}
+{{- $existingInit := index $mergedValues "initContainers" | default (list) }}
+{{- $_ := set $mergedValues "initContainers" (prepend $existingInit $pgWait) }}
 {{- end }}
 
 {{- $ctx := deepCopy . }}

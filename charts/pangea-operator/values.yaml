@@ -228,6 +228,38 @@ executor:
     # the operator's MagmaExecutorConfig once that ships.
     planCheckpoint: true
 
+    # -- Convenience surface (theory/MAGMA-POSTGRES-LIFECYCLE.md M1):
+    # when `host` is set, the chart renders the PGHOST/PGPORT/PGUSER/
+    # PGDATABASE/PGPASSWORD env vars AND a pg-wait initContainer
+    # automatically, instead of every consumer hand-authoring ~30
+    # lines of env:/initContainers: YAML (the shape a first magma
+    # cutover hand-wrote before this landed). Leave `host` empty
+    # (default) to render neither — existing deployments that wire
+    # these directly via top-level `env:`/`initContainers:` are
+    # unaffected; this is purely additive.
+    postgres:
+      # -- Empty disables this whole convenience block.
+      host: ""
+      port: 5432
+      database: pangea_state
+      user: pangea
+      # -- Secret holding the owner role's credentials (basic-auth
+      # shape: `username`/`password` keys by default). Required when
+      # `host` is set.
+      passwordSecretName: ""
+      passwordSecretKey: password
+      userSecretKey: username
+      # -- ★★ UNREPRESENTABILITY pg-wait gate: the operator must not
+      # start until the DB genuinely accepts connections, or a
+      # co-restart race can silently strand it on the tofu fallback for
+      # the pod's entire life (the exact incident this convenience
+      # block exists to make impossible by construction for every
+      # future consumer, not just the one that hit it first).
+      pgWait:
+        enabled: true
+        image: ghcr.io/cloudnative-pg/postgresql:16.6
+        timeoutSeconds: 10
+
 # -- Log level + filter for the operator's tracing-subscriber. Comma-
 # separated `<target>=<level>` directives per
 # https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html.
