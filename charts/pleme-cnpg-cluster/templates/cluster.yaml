@@ -34,11 +34,17 @@ spec:
     enablePodMonitor: true
   {{- end }}
 
-  {{- if .Values.affinity.enabled }}
+  {{- if or .Values.affinity.enabled .Values.tolerations }}
   affinity:
+    {{- if .Values.affinity.enabled }}
     enablePodAntiAffinity: true
     topologyKey: {{ .Values.affinity.topologyKey }}
     podAntiAffinityType: preferred
+    {{- end }}
+    {{- with .Values.tolerations }}
+    tolerations:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
   {{- end }}
 
   {{- if .Values.walArchive.enabled }}

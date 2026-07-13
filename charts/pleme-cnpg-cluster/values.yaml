@@ -54,6 +54,14 @@ affinity:
   enabled: true
   topologyKey: kubernetes.io/hostname
 
+# Pod tolerations for the CNPG instance pods (rendered into
+# spec.affinity.tolerations on the Cluster CR — CNPG's own API, not a
+# chart invention). Empty by default; most fleet clusters have no
+# tainted nodes. Needed on a single-node cluster carrying a workload-
+# gating taint (e.g. a breathe auction-pool NoSchedule taint) where
+# core cluster machinery like this database must still schedule.
+tolerations: []
+
 # Top-level metadata labels stamped onto every emitted resource. Use
 # this to surface fleet-wide identity (cluster=rio, owner=…) without
 # polluting the chart's own templating labels.
