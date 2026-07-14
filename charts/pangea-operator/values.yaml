@@ -229,16 +229,36 @@ executor:
     planCheckpoint: true
 
     # -- Convenience surface (theory/MAGMA-POSTGRES-LIFECYCLE.md M1):
-    # when `host` is set, the chart renders the PGHOST/PGPORT/PGUSER/
-    # PGDATABASE/PGPASSWORD env vars AND a pg-wait initContainer
-    # automatically, instead of every consumer hand-authoring ~30
-    # lines of env:/initContainers: YAML (the shape a first magma
-    # cutover hand-wrote before this landed). Leave `host` empty
-    # (default) to render neither — existing deployments that wire
-    # these directly via top-level `env:`/`initContainers:` are
+    # when `host` or `clusterName` is set, the chart renders the
+    # PGHOST/PGPORT/PGUSER/PGDATABASE/PGPASSWORD env vars AND a
+    # pg-wait initContainer automatically, instead of every consumer
+    # hand-authoring ~30 lines of env:/initContainers: YAML (the shape
+    # a first magma cutover hand-wrote before this landed). Leave both
+    # empty (default) to render neither — existing deployments that
+    # wire these directly via top-level `env:`/`initContainers:` are
     # unaffected; this is purely additive.
     postgres:
-      # -- Empty disables this whole convenience block.
+      # -- Preferred: the CNPG Cluster's name, in this release's own
+      # namespace. When set and `host` is empty, the chart DERIVES
+      # `host` as `<clusterName>-rw.<namespace>.svc.cluster.local`
+      # — CNPG's own deterministic Service-naming convention (fleet
+      # doctrine: theory/CONFIGURATION-MANAGEMENT.md §IX confirms
+      # "discovery" here always means confirming a well-known,
+      # deterministic name, never enumerating by label — there is no
+      # live cluster-introspection primitive in the fleet for this and
+      # reaching for one would be reinventing a name Kubernetes'
+      # Service DNS already guarantees). Prefer this over hand-typing
+      # `host` — a hand-typed FQDN is exactly the kind of value that
+      # drifts or gets typo'd (a real, named incident this session:
+      # a hand-typed Secret name collided with CNPG's own reserved
+      # `<clusterName>-superuser` convention; deriving from one
+      # `clusterName` value removes that whole class of error for the
+      # host coordinate the same way).
+      clusterName: ""
+      # -- Escape hatch: set directly to override the derived value
+      # (e.g. a cross-namespace Postgres, or a non-CNPG backend whose
+      # Service name doesn't follow the `-rw` convention). Takes
+      # precedence over `clusterName` when non-empty.
       host: ""
       port: 5432
       database: pangea_state

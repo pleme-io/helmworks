@@ -19,6 +19,13 @@ embedded mode and drop the compiler sidecar from the pod spec.
 {{- $gemAuthSecretName := (((.Values.gemAuth).tokenSecret).name | default "") -}}
 {{- $gemAuthSecretKey := (((.Values.gemAuth).tokenSecret).key | default "token") -}}
 {{- $magmaPg := ((.Values.executor.magma).postgres) | default dict -}}
+{{/* Derive the CNPG Service host from clusterName (its own deterministic
+     -rw naming convention) when host isn't set directly — see the
+     clusterName comment in values.yaml for the full rationale. */}}
+{{- $magmaPgHost := $magmaPg.host | default "" -}}
+{{- if and (eq $magmaPgHost "") (ne ($magmaPg.clusterName | default "") "") -}}
+{{- $magmaPgHost = printf "%s-rw.%s.svc.cluster.local" $magmaPg.clusterName .Release.Namespace -}}
+{{- end -}}
 {{- $executorEnv := list
   (dict "name" "RUST_LOG" "value" (.Values.logLevel | default "pangea_operator=info"))
   (dict "name" "TOFU_BINARY" "value" (.Values.executor.tofu.binary | default "/usr/local/bin/tofu"))
@@ -59,13 +66,14 @@ embedded mode and drop the compiler sidecar from the pod spec.
 {{- $executorEnv = append $executorEnv (dict "name" "PANGEA_MAGMA_PLAN_CHECKPOINT" "value" (printf "%v" .Values.executor.magma.planCheckpoint)) }}
 {{- end }}
 {{/* M1 convenience surface (theory/MAGMA-POSTGRES-LIFECYCLE.md M1):
-     when executor.magma.postgres.host is set, render the PG* env vars
-     the operator's main.rs reads to wire its state-backend pool,
-     instead of every consumer hand-authoring them. ($magmaPg is
-     declared at the top of this file so it's in scope for the
-     pg-wait initContainer block further down too.) */}}
-{{- if ne ($magmaPg.host | default "") "" }}
-{{- $executorEnv = append $executorEnv (dict "name" "PGHOST" "value" $magmaPg.host) }}
+     when executor.magma.postgres.host or .clusterName is set, render
+     the PG* env vars the operator's main.rs reads to wire its
+     state-backend pool, instead of every consumer hand-authoring
+     them. ($magmaPg/$magmaPgHost are declared at the top of this file
+     so they're in scope for the pg-wait initContainer block further
+     down too.) */}}
+{{- if ne $magmaPgHost "" }}
+{{- $executorEnv = append $executorEnv (dict "name" "PGHOST" "value" $magmaPgHost) }}
 {{- $executorEnv = append $executorEnv (dict "name" "PGPORT" "value" (printf "%v" ($magmaPg.port | default 5432))) }}
 {{- $executorEnv = append $executorEnv (dict "name" "PGDATABASE" "value" ($magmaPg.database | default "pangea_state")) }}
 {{- $executorEnv = append $executorEnv (dict "name" "PGUSER" "valueFrom" (dict "secretKeyRef" (dict "name" $magmaPg.passwordSecretName "key" ($magmaPg.userSecretKey | default "username")))) }}
@@ -102,13 +110,13 @@ embedded mode and drop the compiler sidecar from the pod spec.
      (★★ UNREPRESENTABILITY gate — see the postgres.pgWait comment in
      values.yaml). Prepended ahead of any consumer-supplied
      initContainers so it is always the earliest gate. */}}
-{{- if and (ne ($magmaPg.host | default "") "") (($magmaPg.pgWait).enabled | default true) }}
+{{- if and (ne $magmaPgHost "") (($magmaPg.pgWait).enabled | default true) }}
 {{- $pgWait := dict
     "name" "pg-wait"
     "image" (($magmaPg.pgWait).image | default "ghcr.io/cloudnative-pg/postgresql:16.6")
     "imagePullPolicy" "IfNotPresent"
     "command" (list "pg_isready"
-        "-h" $magmaPg.host
+        "-h" $magmaPgHost
         "-p" (printf "%v" ($magmaPg.port | default 5432))
         "-d" ($magmaPg.database | default "pangea_state")
         "-U" "postgres"
