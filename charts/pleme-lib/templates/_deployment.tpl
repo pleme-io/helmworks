@@ -66,8 +66,9 @@ spec:
       {{- end }}
       securityContext:
         {{- include "pleme-lib.podSecurityContext" . | nindent 8 }}
-      {{- if or (.Values.shinkaWait).enabled (gt (len (.Values.initContainers | default list)) 0) }}
+      {{- if or (.Values.preflight).enabled (.Values.shinkaWait).enabled (gt (len (.Values.initContainers | default list)) 0) }}
       initContainers:
+        {{- include "pleme-lib.preflightInitContainer" . | nindent 8 }}
         {{- include "pleme-lib.shinkaWaitInitContainer" . | nindent 8 }}
         {{- with .Values.initContainers }}
         {{- toYaml . | nindent 8 }}

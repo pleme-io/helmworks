@@ -191,6 +191,21 @@ shinkaWait:
       cpu: 100m
       memory: 32Mi
 
+# -- Preflight init container (verifies declared come-up requirements before the app starts)
+preflight:
+  enabled: false
+  image: ghcr.io/pleme-io/preflight:amd64-latest
+  imagePullPolicy: IfNotPresent
+  spec: {}
+  extraEnv: []
+  resources:
+    requests:
+      cpu: 10m
+      memory: 16Mi
+    limits:
+      cpu: 100m
+      memory: 32Mi
+
 # -- Monitoring configuration
 monitoring:
   # -- Enable ServiceMonitor creation
