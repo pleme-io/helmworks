@@ -221,11 +221,20 @@ spec:
           configMap:
             name: {{ $fullname }}-initdb
         {{- end }}
+  # volumeClaimTemplates is an IMMUTABLE StatefulSet field: the apiserver
+  # rejects any update to it (server-side apply forbids all StatefulSet spec
+  # changes except replicas/template/updateStrategy/...). pleme-lib.labels
+  # embeds version-bearing labels (helm.sh/chart, app.kubernetes.io/version),
+  # so using it here churns the PVC metadata on every chart bump and wedges
+  # the upgrade ("the field is immutable") — hit + fixed the same way in
+  # pleme-nats 0.3.2. Pin the PVC labels to the version-STABLE selector set
+  # (name + instance), identical to spec.selector.matchLabels, so a version
+  # bump never touches this immutable field.
   volumeClaimTemplates:
     - metadata:
         name: data
         labels:
-          {{- include "pleme-lib.labels" . | nindent 10 }}
+          {{- include "pleme-lib.selectorLabels" . | nindent 10 }}
           breathe.pleme.io/expandable: "true"
       spec:
         accessModes: [ReadWriteOnce]

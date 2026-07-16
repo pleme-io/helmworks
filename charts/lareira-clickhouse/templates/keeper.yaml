@@ -216,11 +216,15 @@ spec:
         - name: config
           configMap:
             name: {{ $keeperName }}-config
+  # volumeClaimTemplates is an IMMUTABLE StatefulSet field (see statefulset.yaml
+  # for the full rationale + the pleme-nats 0.3.2 precedent). Pin the PVC labels
+  # to the version-STABLE selector set (name + instance) instead of the full
+  # pleme-lib.labels bundle, so a chart version bump never touches this field.
   volumeClaimTemplates:
     - metadata:
         name: data
         labels:
-          {{- include "pleme-lib.labels" . | nindent 10 }}
+          {{- include "pleme-lib.selectorLabels" . | nindent 10 }}
           app.kubernetes.io/component: clickhouse-keeper
           breathe.pleme.io/expandable: "true"
       spec:

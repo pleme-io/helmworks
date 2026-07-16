@@ -18,6 +18,20 @@ tests:
           path: spec.volumeClaimTemplates[0].metadata.labels["breathe.pleme.io/expandable"]
           value: "true"
 
+  - it: keeps the data-tier PVC labels version-stable (no chart/version labels — the immutable-field wedge pleme-nats 0.3.2 already hit)
+    template: templates/statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].metadata.labels
+          value:
+            app.kubernetes.io/name: lareira-clickhouse
+            app.kubernetes.io/instance: RELEASE-NAME
+            breathe.pleme.io/expandable: "true"
+      - notExists:
+          path: spec.volumeClaimTemplates[0].metadata.labels["helm.sh/chart"]
+      - notExists:
+          path: spec.volumeClaimTemplates[0].metadata.labels["app.kubernetes.io/version"]
+
   - it: KEDA wakes the StatefulSet 0->1 on NATS-JetStream lag (wake-on-data) in tap mode
     template: templates/breathability.yaml
     documentSelector:
@@ -145,6 +159,27 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].resources.limits.memory
           value: 1Gi
+
+  - it: keeps the Keeper PVC labels version-stable (no chart/version labels — the immutable-field wedge pleme-nats 0.3.2 already hit)
+    set:
+      clickhouse.keeper.enabled: true
+      clickhouse.keeper.voters: 3
+    template: templates/keeper.yaml
+    documentSelector:
+      path: kind
+      value: StatefulSet
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].metadata.labels
+          value:
+            app.kubernetes.io/name: lareira-clickhouse
+            app.kubernetes.io/instance: RELEASE-NAME
+            app.kubernetes.io/component: clickhouse-keeper
+            breathe.pleme.io/expandable: "true"
+      - notExists:
+          path: spec.volumeClaimTemplates[0].metadata.labels["helm.sh/chart"]
+      - notExists:
+          path: spec.volumeClaimTemplates[0].metadata.labels["app.kubernetes.io/version"]
 
   - it: lake mode Keeper spreads voters across nodes + AZs (spot-survivable quorum)
     set:
