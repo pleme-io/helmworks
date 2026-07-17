@@ -1,0 +1,15 @@
+{{/*
+Breathe resource-homeostasis bands for this service's own Deployment.
+Shadow-first by default (see values.yaml's breathe.memory/cpu.dryRun) —
+per ★★ Breathability, every workload is breathe-managed by default;
+this is the fleet-wide "solve once" wiring point for every
+pleme-microservice consumer (auth/bis/gator/kfm/kfm2/logan/sdr/uam and
+any future one), not a one-off per-chart template.
+
+Distinct from templates/breathability.yaml (KEDA NATS-JetStream
+scale-to-zero for sui's agent-mode replica count) — that is a
+different, valid, non-substitute primitive for the horizontal axis and
+stays as-is. This file wires the vertical (resources.limits) axis that
+pleme-sui shipped with ZERO coverage of until now.
+*/}}
+{{- include "pleme-lib.breatheBand" . }}

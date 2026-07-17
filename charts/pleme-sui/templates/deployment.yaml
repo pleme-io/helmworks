@@ -60,6 +60,7 @@ spec:
             - cache
             - serve
             - --listen={{ .Values.mode.cache.listen }}
+            - --store-path={{ .Values.mode.cache.storePath }}
           {{- else if .Values.mode.agent.enabled }}
           # Agent-only mode
           args:
@@ -117,6 +118,10 @@ spec:
               mountPath: /tmp
             - name: eval-cache
               mountPath: /var/lib/sui
+          {{- else if .Values.mode.cache.enabled }}
+          volumeMounts:
+            - name: cache-store
+              mountPath: {{ .Values.mode.cache.storePath }}
           {{- end }}
           {{- end }}
           {{- with .Values.resources }}
@@ -155,4 +160,9 @@ spec:
         - name: eval-cache
           emptyDir:
             sizeLimit: 20Gi
+      {{- else if .Values.mode.cache.enabled }}
+      volumes:
+        - name: cache-store
+          emptyDir:
+            sizeLimit: {{ .Values.mode.cache.storeSizeLimit }}
       {{- end }}

@@ -41,6 +41,12 @@ mode:
     signing:
       secretName: ""
       secretKey: signing-key
+    # Cache-only (non-agent) deployment mode's on-disk store. Without
+    # this, `sui cache serve` writes into the container's unmanaged
+    # root filesystem — no sizing, no eviction floor. Consumed by
+    # templates/deployment.yaml's cache-only args + cache-store volume.
+    storePath: "/var/lib/sui/cache"
+    storeSizeLimit: "20Gi"
 
 # --- Extra environment ---
 # Additional container env vars appended to the fixed set. The super-cache-ci
@@ -60,6 +66,23 @@ resources:
   limits:
     cpu: 4000m
     memory: 8Gi
+
+# breathe resource-homeostasis bands (breathe.pleme.io) — carves
+# resources.limits.{memory,cpu} to hold this Deployment at a target
+# utilization band. Shadow-first (dryRun: true): the controller
+# decides + reports but never mutates until an operator flips it live
+# via the breathe MCP, matching every other pleme-microservice
+# consumer's safety posture. See helmworks/charts/pleme-lib/templates/
+# _breatheband.tpl for the full field set.
+breathe:
+  enabled: true
+  memory:
+    dryRun: true
+    disruptionPolicy: restartFreeOnly
+  cpu:
+    enabled: true
+    dryRun: true
+    disruptionPolicy: restartFreeOnly
 
 # --- Ports ---
 ports:
