@@ -1,0 +1,20 @@
+{{- if .Values.services.registry.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+    app.kubernetes.io/component: oci-registry
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "pleme-lib.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: registry
+      port: {{ .Values.services.registry.port }}
+      targetPort: registry
+      protocol: TCP
+{{- end }}

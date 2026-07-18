@@ -1,0 +1,202 @@
+# pleme-porto default values
+# porto — the pleme-io-native OCI registry server (theory/PORTO.md). M0 ships the
+# sui-cache-backed store over a PVC: a dedicated PersistentVolume becomes the
+# durable blob CAS an OCI /v2/ registry serves. The server is a Rust binary
+# (sui-registry) over axum; the bytes an image push writes and the bytes a pull
+# reads are the same content-addressed store that holds Nix NARs.
+
+image:
+  repository: ghcr.io/pleme-io/porto
+  # ★ AUTOBUMP: exact tag pinned by Flux image-automation, never :latest.
+  tag: "amd64-latest"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+replicaCount: 1
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# --- porto registry configuration -----------------------------------------
+# Rendered into /etc/porto/config.yaml (the typed serde RegistryConfig shape:
+# deny_unknown_fields — an unknown key is a parse-time rejection). NOTE: the
+# shipped sui-registry binary drives its live listen address from the
+# PORTO_LISTEN env var (the shikumi runtime tier); the config.yaml ConfigMap is
+# the typed config-plane surface + the destination CONFIG_PATH loader's input.
+# See "pending-porto: config-file-loader" in NOTES.txt.
+porto:
+  # The OCI /v2/ listen address (containerPort 5000). Drives PORTO_LISTEN.
+  listen: "0.0.0.0:5000"
+  # Max accepted blob/manifest body size in bytes. "" (empty) disables the
+  # limit — real image layers routinely exceed axum's 2 MiB default, so the
+  # prescribed default is no ceiling (layers stream). Drives PORTO_MAX_BODY_BYTES
+  # only when set.
+  maxBodyBytes: ""
+  # Log filter (RUST_LOG).
+  logLevel: info
+
+# --- Persistence ----------------------------------------------------------
+# porto's durable blob CAS (sui-cache StorageBackend rooted here). Durability is
+# the StorageClass's — porto does not replicate at M0 (the M0 store tier;
+# theory/PORTO.md §4: sui-store is the durable transactional destination).
+persistence:
+  enabled: true
+  # storageClass: local-path   # rio uses local-path-provisioner
+  size: 5Gi
+  accessMode: ReadWriteOnce
+  # Where the blob store is rooted inside the container (also PORTO_STORE_ROOT
+  # for the destination loader; the M0 binary defaults its store under this
+  # mount).
+  root: /var/lib/porto
+
+# --- Services -------------------------------------------------------------
+# One logical endpoint: the OCI /v2/ registry API. porto serves everything —
+# version check, blobs, manifests, tags, referrers, and the upload FSM — on this
+# single port. There is no separate health/metrics port today (the honest
+# liveness signal porto emits is `GET /v2/` → 200; see health + serviceMonitor).
+services:
+  registry:
+    enabled: true
+    port: 5000
+
+# --- Resources ------------------------------------------------------------
+resources:
+  requests:
+    cpu: 25m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+# --- Probes ---------------------------------------------------------------
+# porto has NO dedicated /health endpoint — the one true liveness signal it
+# emits is the OCI base endpoint `GET /v2/` (end-1: 200 + the API-version
+# header). Probe that, on the registry port. (pending-porto: a dedicated
+# /health/live + /health/ready + /metrics surface is the destination.)
+health:
+  port: registry
+  livenessPath: /v2/
+  readinessPath: /v2/
+  livenessInitialDelay: 5
+  livenessPeriod: 20
+  livenessFailureThreshold: 3
+  readinessInitialDelay: 3
+  readinessPeriod: 10
+  readinessFailureThreshold: 3
+
+# --- Pod placement --------------------------------------------------------
+nodeSelector: {}
+tolerations: []
+affinity: {}
+podAnnotations: {}
+
+updateStrategy:
+  type: RollingUpdate
+podManagementPolicy: OrderedReady
+
+# --- ServiceMonitor (Prometheus operator) ---------------------------------
+# OFF by default: porto does not emit a /metrics endpoint yet
+# (pending-porto: metrics). Flip on once porto serves Prometheus metrics.
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  scrapeTimeout: 10s
+  # additionalLabels: {}
+
+# --- helm test ------------------------------------------------------------
+# `helm test` runs a Pod that drives the OCI /v2/ lifecycle against the live
+# registry: version-check → blob monolithic PUT (by digest) → blob HEAD/GET →
+# manifest PUT (by tag) → manifest GET → tags/list → GET absent 404. Gates the
+# release on a working registry. M0's data plane is anonymous on the cluster
+# network (auth via saguão is M3), so a plain curl drives the /v2/ verbs.
+tests:
+  enabled: true
+  image: curlimages/curl:8.11.1
+
+# --- Breathability / carving (theory/BREATHABILITY.md) --------------------
+# What makes porto a fully breathable, infinitely-expandable OCI store. breathe
+# holds the server in the 80/20 utilization band by carving its limits
+# (memory/cpu) and GROWS the blob-store PVC before it fills (storage). SHADOW-
+# first (dryRun: true) — observe + attest, then promote per band. Requires the
+# breathe controller + breathe.pleme.io/v1 CRDs.
+breathe:
+  enabled: true
+  memory:
+    enabled: true
+    dryRun: true            # SHADOW; flip false to let breathe own limits.memory
+    setpoint: 0.80
+    growAbove: 0.85
+    shrinkBelow: 0.70
+    growFactor: 1.25
+    shrinkFactor: 0.90
+    floor: "64Mi"
+    ceiling: "512Mi"
+    cooldownSeconds: 300
+    maxStalenessSeconds: 120
+    disruptionPolicy: allowRestart
+    promotion: promote-candidate
+  cpu:
+    enabled: true
+    dryRun: true
+    setpoint: 0.80
+    growAbove: 0.85
+    shrinkBelow: 0.70
+    growFactor: 1.25
+    shrinkFactor: 0.90
+    floor: "25m"
+    ceiling: "2000m"
+    cooldownSeconds: 300
+    maxStalenessSeconds: 120
+    disruptionPolicy: allowRestart
+    promotion: promote-candidate
+  storage:
+    # GrowOnly: the PVC claims a bigger slice of the node disk as the blob store
+    # fills — the "infinitely expandable" lever. Needs allowVolumeExpansion on
+    # the StorageClass. floor defaults to persistence.size; ceiling caps growth.
+    enabled: true
+    dryRun: true
+    setpoint: 0.80
+    growAbove: 0.85
+    shrinkBelow: 0.70
+    growFactor: 1.25
+    shrinkFactor: 0.90
+    floor: ""               # default: persistence.size
+    ceiling: "500Gi"
+    cooldownSeconds: 600
+    maxStalenessSeconds: 300
+    disruptionPolicy: restartFreeOnly
+    promotion: promote-candidate
+
+# --- Node-level expansion (how the storage band reaches "infinitely
+#     expandable even at the node level") ---------------------------------
+# The StorageBand above grows the blob-store PVC GrowOnly, which claims a bigger
+# slice of the *node's* disk (local-path) — that IS the node-level expansion
+# lever. Its hard ceiling is the cluster's per-node BreatheNodePool charter
+# (breathe.pleme.io/v1 BreatheNodePool, one per node, owned by the cluster infra
+# layer — NOT shipped per-app to avoid charter conflicts). To expand further,
+# raise the node's disk / the BreatheNodePool ceiling in the cluster infra, and
+# the StorageBand carves into the new headroom automatically. For multi-node
+# horizontal growth, back porto with a tiered/distributed sui-cache
+# StorageBackend (Redis L1→PG L2→object L3) and scale out.
+
+# --- NetworkPolicy --------------------------------------------------------
+# pleme-lib baseline (deny-all + DNS + Prometheus). Add ingress allowlist for
+# the namespaces whose pods push/pull images against the /v2/ API (e.g. a
+# super-cache-ci build namespace, or the doca client).
+networkPolicy:
+  enabled: true
+  # Extra ingress — list of {from: [...], ports: [...]}. Example: allow a build
+  # namespace to reach the OCI /v2/ API:
+  #   - from:
+  #       - namespaceSelector:
+  #           matchLabels:
+  #             kubernetes.io/metadata.name: super-cache-ci
+  #     ports:
+  #       - protocol: TCP
+  #         port: 5000
+  extraIngress: []

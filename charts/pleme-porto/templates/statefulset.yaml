@@ -1,0 +1,110 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+  annotations:
+    {{- include "pleme-lib.fluxcdPruneDisabled" . | nindent 4 }}
+spec:
+  serviceName: {{ include "pleme-lib.fullname" . }}
+  replicas: {{ .Values.replicaCount | default 1 }}
+  podManagementPolicy: {{ .Values.podManagementPolicy | default "OrderedReady" }}
+  {{- with .Values.updateStrategy }}
+  updateStrategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "pleme-lib.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "pleme-lib.selectorLabels" . | nindent 8 }}
+      annotations:
+        {{- include "pleme-lib.prometheusAnnotations" . | nindent 8 }}
+        sidecar.istio.io/inject: "false"
+        checksum/config: {{ include "pleme-porto.config" . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "pleme-lib.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- include "pleme-lib.podSecurityContext" . | nindent 8 }}
+      containers:
+        - name: porto
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy | default "IfNotPresent" }}
+          securityContext:
+            {{- include "pleme-lib.containerSecurityContext" . | nindent 12 }}
+          env:
+            - name: CONFIG_PATH
+              value: /etc/porto/config.yaml
+            - name: PORTO_LISTEN
+              value: {{ .Values.porto.listen | quote }}
+            {{- if .Values.porto.maxBodyBytes }}
+            - name: PORTO_MAX_BODY_BYTES
+              value: {{ .Values.porto.maxBodyBytes | quote }}
+            {{- end }}
+            - name: PORTO_STORE_ROOT
+              value: {{ .Values.persistence.root | quote }}
+            - name: RUST_LOG
+              value: {{ .Values.porto.logLevel | default "info" | quote }}
+          ports:
+            - name: registry
+              containerPort: 5000
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.health.livenessPath }}
+              port: {{ .Values.health.port }}
+            initialDelaySeconds: {{ .Values.health.livenessInitialDelay }}
+            periodSeconds: {{ .Values.health.livenessPeriod }}
+            failureThreshold: {{ .Values.health.livenessFailureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.health.readinessPath }}
+              port: {{ .Values.health.port }}
+            initialDelaySeconds: {{ .Values.health.readinessInitialDelay }}
+            periodSeconds: {{ .Values.health.readinessPeriod }}
+            failureThreshold: {{ .Values.health.readinessFailureThreshold }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/porto
+              readOnly: true
+            {{- if .Values.persistence.enabled }}
+            - name: data
+              mountPath: {{ .Values.persistence.root }}
+            {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "pleme-lib.fullname" . }}-config
+        {{- if not .Values.persistence.enabled }}
+        - name: data
+          emptyDir: {}
+        {{- end }}
+  {{- if .Values.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels:
+          {{- include "pleme-lib.labels" . | nindent 10 }}
+      spec:
+        accessModes:
+          - {{ .Values.persistence.accessMode | default "ReadWriteOnce" }}
+        {{- with .Values.persistence.storageClass }}
+        storageClassName: {{ . }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.persistence.size }}
+  {{- end }}

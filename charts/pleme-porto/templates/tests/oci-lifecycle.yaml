@@ -1,0 +1,86 @@
+{{- if .Values.tests.enabled }}
+# `helm test` hook — exercises the OCI /v2/ lifecycle against the live registry
+# Service: version-check (end-1) → monolithic blob PUT by digest (end-4b) →
+# blob HEAD + GET (end-2, verify Docker-Content-Digest) → manifest PUT by tag
+# (end-7) → manifest GET by tag (end-3) → tags/list (end-8) → GET absent blob
+# → 404. M0's data plane is anonymous on the cluster network (saguão auth is
+# M3), so a plain curl drives the /v2/ verbs. A non-zero exit fails `helm test`,
+# gating the release on a working registry.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}-test-oci
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+    app.kubernetes.io/component: test
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  restartPolicy: Never
+  securityContext:
+    {{- include "pleme-lib.podSecurityContext" . | nindent 4 }}
+  containers:
+    - name: oci-lifecycle
+      image: {{ .Values.tests.image | quote }}
+      securityContext:
+        {{- include "pleme-lib.containerSecurityContext" . | nindent 8 }}
+      env:
+        - name: BASE
+          value: "http://{{ include "pleme-lib.fullname" . }}.{{ include "pleme-lib.namespace" . }}.svc:{{ .Values.services.registry.port }}"
+      command: ["/bin/sh", "-c"]
+      args:
+        - |
+          set -eu
+          REPO="porto-helm-test"
+          V2="$BASE/v2"
+
+          echo "→ end-1: GET /v2/ (version check)"
+          code="$(curl -s -o /dev/null -w '%{http_code}' "$V2/")"
+          test "$code" = "200" || { echo "FAIL: /v2/ returned $code, expected 200"; exit 1; }
+
+          echo "→ end-4b: monolithic blob upload (PUT by digest)"
+          BLOB='porto oci lifecycle blob'
+          # sha256sum is busybox-provided in curlimages/curl (alpine).
+          HEX="$(printf '%s' "$BLOB" | sha256sum | cut -d' ' -f1)"
+          DIGEST="sha256:$HEX"
+          code="$(printf '%s' "$BLOB" \
+            | curl -s -o /dev/null -w '%{http_code}' -X POST \
+                --data-binary @- \
+                "$V2/$REPO/blobs/uploads/?digest=$DIGEST")"
+          test "$code" = "201" || { echo "FAIL: monolithic blob upload returned $code, expected 201"; exit 1; }
+
+          echo "→ end-2: HEAD blob (existence)"
+          code="$(curl -s -o /dev/null -w '%{http_code}' -I "$V2/$REPO/blobs/$DIGEST")"
+          test "$code" = "200" || { echo "FAIL: blob HEAD returned $code, expected 200"; exit 1; }
+
+          echo "→ end-2: GET blob (verify bytes)"
+          GOT="$(curl -fsS "$V2/$REPO/blobs/$DIGEST")"
+          test "$GOT" = "$BLOB" || { echo "FAIL: blob body mismatch: [$GOT]"; exit 1; }
+
+          echo "→ end-7: manifest PUT by tag"
+          # A minimal OCI image manifest referencing the blob above as config.
+          MSIZE="$(printf '%s' "$BLOB" | wc -c | tr -d ' ')"
+          MANIFEST="$(printf '%s' '{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","config":{"mediaType":"application/vnd.oci.image.config.v1+json","digest":"'"$DIGEST"'","size":'"$MSIZE"'},"layers":[]}')"
+          code="$(printf '%s' "$MANIFEST" \
+            | curl -s -o /dev/null -w '%{http_code}' -X PUT \
+                -H 'Content-Type: application/vnd.oci.image.manifest.v1+json' \
+                --data-binary @- \
+                "$V2/$REPO/manifests/v1")"
+          test "$code" = "201" || { echo "FAIL: manifest PUT returned $code, expected 201"; exit 1; }
+
+          echo "→ end-3: manifest GET by tag"
+          code="$(curl -s -o /dev/null -w '%{http_code}' -H 'Accept: application/vnd.oci.image.manifest.v1+json' "$V2/$REPO/manifests/v1")"
+          test "$code" = "200" || { echo "FAIL: manifest GET returned $code, expected 200"; exit 1; }
+
+          echo "→ end-8: tags/list contains the tag"
+          curl -fsS "$V2/$REPO/tags/list" | grep -q '"v1"' \
+            || { echo "FAIL: tags/list did not contain v1"; exit 1; }
+
+          echo "→ GET absent blob should 404"
+          code="$(curl -s -o /dev/null -w '%{http_code}' "$V2/$REPO/blobs/sha256:0000000000000000000000000000000000000000000000000000000000000000")"
+          test "$code" = "404" || { echo "FAIL: expected 404 for absent blob, got $code"; exit 1; }
+
+          echo "OK: full OCI /v2/ lifecycle passed against the live registry"
+{{- end }}

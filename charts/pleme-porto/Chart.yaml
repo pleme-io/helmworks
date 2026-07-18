@@ -1,0 +1,25 @@
+apiVersion: v2
+name: pleme-porto
+description: |
+  porto — the pleme-io-native OCI Distribution Spec v1.1 registry SERVER. Serves
+  the ~14 /v2/ endpoints (blob CAS + manifest/tag/referrers index + the chunked-
+  upload typestate FSM) over sui-cache's content-addressed StorageBackend — the
+  same store that holds Nix NARs. The naturalize(zot) build: zot's registry-
+  server capability rebuilt as native substrate, not a wrapper. See
+  theory/PORTO.md. Wraps the Rust server (sui-registry) in pleme-io conventions:
+  pleme-lib templates, enforced security baseline, NetworkPolicy, PVC-backed
+  blob store, breathe StorageBand.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - oci
+  - registry
+  - distribution
+  - container
+  - rust
+  - pleme-io
+dependencies:
+  - name: pleme-lib
+    version: ">=0.27.0"
+    repository: "file://../pleme-lib"

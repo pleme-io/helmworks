@@ -1,0 +1,39 @@
+porto — the pleme-io-native OCI registry server — is installed.
+
+  Release:   {{ .Release.Name }}
+  Namespace: {{ include "pleme-lib.namespace" . }}
+  Store:     PVC {{ .Values.persistence.size }} at {{ .Values.persistence.root }} (sui-cache StorageBackend)
+  OCI /v2/:  http://{{ include "pleme-lib.fullname" . }}.{{ include "pleme-lib.namespace" . }}.svc:{{ .Values.services.registry.port }}/v2/
+
+Breathability:
+{{- if .Values.breathe.enabled }}
+  memory band:  {{ if .Values.breathe.memory.enabled }}{{ if .Values.breathe.memory.dryRun }}SHADOW{{ else }}LIVE{{ end }} [{{ .Values.breathe.memory.floor }}…{{ .Values.breathe.memory.ceiling }}]{{ else }}off{{ end }}
+  cpu band:     {{ if .Values.breathe.cpu.enabled }}{{ if .Values.breathe.cpu.dryRun }}SHADOW{{ else }}LIVE{{ end }} [{{ .Values.breathe.cpu.floor }}…{{ .Values.breathe.cpu.ceiling }}]{{ else }}off{{ end }}
+  storage band: {{ if .Values.breathe.storage.enabled }}{{ if .Values.breathe.storage.dryRun }}SHADOW{{ else }}LIVE{{ end }} GrowOnly → {{ .Values.breathe.storage.ceiling }} (infinitely-expandable lever){{ else }}off{{ end }}
+{{- else }}
+  disabled
+{{- end }}
+
+Verify it works:
+  helm test {{ .Release.Name }} -n {{ include "pleme-lib.namespace" . }}
+
+Push/pull an image (M0 data plane is anonymous on the cluster network; saguão
+auth is M3):
+  docker tag <img> {{ include "pleme-lib.fullname" . }}.{{ include "pleme-lib.namespace" . }}.svc:{{ .Values.services.registry.port }}/<repo>:<tag>
+  docker push       {{ include "pleme-lib.fullname" . }}.{{ include "pleme-lib.namespace" . }}.svc:{{ .Values.services.registry.port }}/<repo>:<tag>
+
+Promote a breathe band from SHADOW to LIVE (let breathe own the limit/size):
+  set breathe.<memory|cpu|storage>.dryRun=false  +  cede that field from this chart's values.
+
+Honest gaps (theory/PORTO.md §5 — the Care, never rounded up):
+  • The image ghcr.io/pleme-io/porto lands only when porto's AUTO-RELEASE image
+    build (AXIS A) merges — until then the pod is ImagePullBackOff.
+  • porto has NO /health/* or /metrics endpoint yet — probes hit `GET /v2/` (the
+    one true liveness signal, end-1) and serviceMonitor is OFF by default.
+  • The config.yaml ConfigMap is the typed config-plane surface; the shipped
+    binary drives its live listen off PORTO_LISTEN (a CONFIG_PATH file loader is
+    the destination — pending-porto: config-file-loader).
+  • The M0 manifest/tag/referrers index is in-memory; a restart loses it until
+    the durable sui-store backend lands.
+
+Doctrine: theory/PORTO.md.
