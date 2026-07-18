@@ -1,0 +1,34 @@
+{{/*
+The /sync webhook Service the akeyless custom-producer calls (/sync/create +
+/sync/revoke). ClusterIP — the akeyless gateway reaches it in-cluster as
+`shaar-concentrator-sync:<port>` (the producer's /sync URL points here). This is
+NOT the WireGuard port — that is hostNetwork UDP on the node itself.
+
+Authored directly (not pleme-lib.service) to preserve the `-sync` name the
+producer's /sync URL is registered against, and to optionally expose the admin
+port. NEVER expose this publicly — /sync is gateway-only, admin is operator-only.
+*/}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}-sync
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "pleme-lib.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: sync
+      port: {{ .Values.webhook.port }}
+      targetPort: {{ .Values.webhook.port }}
+      protocol: TCP
+    {{- if and .Values.admin.enabled .Values.admin.expose }}
+    # OPT-IN admin port. Only useful when admin.bind is a Service-reachable
+    # address (0.0.0.0 / pod IP), never 127.0.0.1. NEVER on a public path.
+    - name: admin
+      port: {{ .Values.admin.servicePort }}
+      targetPort: {{ (splitList ":" .Values.admin.bind) | last | int }}
+      protocol: TCP
+    {{- end }}

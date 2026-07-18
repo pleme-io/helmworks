@@ -1,0 +1,72 @@
+{{/*
+The concentrator.yaml config consumed by `shaar-concentrator --config
+/etc/shaar/concentrator.yaml` (mounted read-only). Driven entirely by the typed
+values surface. Mirrors ConcentratorConfig in
+crates/shaar-concentrator/src/config.rs (deny_unknown_fields — every key here is
+a real field; a typo is a hard parse error at container start).
+
+SECURITY: webhook_creds + admin.token are SecretRef::Env references (kind: env)
+— NOT inline plaintext. The binary resolves the referenced env var at startup;
+the deployment injects those env vars from a k8s Secret via valueFrom.secretKeyRef
+(see templates/deployment.yaml). No bearer value ever lands in this ConfigMap.
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}-config
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+data:
+  concentrator.yaml: |
+    pool_cidr: {{ .Values.pool.cidr | quote }}
+    listen_port: {{ .Values.listen_port }}
+    {{- if .Values.public_endpoint }}
+    public_endpoint: {{ .Values.public_endpoint | quote }}
+    {{- else }}
+    # public_endpoint OMITTED — the concentrator self-discovers it from AWS IMDS
+    # at startup (config.rs DISCOVERED tier: public-ipv4 : listen_port).
+    {{- end }}
+    target_cidrs:
+      {{- range .Values.reach.targetCidrs }}
+      - {{ . | quote }}
+      {{- end }}
+    state_dir: "/var/lib/shaar"
+    # The /sync webhook bind — on hostNetwork this listens on the node's address;
+    # the -sync Service fronts it in-cluster (webhook.port).
+    webhook_bind: {{ printf "0.0.0.0:%v" .Values.webhook.port | quote }}
+    # The shared bearer the akeyless gateway sends — resolved from an env var,
+    # NEVER inline. The env var is injected from the secretRef Secret.
+    webhook_creds:
+      kind: env
+      var: SHAAR_CONCENTRATOR_CREDS
+    lease_ttl_secs: {{ .Values.leaseTtlSecs }}
+    gc_interval_secs: {{ .Values.gcIntervalSecs }}
+    tunnel_name: {{ .Values.tunnelName | quote }}
+    self_masquerade: {{ .Values.selfMasquerade }}
+    engine: {{ .Values.engine | quote }}
+    {{- if .Values.identity.leaseQuota }}
+    # Per-identity concurrent-lease cap (blast-radius control).
+    identity_lease_quota: {{ .Values.identity.leaseQuota }}
+    {{- end }}
+    {{- if .Values.identity.reachCeilings }}
+    # Per-principal reach ceilings — the server grant is clamped to these at
+    # admit (least-privilege). access_id -> [CIDR].
+    identity_reach_ceilings:
+      {{- range $accessId, $cidrs := .Values.identity.reachCeilings }}
+      {{ $accessId }}:
+        {{- range $cidrs }}
+        - {{ . | quote }}
+        {{- end }}
+      {{- end }}
+    {{- end }}
+    {{- if .Values.admin.enabled }}
+    # Operator admin API. Both bind + token are mandatory when present (a
+    # token-less admin section is a parse error in config.rs). The token is a
+    # SecretRef::Env ref — NEVER inline; injected from the secretRef Secret.
+    admin:
+      bind: {{ .Values.admin.bind | quote }}
+      token:
+        kind: env
+        var: SHAAR_ADMIN_TOKEN
+    {{- end }}

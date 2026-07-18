@@ -1,0 +1,22 @@
+{{/*
+Persists the concentrator's stable Ed25519 admission-signing key + the receipt
+chain across restarts — so every admission receipt re-verifies with a stable
+published verifying key, and the chain is not lost on a pod roll. RWO singleton
+(the concentrator is pinned to one node; running two would fight over it — hence
+strategy: Recreate + replicaCount 1).
+*/}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}-state
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+spec:
+  accessModes: ["ReadWriteOnce"]
+  {{- with .Values.state.storageClassName }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.state.pvcSize | quote }}

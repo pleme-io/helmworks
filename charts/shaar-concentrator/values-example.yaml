@@ -1,0 +1,49 @@
+# A SAMPLE per-deploy override for `helm template -f values-example.yaml`.
+# HOST-FREE placeholders — replace at real deploy time. This file exists to
+# exercise the chart end-to-end (reach CIDRs are REQUIRED for a deployable
+# render); it is NOT a committed production config.
+
+image:
+  # An exact AUTOBUMP tag (never :latest in a real deploy).
+  tag: amd64-r42-deadbeef
+
+localImport: false
+
+nodeSelector:
+  kubernetes.io/hostname: example-node
+
+pool:
+  cidr: 10.99.0.0/24
+
+# Empty in production on AWS (IMDS self-discovery); set explicitly off-AWS.
+public_endpoint: ""
+
+reach:
+  targetCidrs:
+    - 10.42.0.0/16    # pod CIDR
+    - 10.43.0.0/16    # service CIDR
+    - 10.43.0.1/32    # the k8s API server (example)
+
+identity:
+  leaseQuota: 4
+  reachCeilings:
+    p-ci-runner: ["10.42.1.0/24"]
+    p-admin: ["10.42.0.0/16"]
+
+secretRef:
+  name: shaar-concentrator-creds
+  credsKey: webhook-creds
+  tokenKey: admin-token
+
+# Optional: shadow-first breathe bands on a new node.
+breathe:
+  enabled: true
+  memory:
+    dryRun: true
+    floor: "64Mi"
+    ceiling: "512Mi"
+  cpu:
+    enabled: true
+    dryRun: true
+    floor: "50m"
+    ceiling: "1000m"
