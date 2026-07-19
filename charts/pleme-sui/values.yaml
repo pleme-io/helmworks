@@ -47,6 +47,16 @@ mode:
     # templates/deployment.yaml's cache-only args + cache-store volume.
     storePath: "/var/lib/sui/cache"
     storeSizeLimit: "20Gi"
+    # emptyDir.medium override -- "" (default) is disk-backed, node-local
+    # storage (the original, backward-compatible shape). "Memory" makes the
+    # cache-store volume a tmpfs RAM disk: substitute/save round-trips avoid
+    # disk I/O entirely, at the cost of consuming node RAM equal to whatever
+    # is actually written (kubelet counts it against the pod's memory limit,
+    # capped by storeSizeLimit above as the volume's own ceiling). Size
+    # storeSizeLimit conservatively when enabling this -- it must fit
+    # comfortably under the node's real allocatable memory alongside every
+    # other resident workload, not just under the raw instance RAM.
+    storeMedium: ""
 
 # --- Extra environment ---
 # Additional container env vars appended to the fixed set. The super-cache-ci

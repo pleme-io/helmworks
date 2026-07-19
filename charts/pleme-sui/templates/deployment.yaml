@@ -165,4 +165,7 @@ spec:
         - name: cache-store
           emptyDir:
             sizeLimit: {{ .Values.mode.cache.storeSizeLimit }}
+            {{- if .Values.mode.cache.storeMedium }}
+            medium: {{ .Values.mode.cache.storeMedium }}
+            {{- end }}
       {{- end }}
