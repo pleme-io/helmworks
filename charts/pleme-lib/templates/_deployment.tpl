@@ -25,7 +25,14 @@ metadata:
   {{- end }}
 spec:
   {{- if not (.Values.autoscaling).enabled }}
-  replicas: {{ .Values.replicaCount | default 1 }}
+  {{- /* `default` treats 0 as empty and would silently force replicas
+        back to 1 — an explicit nil-check is required so `replicaCount: 0`
+        (scale-to-zero) survives. */ -}}
+  {{- if kindIs "invalid" .Values.replicaCount }}
+  replicas: 1
+  {{- else }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
   {{- end }}
   selector:
     matchLabels:

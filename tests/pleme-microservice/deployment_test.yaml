@@ -103,6 +103,14 @@ tests:
       - isNull:
           path: spec.replicas
 
+  - it: should honor an explicit replicaCount of 0 (scale-to-zero survives the Sprig default footgun)
+    set:
+      replicaCount: 0
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 0
+
   - it: should use custom image tag
     set:
       image:

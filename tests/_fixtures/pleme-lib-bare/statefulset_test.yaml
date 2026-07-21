@@ -93,3 +93,12 @@ tests:
     asserts:
       - isNotNullOrEmpty:
           path: metadata.annotations
+
+  - it: "honors an explicit replicaCount: 0 (scale-to-zero survives the Sprig default footgun)"
+    set:
+      <<: *defaults
+      replicaCount: 0
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 0
