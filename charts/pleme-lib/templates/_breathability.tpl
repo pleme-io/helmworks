@@ -21,13 +21,19 @@ Values:
     cooldown: 300               # seconds idle → scale to zero
     pollingInterval: 15
     trigger:
-      type: nats-jetstream      # trigger type (extensible)
-      nats:
+      type: nats-jetstream      # nats-jetstream | cron | <any KEDA scaler>
+      nats:                     # for type: nats-jetstream
         serverURL: "nats://nats.nats.svc:4222"
         stream: BUILD
         consumer: builder
         lagThreshold: "1"
         activationLagThreshold: "0"
+      cron:                     # for type: cron (zero-dependency time window)
+        timezone: "America/New_York"
+        start: "0 8 * * 1-5"    # active from (cron expr)
+        end: "0 20 * * 1-5"     # active until (cron expr)
+        desiredReplicas: "1"
+      metadata: {}              # for any other type: raw KEDA trigger metadata
     hpa:
       enabled: false
       min: 1
@@ -52,7 +58,8 @@ Values:
 {{- $targetKind := default "Deployment" $b.targetKind }}
 
 {{/* ── KEDA ScaledObject (zero-scale workers) ─────────────────────── */}}
-{{- if and $b.trigger (eq (default "nats-jetstream" $b.trigger.type) "nats-jetstream") }}
+{{- if $b.trigger }}
+{{- $ttype := default "nats-jetstream" $b.trigger.type }}
 ---
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
@@ -69,6 +76,7 @@ spec:
   cooldownPeriod: {{ default 300 $b.cooldown }}
   pollingInterval: {{ default 15 $b.pollingInterval }}
   triggers:
+{{- if eq $ttype "nats-jetstream" }}
     - type: nats-jetstream
       metadata:
         natsServerMonitoringEndpoint: {{ $b.trigger.nats.serverURL | replace "nats://" "" | replace ":4222" ":8222" | quote }}
@@ -79,6 +87,32 @@ spec:
         consumer: {{ $b.trigger.nats.consumer | quote }}
         lagThreshold: {{ default "1" $b.trigger.nats.lagThreshold | quote }}
         activationLagThreshold: {{ default "0" $b.trigger.nats.activationLagThreshold | quote }}
+{{- else if eq $ttype "cron" }}
+    # Time-windowed scale-to-zero: replicas hold at desiredReplicas between
+    # start and end (both standard cron expressions in `timezone`), and fall
+    # to minReplicaCount (0) otherwise. Needs NO external metric source (no
+    # NATS, no Prometheus, no http-add-on) -- the zero-dependency trigger for
+    # ephemeral / business-hours workloads.
+    - type: cron
+      metadata:
+        timezone: {{ default "Etc/UTC" $b.trigger.cron.timezone | quote }}
+        start: {{ required "breathability.trigger.cron.start is required for a cron trigger" $b.trigger.cron.start | quote }}
+        end: {{ required "breathability.trigger.cron.end is required for a cron trigger" $b.trigger.cron.end | quote }}
+        desiredReplicas: {{ default "1" $b.trigger.cron.desiredReplicas | quote }}
+{{- else }}
+    # Generic passthrough: any KEDA scaler this template does not special-case,
+    # driven by a raw metadata map (+ optional authenticationRef). Lets a
+    # consumer use e.g. prometheus/kafka/sqs without forking this helper.
+    - type: {{ $ttype }}
+      {{- with $b.trigger.metadata }}
+      metadata:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $b.trigger.authenticationRef }}
+      authenticationRef:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
 {{- end }}
 
 {{/* ── HPA (elastic serving targets) ─────────────────────────────── */}}

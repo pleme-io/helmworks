@@ -1,0 +1,25 @@
+{{/*
+breathability.yaml — optional KEDA ScaledObject via pleme-lib.breathability.
+
+OFF BY DEFAULT: renders nothing unless `.Values.breathability.enabled` is set.
+A consumer opts a microservice into scale-to-zero with a `breathability:` block,
+e.g. a business-hours cron window:
+
+  breathability:
+    enabled: true
+    targetKind: Deployment
+    min: 0
+    max: 2
+    trigger:
+      type: cron
+      cron:
+        timezone: "America/New_York"
+        start: "0 8 * * 1-5"
+        end: "0 20 * * 1-5"
+        desiredReplicas: "1"
+
+Enable ONLY on STATELESS services. Never give a data-plane StatefulSet
+(mysql/rabbitmq/redis) a minReplicaCount:0 ScaledObject — scaling it to zero
+loses warm state / quorum and forces a cold re-bootstrap on wake.
+*/}}
+{{- include "pleme-lib.breathability" . }}
