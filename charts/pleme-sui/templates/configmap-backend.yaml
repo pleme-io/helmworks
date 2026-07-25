@@ -1,0 +1,20 @@
+{{- /*
+  The cache-only daemon's tiered backend config, rendered from
+  .Values.mode.cache.backendConfig (a raw sui_cache::BackendConfig JSON — the
+  {"type":"tiered","l1":…,"l2":…,"l3":…,"write_policy":…} shape). Mounted at
+  /etc/sui/backend.json and passed to `sui cache serve --backend-config`, which
+  takes precedence over the --store-path local floor. Rendered only when the
+  value is set, so the default (empty) chart stays on the local floor —
+  backward-compatible.
+*/ -}}
+{{- if and .Values.mode.cache.enabled .Values.mode.cache.backendConfig }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pleme-sui.fullname" . }}-backend-config
+  labels:
+    {{- include "pleme-sui.labels" . | nindent 4 }}
+data:
+  backend.json: |
+    {{- .Values.mode.cache.backendConfig | nindent 4 }}
+{{- end }}

@@ -57,6 +57,16 @@ mode:
     # comfortably under the node's real allocatable memory alongside every
     # other resident workload, not just under the raw instance RAM.
     storeMedium: ""
+    # Raw sui_cache::BackendConfig JSON for the cache-only daemon — the
+    # {"type":"tiered","l1":{"type":"redis","url":…},"l2":{"type":"pg","url":…},
+    # "l3":{"type":"local","path":…},"write_policy":"write-through"} shape. When
+    # set, the chart renders it into a ConfigMap, mounts it at /etc/sui/backend.json,
+    # and passes `--backend-config=/etc/sui/backend.json` (which the `cache serve`
+    # daemon honors over --store-path — main.rs Serve). Empty (default) keeps the
+    # --store-path local/tmpfs floor, backward-compatible. This is how the
+    # never-touch-disk tiered posture (Redis L1 + Postgres L2) is selected on a
+    # cache-only deployment.
+    backendConfig: ""
 
 # --- Extra environment ---
 # Additional container env vars appended to the fixed set. The super-cache-ci

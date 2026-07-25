@@ -61,6 +61,15 @@ spec:
             - serve
             - --listen={{ .Values.mode.cache.listen }}
             - --store-path={{ .Values.mode.cache.storePath }}
+            {{- if .Values.mode.cache.backendConfig }}
+            # A raw sui_cache::BackendConfig JSON (the {type:tiered,l1,l2,l3,
+            # write_policy} shape) rendered into a ConfigMap + mounted below.
+            # Takes precedence over --store-path (main.rs Serve: --backend-config
+            # wins over the disk floor), switching the cache-only daemon onto the
+            # tiered Redis L1 + Postgres L2 backend. Empty (default) keeps the
+            # --store-path local floor — backward-compatible.
+            - --backend-config=/etc/sui/backend.json
+            {{- end }}
           {{- else if .Values.mode.agent.enabled }}
           # Agent-only mode
           args:
@@ -122,6 +131,11 @@ spec:
           volumeMounts:
             - name: cache-store
               mountPath: {{ .Values.mode.cache.storePath }}
+            {{- if .Values.mode.cache.backendConfig }}
+            - name: backend-config
+              mountPath: /etc/sui
+              readOnly: true
+            {{- end }}
           {{- end }}
           {{- end }}
           {{- with .Values.resources }}
@@ -168,4 +182,9 @@ spec:
             {{- if .Values.mode.cache.storeMedium }}
             medium: {{ .Values.mode.cache.storeMedium }}
             {{- end }}
+        {{- if .Values.mode.cache.backendConfig }}
+        - name: backend-config
+          configMap:
+            name: {{ include "pleme-sui.fullname" . }}-backend-config
+        {{- end }}
       {{- end }}
