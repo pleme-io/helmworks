@@ -2,7 +2,35 @@ apiVersion: v2
 name: pleme-lib
 description: Shared library chart for pleme-io internal services
 type: library
-version: 0.41.0
+version: 0.42.0
+# 0.42.0 (2026-07-26) -- breatheBand: the RequestBand (RESERVATION) arm.
+#
+# Every band arm before this one carves a LIMIT. A limit bounds blast radius,
+# but it is not the field that decides survival: `oom_score_adj` and the QoS
+# class are derived from the REQUEST, and a BestEffort pod (no requests AND no
+# limits) is unbandable by every other dimension. Receipt: sui-cache-pg took 34
+# OOMKills at a 202.8Mi high-water against a 1Gi limit with cgroup failcnt=0 —
+# the limit was never binding, and no MemoryBand setting at any value could
+# have saved it.
+#
+# Three deliberate departures from the arms above, each a safety property:
+#   * defaults OFF, and when on defaults to `mode: shadow`;
+#   * emits NO `dryRun` key at all — breathe retired it (inert for 8 of 10 band
+#     kinds), and shipping an inert field that LOOKS like a safety gate is worse
+#     than shipping none;
+#   * `resource` is REQUIRED with no default — guessing between the OOM lever
+#     (memory) and the scheduling lever (cpu) is the ambiguity this dimension
+#     exists to remove.
+#
+# `manifestRef: {path, marker}` is the durable half: the in-place resize mutates
+# the POD, not the template, so without a committed manifest the reservation —
+# and with it the QoS posture — evaporates on the next rollout.
+#
+# NOT DELIVERED BY THIS COMMIT. The last pleme-lib published to
+# ghcr.io/pleme-io/charts is 0.40.1 (verified against the registry tag list);
+# 0.40.2, 0.41.0 and this 0.42.0 are all in git and NOT on ghcr. Nothing here
+# reaches a cluster until the publish pipeline is fixed.
+#
 # 0.41.0 (2026-07-26) -- breatheBand: honor `postureRef`.
 #
 # The template previously emitted the full tuning tuple (setpoint /

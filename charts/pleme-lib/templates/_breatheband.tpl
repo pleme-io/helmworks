@@ -268,5 +268,93 @@ spec:
   mode: {{ . }}
   {{- end }}
 {{- end }}
+{{/* ── RequestBand ─────────────────────────────────────────────────────────
+
+     The RESERVATION dimension: carves `resources.requests.<r>`, the field that
+     sets `oom_score_adj` and the QoS class. Every other band above carves a
+     LIMIT — a limit bounds blast radius, but it is not what decides whether the
+     kernel picks you. (Receipt: sui-cache-pg took 34 OOMKills at a 202.8Mi
+     high-water against a 1Gi limit with cgroup failcnt=0. No MemoryBand setting
+     at any value could have saved it.)
+
+     THREE deliberate departures from the bands above, each a safety property:
+
+     1. DEFAULTS OFF, and when on, defaults to `mode: shadow`. Every other band
+        here defaults its GATE off via `dryRun`, which breathe RETIRED — it is
+        inert for 8 of 10 kinds and decides nothing. `mode` is the gate that is
+        actually read, so this band sets the one that works rather than the one
+        that reads reassuringly.
+     2. NO `dryRun` key is emitted at all. Emitting an inert field that looks
+        like a safety gate is worse than emitting nothing: it invites an
+        operator to believe a band is held when it is not.
+     3. `resource` is REQUIRED with no default. Guessing between the OOM lever
+        (memory) and the scheduling lever (cpu) is exactly the ambiguity this
+        dimension exists to remove.
+
+     `manifestRef` is what makes a converged value survive a rollout — the
+     in-place resize mutates the POD, not the template, so without it the
+     reservation (and therefore the QoS posture) evaporates on the next deploy.
+     It is optional here because a band may legitimately be observe-only; when
+     absent, breathe reports `Blocked(noManifestCoordinate)` rather than
+     silently downgrading to ephemeral. */}}
+{{- $req := $breathe.request | default dict -}}
+{{- $reqEnabled := false -}}
+{{- if hasKey $req "enabled" -}}{{- $reqEnabled = $req.enabled -}}{{- end -}}
+{{- $reqResource := $req.resource | default "" -}}
+{{- if and $reqEnabled $reqResource }}
+---
+apiVersion: breathe.pleme.io/v1
+kind: RequestBand
+metadata:
+  name: {{ $targetName }}-request-{{ $reqResource }}
+  namespace: {{ $namespace }}
+  labels:
+    {{- $labels | nindent 4 }}
+spec:
+  targetRef:
+    apiVersion: {{ $targetRef.apiVersion }}
+    kind: {{ $targetRef.kind }}
+    name: {{ $targetRef.name }}
+    {{- with $req.container }}
+    container: {{ . }}
+    {{- end }}
+  resource: {{ $reqResource }}
+  {{- $reqPosture := $req.postureRef | default $breathe.postureRef | default "" }}
+  {{- with $reqPosture }}
+  postureRef: {{ . }}
+  {{- end }}
+  {{- with $req.workloadClass }}
+  workloadClass: {{ . }}
+  {{- end }}
+  {{- with $req.qosTarget }}
+  qosTarget: {{ . }}
+  {{- end }}
+  {{- with $req.demand }}
+  demand:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  durability: {{ $req.durability | default "committed" }}
+  {{- with $req.manifestRef }}
+  manifestRef:
+    path: {{ .path | quote }}
+    marker: {{ .marker | quote }}
+  {{- end }}
+  {{- with $req.floor }}
+  floor: {{ . | quote }}
+  {{- end }}
+  {{- with $req.ceiling }}
+  ceiling: {{ . | quote }}
+  {{- end }}
+  {{- $reqTuning := include "pleme-lib.breatheBand.tuning" (dict "cfg" $req "posture" $reqPosture "fields" (list
+        (dict "k" "cooldownSeconds"     "d" 600)
+        (dict "k" "disruptionPolicy"    "d" "restartFreeOnly")
+        (dict "k" "maxStalenessSeconds" "d" 120)
+      )) | trim }}
+  {{- with $reqTuning }}
+  {{- . | nindent 2 }}
+  {{- end }}
+  {{- /* Shadow unless the author says otherwise, out loud. */}}
+  mode: {{ $req.mode | default "shadow" }}
+{{- end }}
 {{- end }}
 {{- end }}

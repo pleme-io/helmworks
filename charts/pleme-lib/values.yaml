@@ -347,6 +347,71 @@ breathe:
     # -- Reject volume-stat samples older than this many seconds (PromQL
     # kubelet_volume_stats has no metrics-server analog; a wider window is safe).
     maxStalenessSeconds: 300
+  request:
+    # -- Emit a RequestBand — the RESERVATION dimension. Every band above carves
+    # a LIMIT; this one carves resources.requests.<r>, which is what sets
+    # oom_score_adj and the QoS class. A limit bounds blast radius but does not
+    # decide who the kernel picks: sui-cache-pg took 34 OOMKills at a 202.8Mi
+    # high-water against a 1Gi limit with cgroup failcnt=0 — the limit was never
+    # binding, and no MemoryBand setting at any value could have saved it.
+    # Off by default.
+    enabled: false
+    # -- REQUIRED when enabled: memory | cpu. No default on purpose — guessing
+    # between the OOM lever (memory) and the scheduling lever (cpu) is exactly
+    # the ambiguity this dimension exists to remove. Empty ⇒ nothing emitted.
+    resource: ""
+    # -- The container within the target whose request is carved. Empty ⇒ the
+    # target's sole/first container.
+    container: ""
+    # -- Criticality class: critical | standard | batch. Drives the default
+    # qosTarget and the isolation seal. Unset ⇒ the posture's, else standard.
+    workloadClass: ""
+    # -- Desired QoS class: guaranteed | burstable | bestEffort. A gap between
+    # this and the OBSERVED class is reported and, when a durable writer exists,
+    # proposed as a manifest edit — NEVER actuated in place, because Kubernetes
+    # refuses a QoS-class change through the resize subresource unconditionally
+    # (validation.go, ValidatePodResize — no feature gate, no way around it).
+    qosTarget: ""
+    # -- The demand statistic the reservation tracks: a stable high percentile,
+    # NOT the peak. Reserving the peak wastes node allocatable linearly in
+    # replica count, and past allocatable the pod never schedules.
+    # e.g. {quantile: 0.95, windowSeconds: 604800, headroom: 0.15}
+    demand: {}
+    # -- committed | ephemeral. Where a converged value must land.
+    # `ephemeral` = in-place only: fast and reversible, but LOST on the next
+    # rollout and invisible in git. `committed` (the default) = the value must
+    # reach the committed manifest, which for a request is the only honest
+    # setting — a reverted request silently drops the QoS protection at exactly
+    # the moment (a rollout) when things are already moving.
+    durability: committed
+    # -- WHERE in git the converged value lands. {path, marker}: a repo-relative
+    # manifest path plus the marker id that must appear in a
+    # `# {"$breathe": "<marker>"}` comment on the value line. Both are authored
+    # by a human; neither is inferred — breathe never walks a document looking
+    # for a likely field, so a manifest nobody marked cannot be written to.
+    # Absent ⇒ breathe reports Blocked(noManifestCoordinate); it does NOT
+    # silently downgrade to ephemeral.
+    manifestRef: {}
+    #   path: clusters/camelot/apps/sui/release.yaml
+    #   marker: camelot-build/sui-request
+    # -- Advisory lower bound (e.g. 256Mi / 250m). The band never reserves below.
+    floor: ""
+    # -- Advisory upper bound. NOT the binding ceiling — that is always the LIVE
+    # limit, because k8s rejects request > limit at admission.
+    ceiling: ""
+    # -- Seconds the controller waits between carves.
+    cooldownSeconds: 600
+    # -- Requests are raised in place without a restart where the API allows it.
+    disruptionPolicy: restartFreeOnly
+    # -- Reject metric samples older than this many seconds.
+    maxStalenessSeconds: 120
+    # -- shadow | effect | shadowConfirmEffect. Defaults to `shadow`.
+    # NOTE this band emits NO `dryRun` key, unlike memory/cpu/storage above.
+    # breathe RETIRED dryRun: it is inert for 8 of 10 band kinds and decides
+    # nothing. `mode` is the gate that is actually read, so this band ships the
+    # switch that works rather than the one that reads reassuringly — emitting
+    # an inert field that LOOKS like a safety gate is worse than emitting none.
+    mode: shadow
 
 # -- costGuard: default-on, shadow-first cost-leak prevention. Composes WITH
 # breathe + the 100%-spot auction + the intentional time-floor supercharge
