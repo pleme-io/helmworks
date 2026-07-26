@@ -9,7 +9,7 @@ description: |
   pleme-lib templates, enforced security baseline, NetworkPolicy,
   ServiceMonitor, dual-port (S3 + health), PVC-backed fs store.
 type: application
-version: 0.1.0
+version: 0.1.1
 appVersion: "0.1.0"
 keywords:
   - s3

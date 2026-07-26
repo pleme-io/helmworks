@@ -15,7 +15,7 @@ description: >-
   is a stub (controller.enabled=false by default) — the loop runs MANUALLY today over
   the shipped MCPs. See theory/AUTOREVIVY.md.
 type: application
-version: 0.1.0
+version: 0.1.1
 appVersion: "0.1.0"
 keywords:
   - autorevivy

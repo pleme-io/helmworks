@@ -10,7 +10,7 @@ description: |
   pleme-lib templates, enforced security baseline, NetworkPolicy, PVC-backed
   blob store, breathe StorageBand.
 type: application
-version: 0.1.0
+version: 0.1.1
 appVersion: "0.1.0"
 keywords:
   - oci

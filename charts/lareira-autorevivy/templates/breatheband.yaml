@@ -22,4 +22,10 @@ spec:
   cooldownSeconds: {{ $b.cooldownSeconds }}
   maxStalenessSeconds: {{ $b.maxStalenessSeconds }}
   dryRun: {{ $b.dryRun }}
+  {{- /* mode — the ONLY lever that withholds a carve. `dryRun` above is DEAD
+         CODE for MemoryBand (promotion_mode() is
+         mode_spec().unwrap_or(ShadowConfirmEffect), never reads dry_run()), so
+         without this key the band is BORN LIVE and self-promotes despite the
+         "explicit dryRun" note above. Born shadowed by default. */}}
+  mode: {{ $b.mode | default "shadow" }}
 {{- end }}

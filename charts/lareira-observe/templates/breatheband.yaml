@@ -48,6 +48,14 @@ spec:
   cooldownSeconds: {{ $b.cooldownSeconds | default 600 }}
   maxStalenessSeconds: {{ $b.maxStalenessSeconds | default 120 }}
   dryRun: {{ $b.dryRun | default false }}
+  {{- /* mode — the ONLY lever that actually withholds a carve. `dryRun` above
+         is DEAD CODE for this band kind (promotion_mode() is
+         mode_spec().unwrap_or(ShadowConfirmEffect) and never reads dry_run()),
+         so before this key existed every band this native path emitted was
+         BORN LIVE and self-promoted, while values.yaml claimed "SHADOW-first".
+         Defaults to shadow so a band is born shadowed; set explicitly to
+         promote. */}}
+  mode: {{ $b.memory.mode | default $b.mode | default "shadow" }}
   disruptionPolicy: {{ $b.disruptionPolicy | default "RestartFreeOnly" }}
 {{- end }}
 {{- if (and $b.cpu $b.cpu.enabled) }}
@@ -73,6 +81,8 @@ spec:
   cooldownSeconds: {{ $b.cooldownSeconds | default 600 }}
   maxStalenessSeconds: {{ $b.maxStalenessSeconds | default 120 }}
   dryRun: {{ $b.dryRun | default false }}
+  {{- /* mode — see the memory band above; born-shadowed by default. */}}
+  mode: {{ $b.cpu.mode | default $b.mode | default "shadow" }}
   disruptionPolicy: {{ $b.disruptionPolicy | default "RestartFreeOnly" }}
 {{- end }}
 {{- end }}

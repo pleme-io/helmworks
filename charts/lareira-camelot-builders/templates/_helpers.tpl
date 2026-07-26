@@ -405,6 +405,12 @@ spec:
   floor: {{ $rb.floor }}
   ceiling: {{ $rb.ceiling }}
   dryRun: {{ $rb.dryRun }}
+  {{- /* mode — the ONLY lever that withholds an actuation. `dryRun` above is
+         DEAD CODE for ReplicaBand (promotion_mode() is
+         mode_spec().unwrap_or(ShadowConfirmEffect) and never reads dry_run()),
+         so a "shadow-first" tierB band would in fact be BORN LIVE the moment
+         tierB.enabled flips on. Born shadowed by default. */}}
+  mode: {{ $rb.mode | default "shadow" }}
 {{- end -}}
 
 {{/*
@@ -440,5 +446,8 @@ spec:
   spillTo:
     emptyDir: {}
   dryRun: {{ $mb.dryRun }}
+  {{- /* mode — see replicaBand above; dryRun is dead code for MemoryBand too,
+         so this is what actually keeps the tierB RAMDISK carve shadowed. */}}
+  mode: {{ $mb.mode | default "shadow" }}
 {{- end -}}
 

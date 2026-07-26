@@ -99,10 +99,20 @@ respiro:
 
   # ── (4) HOLD — breathe 80/20 bands on the consumer ────────────────────────
   # breathe MemoryBand/CpuBand (pleme-lib.breatheBand) carving the consumer
-  # Deployment's resource limits to hold it at the setpoint. dryRun SHADOW-first.
+  # Deployment's resource limits to hold it at the setpoint. BORN SHADOWED via
+  # `mode` below — NOT via dryRun, which is inert for this band kind.
   breathe:
     enabled: true
+    # dryRun — INERT for MemoryBand/CpuBand; kept for wire compatibility.
+    # promotion_mode() is mode_spec().unwrap_or(ShadowConfirmEffect) and never
+    # consults dry_run(), so this key has never withheld a carve despite the
+    # header above once calling it "SHADOW-first". Read status.effectiveDryRun.
     dryRun: true
+    # mode — the REAL promotion lever: shadow (never carves; the default here)
+    # | shadowConfirmEffect (observes then AUTO-PROMOTES to live — breathe's
+    # own default when absent, hence unsafe) | effect | suspended.
+    # Per-dimension memory.mode / cpu.mode override this.
+    mode: shadow
     setpoint: 0.8
     memory:
       enabled: true

@@ -43,6 +43,12 @@ spec:
   cooldownSeconds: {{ .Values.breathe.memory.cooldownSeconds | default 300 }}
   maxStalenessSeconds: {{ .Values.breathe.memory.maxStalenessSeconds | default 120 }}
   dryRun: {{ .Values.breathe.memory.dryRun }}
+  {{- /* mode — the ONLY lever that withholds a carve. `dryRun` above is DEAD
+         CODE for this band kind: promotion_mode() is
+         mode_spec().unwrap_or(ShadowConfirmEffect) and never reads dry_run().
+         Without this key the band is BORN LIVE and self-promotes. Born
+         shadowed by default; set explicitly to promote. */}}
+  mode: {{ .Values.breathe.memory.mode | default .Values.breathe.mode | default "shadow" }}
   disruptionPolicy: {{ .Values.breathe.memory.disruptionPolicy | default "allowRestart" }}
 {{- end }}
 {{- if .Values.breathe.cpu.enabled }}
@@ -71,6 +77,7 @@ spec:
   cooldownSeconds: {{ .Values.breathe.cpu.cooldownSeconds | default 300 }}
   maxStalenessSeconds: {{ .Values.breathe.cpu.maxStalenessSeconds | default 120 }}
   dryRun: {{ .Values.breathe.cpu.dryRun }}
+  mode: {{ .Values.breathe.cpu.mode | default .Values.breathe.mode | default "shadow" }}
   disruptionPolicy: {{ .Values.breathe.cpu.disruptionPolicy | default "allowRestart" }}
 {{- end }}
 {{- if and .Values.breathe.storage.enabled .Values.persistence.enabled }}
@@ -102,6 +109,7 @@ spec:
   cooldownSeconds: {{ .Values.breathe.storage.cooldownSeconds | default 600 }}
   maxStalenessSeconds: {{ .Values.breathe.storage.maxStalenessSeconds | default 300 }}
   dryRun: {{ .Values.breathe.storage.dryRun }}
+  mode: {{ .Values.breathe.storage.mode | default .Values.breathe.mode | default "shadow" }}
   # Online CSI resize ⇒ no pod roll when the StorageClass supports expansion.
   disruptionPolicy: {{ .Values.breathe.storage.disruptionPolicy | default "restartFreeOnly" }}
 {{- end }}

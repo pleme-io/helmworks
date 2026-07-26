@@ -90,7 +90,12 @@ imagePullSecrets: []
 # pointing at a non-existent target). Shape matches breathe.pleme.io/v1 MemoryBand.
 breatheBand:
   enabled: true
-  dryRun: true            # explicit — the camelot band footgun guard
+  # dryRun — INERT for MemoryBand; NOT the footgun guard it was labelled as.
+  # promotion_mode() is mode_spec().unwrap_or(ShadowConfirmEffect) and never
+  # consults dry_run(), so this band was in fact born LIVE and self-promoting.
+  dryRun: true
+  # mode — the ACTUAL guard: shadow = never carves (born shadowed).
+  mode: shadow
   setpoint: 0.8           # the 80/20 band
   growAbove: 0.85
   shrinkBelow: 0.70

@@ -114,15 +114,27 @@ breathability:
 {{/*
 lareira-respiro.breatheValues — adapt respiro.breathe → the pleme-lib.breatheBand
 native `.Values.breathe` contract, targeting the consumer Deployment (EXTERNAL
-targetRef). dryRun SHADOW-first default true.
+targetRef). BORN SHADOWED: `mode` defaults to shadow (dryRun is inert for this
+band kind and never withheld anything — see the mode comment in the body).
 */}}
 {{- define "lareira-respiro.breatheValues" -}}
 {{- $b := .Values.respiro.breathe -}}
 {{- $dryRun := $b.dryRun | default true -}}
 {{- $setpoint := $b.setpoint | default 0.8 -}}
-{{- /* pleme-lib.breatheBand reads dryRun + setpoint PER-DIMENSION (off the
-       memory/cpu sub-dicts), so the respiro top-level dryRun/setpoint are
-       pushed down into both dimensions here. */ -}}
+{{- /* mode — MUST be forwarded. This adapter RECONSTRUCTS the breathe dict
+       field-by-field, so pleme-lib.breatheBand only ever sees keys named
+       here: any key omitted is silently DROPPED, and its `{{- with $mem.mode }}`
+       simply never fires. Before this line existed, a consumer setting
+       respiro.breathe.mode got no error and no effect — the band was emitted
+       with no mode at all and therefore BORN LIVE (dryRun is dead code for
+       this band kind; promotion_mode() never reads it). Defaults to shadow so
+       a band is born shadowed. Per-dimension memory.mode / cpu.mode win.
+       If you add a new band field to pleme-lib, add it HERE too or it is
+       dropped the same silent way. */ -}}
+{{- $mode := $b.mode | default "shadow" -}}
+{{- /* pleme-lib.breatheBand reads dryRun + setpoint + mode PER-DIMENSION (off
+       the memory/cpu sub-dicts), so the respiro top-level dryRun/setpoint/mode
+       are pushed down into both dimensions here. */ -}}
 breathe:
   enabled: {{ $b.enabled }}
   targetRef:
@@ -135,12 +147,14 @@ breathe:
     floor: {{ (default dict $b.memory).floor | default "256Mi" }}
     ceiling: {{ (default dict $b.memory).ceiling | default "2Gi" }}
     dryRun: {{ $dryRun }}
+    mode: {{ (default dict $b.memory).mode | default $mode }}
   cpu:
     enabled: {{ (default dict $b.cpu).enabled | default false }}
     setpoint: {{ $setpoint }}
     floor: {{ (default dict $b.cpu).floor | default "200m" }}
     ceiling: {{ (default dict $b.cpu).ceiling | default "2000m" }}
     dryRun: {{ $dryRun }}
+    mode: {{ (default dict $b.cpu).mode | default $mode }}
 {{- end -}}
 
 {{/*

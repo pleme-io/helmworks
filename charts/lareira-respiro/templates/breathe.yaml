@@ -5,10 +5,13 @@ breathe MemoryBand / CpuBand (pleme-lib.breatheBand) carving the CONSUMER
 Deployment's resource limits to hold its utilization at the setpoint (the 80/20
 law). The band's targetRef is EXTERNAL — it points at the consumer Deployment
 this chart owns (respiro.breathe.targetRef is wired by the adapter to the
-consumer name). dryRun SHADOW-first default true: observe ShadowWouldApply
-before flipping to LIVE.
+consumer name). BORN SHADOWED via `mode` (default shadow): observe
+ShadowWouldApply before flipping to LIVE. NOT via dryRun — that field is inert
+for this band kind and never withheld a carve.
 
-We adapt respiro.breathe → the helper's native .Values.breathe contract.
+We adapt respiro.breathe → the helper's native .Values.breathe contract. The
+adapter reconstructs the dict field-by-field, so any field it does not name is
+silently dropped — see its `mode` comment before adding a new band field.
 */}}
 {{- if and .Values.respiro.enabled .Values.respiro.breathe.enabled }}
 {{- $bValues := fromYaml (include "lareira-respiro.breatheValues" .) }}

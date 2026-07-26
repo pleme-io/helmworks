@@ -80,19 +80,42 @@ breathe:
   shrinkFactor: 0.90
   cooldownSeconds: 600
   maxStalenessSeconds: 120
-  # dryRun — SHADOW-first. true = the controller observes + attests every tick
-  # but never carves. Prove convergence before flipping to false (LIVE).
+  # dryRun — INERT for MemoryBand/CpuBand/StorageBand; kept for wire
+  # compatibility only. It reads as safety while doing nothing: the band
+  # trait's promotion_mode() is mode_spec().unwrap_or(ShadowConfirmEffect)
+  # and never consults dry_run(). This key was previously documented here as
+  # "SHADOW-first … never carves" — that was FALSE, and every band this
+  # chart's native path emitted was born LIVE and self-promoted.
+  # Read status.effectiveDryRun, never spec.dryRun.
   dryRun: true
+  # mode — the REAL promotion lever, the only one that withholds a carve:
+  #   shadow              never carves (BORN SHADOWED — this chart's default)
+  #   shadowConfirmEffect observes, then AUTO-PROMOTES to live (breathe's own
+  #                       default when mode is absent — which is exactly why
+  #                       absent is unsafe and why it is defaulted here)
+  #   effect              carves immediately
+  #   suspended           never carves, no observation either
+  # Per-dimension memory.mode / cpu.mode override this.
+  mode: shadow
   # disruptionPolicy — allowRestart re-arms grow-on-pressure for restart-
   # requiring resizes; RestartFreeOnly (the breathe default) defers them.
   disruptionPolicy: RestartFreeOnly
+  # NOTE both dimensions set `mode` EXPLICITLY. The top-level `mode` above is
+  # honoured by this chart's native path, but the useLibHelper:true path hands
+  # values straight to pleme-lib.breatheBand, which reads `mode` ONLY off the
+  # per-dimension sub-dict ({{- with $mem.mode }}) and has no top-level
+  # fallback. Without these two keys, flipping useLibHelper to true would
+  # silently emit bands with NO mode — i.e. born live — while every comment
+  # here still said shadow. Keep them in sync with the top-level default.
   memory:
     enabled: true
+    mode: shadow
     setpoint: 0.8
     floor: 256Mi
     ceiling: 2Gi
   cpu:
     enabled: false                    # cpu band off by default (throttle-not-kill)
+    mode: shadow
     setpoint: 0.8
     floor: 200m
     ceiling: 2000m
