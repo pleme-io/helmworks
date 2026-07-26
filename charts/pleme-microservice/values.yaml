@@ -45,13 +45,42 @@ resources:
 
 # breathe resource-homeostasis bands (breathe.pleme.io) — carves
 # resources.limits.{memory,cpu} to hold this Deployment at a target
-# utilization band. Shadow-first (dryRun: true): the controller
-# decides + reports but never mutates until an operator flips it live
-# via the breathe MCP, matching every other pleme-microservice
-# consumer's safety posture. See helmworks/charts/pleme-lib/templates/
+# utilization band. See helmworks/charts/pleme-lib/templates/
 # _breatheband.tpl for the full field set.
+#
+# ⚠️ CORRECTION 2026-07-26 — this block previously claimed "Shadow-first
+# (dryRun: true): the controller decides + reports but never mutates until
+# an operator flips it live". THAT WAS FALSE, and every consumer inherited
+# the false assurance.
+#
+# `spec.dryRun` is DEAD CODE for MemoryBand/CpuBand/StorageBand: the band
+# trait's `promotion_mode()` is `mode_spec().unwrap_or(ShadowConfirmEffect)`
+# and never consults `dry_run()` (only HostParam/KubeParam bands still do).
+# So these bands SHADOW-CONFIRMED AND THEN CARVED LIVE the whole time.
+# Measured on camelot-eks 2026-07-26: auth-cpu 74 carves, bis-cpu 56,
+# gator-cpu 53 — several collapsed to their 200m floor. Writes go through
+# the in-place pod RESIZE subresource, which mutates the POD and not the
+# Deployment template, so Flux sees no drift and the divergence never
+# appears in git. That invisibility is why this survived a config audit.
+#
+# `dryRun` is retained below only for wire-compatibility. The ONLY field
+# that actually withholds a carve is `mode` (shadow | suspended).
+#
+# postureRef: `standard` — the documented successor to the retired
+# `platform-default` tuple these bands were pinned to. Strictly calmer on
+# the axis that hurts: shrinkBelow 0.70 → 0.60, so a downward write now
+# needs ≥40% demonstrated idle. The old 0.70 with a multiplicative 0.9
+# factor lands a shrink right back at the grow edge, which is what produced
+# the observed shrink/grow oscillation and the large carve counts above.
+#
+# Left deliberately LIVE (no `mode: shadow`): these are stateless,
+# restart-tolerant microservices whose degradation is contained. The
+# never-shrink tiers + shadow are reserved for the database and the control
+# plane (see akeyless-mysql-pleme / pangea-operator). To observe-only
+# without carving, set `mode: shadow` here.
 breathe:
   enabled: true
+  postureRef: standard
   memory:
     dryRun: true
     disruptionPolicy: restartFreeOnly

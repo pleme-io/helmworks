@@ -31,7 +31,84 @@ Usage in a chart's templates/breatheband.yaml:
 Every spec field the band controller reads is settable; `default` filters keep
 a minimal values block (just breathe.enabled + breathe.memory.setpoint)
 rendering a valid CR.
+
+── postureRef (2026-07-26) ─────────────────────────────────────────────
+`breathe.<dim>.postureRef` (or `breathe.postureRef` for all three dims)
+names a cluster-scoped BreathePosture that supplies the TUNING tuple
+(setpoint / growAbove / growFactor / shrinkBelow / shrinkFactor /
+cooldownSeconds / disruptionPolicy / maxStalenessSeconds).
+
+WHY THIS IS A TEMPLATE CHANGE AND NOT A VALUES CHANGE -- the load-bearing
+detail, do not "simplify" this away: breathe resolves each tuning field as
+`inline.or(posture).or(compiled_default)`, PER FIELD
+(breathe-crd/src/lib.rs `band_config_with_posture`, pinned by its own test
+`explicit_override_always_wins_over_posture`). Those spec fields are
+`Option<T>` with `skip_serializing_if`, and the CRD declares no defaults --
+so the controller genuinely distinguishes "absent" from "explicitly 0.8".
+
+Before this change the template emitted the full tuple UNCONDITIONALLY from
+its own hardcoded defaults. Every rendered band therefore carried an
+explicit `setpoint: 0.8` etc. on disk, which means a `postureRef` added
+alongside it would have been resolved LAST and silently done NOTHING. The
+posture only bites when the inline key is genuinely absent -- hence the
+`hasKey` gate below, which omits a tuning field exactly when (a) a posture
+is named and (b) the chart's values did not explicitly set it.
+
+Precedence, as rendered:
+  explicit values.yaml key  >  named posture  >  this template's default
+Unchanged when no postureRef is set: every field renders exactly as before,
+so this is a purely additive capability for existing consumers.
+
+NOT posture-governed, deliberately: floor / ceiling / requestFloor are plain
+(non-Option) fields the CRD always materializes and a BreathePosture
+structurally cannot carry -- they stay per-band. Likewise `dryRun` and
+`mode`.
+
+── dryRun is DEAD CODE for these band kinds -- read before trusting it ──
+`spec.dryRun` is INERT on MemoryBand/CpuBand/StorageBand. The band trait's
+`promotion_mode()` is `mode_spec().unwrap_or(ShadowConfirmEffect)` and never
+consults `dry_run()` (only HostParamBand/KubeParamBand still do). A band
+left at the default therefore SHADOW-CONFIRMS-THEN-CARVES LIVE, no matter
+what `dryRun` says. `dryRun: true` reads as safety while doing nothing --
+it is retained only for wire-compatibility.
+
+The ONLY lever that actually withholds a carve is `mode`:
+  shadow             -- never carves (short-circuits before the confirm gate)
+  suspended          -- never carves
+  shadowConfirmEffect-- DEFAULT: auto-promotes to live after the confirm window
+  effect             -- carves immediately
+A BreathePosture cannot carry `mode`, so a postureRef alone NEVER stops a
+band from carving -- it only retunes how hard it carves. Set `mode: shadow`
+for that.
 */}}
+
+{{/*
+pleme-lib.breatheBand.tuning — emit the posture-governed tuning fields.
+
+Takes { cfg, posture, fields } where `fields` is an ORDERED list of
+{ k: <spec key>, d: <template default> }. Order is explicit (not a dict
+range) so rendered output stays stable and reviewable.
+
+Emission rule, per field:
+  - values.yaml set it explicitly  -> emit the explicit value (wins over posture)
+  - no posture named               -> emit this template's default (legacy behavior)
+  - posture named, key absent      -> emit NOTHING, so the posture supplies it
+
+`hasKey` rather than `default` is load-bearing: `default` would rewrite a
+legitimate falsy value, and the never-shrink postures use exactly that --
+`shrinkBelow: 0` would silently become 0.7 under a `default` filter.
+*/}}
+{{- define "pleme-lib.breatheBand.tuning" -}}
+{{- $cfg := .cfg -}}
+{{- $posture := .posture -}}
+{{- range $t := .fields }}
+{{- if hasKey $cfg $t.k }}
+{{ $t.k }}: {{ index $cfg $t.k }}
+{{- else if not $posture }}
+{{ $t.k }}: {{ $t.d }}
+{{- end }}
+{{- end }}
+{{- end -}}
 
 {{- define "pleme-lib.breatheBand" -}}
 {{- $g := .Values.global | default dict -}}
@@ -69,20 +146,32 @@ spec:
     apiVersion: {{ $targetRef.apiVersion }}
     kind: {{ $targetRef.kind }}
     name: {{ $targetRef.name }}
-  setpoint: {{ $mem.setpoint | default 0.8 }}
+  {{- $memPosture := $mem.postureRef | default $breathe.postureRef | default "" }}
+  {{- with $memPosture }}
+  postureRef: {{ . }}
+  {{- end }}
   floor: {{ $mem.floor | default "256Mi" | quote }}
   ceiling: {{ $mem.ceiling | default "2Gi" | quote }}
-  growAbove: {{ $mem.growAbove | default 0.85 }}
-  growFactor: {{ $mem.growFactor | default 1.25 }}
-  shrinkBelow: {{ $mem.shrinkBelow | default 0.7 }}
-  shrinkFactor: {{ $mem.shrinkFactor | default 0.9 }}
-  cooldownSeconds: {{ $mem.cooldownSeconds | default 600 }}
-  disruptionPolicy: {{ $mem.disruptionPolicy | default "allowRestart" }}
+  {{- with $mem.requestFloor }}
+  requestFloor: {{ . | quote }}
+  {{- end }}
+  {{- $memTuning := include "pleme-lib.breatheBand.tuning" (dict "cfg" $mem "posture" $memPosture "fields" (list
+        (dict "k" "setpoint"            "d" 0.8)
+        (dict "k" "growAbove"           "d" 0.85)
+        (dict "k" "growFactor"          "d" 1.25)
+        (dict "k" "shrinkBelow"         "d" 0.7)
+        (dict "k" "shrinkFactor"        "d" 0.9)
+        (dict "k" "cooldownSeconds"     "d" 600)
+        (dict "k" "disruptionPolicy"    "d" "allowRestart")
+        (dict "k" "maxStalenessSeconds" "d" 120)
+      )) | trim }}
+  {{- with $memTuning }}
+  {{- . | nindent 2 }}
+  {{- end }}
   dryRun: {{ $mem.dryRun | default false }}
   {{- with $mem.mode }}
   mode: {{ . }}
   {{- end }}
-  maxStalenessSeconds: {{ $mem.maxStalenessSeconds | default 120 }}
 {{- end }}
 {{/* ── CpuBand ─────────────────────────────────────────────────── */}}
 {{- $cpu := $breathe.cpu | default dict -}}
@@ -104,20 +193,32 @@ spec:
     apiVersion: {{ $targetRef.apiVersion }}
     kind: {{ $targetRef.kind }}
     name: {{ $targetRef.name }}
-  setpoint: {{ $cpu.setpoint | default 0.8 }}
+  {{- $cpuPosture := $cpu.postureRef | default $breathe.postureRef | default "" }}
+  {{- with $cpuPosture }}
+  postureRef: {{ . }}
+  {{- end }}
   floor: {{ $cpu.floor | default "200m" | quote }}
   ceiling: {{ $cpu.ceiling | default "2000m" | quote }}
-  growAbove: {{ $cpu.growAbove | default 0.85 }}
-  growFactor: {{ $cpu.growFactor | default 1.25 }}
-  shrinkBelow: {{ $cpu.shrinkBelow | default 0.7 }}
-  shrinkFactor: {{ $cpu.shrinkFactor | default 0.9 }}
-  cooldownSeconds: {{ $cpu.cooldownSeconds | default 600 }}
-  disruptionPolicy: {{ $cpu.disruptionPolicy | default "allowRestart" }}
+  {{- with $cpu.requestFloor }}
+  requestFloor: {{ . | quote }}
+  {{- end }}
+  {{- $cpuTuning := include "pleme-lib.breatheBand.tuning" (dict "cfg" $cpu "posture" $cpuPosture "fields" (list
+        (dict "k" "setpoint"            "d" 0.8)
+        (dict "k" "growAbove"           "d" 0.85)
+        (dict "k" "growFactor"          "d" 1.25)
+        (dict "k" "shrinkBelow"         "d" 0.7)
+        (dict "k" "shrinkFactor"        "d" 0.9)
+        (dict "k" "cooldownSeconds"     "d" 600)
+        (dict "k" "disruptionPolicy"    "d" "allowRestart")
+        (dict "k" "maxStalenessSeconds" "d" 120)
+      )) | trim }}
+  {{- with $cpuTuning }}
+  {{- . | nindent 2 }}
+  {{- end }}
   dryRun: {{ $cpu.dryRun | default false }}
   {{- with $cpu.mode }}
   mode: {{ . }}
   {{- end }}
-  maxStalenessSeconds: {{ $cpu.maxStalenessSeconds | default 120 }}
 {{- end }}
 {{/* ── StorageBand ─────────────────────────────────────────────── */}}
 {{- $sto := $breathe.storage | default dict -}}
@@ -143,18 +244,29 @@ spec:
     apiVersion: {{ ($sto.targetRef | default dict).apiVersion | default "v1" }}
     kind: {{ ($sto.targetRef | default dict).kind | default "PersistentVolumeClaim" }}
     name: {{ $stoPvc }}
-  setpoint: {{ $sto.setpoint | default 0.8 }}
+  {{- $stoPosture := $sto.postureRef | default $breathe.postureRef | default "" }}
+  {{- with $stoPosture }}
+  postureRef: {{ . }}
+  {{- end }}
   floor: {{ $sto.floor | default "1Gi" | quote }}
   ceiling: {{ $sto.ceiling | default "100Gi" | quote }}
-  growAbove: {{ $sto.growAbove | default 0.8 }}
-  growFactor: {{ $sto.growFactor | default 1.5 }}
-  cooldownSeconds: {{ $sto.cooldownSeconds | default 3600 }}
-  disruptionPolicy: {{ $sto.disruptionPolicy | default "allowRestart" }}
+  {{- /* Grow-only: the descriptor clamps shrink, so shrinkBelow/shrinkFactor
+         are deliberately absent here even when a posture carries them. */}}
+  {{- $stoTuning := include "pleme-lib.breatheBand.tuning" (dict "cfg" $sto "posture" $stoPosture "fields" (list
+        (dict "k" "setpoint"            "d" 0.8)
+        (dict "k" "growAbove"           "d" 0.8)
+        (dict "k" "growFactor"          "d" 1.5)
+        (dict "k" "cooldownSeconds"     "d" 3600)
+        (dict "k" "disruptionPolicy"    "d" "allowRestart")
+        (dict "k" "maxStalenessSeconds" "d" 300)
+      )) | trim }}
+  {{- with $stoTuning }}
+  {{- . | nindent 2 }}
+  {{- end }}
   dryRun: {{ $sto.dryRun | default true }}
   {{- with $sto.mode }}
   mode: {{ . }}
   {{- end }}
-  maxStalenessSeconds: {{ $sto.maxStalenessSeconds | default 300 }}
 {{- end }}
 {{- end }}
 {{- end }}

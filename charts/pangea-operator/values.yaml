@@ -1136,13 +1136,41 @@ operatorPolicy:
 # MemoryBand already targets this Deployment (created outside this chart,
 # by lareira-observe-operator on rio/camelot); declaring a second MemoryBand
 # from the chart itself would conflict/duplicate against the same target.
-# Shadow-first (dryRun: true); the operator's own reconcile-rate footprint
-# makes a live CPU carve worth observing before trusting.
+#
+# ⚠️ CORRECTION 2026-07-26 — this block previously said "Shadow-first
+# (dryRun: true); the operator's own reconcile-rate footprint makes a live
+# CPU carve worth observing before trusting." The intent was right; the
+# mechanism did not exist.
+#
+# `spec.dryRun` is DEAD CODE for CpuBand: `promotion_mode()` is
+# `mode_spec().unwrap_or(ShadowConfirmEffect)` and never reads `dry_run()`.
+# This band auto-graduated from shadow to live and carved pangea-operator's
+# CPU limit 2000m → 359m over 283 carves, re-opening the 2026-07-24
+# crash-loop incident (25 restarts/8h) by undoing the fix that had closed
+# it. It was stopped by an emergency static `floor: "2000m"` pin at the
+# consumer, which is a clamp on the range — not a withholding of the write.
+#
+# pangea-operator is the FLEET CONTROL PLANE since rio's retirement. It gets
+# the authorization fix, not just a range clamp:
+#
+#   mode: shadow      — the only field that actually withholds a carve.
+#                       Structural, so it survives the consumer's floor pin
+#                       being relaxed later. `dryRun` cannot do this.
+#   postureRef: critical — never-shrink tier (shrinkBelow 0), 1.5x grow,
+#                       120s cooldown. Belt to the mode's braces: if an
+#                       operator deliberately flips mode to effect, the
+#                       resolved tuple still cannot shrink the control
+#                       plane's CPU.
+#
+# Flip `mode` (not `dryRun`) to make this live again — deliberately, and
+# preferably only once the sibling MemoryBand's tier is reviewed too.
 breathe:
   enabled: true
   memory:
     enabled: false
   cpu:
     enabled: true
+    postureRef: critical
+    mode: shadow
     dryRun: true
     disruptionPolicy: restartFreeOnly

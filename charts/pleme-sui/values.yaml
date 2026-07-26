@@ -89,13 +89,32 @@ resources:
 
 # breathe resource-homeostasis bands (breathe.pleme.io) — carves
 # resources.limits.{memory,cpu} to hold this Deployment at a target
-# utilization band. Shadow-first (dryRun: true): the controller
-# decides + reports but never mutates until an operator flips it live
-# via the breathe MCP, matching every other pleme-microservice
-# consumer's safety posture. See helmworks/charts/pleme-lib/templates/
+# utilization band. See helmworks/charts/pleme-lib/templates/
 # _breatheband.tpl for the full field set.
+#
+# ⚠️ CORRECTION 2026-07-26 — this block previously claimed "Shadow-first
+# (dryRun: true): the controller decides + reports but never mutates until
+# an operator flips it live". That was FALSE. `spec.dryRun` is DEAD CODE for
+# MemoryBand/CpuBand — `promotion_mode()` is
+# `mode_spec().unwrap_or(ShadowConfirmEffect)` and never reads `dry_run()`,
+# so the band shadow-confirms and then carves live. Measured on camelot-eks
+# 2026-07-26: sui-cpu had taken 104 carves. (Its live CR also renders
+# `dryRun: false` — the consumer HelmRelease overrides this default — which
+# changes exactly nothing, since the field is inert either way. That is the
+# clearest possible demonstration of why it must not be trusted.)
+#
+# postureRef: `standard` — successor to the retired `platform-default` tuple
+# these bands were pinned to; shrinkBelow 0.70 → 0.60 so a downward write
+# needs meaningfully more demonstrated idle, damping the shrink/grow
+# oscillation that produced the carve count above.
+#
+# Left deliberately LIVE (no `mode: shadow`): sui is a rebuildable build
+# cache, not a database or the control plane — a bad carve costs cache
+# warmth, not durable state. Set `mode: shadow` (NOT `dryRun`) to
+# observe-only.
 breathe:
   enabled: true
+  postureRef: standard
   memory:
     dryRun: true
     disruptionPolicy: restartFreeOnly

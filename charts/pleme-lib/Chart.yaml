@@ -2,4 +2,26 @@ apiVersion: v2
 name: pleme-lib
 description: Shared library chart for pleme-io internal services
 type: library
-version: 0.40.2
+version: 0.41.0
+# 0.41.0 (2026-07-26) -- breatheBand: honor `postureRef`.
+#
+# The template previously emitted the full tuning tuple (setpoint /
+# growAbove / growFactor / shrinkBelow / shrinkFactor / cooldownSeconds /
+# disruptionPolicy / maxStalenessSeconds) UNCONDITIONALLY from its own
+# hardcoded defaults -- which happen to be the retired `platform-default`
+# numbers. breathe resolves each field `inline.or(posture).or(default)` PER
+# FIELD, so a `postureRef` set alongside those inline keys resolved LAST and
+# did nothing. Every Helm-emitted band in the fleet was therefore pinned to
+# the retired tuple with NO WAY to opt into the criticality tiers, while
+# raw-YAML bands moved to postures freely -- a whole class of workload
+# (including a database and the fleet control plane) invisible to any
+# file-based posture audit, because there was no file to audit.
+#
+# A tuning field is now omitted exactly when a posture is named AND values
+# did not set it explicitly, so the posture actually binds. Rendering is
+# byte-equivalent (modulo field order) when no postureRef is set -- verified
+# by a normalized before/after diff across pleme-microservice.
+#
+# See the template header for why `hasKey` and not `default`: the
+# never-shrink postures use `shrinkBelow: 0`, which a `default` filter would
+# silently rewrite to 0.7.
