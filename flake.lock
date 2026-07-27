@@ -830,9 +830,6 @@
     },
     "forge": {
       "inputs": {
-        "crate2nix": [
-          "crate2nix"
-        ],
         "devenv": "devenv_2",
         "fenix": [
           "fenix"
@@ -846,11 +843,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1781480803,
-        "narHash": "sha256-d56QX9ZoFzRGwH/Lj2Kj/OFVRUAbg7oBl9ynatnndAo=",
+        "lastModified": 1785111627,
+        "narHash": "sha256-EW8z1sDygHwm8JDX8n7bsig69E/+O2Wbg/iexzoq3Do=",
         "owner": "pleme-io",
         "repo": "forge",
-        "rev": "75d495e5085d71d55eea8a1330632cb4d8a914b9",
+        "rev": "29866d33b7068b27fbf1d17dc2314f1d43e0c696",
         "type": "github"
       },
       "original": {
