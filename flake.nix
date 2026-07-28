@@ -526,9 +526,32 @@
               SERVER_POD=$(kubectl -n e2e get pod -l app=server -o name | head -1)
               kubectl -n e2e port-forward "$SERVER_POD" 19090:9090 >/dev/null 2>&1 &
               sleep 2
-              IN=$(curl -fsS http://127.0.0.1:19090/metrics | grep '^aresta_inbound_connections_total ' | awk '{print $2}' | tr -d 'e+0' || echo 0)
+              # A scrape failure is a FAILED assertion, never a value.
+              METRICS=$(curl -fsS http://127.0.0.1:19090/metrics) || {
+                echo "  ✗ FAIL: could not scrape aresta metrics on 127.0.0.1:19090"
+                exit 1
+              }
+              # Prometheus may render a counter in exponent form (1e+06), so
+              # coerce it NUMERICALLY — never by deleting characters. The
+              # previous `tr -d 'e+0'` deleted every 'e', '+' and '0' from the
+              # value, so the counter 0 became the EMPTY STRING; `[ "" -lt 1 ]`
+              # then errored (status 2), the error text was swallowed by
+              # `2>/dev/null`, and a non-1 status in an `if` reads as false —
+              # so "zero mTLS connections", the exact condition this guard
+              # exists to catch, reported PASS. (It also mangled 10 into 1.)
+              # Verified 2026-07-27: raw 0 -> PASS, raw 10 -> IN=1.
+              IN=$(echo "$METRICS" | awk '$1 == "aresta_inbound_connections_total" { printf "%d", $2 + 0; found = 1 } END { if (!found) exit 1 }') || {
+                echo "  ✗ FAIL: aresta_inbound_connections_total absent from the scrape"
+                exit 1
+              }
               echo "  aresta_inbound_connections_total = $IN"
-              if [ "$IN" -lt 1 ] 2>/dev/null; then
+              case "$IN" in
+                "" | *[!0-9]*)
+                  echo "  ✗ FAIL: unparseable aresta_inbound_connections_total value: '$IN'"
+                  exit 1
+                  ;;
+              esac
+              if [ "$IN" -lt 1 ]; then
                 echo "  ✗ FAIL: server aresta-in didn't accept any mTLS connections"
                 exit 1
               fi
@@ -695,34 +718,104 @@
               echo "  - lacre → cartorio in-cluster reachability holds"
             '';
 
+            # stack:proof-chain — the proof-chain assertion, run against an
+            # ALREADY-RUNNING stack (port-forwarded). Useful for repeated
+            # demo iteration without re-creating the cluster.
+            #
+            # THREE TYPED OUTCOMES, and exactly ONE of them exits 0:
+            #
+            #   0  OK ✓         health + audit-consistency + cartorio-cli
+            #                   audit + a Merkle INCLUSION PROOF all verified.
+            #   1  FAILED ✗     something WAS verified and came back wrong.
+            #   2  INCOMPLETE ✗ the proof chain could NOT be verified — no
+            #                   verifier binary, or an empty ledger holding
+            #                   no artifact to prove inclusion of.
+            #
+            # ── why the outcomes are split, and why exit 2 is not exit 0 ──
+            # Until 2026-07-27 "the verifier is unavailable" and "the proof
+            # verified" produced the SAME banner and the SAME exit code: the
+            # app printed `stack:proof-chain OK ✓` and exited 0 having never
+            # run `cartorio-cli audit` and never run `verify-proof`, against
+            # a ledger that held artifacts. For an app whose entire purpose is
+            # verifying a Merkle inclusion proof that is an attestation-
+            # integrity defect, not a CI nit — a green run was evidence of
+            # nothing. Exit 0 is now reachable only THROUGH a completed
+            # inclusion-proof verification, so "reported success without
+            # verifying" has no path. Do not collapse these back together,
+            # and do not make INCOMPLETE exit 0 behind a flag: a flag is set
+            # once and forgotten, and the green it produces is the same lie.
+            # A caller that genuinely tolerates could-not-verify writes that
+            # tolerance at its own call site (`|| [ $? -eq 2 ]`), where it is
+            # visible, rather than in here where it is not.
+            #
+            # ── NO SHELL (fleet rule) — acknowledged debt ──
+            # This is ~120 lines of real logic (control flow, JSON handling,
+            # verdict composition) in shell, far past the 3-line-glue
+            # allowance. The destination is a typed `cartorio verify`
+            # subcommand owning this outcome enum, leaving this app as the
+            # 3-line invocation. Deliberately NOT rewritten in the same pass
+            # that fixes the correctness bug — scope creep on an attestation
+            # path is its own risk.
             "stack:proof-chain" = mkApp "stack-proof-chain" ''
-              # Lighter-weight proof-chain assertion that runs against
-              # an ALREADY-RUNNING stack (port-forwarded). Useful for
-              # repeated demo iteration without re-creating the cluster.
-              #
-              # Three phases:
-              #   1. /health on cartorio + lacre
-              #   2. /api/v1/admin/audit-consistency reports healthy
-              #   3. cartorio-cli (built from sibling cartorio repo if
-              #      available) calls audit + verify-proof for the most
-              #      recent artifact, if any
               CARTORIO="''${CARTORIO_URL:-http://localhost:18082}"
               LACRE="''${LACRE_URL:-http://localhost:18083}"
 
+              CLI=""
+
+              # The ONLY exit points. One banner per outcome, in one place.
+              finish() {
+                case "$1" in
+                  ok)
+                    echo ""
+                    echo "==> stack:proof-chain OK ✓"
+                    echo "    inclusion proof verified by: $CLI"
+                    exit 0
+                    ;;
+                  incomplete)
+                    echo ""
+                    echo "==> stack:proof-chain INCOMPLETE ✗"
+                    echo "    the proof chain was NOT verified: ''${2:-unspecified}"
+                    echo "    exit 2 = could-not-verify (distinct from exit 1 = verified-and-wrong)"
+                    exit 2
+                    ;;
+                  failed)
+                    echo ""
+                    echo "==> stack:proof-chain FAILED ✗"
+                    echo "    ''${2:-unspecified}"
+                    exit 1
+                    ;;
+                  *)
+                    echo "internal error: finish called with unknown outcome '$1'" >&2
+                    exit 3
+                    ;;
+                esac
+              }
+
+              # ── Phase 1: liveness ──────────────────────────────────────
               echo "==> probing cartorio at $CARTORIO"
-              curl -fsS "$CARTORIO/health"
+              curl -fsS "$CARTORIO/health" || finish failed "cartorio /health unreachable at $CARTORIO"
               echo ""
-              ROOT=$(curl -fsS "$CARTORIO/api/v1/merkle/root" | jq -r .ledger_root)
-              ART_COUNT=$(curl -fsS "$CARTORIO/api/v1/merkle/root" | jq -r .artifact_count)
+              # Read the root ONCE and derive ledger_root / artifact_count /
+              # state_root from that one snapshot. The previous code fetched
+              # /merkle/root three separate times, so the count it gated on
+              # and the root it pinned the proof against could come from
+              # different ledger states.
+              ROOT_JSON=$(curl -fsS "$CARTORIO/api/v1/merkle/root") \
+                || finish failed "cartorio /api/v1/merkle/root unreachable at $CARTORIO"
+              ROOT=$(echo "$ROOT_JSON" | jq -r .ledger_root)
+              ART_COUNT=$(echo "$ROOT_JSON" | jq -r .artifact_count)
+              PINNED=$(echo "$ROOT_JSON" | jq -r .state_root)
               echo "  ledger_root:    $ROOT"
               echo "  artifact_count: $ART_COUNT"
 
               echo "==> probing lacre at $LACRE"
-              curl -fsS "$LACRE/health"
+              curl -fsS "$LACRE/health" || finish failed "lacre /health unreachable at $LACRE"
               echo ""
 
+              # ── Phase 2: server-side audit consistency ─────────────────
               echo "==> probing cartorio audit-consistency"
-              REPORT=$(curl -fsS -XPOST "$CARTORIO/api/v1/admin/audit-consistency")
+              REPORT=$(curl -fsS -XPOST "$CARTORIO/api/v1/admin/audit-consistency") \
+                || finish failed "cartorio /api/v1/admin/audit-consistency unreachable"
               HEALTHY=$(echo "$REPORT" | jq -r .healthy)
               if [ "$HEALTHY" = "true" ]; then
                 ARTS=$(echo "$REPORT" | jq -r .artifacts_checked)
@@ -731,59 +824,96 @@
               else
                 echo "  AUDIT_DRIFT detected:"
                 echo "$REPORT" | jq .
-                exit 1
+                finish failed "cartorio reports audit drift (healthy=$HEALTHY)"
               fi
 
-              # cartorio-cli integration (Gap 3 fill).
-              # Looks for the binary on PATH; if absent, attempts to
-              # build it from the sibling cartorio repo. Skips
-              # gracefully when neither is available.
-              CLI=""
+              # ── Phase 3a: resolve the verifier ─────────────────────────
+              # A path that merely EXISTS is not evidence that the binary
+              # there corresponds to the current source. The only accepted
+              # evidence is (a) a cartorio-cli already installed on PATH, or
+              # (b) a build we just ran and WATCHED SUCCEED. A stale
+              # target/release/cartorio-cli left behind by an older build is
+              # never adopted on the strength of its own -x bit.
+              CLI_UNAVAILABLE_REASON=""
               if command -v cartorio-cli >/dev/null 2>&1; then
                 CLI=cartorio-cli
-              elif [ -d ../cartorio ] || [ -d "$HOME/code/github/pleme-io/cartorio" ]; then
-                CART_REPO="../cartorio"
-                [ -d "$CART_REPO" ] || CART_REPO="$HOME/code/github/pleme-io/cartorio"
-                echo "==> building cartorio-cli from $CART_REPO (cli + sqlite features)"
-                if ( cd "$CART_REPO" && cargo build --features 'cli sqlite' --release --bin cartorio-cli 2>&1 | tail -3 ); then
-                  CLI="$CART_REPO/target/release/cartorio-cli"
-                fi
-              fi
-
-              if [ -n "$CLI" ] && [ -x "$CLI" ]; then
-                echo "==> exercising cartorio-cli audit against $CARTORIO"
-                if "$CLI" audit --url "$CARTORIO" > /tmp/cli-audit.json; then
-                  echo "  cartorio-cli audit ✓"
-                  jq -c '{healthy: .healthy, artifacts_checked, events_replayed}' /tmp/cli-audit.json
-                else
-                  echo "  ERROR: cartorio-cli audit returned non-zero"
-                  exit 1
-                fi
-
-                # If there's at least one admitted artifact, fetch its
-                # inclusion proof and verify it locally via the CLI.
-                if [ "$ART_COUNT" != "0" ] && [ -n "$ART_COUNT" ]; then
-                  ART_ID=$(curl -fsS "$CARTORIO/api/v1/artifacts" | jq -r '.artifacts[0].id')
-                  PINNED=$(curl -fsS "$CARTORIO/api/v1/merkle/root" | jq -r .state_root)
-                  curl -fsS "$CARTORIO/api/v1/artifacts/$ART_ID/proof" > /tmp/proof.json
-                  echo "==> verifying inclusion proof for $ART_ID against pinned root"
-                  if "$CLI" verify-proof --proof /tmp/proof.json --root "$PINNED"; then
-                    echo "  cartorio-cli verify-proof ✓"
-                  else
-                    echo "  ERROR: inclusion proof did not verify"
-                    exit 1
-                  fi
-                else
-                  echo "==> skipping verify-proof (no admitted artifacts in ledger)"
-                fi
               else
-                echo "==> cartorio-cli not available; install via 'cargo build --features cli'"
-                echo "    in the cartorio repo and re-run, or set CARTORIO_URL and run"
-                echo "    'cartorio-cli audit --url $CARTORIO' manually."
+                CART_REPO=""
+                if [ -d ../cartorio ]; then
+                  CART_REPO="../cartorio"
+                elif [ -d "$HOME/code/github/pleme-io/cartorio" ]; then
+                  CART_REPO="$HOME/code/github/pleme-io/cartorio"
+                fi
+
+                if [ -z "$CART_REPO" ]; then
+                  CLI_UNAVAILABLE_REASON="cartorio-cli is not on PATH and no cartorio checkout exists at ../cartorio or $HOME/code/github/pleme-io/cartorio"
+                else
+                  echo "==> building cartorio-cli from $CART_REPO (cli + sqlite features)"
+                  # Capture the BUILD's own status. Never read a build result
+                  # through a pipe: a pipeline reports its LAST command's
+                  # status, so `cargo build ... | tail -3` reports tail's
+                  # success. (`set -o pipefail` in the mkApp preamble happens
+                  # to cover that today — this must not depend on a setting
+                  # 500 lines away in a different code block.)
+                  BUILD_LOG=$(mktemp)
+                  BUILD_RC=0
+                  ( cd "$CART_REPO" && cargo build --features 'cli sqlite' --release --bin cartorio-cli ) \
+                    >"$BUILD_LOG" 2>&1 || BUILD_RC=$?
+                  tail -3 "$BUILD_LOG"
+                  if [ "$BUILD_RC" -ne 0 ]; then
+                    CLI_UNAVAILABLE_REASON="cargo build of cartorio-cli failed (exit $BUILD_RC); full log at $BUILD_LOG"
+                  else
+                    CANDIDATE="$CART_REPO/target/release/cartorio-cli"
+                    if [ -x "$CANDIDATE" ]; then
+                      CLI="$CANDIDATE"
+                    else
+                      # Build said success but emitted nothing runnable — a
+                      # broken contract, not a reason to fall back to
+                      # whatever else may be sitting on that path.
+                      finish failed "cargo build reported success but produced no executable at $CANDIDATE"
+                    fi
+                  fi
+                fi
               fi
 
-              echo ""
-              echo "==> stack:proof-chain OK ✓"
+              if [ -z "$CLI" ]; then
+                finish incomplete "$CLI_UNAVAILABLE_REASON"
+              fi
+
+              # ── Phase 3b: client-side audit ────────────────────────────
+              echo "==> exercising cartorio-cli audit against $CARTORIO"
+              AUDIT_JSON=$(mktemp)
+              "$CLI" audit --url "$CARTORIO" >"$AUDIT_JSON" \
+                || finish failed "cartorio-cli audit returned non-zero against $CARTORIO"
+              echo "  cartorio-cli audit ✓"
+              jq -c '{healthy: .healthy, artifacts_checked, events_replayed}' "$AUDIT_JSON"
+
+              # ── Phase 3c: the Merkle inclusion proof ───────────────────
+              # An inclusion-proof check over an EMPTY ledger runs against a
+              # zero-size subject set: it cannot fail, so a green from it is
+              # evidence of nothing. That is not a pass — it is INCOMPLETE.
+              if [ -z "$ART_COUNT" ] || [ "$ART_COUNT" = "null" ] || [ "$ART_COUNT" = "0" ]; then
+                finish incomplete "the ledger holds no artifacts (artifact_count=$ART_COUNT), so there was no inclusion proof to verify"
+              fi
+
+              ART_ID=$(curl -fsS "$CARTORIO/api/v1/artifacts" | jq -r '.artifacts[0].id') \
+                || finish failed "could not list artifacts at $CARTORIO/api/v1/artifacts"
+              if [ -z "$ART_ID" ] || [ "$ART_ID" = "null" ]; then
+                finish failed "ledger reports artifact_count=$ART_COUNT but /api/v1/artifacts returned no artifact id"
+              fi
+              if [ -z "$PINNED" ] || [ "$PINNED" = "null" ]; then
+                finish failed "cartorio /api/v1/merkle/root returned no state_root to pin the proof against"
+              fi
+
+              PROOF_JSON=$(mktemp)
+              curl -fsS "$CARTORIO/api/v1/artifacts/$ART_ID/proof" >"$PROOF_JSON" \
+                || finish failed "could not fetch the inclusion proof for $ART_ID"
+              echo "==> verifying inclusion proof for $ART_ID against pinned root $PINNED"
+              "$CLI" verify-proof --proof "$PROOF_JSON" --root "$PINNED" \
+                || finish failed "inclusion proof for $ART_ID did NOT verify against pinned root $PINNED"
+              echo "  cartorio-cli verify-proof ✓"
+
+              finish ok
             '';
           };
 
