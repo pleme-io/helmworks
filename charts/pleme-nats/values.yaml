@@ -156,6 +156,17 @@ resources:
     cpu: 500m
     memory: 512Mi
 
+# ─── Extra container env ────────────────────────────────────────────
+# Appended verbatim to the nats container's env list. The reason this
+# exists: nats-server is a Go binary, so without GOMEMLIMIT the heap
+# grows until the cgroup limit kills it rather than triggering a GC.
+# Set it to roughly 80% of resources.limits.memory on any deployment
+# that will absorb real backlog.
+#   extraEnv:
+#     - name: GOMEMLIMIT
+#       value: "400MiB"
+extraEnv: []
+
 terminationGracePeriodSeconds: 30
 
 podSecurityContext:
