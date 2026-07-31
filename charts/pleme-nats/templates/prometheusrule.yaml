@@ -1,5 +1,5 @@
 {{- if .Values.enabled }}
-{{- if .Values.prometheusRules.enabled }}
+{{- if and .Values.prometheusRules.enabled (.Capabilities.APIVersions.Has "monitoring.coreos.com/v1") }}
 {{/*
 PrometheusRule = VMRule on rio (the VictoriaMetrics operator converts).
 The alert layer is mandatory under Pillar 11 — every workload that

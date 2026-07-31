@@ -1,5 +1,19 @@
 {{- if .Values.enabled }}
 {{/*
+Fail-fast guards. Both knobs below are DECLARED in values.yaml but read by no
+template, so setting them buys nothing and hides the fact. Failing loudly beats
+handing someone an unauthenticated or silently partitioned broker.
+*/}}
+{{- if gt (int .Values.replicaCount) 1 }}
+{{- fail "pleme-nats: replicaCount > 1 is not supported. No cluster{} block, no 6222 route mesh and no cluster port are rendered, so each replica is an INDEPENDENT standalone broker with its own R1 JetStream store, sharing one headless Service. A producer and its consumer can land on different brokers and never exchange a message, with no error surfaced. Keep replicaCount 1 until real cluster mode ships." }}
+{{- end }}
+{{- if .Values.server.clusterEnabled }}
+{{- fail "pleme-nats: server.clusterEnabled is read by no template and renders nothing. It does not create a cluster. Remove it, or ship the cluster{} block first." }}
+{{- end }}
+{{- if .Values.server.auth.enabled }}
+{{- fail "pleme-nats: server.auth.enabled is read by no template and renders nothing -- the broker would stay OPEN while the flag claims otherwise. Supply a real authorization/accounts block via server.extraConfig, and treat the NetworkPolicy as the only access control until then." }}
+{{- end }}
+{{/*
 nats.conf — rendered into a ConfigMap and mounted at /etc/nats.
 JetStream block enables the durable on-disk queue layer.
 */}}
