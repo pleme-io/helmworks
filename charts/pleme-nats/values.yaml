@@ -40,6 +40,12 @@ image:
 # Lives in the same pod so it can hit the localhost monitoring port
 # (NATS doesn't natively emit Prometheus format).
 exporter:
+  # Gate the sidecar. It exists because nats-server's own /varz and /jsz are
+  # not Prometheus format, so without it there is no scrape target at all --
+  # turning it off buys hardening at the cost of every queue-depth signal.
+  # On a cluster with a hardened-image policy this is the one container here
+  # with no hardened build, so it is the flag that lets a deployment choose.
+  enabled: true
   image:
     repository: natsio/prometheus-nats-exporter
     tag: "0.15.0"

@@ -2,7 +2,7 @@ apiVersion: v2
 name: pleme-nats
 description: Cluster-local NATS JetStream — typed queue plane for tend throttling, shinryu delivery, and any rate-limited consumer pattern across the fleet.
 type: application
-version: "0.4.1"
+version: "0.4.2"
 appVersion: "2.10.20"
 dependencies:
   - name: pleme-lib

@@ -88,6 +88,7 @@ spec:
               mountPath: {{ .Values.persistence.mountPath }}
             {{- end }}
 
+        {{- if .Values.exporter.enabled }}
         # ── prometheus exporter sidecar ───────────────────────────
         - name: exporter
           image: "{{ .Values.exporter.image.repository }}:{{ .Values.exporter.image.tag }}"
@@ -110,6 +111,7 @@ spec:
           {{- end }}
           resources:
             {{- toYaml .Values.exporter.resources | nindent 12 }}
+        {{- end }}
 
       volumes:
         - name: config
