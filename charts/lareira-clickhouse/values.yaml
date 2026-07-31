@@ -159,7 +159,26 @@ clickhouse:
     # password (dev/kind fallback only). Never commit a real password here.
     existingSecret: ""
     passwordKey: clickhouse-password
-    password: "tendril"
+
+    # ── FAILS CLOSED AS OF 2026-07-31 ────────────────────────────────────────
+    # This used to read `password: "tendril"`, a NON-EMPTY default, while
+    # secret.yaml renders whenever existingSecret is unset. So `helm install`
+    # with no overrides produced a WORKING ClickHouse with a password published
+    # in a public git repo -- and it worked, which is the whole problem. A
+    # production deploy that simply forgot `existingSecret` got the dev
+    # credential silently: no error, no warning, healthy pods, green rollout.
+    # The insecure path was the DEFAULT and it SUCCEEDED, so nothing ever
+    # prompted anyone to look. (The comment above already said "dev/kind
+    # fallback only" -- prose does not fail a deploy.)
+    #
+    # Now: password is empty, and using a literal one requires opting in
+    # EXPLICITLY via devPasswordOptIn. With neither set the chart refuses to
+    # render, naming both fixes. A missing credential is loud instead of
+    # defaulted, which is the only version of this a reviewer can trust.
+    password: ""
+    # Set true ONLY for kind/dev. Requires `password` to be set too. Never in a
+    # cluster anyone else can reach.
+    devPasswordOptIn: false
 
   # Idempotent auto-initialization. Rendered into /docker-entrypoint-initdb.d
   # so ClickHouse runs it on first start (empty data dir); the PVC then persists

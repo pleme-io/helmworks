@@ -138,13 +138,35 @@ metadata. These are verified by sekiban's ValidatingAdmissionWebhook.
 Hashes are computed by tameshi and injected by forge CI/CD during release.
 Do NOT set these manually.
 
-## Security Baseline (enforced)
+## Security Baseline — 74 of 84, not "all" (counted 2026-07-31)
 
-All charts enforce:
+The baseline every chart SHOULD carry:
 - `runAsNonRoot: true`, `runAsUser: 1000`
 - `readOnlyRootFilesystem: true`
 - `allowPrivilegeEscalation: false`
 - `capabilities.drop: [ALL]`
+
+> **★ This section said "All charts enforce" and that was FALSE.** Measured over
+> the repo, with the denominator stated per the org standing rule: **141** charts
+> have `templates/`; **84** mention `securityContext` (the positive control — the
+> probe finds what is there); **74** of those set `readOnlyRootFilesystem`. **Ten
+> do not**, and they are named so this cannot rot quietly again:
+>
+> `lareira-clickhouse` · `lareira-lookout` · `pleme-armazem` · `pleme-attic` ·
+> `pleme-garage` · `pleme-image-sync` · `pleme-nix-builder` · `pleme-ocis` ·
+> `pleme-porto` · `pleme-shinryu`
+>
+> This is the exact rot the org rule predicts: a *coverage* claim ("All charts")
+> is never re-counted, so it reads as reassurance forever while the fleet grows
+> past it. A reader auditing compliance would have taken "enforced" at face value
+> — and for these ten, containers run with a writable root filesystem.
+>
+> **`readOnlyRootFilesystem` is NOT retrofittable by sweep.** Several of these
+> legitimately write outside their volumes (nix builders, storage daemons), so
+> each needs its writable paths enumerated as `emptyDir` mounts and then
+> verified running. Doing it blind converts a documentation defect into an
+> outage. `pending-hardening: readOnlyRootFilesystem on the 10 charts above —
+> per-chart, each with its writable-path set measured, never a bulk flip.`
 
 ## Compliance overlays — canonical surface (pleme-lib ≥ 0.10.0)
 
