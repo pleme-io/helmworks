@@ -12,5 +12,28 @@ additionalIngress for the respiro consumer + query clients). A per-chart
 
 At compliance.baseline moderate+ the helper instead renders the full
 compliance.network / egress / airgap policy trio unconditionally.
+
+★ MEASURED DEFAULT, 2026-07-31 — "born locked" is a property of the PARENT, not
+of this chart. `values.yaml` ships `networkPolicy: {}`, so with chart defaults
+this template renders NOTHING:
+
+    helm template … --set enabled=true --set clickhouse.auth.existingSecret=s
+      -> NetworkPolicy objects: 0   (control: 4 StatefulSets, so it IS rendering)
+    … --set global.networkPolicy.enabled=true
+      -> NetworkPolicy objects: 1   (policyTypes: Ingress, Egress)
+
+So a ClickHouse installed standalone from this chart has NO network isolation —
+a database reachable from anything in the namespace. That is a legitimate
+fallback design (the global propagates from the umbrella release), but the
+paragraph above reads as though isolation is intrinsic, and it is not. Stated
+here because a reader auditing this file would otherwise conclude the lock is
+on by default; it is on only when someone above sets it.
+
+DELIBERATELY NOT FLIPPED. Defaulting `networkPolicy.enabled: true` here would
+sever egress for every existing consumer that relies on the current open
+default — converting a documentation defect into an outage, the same reason the
+`readOnlyRootFilesystem` gap in CLAUDE.md is not being swept. `pending-hardening:
+decide whether lareira-* data stores should default to locked, and if so migrate
+consumers deliberately with their allow-rules measured first.`
 */}}
 {{- include "pleme-lib.networkpolicy" . }}
