@@ -175,6 +175,10 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/lib/clickhouse
+            - name: varlog
+              mountPath: /var/log/clickhouse-server
+            - name: tmp
+              mountPath: /tmp
             {{- if $lake }}
             - name: config
               mountPath: /etc/clickhouse-server/config.d
@@ -211,6 +215,15 @@ spec:
             periodSeconds: 30
             failureThreshold: 6
       volumes:
+        # readOnlyRootFilesystem: true (values.yaml securityContext) makes the
+        # container root read-only, so every path ClickHouse writes that is NOT
+        # the data PVC needs a writable mount. These two are that set; adding the
+        # flag without them crash-loops the server, which is why they land in the
+        # same commit.
+        - name: varlog
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
         {{- if $lake }}
         - name: config
           configMap:

@@ -213,6 +213,21 @@ clickhouse:
     runAsUser: 101
     runAsNonRoot: true
     allowPrivilegeEscalation: false
+    # ── ADDED 2026-07-31 ────────────────────────────────────────────────────
+    # helmworks/CLAUDE.md documents readOnlyRootFilesystem: true as part of the
+    # enforced security baseline. Counted 2026-07-31: 74 of 84 charts that set a
+    # securityContext actually carried it; this chart was one of the ten that did
+    # not, so the "All charts enforce" claim was false and this container ran
+    # with a writable root filesystem.
+    #
+    # It is enabled here TOGETHER with the emptyDir mounts it requires, never
+    # alone: ClickHouse writes outside its PVC (/var/log/clickhouse-server and
+    # /tmp), so flipping this flag by itself would crash-loop the server. That
+    # coupling is exactly why the other nine are being done per-chart with their
+    # writable set measured, rather than swept.
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: [ALL]
 
 # ── Zero-scale: KEDA scales the DATA StatefulSet 0<->1 on NATS-JetStream lag. ─
 # TAP MODE ONLY. In lake mode (keeper.enabled) the data StatefulSet runs a fixed
