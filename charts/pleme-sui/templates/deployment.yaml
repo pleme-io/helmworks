@@ -70,6 +70,18 @@ spec:
             # --store-path local floor — backward-compatible.
             - --backend-config=/etc/sui/backend.json
             {{- end }}
+            {{- if .Values.mode.cache.signing.secretName }}
+            # Sign every narinfo at ingest. Without this the daemon logs
+            # "signing DISABLED … consumers cannot verify integrity" and serves
+            # unsigned, so a client can only consume it with `?trusted=true` —
+            # blanket trust in place of provenance. The value is a FILE PATH
+            # (sui/src/main.rs `--signing-key`), read once at startup by
+            # sui-cache's server, holding a standard Nix
+            # `nix-store --generate-binary-cache-key` secret key
+            # (`<name>:<base64 64-byte seed||pubkey>`); its public half goes
+            # straight into consumers' trusted-public-keys.
+            - --signing-key=/etc/sui/signing/{{ .Values.mode.cache.signing.secretKey }}
+            {{- end }}
           {{- else if .Values.mode.agent.enabled }}
           # Agent-only mode
           args:
@@ -136,6 +148,11 @@ spec:
               mountPath: /etc/sui
               readOnly: true
             {{- end }}
+            {{- if .Values.mode.cache.signing.secretName }}
+            - name: signing-key
+              mountPath: /etc/sui/signing
+              readOnly: true
+            {{- end }}
           {{- end }}
           {{- end }}
           {{- with .Values.resources }}
@@ -186,5 +203,10 @@ spec:
         - name: backend-config
           configMap:
             name: {{ include "pleme-sui.fullname" . }}-backend-config
+        {{- end }}
+        {{- if .Values.mode.cache.signing.secretName }}
+        - name: signing-key
+          secret:
+            secretName: {{ .Values.mode.cache.signing.secretName }}
         {{- end }}
       {{- end }}
