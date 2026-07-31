@@ -279,6 +279,28 @@ executor:
         enabled: true
         image: ghcr.io/cloudnative-pg/postgresql:16.6
         timeoutSeconds: 10
+        # -- Resources for the pg-wait initContainer. Overridable because
+        # POD QoS IS COMPUTED ACROSS EVERY CONTAINER, INIT CONTAINERS
+        # INCLUDED: while these were hardcoded with requests != limits, a
+        # consumer could set requests == limits on the operator container
+        # and still not reach Guaranteed, with no values-level way to fix
+        # it and no obvious reason why. Found live on camelot-eks
+        # 2026-07-30 -- pangea-operator holds a ~22-minute
+        # non-checkpointable in-memory reconcile cycle and wants the top
+        # QoS class so it is never evicted to reclaim resources for
+        # another pod; the requests bump landed and the pod still came up
+        # Burstable because of this 16Mi init container.
+        #
+        # Default is unchanged (requests 10m/16Mi, limits 50m/32Mi), so
+        # this is additive for every existing consumer. Set requests ==
+        # limits here to make the pod eligible for Guaranteed.
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 50m
+            memory: 32Mi
 
 # -- Log level + filter for the operator's tracing-subscriber. Comma-
 # separated `<target>=<level>` directives per

@@ -126,9 +126,9 @@ embedded mode and drop the compiler sidecar from the pod spec.
         "runAsNonRoot" true
         "capabilities" (dict "drop" (list "ALL"))
         "seccompProfile" (dict "type" "RuntimeDefault"))
-    "resources" (dict
+    "resources" (($magmaPg.pgWait).resources | default (dict
         "requests" (dict "cpu" "10m" "memory" "16Mi")
-        "limits" (dict "cpu" "50m" "memory" "32Mi")) }}
+        "limits" (dict "cpu" "50m" "memory" "32Mi"))) }}
 {{- $existingInit := index $mergedValues "initContainers" | default (list) }}
 {{- $_ := set $mergedValues "initContainers" (prepend $existingInit $pgWait) }}
 {{- end }}
