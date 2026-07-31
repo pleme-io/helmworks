@@ -30,6 +30,46 @@ fullnameOverride: ""
 
 clickhouse:
   image:
+    # ── THIS CHART DEPLOYS UNHARDENED UPSTREAM. Measured 2026-07-31. ──────────
+    # The note below ("mirror before a real-cluster deploy") is now STALE in one
+    # direction and still true in the other: pleme-io HAS hardened ClickHouse
+    # images and publishes them, and this chart consumes NONE of them.
+    #
+    # Counted, with the denominator: of 141 helmworks charts with a templates/
+    # dir, ZERO reference any ghcr.io/pleme-io/hardened-* image. So the entire
+    # hardened-images program -- CVE gates, Zot admission faucet, 2F promotion --
+    # currently produces artifacts that no chart in this repo deploys. Getting an
+    # image to 2F and getting the cluster to RUN it are two different
+    # achievements, and only the first one has been worked.
+    #
+    # THE SWAP IS COUPLED, AND DOING HALF OF IT BREAKS THE DEPLOY. The hardened
+    # images run as uid/gid 65532:65532 (hardened-image-module.nix's typed
+    # default); this chart pins runAsUser 101 and fsGroup 101, which are
+    # UPSTREAM's uid. Repointing the repository without moving both numbers gives
+    # a pod whose process (65532) is not in the volume's group (101), so
+    # /var/lib/clickhouse is unwritable and the container crash-loops -- the
+    # exact failure class already measured on hardened-nats-server and
+    # hardened-clickhouse-keeper this same day. Change all three together:
+    #
+    #   repository: ghcr.io/pleme-io/hardened-clickhouse   (or the 2F coordinate
+    #                registry.secondfront.com/akeyless/akeyless/hardened-clickhouse)
+    #   tag:        the admitted release (NOT "latest" -- AUTOBUMP exact-pin rule)
+    #   podSecurityContext.fsGroup: 65532
+    #   securityContext.runAsUser:  65532
+    #
+    # ALSO NOT EQUIVALENT SOFTWARE: upstream 24.8 here vs 26.7.1.1315-stable in
+    # the hardened lane. The hardened lane moved channels specifically because
+    # 24.05-era ClickHouse had a hard-red vulnix gate (7 affected derivations).
+    # So this chart is running the version whose CVE profile the hardening work
+    # exists to escape.
+    #
+    # NOT CHANGED HERE on purpose: repointing is a migration (config paths,
+    # entrypoint, uid, and a real boot test), not a values edit, and this chart
+    # currently works. `pending-hardening: lareira-clickhouse consumes upstream
+    # Docker Hub images; migrate to the hardened lane as one coupled change with
+    # a verified container start.`
+    #
+    # The original note, still accurate as far as it goes:
     # Mirror to ghcr.io/pleme-io per the HERMETIC SUPPLY CHAIN rule before a
     # real-cluster (air-gapped) deploy; clickhouse/clickhouse-server is the
     # upstream coordinate.
