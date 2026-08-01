@@ -47,7 +47,37 @@ skipped). There is **no auto-bump**: a chart monorepo has no single version, so
 bumping a chart's `Chart.yaml` version in its own commit is the act that ships it
 on merge. The `nix run` commands above remain the local / fallback path. Package
 visibility is not touched by CI — a private chart's package is set private once
-out-of-band. Seven digest-substituted charts (cartorio / lacre / openclaw-*)
+out-of-band.
+
+> **★ Editing a chart whose version is already published strands the work
+> silently. Bump `Chart.yaml` in the same commit as the template change.**
+> Because publish is 404-idempotent, a chart whose version is already in the
+> registry is *skipped* — so template edits committed after that version was
+> published never reach any cluster. Nothing goes red: `git push` succeeds,
+> auto-release logs `Released 0 chart(s); skipped 139 already-published` and
+> exits 0, and `git log` shows the work done. The only place the truth exists is
+> the published tarball.
+>
+> **Measured 2026-08-01 — 5 of 141 charts were in this state:**
+> `lareira-clickhouse` (fixed, 0.2.6) · `lareira-tatara-ephemeral` 0.3.0 ·
+> `pleme-cnpg` 0.1.0 · `pleme-lareira-canary` 0.1.0 · `pleme-saber` 0.1.0.
+> The last four are still stranded — each needs a version bump to ship what is
+> already committed.
+>
+> Detect it without the registry: a chart whose newest `templates/` commit is
+> newer than its newest `Chart.yaml` commit. Confirm by pulling the published
+> tarball and diffing — the version number is not evidence, the layer is.
+>
+> **`helm lint` does not catch this class, or most render failures.** On
+> `lareira-clickhouse` at the time, `helm lint` reported `1 chart(s) linted,
+> 0 chart(s) failed` while `helm template` with the same default values exited
+> 1 on a `fail()`. Release lints via *template*; verify with `helm template`,
+> because a green `helm lint` is compatible with a chart that cannot render.
+>
+> `pending-publish-drift:` the load-bearing gate is content-level, in forge, not
+> here — when release skips a chart as already-published it should compare the
+> rendered chart against the published tarball and go red on difference. That
+> catches edits-without-bump too, which a version-only check cannot. Seven digest-substituted charts (cartorio / lacre / openclaw-*)
 carry `annotations: { pleme.io/oci-auto-release: "false" }` so forge's
 `discover_charts` skips them (they pin an all-zero placeholder digest a separate
 flow substitutes — they can't publish as generic library charts).
