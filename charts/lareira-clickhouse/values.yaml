@@ -215,6 +215,34 @@ clickhouse:
     # EXPLICITLY via devPasswordOptIn. A missing credential is loud instead of
     # defaulted, which is the only version of this a reviewer can trust.
     #
+    # ── SCOPE CORRECTION (2026-08-02): this chart is NOT on the 2F path ───
+    # Findings recorded here on 2026-08-01 (plaintext 8123/9000/9009/9181, no
+    # TLS, zero NetworkPolicies on a default render) were reported during a 2F
+    # image campaign in language that implied they described "the ClickHouse
+    # stack's network path". They do not. Measured 2026-08-02:
+    #
+    #   references in k8s/ (the FluxCD GitOps repo that deploys clusters):  0
+    #     controls, same probe: lareira-vaultwarden 1, pleme-lib 112
+    #   references elsewhere in the fleet, outside this chart's own dir:    4
+    #     (akeyless-k8s 1, helmworks-akeyless 1, helmworks 2 -- not examined
+    #      for whether any of them actually deploys it)
+    #   akeylesslabs camelot clickhouse refs:                               9
+    #     -- all hardened IMAGES + zot-admission pointers, NOT this chart
+    #
+    # So the 2F consumer takes our hardened images and deploys them with ITS
+    # OWN manifests. The lareira-* family is the homelab/hearth line. A defect
+    # in this chart is a real defect in this chart and says nothing about the
+    # exposure of anything shipped to 2F.
+    #
+    # WHY THIS IS WRITTEN DOWN rather than quietly rescoped: the original audit
+    # never asked who deploys the chart. Reading a chart tells you what it
+    # WOULD create; only the consumer graph tells you whether anything creates
+    # it. That is the same "a dead dependency is invisible in source" lesson
+    # that caught a NXDOMAIN registry in blackmatter-akeyless -- applied there
+    # to someone else's code, missed here in my own finding.
+    #
+    # The defects remain worth fixing; the SEVERITY claim was inflated by
+    # unstated scope.
     # ── TIER, STATED HONESTLY (corrected 2026-08-01) ──────────────────────
     # This block previously said "the chart refuses to render, naming both
     # fixes." IT DOES NOT REFUSE, and secret.yaml's own header says so —
