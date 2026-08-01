@@ -110,7 +110,15 @@
           (string-append
             "bump-drift: " (string-format "{}" (length files)) " changed file(s), "
             (string-format "{}" (length bad)) " chart(s) edited without a version bump"))
-        (append-output (string-append "drifted-count=" (string-format "{}" (length bad))))
+        ;; NO append-output. This runs through the GENERIC `tatara-script`
+        ;; action, whose output-contract gate FAILS the step on any key it does
+        ;; not declare -- and it cannot declare arbitrary consumer keys, since
+        ;; every tlisp script in the fleet shares it. Measured on the first live
+        ;; run (helmworks 0c4be69): the verdict was correct ("1 changed file(s),
+        ;; 0 chart(s) edited without a version bump") and the step STILL exited
+        ;; 1 on `drifted-count`, an output nothing consumes. A dedicated action
+        ;; may declare its own outputs; a script borrowing the generic runner
+        ;; may not. The count is in the log line above, where a human reads it.
         (cond
           ((null? bad) (log-info "bump-drift: no chart edited without a bump") 0)
           (else
