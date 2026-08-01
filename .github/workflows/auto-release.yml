@@ -14,3 +14,52 @@ jobs:
   release:
     uses: pleme-io/substrate/.github/workflows/helm-monorepo-auto-release.yml@main
     secrets: inherit
+
+  # ── BUMP DRIFT: a chart edited without its version bumped ships NOWHERE ────
+  # release above is 404-idempotent, so a chart whose Chart.yaml version is
+  # already published is SKIPPED — and a template edit committed after that
+  # publish reaches no cluster while everything stays green. Measured
+  # 2026-08-01: FOUR charts were in that state at once, plus a fifth created by
+  # the very commit that documented the problem.
+  #
+  # DELIBERATELY NOT A `needs:` OF release, and not in the same job. One
+  # drifted chart must not block publication of the other 148 — this is meant
+  # to be LOUD, not blocking. The run goes red; the charts still ship.
+  #
+  # Skipped on a branch's first push, where github.event.before is the all-zero
+  # sha and there is no range to diff. That is a real absence, not a pass: the
+  # script itself REFUSES an empty BASE_SHA rather than reporting zero
+  # violations, so the only way to get a green here is to actually have none.
+  bump-drift:
+    if: github.event_name == 'push' && github.event.before != '0000000000000000000000000000000000000000'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # The script needs pleme-io's tlisp stdlib (`status-of`, `exec-capture`,
+      # `log-error`, …) — verified by running it standalone, which fails with
+      # `unbound symbol status-of`. Both repos are public, so the default token
+      # is enough.
+      - uses: actions/checkout@v4
+        with:
+          repository: pleme-io/actions
+          path: .pleme-actions
+          ref: main
+      - id: src
+        shell: bash
+        run: |
+          {
+            echo 'script<<TLISP_EOF'
+            cat .pleme-actions/_tlisp-stdlib/stdlib.tlisp
+            echo
+            cat tools/bump-drift.tlisp
+            echo 'TLISP_EOF'
+          } >> "$GITHUB_OUTPUT"
+      - uses: pleme-io/actions/tatara-script@main
+        with:
+          script: ${{ steps.src.outputs.script }}
+        env:
+          BASE_SHA: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+          FAIL_ON_DRIFT: "true"
