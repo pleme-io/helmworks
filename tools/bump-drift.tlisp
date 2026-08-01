@@ -1,0 +1,124 @@
+;; bump-drift.tlisp — catch a chart edited WITHOUT its version bumped, at the
+;; commit that creates the problem.
+;;
+;; ── WHY ─────────────────────────────────────────────────────────────────────
+;; auto-release is 404-idempotent: a chart whose Chart.yaml version is already
+;; in the registry is SKIPPED. So a template edit committed after that version
+;; published never reaches any cluster, and NOTHING GOES RED — `git push`
+;; succeeds, auto-release logs "Released 0 chart(s); skipped N
+;; already-published" and exits 0, and `git log` shows the work done. The only
+;; place the truth exists is the published tarball.
+;;
+;; Measured 2026-08-01: FOUR charts were in that state simultaneously
+;; (lareira-tatara-ephemeral 0.3.0, pleme-cnpg 0.1.0, pleme-lareira-canary
+;; 0.1.0, pleme-saber 0.1.0), each confirmed BOTH ways — templates newer than
+;; Chart.yaml in git, AND that exact version resolving in the registry. They
+;; were fixed by bumping; this exists so the fifth never has to be found by
+;; hand.
+;;
+;; ── WHAT IT CHECKS ──────────────────────────────────────────────────────────
+;; For the commit range of this push: any chart with a changed file that is NOT
+;; its own Chart.yaml must ALSO have a changed Chart.yaml. That is the precise
+;; form — it fires exactly when the stranding is created, and cannot
+;; false-positive on a chart that has simply never published (the failure mode
+;; of the cheaper "templates newer than Chart.yaml" heuristic, which flags a
+;; brand-new chart that will publish fine on its first release).
+;;
+;; ── WHAT IT DELIBERATELY DOES NOT DO ────────────────────────────────────────
+;; It does not bump. helmworks has NO auto-bump by deliberate decision (a chart
+;; monorepo has no single version; bumping in its own commit is the act that
+;; ships it), and a detector that silently edited the tree would take that
+;; decision away from the author.
+;;
+;; It does not query the registry. A network call would make the gate flaky and
+;; is not needed: at the moment of the edit, "version unchanged" is sufficient —
+;; if the version was already published the chart is stranded, and if it was not
+;; the bump is still the correct habit.
+;;
+;; It is REPORT-ONLY unless FAIL_ON_DRIFT=true, and it is wired as a job that
+;; does NOT gate release: a drifted chart must not block the publication of the
+;; other 148. Loud, not blocking.
+
+(define base (env-get "BASE_SHA" ""))
+
+(define head (env-get "HEAD_SHA" ""))
+
+(define fail-on (env-get "FAIL_ON_DRIFT" "false"))
+
+(define
+  (changed-files)
+  (let
+    ((r (exec-capture "git" "diff" "--name-only" (string-append base ".." head))))
+    (if (= (status-of r) 0)
+      (filter (lambda (l) (not (equal? l ""))) (string-split (string-trim (stdout-of r)) "\n"))
+      (list))))
+
+;; "charts/<name>/..." -> "<name>", anything else -> ""
+(define
+  (chart-of path)
+  (let ((parts (string-split path "/")))
+    (if (and (>= (length parts) 3) (equal? (car parts) "charts"))
+      (car (cdr parts))
+      "")))
+
+(define (chart-yaml-of name) (string-append "charts/" name "/Chart.yaml"))
+
+(define
+  (drifted files acc)
+  (cond
+    ((null? files) acc)
+    (else
+      (let* ((f (car files)) (c (chart-of f)))
+        (cond
+          ((equal? c "") (drifted (cdr files) acc))
+          ;; the Chart.yaml itself changing is the bump — never a violation
+          ((equal? f (chart-yaml-of c)) (drifted (cdr files) acc))
+          ;; a non-Chart.yaml change with NO Chart.yaml change in the same range
+          ((and (not (list-contains? files (chart-yaml-of c)))
+                (not (list-contains? acc c)))
+            (drifted (cdr files) (cons c acc)))
+          (else (drifted (cdr files) acc)))))))
+
+(define
+  (list-contains? lst item)
+  (cond ((null? lst) #f) ((equal? (car lst) item) #t) (else (list-contains? (cdr lst) item))))
+
+(define
+  (report names)
+  (cond
+    ((null? names) #t)
+    (else
+      (log-error
+        (string-append
+          "  " (car names) " — edited with no Chart.yaml version change. "
+          "auto-release will SKIP it as already-published and the edit ships "
+          "NOWHERE. Bump charts/" (car names) "/Chart.yaml."))
+      (report (cdr names)))))
+
+(define
+  (main)
+  (cond
+    ((or (equal? base "") (equal? head ""))
+      ;; A missing range is a WIRING failure, not "no drift". Reporting 0
+      ;; violations over an empty subject set is the exact class this gate
+      ;; exists to catch, so refuse rather than pass.
+      (log-error "bump-drift: BASE_SHA/HEAD_SHA not supplied — cannot compute a commit range")
+      1)
+    (else
+      (let* ((files (changed-files)) (bad (drifted files (list))))
+        (log-info
+          (string-append
+            "bump-drift: " (string-format "{}" (length files)) " changed file(s), "
+            (string-format "{}" (length bad)) " chart(s) edited without a version bump"))
+        (append-output (string-append "drifted-count=" (string-format "{}" (length bad))))
+        (cond
+          ((null? bad) (log-info "bump-drift: no chart edited without a bump") 0)
+          (else
+            (log-error "bump-drift: charts edited WITHOUT a version bump:")
+            (report bad)
+            (if (equal? fail-on "true") 1 0)))))))
+
+(cond
+  ((equal? (env-get "TLISP_TEST" "") "1")
+    (log-info "TLISP_TEST=1 — bump-drift helpers loaded; main skipped"))
+  (else (exit (main))))
