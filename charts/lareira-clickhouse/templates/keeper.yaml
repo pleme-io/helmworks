@@ -169,12 +169,29 @@ spec:
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          command: ["/bin/bash", "-c"]
-          args:
-            # server_id = ordinal + 1 (Raft ids 1-indexed). Sanctioned glue.
-            - |
-              export KEEPER_SERVER_ID=$(( ${HOSTNAME##*-} + 1 ))
-              exec clickhouse-keeper --config-file=/etc/clickhouse-keeper/keeper_config.xml
+          # ── NO command/args: the IMAGE owns its identity (2026-08-01) ────
+          # This used to be `command: ["/bin/bash", "-c"]` computing
+          #   KEEPER_SERVER_ID=$(( ${HOSTNAME##*-} + 1 ))
+          # which had three problems: it required /bin/bash (so a DISTROLESS
+          # keeper could not run at all — the hardened image has zero shells,
+          # measured over 3873 paths), it was shell embedded in a Helm template
+          # (the deshellify rule), and it put identity logic in the DEPLOYMENT
+          # so every consumer had to re-derive it correctly.
+          #
+          # hardened-clickhouse-keeper now ships a typed Rust entrypoint that
+          # derives the ordinal itself and exec()s clickhouse-keeper, keeping
+          # PID 1 so SIGTERM still reaches a Raft member directly.
+          #
+          # VERIFIED on the built binary, including the failure paths:
+          #   clickhouse-keeper-0 -> KEEPER_SERVER_ID=1
+          #   clickhouse-keeper-2 -> KEEPER_SERVER_ID=3
+          #   HOSTNAME=badname    -> REFUSES (no '-'), does not default to 1
+          #   HOSTNAME=""         -> REFUSES
+          # Refusing matters more than it looks: a keeper that silently picks
+          # the wrong Raft id corrupts quorum, which is worse than not starting.
+          #
+          # The <id> values in raft_configuration above are still `add $i 1`, so
+          # template and image agree by construction. Keep them in step.
           ports:
             - name: client
               containerPort: {{ $k.ports.client }}
