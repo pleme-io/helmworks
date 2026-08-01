@@ -110,6 +110,43 @@
     "env": { "type": "array" },
     "envFrom": { "type": "array" },
     "volumeMounts": { "type": "array" },
-    "volumes": { "type": "array" }
+    "volumes": { "type": "array" },
+    "bus": {
+      "type": "object",
+      "description": "Typed message-bus selection for akeyless-main-repo microservices. Absent by default; when absent the chart emits no bus env vars at all.",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "service": {
+          "type": "string",
+          "description": "The target microservice's viper SetEnvPrefix. Only auth, bis, gator, logan and uam construct an MQConfigManager and therefore read mq_type; the template rejects anything else unless allowUnknownService is set, so the allowed set is enforced there rather than pinned here.",
+          "minLength": 1
+        },
+        "allowUnknownService": {
+          "type": "boolean",
+          "default": false,
+          "description": "Acknowledge that the named service does not read mq_type and that the env var will be silently ignored."
+        },
+        "families": {
+          "type": "object",
+          "description": "Per-queue-family selection. general drives mq_type; bis drives the independent bis_mq_type.",
+          "additionalProperties": false,
+          "properties": {
+            "general": {
+              "type": "string",
+              "description": "One of rabbitmq, nats, aws. Enforced by the template, which maps it to the exact case-sensitive Go constant and also enforces the cross-field rules a schema cannot express (nats requires a broker URL).",
+              "minLength": 1
+            },
+            "bis": {
+              "type": "string",
+              "description": "One of rabbitmq, nats, aws. Independent of general: this family can move to nats while general stays on rabbitmq.",
+              "minLength": 1
+            }
+          }
+        },
+        "natsUrl": { "type": "string" },
+        "natsUrlInternal": { "type": "string" }
+      }
+    }
   }
 }

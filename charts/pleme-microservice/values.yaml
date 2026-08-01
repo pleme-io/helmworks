@@ -173,3 +173,35 @@ podMonitor:
 prometheusRules:
   enabled: false
   groups: []
+
+# ── bus: typed message-bus selection (akeyless-main-repo microservices) ──────
+#
+# OFF BY DEFAULT and intentionally ABSENT from this file. A chart rendered
+# without a `bus:` block emits NO bus env vars and is byte-identical to the
+# chart before this surface existed, so a deployment that does not opt in
+# behaves exactly as it does today.
+#
+# akeyless-main-repo selects its message queue from viper config, never from
+# a code fork. Two INDEPENDENT keys drive it, so one queue family can move to
+# NATS while every other family stays on RabbitMQ:
+#
+#   families.general -> <SERVICE>_MQ_TYPE       (mq_type)
+#   families.bis     -> <SERVICE>_BIS_MQ_TYPE   (bis_mq_type)
+#
+# `service` is the viper SetEnvPrefix of the target microservice. Only auth,
+# bis, gator, logan and uam construct an MQConfigManager; anything else is a
+# render error because the env var would be silently ignored.
+#
+# Values are readable lowercase (rabbitmq | nats | aws) and are mapped to the
+# exact case-sensitive Go constant on the wire (RABBITMQ | NATS | AWS).
+# Selecting nats without a URL is a render error, not a boot crash.
+#
+# Flip one line to move a family; delete the line to move it back.
+#
+# bus:
+#   enabled: true
+#   service: gator
+#   families:
+#     general: nats
+#     bis: rabbitmq
+#   natsUrl: "nats://pleme-nats.camelot-nats.svc:4222"

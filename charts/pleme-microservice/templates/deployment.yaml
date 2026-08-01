@@ -1,1 +1,18 @@
+{{/*
+When no `bus:` block is configured, this renders through the ORIGINAL,
+untouched code path — `include "pleme-lib.deployment" .` — so the output is
+byte-identical to the chart before bus selection existed.
+
+When a bus IS selected, the bus env vars are appended to a COPY of .Values
+and the copy is handed to the library template. .Values itself is never
+mutated, so no other template in this chart or in an umbrella can observe
+the injection as a side effect.
+*/}}
+{{- $busEnv := include "pleme-microservice.bus.env" . | trim -}}
+{{- if $busEnv -}}
+{{- $vals := deepCopy .Values -}}
+{{- $_ := set $vals "env" (concat ($vals.env | default list) ($busEnv | fromYamlArray)) -}}
+{{- include "pleme-lib.deployment" (merge (dict "Values" $vals) (omit . "Values")) }}
+{{- else -}}
 {{- include "pleme-lib.deployment" . }}
+{{- end -}}
