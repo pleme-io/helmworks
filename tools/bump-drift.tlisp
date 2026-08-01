@@ -63,21 +63,39 @@
 
 (define (chart-yaml-of name) (string-append "charts/" name "/Chart.yaml"))
 
+;; `all` is the COMPLETE changed-file list and never shrinks; `files` is the
+;; cursor. Keeping them apart is load-bearing, and conflating them was a real
+;; false-positive bug (fixed 2026-08-01).
+;;
+;; The membership test used to read `files`, which the recursion had already
+;; consumed down to the tail. `git diff --name-only` emits sorted paths, and
+;; `charts/<c>/Chart.yaml` sorts BEFORE every sibling ('C' 0x43 < lowercase),
+;; so by the time any other file in the same chart was examined, its Chart.yaml
+;; had already been cdr'd away and `list-contains?` answered #f. The gate then
+;; reported "edited with no Chart.yaml version change" about a commit that
+;; changed the version in that very range.
+;;
+;; Measured: helmworks cc2663f, range 8557c85..cc2663f, changed files
+;; [charts/lareira-clickhouse/Chart.yaml, charts/lareira-clickhouse/values.yaml],
+;; version 0.2.7 -> 0.2.8 — red anyway. That shape (Chart.yaml plus at least
+;; one sibling) is what a normal chart edit looks like, so the gate was crying
+;; wolf on nearly every real bump while still passing the one case it was
+;; written for.
 (define
-  (drifted files acc)
+  (drifted files acc all)
   (cond
     ((null? files) acc)
     (else
       (let* ((f (car files)) (c (chart-of f)))
         (cond
-          ((equal? c "") (drifted (cdr files) acc))
+          ((equal? c "") (drifted (cdr files) acc all))
           ;; the Chart.yaml itself changing is the bump — never a violation
-          ((equal? f (chart-yaml-of c)) (drifted (cdr files) acc))
+          ((equal? f (chart-yaml-of c)) (drifted (cdr files) acc all))
           ;; a non-Chart.yaml change with NO Chart.yaml change in the same range
-          ((and (not (list-contains? files (chart-yaml-of c)))
+          ((and (not (list-contains? all (chart-yaml-of c)))
                 (not (list-contains? acc c)))
-            (drifted (cdr files) (cons c acc)))
-          (else (drifted (cdr files) acc)))))))
+            (drifted (cdr files) (cons c acc) all))
+          (else (drifted (cdr files) acc all)))))))
 
 (define
   (list-contains? lst item)
@@ -105,7 +123,7 @@
       (log-error "bump-drift: BASE_SHA/HEAD_SHA not supplied — cannot compute a commit range")
       1)
     (else
-      (let* ((files (changed-files)) (bad (drifted files (list))))
+      (let* ((files (changed-files)) (bad (drifted files (list) files)))
         (log-info
           (string-append
             "bump-drift: " (string-format "{}" (length files)) " changed file(s), "
