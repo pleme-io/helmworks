@@ -1,4 +1,3 @@
----
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
@@ -36,7 +35,8 @@ spec:
         description: Auto-generated derived type for ImagePipelineSpec via `CustomResource`
         properties:
           spec:
-            description: 'ImagePipeline orchestrates the full AMI lifecycle: build → test → deploy → verify → complete (or rollback).'
+            description: "ImagePipeline orchestrates the full AMI lifecycle: build \u2192 test \u2192\
+              \ deploy \u2192 verify \u2192 complete (or rollback)."
             properties:
               build:
                 description: 'Phase 1: Build configuration.'
@@ -45,6 +45,36 @@ spec:
                     description: Provider credentials for the build.
                     nullable: true
                     properties:
+                      akeyless:
+                        description: "Akeyless credentials configuration. Used by templates whose Ruby\
+                          \ workspace declares an inline `provider :akeyless do api_key_login( access_id:,\
+                          \ access_key:) end` block (e.g. workspaces/akeyless-dev-shaar-concentrator,\
+                          \ added 2026-07-21 for Pangea::Architectures::ShaarAkeyless \u2014 Step 0 of\
+                          \ theory/SHAAR-CAMELOT-BINDING.md \xA74). Ruby-side authority model, same as\
+                          \ GitHub: the referenced Secret's data keys (typically `AKEYLESS_ACCESS_ID`\
+                          \ / `AKEYLESS_ACCESS_KEY` / optionally `AKEYLESS_API_GATEWAY`) are installed\
+                          \ verbatim as env vars by the generic `iter_secret_refs` injection loop; the\
+                          \ Ruby workspace reads them via `ENV.fetch(...)`. The operator never renders\
+                          \ its own `provider \"akeyless\" { ... }` block."
+                        nullable: true
+                        properties:
+                          secretRef:
+                            description: Secret containing the Akeyless access-id/access-key pair.
+                            properties:
+                              name:
+                                description: Name of the Secret.
+                                type: string
+                              namespace:
+                                description: Namespace of the Secret (defaults to same namespace as the
+                                  resource).
+                                nullable: true
+                                type: string
+                            required:
+                            - name
+                            type: object
+                        required:
+                        - secretRef
+                        type: object
                       aws:
                         description: AWS credentials configuration.
                         nullable: true
@@ -64,7 +94,8 @@ spec:
                                 description: Name of the Secret.
                                 type: string
                               namespace:
-                                description: Namespace of the Secret (defaults to same namespace as the resource).
+                                description: Namespace of the Secret (defaults to same namespace as the
+                                  resource).
                                 nullable: true
                                 type: string
                             required:
@@ -84,7 +115,8 @@ spec:
                                 description: Name of the Secret.
                                 type: string
                               namespace:
-                                description: Namespace of the Secret (defaults to same namespace as the resource).
+                                description: Namespace of the Secret (defaults to same namespace as the
+                                  resource).
                                 nullable: true
                                 type: string
                             required:
@@ -94,7 +126,10 @@ spec:
                         - secretRef
                         type: object
                       github:
-                        description: 'GitHub credentials configuration. Used by templates that declare github_* providers (e.g. pangea-github''s `cloudflare_zero_trust_*` adjacent shapes — repos, runner groups, branch protection). Same shape as the cloudflare credentials block: a secretRef to a Secret containing a PAT.'
+                        description: "GitHub credentials configuration. Used by templates that declare\
+                          \ github_* providers (e.g. pangea-github's `cloudflare_zero_trust_*` adjacent\
+                          \ shapes \u2014 repos, runner groups, branch protection). Same shape as the\
+                          \ cloudflare credentials block: a secretRef to a Secret containing a PAT."
                         nullable: true
                         properties:
                           secretRef:
@@ -104,7 +139,8 @@ spec:
                                 description: Name of the Secret.
                                 type: string
                               namespace:
-                                description: Namespace of the Secret (defaults to same namespace as the resource).
+                                description: Namespace of the Secret (defaults to same namespace as the
+                                  resource).
                                 nullable: true
                                 type: string
                             required:
@@ -114,7 +150,13 @@ spec:
                         - secretRef
                         type: object
                       porkbun:
-                        description: 'Porkbun credentials configuration. Used by templates that declare `porkbun_*` resources (e.g. `platform-dns`''s registrar delegation) via the `marcfrederick/porkbun` terraform provider. Same operator-side authority model as AWS/Cloudflare: the referenced Secret holds the two-part `api_key` + `secret_api_key` credential pair, resolved by the operator and rendered into its own ephemeral `providers.tf.json` — never baked into the workspace''s own compiled/git-committed output.'
+                        description: "Porkbun credentials configuration. Used by templates that declare\
+                          \ `porkbun_*` resources (e.g. `platform-dns`'s registrar delegation) via the\
+                          \ `marcfrederick/porkbun` terraform provider. Same operator-side authority model\
+                          \ as AWS/Cloudflare: the referenced Secret holds the two-part `api_key` + `secret_api_key`\
+                          \ credential pair, resolved by the operator and rendered into its own ephemeral\
+                          \ `providers.tf.json` \u2014 never baked into the workspace's own compiled/git-committed\
+                          \ output."
                         nullable: true
                         properties:
                           secretRef:
@@ -124,7 +166,8 @@ spec:
                                 description: Name of the Secret.
                                 type: string
                               namespace:
-                                description: Namespace of the Secret (defaults to same namespace as the resource).
+                                description: Namespace of the Secret (defaults to same namespace as the
+                                  resource).
                                 nullable: true
                                 type: string
                             required:
@@ -148,7 +191,8 @@ spec:
                             description: Name of the ConfigMap.
                             type: string
                           namespace:
-                            description: Namespace of the ConfigMap (defaults to same namespace as the InfrastructureTemplate).
+                            description: Namespace of the ConfigMap (defaults to same namespace as the
+                              InfrastructureTemplate).
                             nullable: true
                             type: string
                         required:
@@ -174,7 +218,8 @@ spec:
                                 description: Name of the Secret.
                                 type: string
                               namespace:
-                                description: Namespace of the Secret (defaults to same namespace as the resource).
+                                description: Namespace of the Secret (defaults to same namespace as the
+                                  resource).
                                 nullable: true
                                 type: string
                             required:
@@ -261,7 +306,8 @@ spec:
                                       description: Name of the Secret.
                                       type: string
                                     namespace:
-                                      description: Namespace of the Secret (defaults to same namespace as the resource).
+                                      description: Namespace of the Secret (defaults to same namespace
+                                        as the resource).
                                       nullable: true
                                       type: string
                                   required:
@@ -411,6 +457,36 @@ spec:
                     description: Provider credentials for test infrastructure.
                     nullable: true
                     properties:
+                      akeyless:
+                        description: "Akeyless credentials configuration. Used by templates whose Ruby\
+                          \ workspace declares an inline `provider :akeyless do api_key_login( access_id:,\
+                          \ access_key:) end` block (e.g. workspaces/akeyless-dev-shaar-concentrator,\
+                          \ added 2026-07-21 for Pangea::Architectures::ShaarAkeyless \u2014 Step 0 of\
+                          \ theory/SHAAR-CAMELOT-BINDING.md \xA74). Ruby-side authority model, same as\
+                          \ GitHub: the referenced Secret's data keys (typically `AKEYLESS_ACCESS_ID`\
+                          \ / `AKEYLESS_ACCESS_KEY` / optionally `AKEYLESS_API_GATEWAY`) are installed\
+                          \ verbatim as env vars by the generic `iter_secret_refs` injection loop; the\
+                          \ Ruby workspace reads them via `ENV.fetch(...)`. The operator never renders\
+                          \ its own `provider \"akeyless\" { ... }` block."
+                        nullable: true
+                        properties:
+                          secretRef:
+                            description: Secret containing the Akeyless access-id/access-key pair.
+                            properties:
+                              name:
+                                description: Name of the Secret.
+                                type: string
+                              namespace:
+                                description: Namespace of the Secret (defaults to same namespace as the
+                                  resource).
+                                nullable: true
+                                type: string
+                            required:
+                            - name
+                            type: object
+                        required:
+                        - secretRef
+                        type: object
                       aws:
                         description: AWS credentials configuration.
                         nullable: true
@@ -430,7 +506,8 @@ spec:
                                 description: Name of the Secret.
                                 type: string
                               namespace:
-                                description: Namespace of the Secret (defaults to same namespace as the resource).
+                                description: Namespace of the Secret (defaults to same namespace as the
+                                  resource).
                                 nullable: true
                                 type: string
                             required:
@@ -450,7 +527,8 @@ spec:
                                 description: Name of the Secret.
                                 type: string
                               namespace:
-                                description: Namespace of the Secret (defaults to same namespace as the resource).
+                                description: Namespace of the Secret (defaults to same namespace as the
+                                  resource).
                                 nullable: true
                                 type: string
                             required:
@@ -460,7 +538,10 @@ spec:
                         - secretRef
                         type: object
                       github:
-                        description: 'GitHub credentials configuration. Used by templates that declare github_* providers (e.g. pangea-github''s `cloudflare_zero_trust_*` adjacent shapes — repos, runner groups, branch protection). Same shape as the cloudflare credentials block: a secretRef to a Secret containing a PAT.'
+                        description: "GitHub credentials configuration. Used by templates that declare\
+                          \ github_* providers (e.g. pangea-github's `cloudflare_zero_trust_*` adjacent\
+                          \ shapes \u2014 repos, runner groups, branch protection). Same shape as the\
+                          \ cloudflare credentials block: a secretRef to a Secret containing a PAT."
                         nullable: true
                         properties:
                           secretRef:
@@ -470,7 +551,8 @@ spec:
                                 description: Name of the Secret.
                                 type: string
                               namespace:
-                                description: Namespace of the Secret (defaults to same namespace as the resource).
+                                description: Namespace of the Secret (defaults to same namespace as the
+                                  resource).
                                 nullable: true
                                 type: string
                             required:
@@ -480,7 +562,13 @@ spec:
                         - secretRef
                         type: object
                       porkbun:
-                        description: 'Porkbun credentials configuration. Used by templates that declare `porkbun_*` resources (e.g. `platform-dns`''s registrar delegation) via the `marcfrederick/porkbun` terraform provider. Same operator-side authority model as AWS/Cloudflare: the referenced Secret holds the two-part `api_key` + `secret_api_key` credential pair, resolved by the operator and rendered into its own ephemeral `providers.tf.json` — never baked into the workspace''s own compiled/git-committed output.'
+                        description: "Porkbun credentials configuration. Used by templates that declare\
+                          \ `porkbun_*` resources (e.g. `platform-dns`'s registrar delegation) via the\
+                          \ `marcfrederick/porkbun` terraform provider. Same operator-side authority model\
+                          \ as AWS/Cloudflare: the referenced Secret holds the two-part `api_key` + `secret_api_key`\
+                          \ credential pair, resolved by the operator and rendered into its own ephemeral\
+                          \ `providers.tf.json` \u2014 never baked into the workspace's own compiled/git-committed\
+                          \ output."
                         nullable: true
                         properties:
                           secretRef:
@@ -490,7 +578,8 @@ spec:
                                 description: Name of the Secret.
                                 type: string
                               namespace:
-                                description: Namespace of the Secret (defaults to same namespace as the resource).
+                                description: Namespace of the Secret (defaults to same namespace as the
+                                  resource).
                                 nullable: true
                                 type: string
                             required:

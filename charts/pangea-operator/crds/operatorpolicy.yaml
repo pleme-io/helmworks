@@ -1,4 +1,3 @@
----
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
@@ -55,7 +54,9 @@ spec:
                   synthesizerFormat: false
                   template: false
                   workspaceCatalog: false
-                description: Per-controller suspend. Use to pause a specific controller while debugging without freezing the whole operator. `globalSuspend` dominates this field — if it's true, per-controller flags are not consulted.
+                description: "Per-controller suspend. Use to pause a specific controller while debugging\
+                  \ without freezing the whole operator. `globalSuspend` dominates this field \u2014 if\
+                  \ it's true, per-controller flags are not consulted."
                 properties:
                   amiTest:
                     default: false
@@ -108,51 +109,64 @@ spec:
                 type: object
               globalSuspend:
                 default: false
-                description: Master kill-switch. When true, every operator controller skips reconciliation entirely. Status counter `reconcilesSkipped` increments on every skipped reconcile so you can verify the pause is taking effect.
+                description: Master kill-switch. When true, every operator controller skips reconciliation
+                  entirely. Status counter `reconcilesSkipped` increments on every skipped reconcile so
+                  you can verify the pause is taking effect.
                 type: boolean
               globalSuspendReason:
-                description: 'Operator-readable reason for the suspend, surfaced in: * structured logs on every skipped reconcile * Kubernetes Events with reason=`OperatorSuspended` * `kubectl describe operatorpolicy default` output'
+                description: 'Operator-readable reason for the suspend, surfaced in: * structured logs
+                  on every skipped reconcile * Kubernetes Events with reason=`OperatorSuspended` * `kubectl
+                  describe operatorpolicy default` output'
                 nullable: true
                 type: string
               workspaceSuspend:
                 default: {}
-                description: |-
-                  Per-workspace tri-state suspend. Specific overrides general: the resolution ladder for a single template is
-
-                  1. `workspaceSuspend.templates["<ns>/<name>"].state` 2. `workspaceSuspend.catalogs["<owner-catalog>"].state` (cascade — catalog Active carves the entire catalog out of a global pause, catalog Paused freezes everything under it) 3. `controllerSuspend.template` 4. `globalSuspend`
-
-                  stopping at the first non-`Inherit` decision. `Active` at any of layers 1–2 means "specifically configured to reconcile during a global pause" — a surgical carve-out. `Paused` at any of layers 1–2 freezes that workspace regardless of more general state.
+                description: "Per-workspace tri-state suspend. Specific overrides general: the resolution\
+                  \ ladder for a single template is\n\n1. `workspaceSuspend.templates[\"<ns>/<name>\"\
+                  ].state` 2. `workspaceSuspend.catalogs[\"<owner-catalog>\"].state` (cascade \u2014 catalog\
+                  \ Active carves the entire catalog out of a global pause, catalog Paused freezes everything\
+                  \ under it) 3. `controllerSuspend.template` 4. `globalSuspend`\n\nstopping at the first\
+                  \ non-`Inherit` decision. `Active` at any of layers 1\u20132 means \"specifically configured\
+                  \ to reconcile during a global pause\" \u2014 a surgical carve-out. `Paused` at any\
+                  \ of layers 1\u20132 freezes that workspace regardless of more general state."
                 properties:
                   catalogs:
                     additionalProperties:
                       description: 'A single per-workspace decision: what state, optionally why.'
                       properties:
                         reason:
-                          description: Optional human-readable note, surfaced in skip logs and the `policy_skipped_total{reason=...}` metric label. Optional throughout the surface — pausing without a reason is allowed, dashboards display "(no reason given)".
+                          description: "Optional human-readable note, surfaced in skip logs and the `policy_skipped_total{reason=...}`\
+                            \ metric label. Optional throughout the surface \u2014 pausing without a reason\
+                            \ is allowed, dashboards display \"(no reason given)\"."
                           nullable: true
                           type: string
                         state:
                           default: inherit
-                          description: Tri-state decision. Defaults to `Inherit`, which is equivalent to omitting the entry entirely.
+                          description: Tri-state decision. Defaults to `Inherit`, which is equivalent
+                            to omitting the entry entirely.
                           enum:
                           - inherit
                           - paused
                           - active
                           type: string
                       type: object
-                    description: Per-catalog overrides keyed by `WorkspaceCatalog` name. Cascades to children unless a child template overrides.
+                    description: Per-catalog overrides keyed by `WorkspaceCatalog` name. Cascades to children
+                      unless a child template overrides.
                     type: object
                   templates:
                     additionalProperties:
                       description: 'A single per-workspace decision: what state, optionally why.'
                       properties:
                         reason:
-                          description: Optional human-readable note, surfaced in skip logs and the `policy_skipped_total{reason=...}` metric label. Optional throughout the surface — pausing without a reason is allowed, dashboards display "(no reason given)".
+                          description: "Optional human-readable note, surfaced in skip logs and the `policy_skipped_total{reason=...}`\
+                            \ metric label. Optional throughout the surface \u2014 pausing without a reason\
+                            \ is allowed, dashboards display \"(no reason given)\"."
                           nullable: true
                           type: string
                         state:
                           default: inherit
-                          description: Tri-state decision. Defaults to `Inherit`, which is equivalent to omitting the entry entirely.
+                          description: Tri-state decision. Defaults to `Inherit`, which is equivalent
+                            to omitting the entry entirely.
                           enum:
                           - inherit
                           - paused
@@ -164,11 +178,14 @@ spec:
                 type: object
             type: object
           status:
-            description: Status of an OperatorPolicy. The reconciler mirrors `spec` into `status.effective` after every spec change so consumers can observe the policy's resolved view without re-reading spec.
+            description: Status of an OperatorPolicy. The reconciler mirrors `spec` into `status.effective`
+              after every spec change so consumers can observe the policy's resolved view without re-reading
+              spec.
             nullable: true
             properties:
               effective:
-                description: Effective view of the spec. Mirrors spec verbatim today; reserved for future computed fields (e.g., merged-from-multiple-sources).
+                description: Effective view of the spec. Mirrors spec verbatim today; reserved for future
+                  computed fields (e.g., merged-from-multiple-sources).
                 nullable: true
                 properties:
                   controllerSuspend:
@@ -185,7 +202,9 @@ spec:
                       synthesizerFormat: false
                       template: false
                       workspaceCatalog: false
-                    description: Per-controller suspend. Use to pause a specific controller while debugging without freezing the whole operator. `globalSuspend` dominates this field — if it's true, per-controller flags are not consulted.
+                    description: "Per-controller suspend. Use to pause a specific controller while debugging\
+                      \ without freezing the whole operator. `globalSuspend` dominates this field \u2014\
+                      \ if it's true, per-controller flags are not consulted."
                     properties:
                       amiTest:
                         default: false
@@ -238,51 +257,67 @@ spec:
                     type: object
                   globalSuspend:
                     default: false
-                    description: Master kill-switch. When true, every operator controller skips reconciliation entirely. Status counter `reconcilesSkipped` increments on every skipped reconcile so you can verify the pause is taking effect.
+                    description: Master kill-switch. When true, every operator controller skips reconciliation
+                      entirely. Status counter `reconcilesSkipped` increments on every skipped reconcile
+                      so you can verify the pause is taking effect.
                     type: boolean
                   globalSuspendReason:
-                    description: 'Operator-readable reason for the suspend, surfaced in: * structured logs on every skipped reconcile * Kubernetes Events with reason=`OperatorSuspended` * `kubectl describe operatorpolicy default` output'
+                    description: 'Operator-readable reason for the suspend, surfaced in: * structured
+                      logs on every skipped reconcile * Kubernetes Events with reason=`OperatorSuspended`
+                      * `kubectl describe operatorpolicy default` output'
                     nullable: true
                     type: string
                   workspaceSuspend:
                     default: {}
-                    description: |-
-                      Per-workspace tri-state suspend. Specific overrides general: the resolution ladder for a single template is
-
-                      1. `workspaceSuspend.templates["<ns>/<name>"].state` 2. `workspaceSuspend.catalogs["<owner-catalog>"].state` (cascade — catalog Active carves the entire catalog out of a global pause, catalog Paused freezes everything under it) 3. `controllerSuspend.template` 4. `globalSuspend`
-
-                      stopping at the first non-`Inherit` decision. `Active` at any of layers 1–2 means "specifically configured to reconcile during a global pause" — a surgical carve-out. `Paused` at any of layers 1–2 freezes that workspace regardless of more general state.
+                    description: "Per-workspace tri-state suspend. Specific overrides general: the resolution\
+                      \ ladder for a single template is\n\n1. `workspaceSuspend.templates[\"<ns>/<name>\"\
+                      ].state` 2. `workspaceSuspend.catalogs[\"<owner-catalog>\"].state` (cascade \u2014\
+                      \ catalog Active carves the entire catalog out of a global pause, catalog Paused\
+                      \ freezes everything under it) 3. `controllerSuspend.template` 4. `globalSuspend`\n\
+                      \nstopping at the first non-`Inherit` decision. `Active` at any of layers 1\u2013\
+                      2 means \"specifically configured to reconcile during a global pause\" \u2014 a\
+                      \ surgical carve-out. `Paused` at any of layers 1\u20132 freezes that workspace\
+                      \ regardless of more general state."
                     properties:
                       catalogs:
                         additionalProperties:
                           description: 'A single per-workspace decision: what state, optionally why.'
                           properties:
                             reason:
-                              description: Optional human-readable note, surfaced in skip logs and the `policy_skipped_total{reason=...}` metric label. Optional throughout the surface — pausing without a reason is allowed, dashboards display "(no reason given)".
+                              description: "Optional human-readable note, surfaced in skip logs and the\
+                                \ `policy_skipped_total{reason=...}` metric label. Optional throughout\
+                                \ the surface \u2014 pausing without a reason is allowed, dashboards display\
+                                \ \"(no reason given)\"."
                               nullable: true
                               type: string
                             state:
                               default: inherit
-                              description: Tri-state decision. Defaults to `Inherit`, which is equivalent to omitting the entry entirely.
+                              description: Tri-state decision. Defaults to `Inherit`, which is equivalent
+                                to omitting the entry entirely.
                               enum:
                               - inherit
                               - paused
                               - active
                               type: string
                           type: object
-                        description: Per-catalog overrides keyed by `WorkspaceCatalog` name. Cascades to children unless a child template overrides.
+                        description: Per-catalog overrides keyed by `WorkspaceCatalog` name. Cascades
+                          to children unless a child template overrides.
                         type: object
                       templates:
                         additionalProperties:
                           description: 'A single per-workspace decision: what state, optionally why.'
                           properties:
                             reason:
-                              description: Optional human-readable note, surfaced in skip logs and the `policy_skipped_total{reason=...}` metric label. Optional throughout the surface — pausing without a reason is allowed, dashboards display "(no reason given)".
+                              description: "Optional human-readable note, surfaced in skip logs and the\
+                                \ `policy_skipped_total{reason=...}` metric label. Optional throughout\
+                                \ the surface \u2014 pausing without a reason is allowed, dashboards display\
+                                \ \"(no reason given)\"."
                               nullable: true
                               type: string
                             state:
                               default: inherit
-                              description: Tri-state decision. Defaults to `Inherit`, which is equivalent to omitting the entry entirely.
+                              description: Tri-state decision. Defaults to `Inherit`, which is equivalent
+                                to omitting the entry entirely.
                               enum:
                               - inherit
                               - paused
@@ -294,7 +329,8 @@ spec:
                     type: object
                 type: object
               lastChangedAt:
-                description: Wall-clock timestamp of the last spec change observed by the controller. Empty until the policy is first reconciled.
+                description: Wall-clock timestamp of the last spec change observed by the controller.
+                  Empty until the policy is first reconciled.
                 format: date-time
                 nullable: true
                 type: string
@@ -305,13 +341,30 @@ spec:
                 type: integer
               reconcilesSkipped:
                 default: 0
-                description: 'Rolling counter incremented every time a controller skips a reconcile due to this policy. Resets to zero on operator restart. Use to confirm the kill-switch is taking effect: `kubectl get operatorpolicy default -o jsonpath=''{.status.reconcilesSkipped}''`'
+                description: "Rolling counter \u2014 read this as the **last-snapshot** value, not the\
+                  \ live count. Since the rio firefighting 2026-05-07 wave (see `operator_policy_controller::status_needs_patch`)\
+                  \ the OperatorPolicy status PATCH is diff-gated on substantive changes only, so this\
+                  \ field is updated only when something material on the policy itself changes (`observedGeneration`,\
+                  \ `effective` spec, or the `workspaceOverrides` count). The in-memory atomic counter\
+                  \ the controller reads from (`OperatorPolicyCache.skipped`) is sampled into here at\
+                  \ write time; between writes, the field is frozen.\n\n**For the live count** (every\
+                  \ increment as it happens), use the Prometheus counter `pangea_policy_skipped_total{controller,\
+                  \ source, reason, target}`. It carries label dimensions this CR field can't (which controller\
+                  \ skipped, which gate fired, which workspace) and is the canonical source for the chart\
+                  \ 0.8.14 `PangeaControllerReconcileRateHigh` alert.\n\nAt-a-glance usage (still useful\
+                  \ for a single-shot manual check): `kubectl get operatorpolicy default -o jsonpath='{.status.reconcilesSkipped}'`\
+                  \ Live rate (Prometheus): `sum by (controller) (rate(pangea_policy_skipped_total[1m]))`\n\
+                  \nResets to zero on operator restart (the in-memory counter is non-persistent; this\
+                  \ field is overwritten by the next substantive PATCH)."
                 format: uint64
                 minimum: 0.0
                 type: integer
               workspaceOverrides:
                 default: 0
-                description: Number of `Active` workspace carve-outs currently in effect (templates + catalogs combined). Surfaced as a printer column so `kubectl get oppol` shows at a glance how many surgical exemptions exist while a global pause is in place. Counted directly from `spec.workspaceSuspend`; not a runtime gauge.
+                description: Number of `Active` workspace carve-outs currently in effect (templates +
+                  catalogs combined). Surfaced as a printer column so `kubectl get oppol` shows at a glance
+                  how many surgical exemptions exist while a global pause is in place. Counted directly
+                  from `spec.workspaceSuspend`; not a runtime gauge.
                 format: uint64
                 minimum: 0.0
                 type: integer
