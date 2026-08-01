@@ -1,0 +1,103 @@
+{{/*
+init-job.yaml — SHELL-FREE INITIALIZATION for a distroless ClickHouse.
+
+WHY THIS EXISTS. The sibling init-sql.yaml renders the schema into
+/docker-entrypoint-initdb.d, which is scanned by the OFFICIAL image's shell
+entrypoint (docker-entrypoint.sh). pleme-io's hardened image has no shell and
+its entrypoint is clickhouse-server directly, so that directory is never read
+and the tables are silently never created — a pod that starts healthy, reports
+Ready, and has no schema.
+
+This runs the same ConfigMap through `clickhouse-client --queries-file`, which
+needs no shell and no entrypoint hook.
+
+OPT-IN, so nothing changes until the image does. `init.mode` defaults to
+"entrypoint" (today's behaviour, upstream image). Set it to "job" in the same
+change that repoints the image at the hardened build — the two are coupled and
+splitting them leaves a window with no schema.
+
+VERIFIED BEFORE WRITING, not assumed:
+  * the hardened image ships clickhouse-client and supports --queries-file
+  * credentials travel by ENV, not argv: CLICKHOUSE_PASSWORD / CLICKHOUSE_USER /
+    CLICKHOUSE_HOST are all present in the binary (strings, count 1 each), with
+    CLICKHOUSE_WATCHDOG_ENABLE as a positive control (1) and a fabricated var as
+    a negative control (0). argv is world-readable via /proc on a shared node;
+    env is not.
+
+A JOB, NOT AN initContainer: the SQL needs a server already accepting
+connections, and an initContainer runs strictly before the main container.
+Retry-until-ready is `backoffLimit` + `restartPolicy: OnFailure` — no shell
+wait-loop, no sleep. Every statement in the ConfigMap is IF NOT EXISTS, so a
+re-run is a no-op and re-running on upgrade is safe.
+*/}}
+{{- if and .Values.clickhouse.init.enabled (eq (.Values.clickhouse.init.mode | default "entrypoint") "job") }}
+{{- $ch := .Values.clickhouse }}
+{{- $full := include "pleme-lib.fullname" . }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $full }}-init
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+  annotations:
+    # Re-runs on every install/upgrade. Safe because the SQL is idempotent, and
+    # necessary because a schema change must reach an already-running cluster.
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  # The server may not be accepting connections yet; each retry is a fresh
+  # attempt rather than a shell loop inside one pod.
+  backoffLimit: {{ $ch.init.jobBackoffLimit | default 30 }}
+  ttlSecondsAfterFinished: {{ $ch.init.jobTtlSeconds | default 600 }}
+  template:
+    metadata:
+      labels:
+        {{- include "pleme-lib.labels" . | nindent 8 }}
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      restartPolicy: OnFailure
+      {{- with $ch.securityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: init
+          image: "{{ $ch.image.repository }}:{{ $ch.image.tag }}"
+          imagePullPolicy: {{ $ch.image.pullPolicy }}
+          {{- with $ch.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          # A binary with arguments. No shell, no entrypoint hook, no `sh -c`.
+          command: ["clickhouse-client"]
+          args:
+            - "--host={{ $full }}"
+            - "--port={{ $ch.ports.native | default 9000 }}"
+            - "--queries-file=/sql/00-schema.sql"
+          env:
+            # By env, never argv — /proc/<pid>/cmdline is world-readable.
+            - name: CLICKHOUSE_USER
+              value: {{ $ch.auth.user | quote }}
+            - name: CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $ch.auth.existingSecret | default (printf "%s-auth" $full) }}
+                  key: {{ $ch.auth.passwordKey | default "clickhouse-password" }}
+          volumeMounts:
+            - name: initdb
+              mountPath: /sql
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+      volumes:
+        - name: initdb
+          configMap:
+            name: {{ $full }}-initdb
+{{- end }}
