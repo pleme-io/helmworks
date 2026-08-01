@@ -1,6 +1,31 @@
 {{/*
 init-sql.yaml — AUTOMATED INITIALIZATION.
 
+★ THIS MECHANISM DOES NOT WORK ON A DISTROLESS IMAGE — read before swapping.
+/docker-entrypoint-initdb.d is scanned by the OFFICIAL image's shell entrypoint
+(docker-entrypoint.sh). pleme-io's hardened ClickHouse has no shell and its
+entrypoint is clickhouse-server directly, so that directory is never read.
+
+The failure is SILENT and is the dangerous kind: swap the image and the pod
+starts healthy, reports Ready, logs nothing unusual — and the tables are simply
+never created. Nothing errors at startup, so it surfaces later as missing data.
+
+THE SHELL-FREE FIX IS AVAILABLE AND VERIFIED PRESENT (2026-08-01). The hardened
+image ships `clickhouse-client`, and it supports `--queries-file`. So the init
+becomes a post-ready Job invoking a binary with arguments — no shell, no
+entrypoint hook:
+
+  command: ["clickhouse-client"]
+  args: ["--host", "<service>", "--queries-file", "/sql/init.sql", ...]
+
+A Job (not an initContainer) because the SQL needs the server already accepting
+connections, which an initContainer runs before.
+
+`pending-clickhouse-init: convert this ConfigMap from a
+ /docker-entrypoint-initdb.d drop-in to a post-ready Job running
+ clickhouse-client --queries-file. Required BEFORE the server image can be
+ repointed at the hardened build.`
+
 Rendered into /docker-entrypoint-initdb.d so the official clickhouse-server image
 runs it on FIRST start (empty data dir). The PVC persists the schema across the
 zero-scale wake/sleep cycles. Every statement is IF NOT EXISTS — a re-run is a
