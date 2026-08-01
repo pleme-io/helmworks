@@ -32,7 +32,7 @@ description: |-
     k8s/clusters/rio/infrastructure/pangea-database/RESTORE-RUNBOOK.md
     theory/CHART-ADOPTION-PLAYBOOK.md   (multi-commit migration safety)
 type: application
-version: 0.1.0
+version: 0.1.1
 appVersion: "1.0"
 keywords:
   - cnpg

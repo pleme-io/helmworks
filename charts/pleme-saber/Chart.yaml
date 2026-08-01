@@ -2,7 +2,7 @@ apiVersion: v2
 name: pleme-saber
 description: Saber knowledge-platform API server (REST/GraphQL/gRPC/MCP) on the pleme-lib baseline
 type: application
-version: 0.1.0
+version: 0.1.1
 appVersion: "0.1.0"
 dependencies:
   - name: pleme-lib
