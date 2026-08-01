@@ -1,6 +1,42 @@
 {{/*
 pleme-lib: compliance — RBAC / authorization primitives
 
+★ MEASURED 2026-08-01 — THESE GUARDS HAVE ZERO CONSUMERS. Read this before
+trusting the paragraph below.
+
+"every chart that needs Kubernetes RBAC composes against these" is the
+INTENT, not the state. Counted across every chart's templates dir, excluding pleme-lib
+itself:
+
+    pleme-lib.compliance.authz.role                0 charts
+    pleme-lib.compliance.authz.roleBinding         0 charts
+    pleme-lib.compliance.authz.clusterRole         0 charts
+    pleme-lib.compliance.authz.clusterRoleBinding  0 charts
+    (control, same probe: pleme-lib.networkpolicy 29, pleme-lib.labels 144
+     — so the probe finds consumers when they exist; the zero is real)
+
+17 charts DO define a ClusterRole and none route through these helpers.
+pangea-operator — the fleet's IaC control plane — renders its ClusterRole
+with a bare `toYaml .Values.rbac.rules` (templates/rbac.yaml:10), so no
+guard is in the path at all.
+
+PROVEN by render, not by reading: `helm template charts/pangea-operator`
+with a wildcard in rbac.rules[0] apiGroups/resources/verbs renders exit 0 with
+the wildcard present in the output (3 occurrences) — at the DEFAULT
+baseline AND at `compliance.baseline=moderate`. The `fail()`s below never
+execute.
+
+The mitigating fact, measured the same day: 0 of those 17 charts currently
+contain a wildcard in any form (probe controlled against both block-list
+and inline-array syntax). So nothing is exploiting the gap today — but
+NOTHING PREVENTS IT either, and 9 of the 17 take their rules from values,
+where a consumer supplies them without touching a template.
+
+`pending-authz-guard: wire these into the 17 ClusterRole-defining charts.`
+Wiring is a no-op for all of them today (zero wildcards to reject), which
+is exactly the moment to do it — sealing at zero costs nothing and every
+later wildcard becomes impossible rather than merely absent.
+
 Foundation primitive: every chart that needs Kubernetes RBAC composes
 against these. Eliminates the most common compliance findings — wildcard
 verbs, wildcard resources, wildcard apiGroups, cluster-admin bindings —
