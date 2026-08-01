@@ -1,7 +1,8 @@
----
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
+  annotations:
+    helm.sh/resource-policy: keep
   name: reconciliationloops.pangea.pleme.io
 spec:
   group: pangea.pleme.io
@@ -65,15 +66,18 @@ spec:
                         nullable: true
                         properties:
                           githubIssueTemplate:
-                            description: GitHub issue template name. Operator opens an issue in the workspace's source repo.
+                            description: GitHub issue template name. Operator opens an issue in the workspace's
+                              source repo.
                             nullable: true
                             type: string
                           ntfyTopic:
-                            description: ntfy topic name (homelab convention — see pleme-io alertmanager-ntfy module).
+                            description: "ntfy topic name (homelab convention \u2014 see pleme-io alertmanager-ntfy\
+                              \ module)."
                             nullable: true
                             type: string
                           slackChannel:
-                            description: Slack channel (SaaS convention — Datadog/Splunk-paired clusters).
+                            description: "Slack channel (SaaS convention \u2014 Datadog/Splunk-paired\
+                              \ clusters)."
                             nullable: true
                             type: string
                         type: object
@@ -88,7 +92,8 @@ spec:
                         type: string
                       compiling:
                         default: 5m
-                        description: How long can `Compiling` last before escalating. Format same as refreshInterval (`5m`, `30s`, `1h`). Default `5m`.
+                        description: How long can `Compiling` last before escalating. Format same as refreshInterval
+                          (`5m`, `30s`, `1h`). Default `5m`.
                         type: string
                       onTimeout:
                         default: alert
@@ -107,15 +112,18 @@ spec:
                         nullable: true
                         properties:
                           githubIssueTemplate:
-                            description: GitHub issue template name. Operator opens an issue in the workspace's source repo.
+                            description: GitHub issue template name. Operator opens an issue in the workspace's
+                              source repo.
                             nullable: true
                             type: string
                           ntfyTopic:
-                            description: ntfy topic name (homelab convention — see pleme-io alertmanager-ntfy module).
+                            description: "ntfy topic name (homelab convention \u2014 see pleme-io alertmanager-ntfy\
+                              \ module)."
                             nullable: true
                             type: string
                           slackChannel:
-                            description: Slack channel (SaaS convention — Datadog/Splunk-paired clusters).
+                            description: "Slack channel (SaaS convention \u2014 Datadog/Splunk-paired\
+                              \ clusters)."
                             nullable: true
                             type: string
                         type: object
@@ -137,15 +145,18 @@ spec:
                         nullable: true
                         properties:
                           githubIssueTemplate:
-                            description: GitHub issue template name. Operator opens an issue in the workspace's source repo.
+                            description: GitHub issue template name. Operator opens an issue in the workspace's
+                              source repo.
                             nullable: true
                             type: string
                           ntfyTopic:
-                            description: ntfy topic name (homelab convention — see pleme-io alertmanager-ntfy module).
+                            description: "ntfy topic name (homelab convention \u2014 see pleme-io alertmanager-ntfy\
+                              \ module)."
                             nullable: true
                             type: string
                           slackChannel:
-                            description: Slack channel (SaaS convention — Datadog/Splunk-paired clusters).
+                            description: "Slack channel (SaaS convention \u2014 Datadog/Splunk-paired\
+                              \ clusters)."
                             nullable: true
                             type: string
                         type: object
@@ -157,7 +168,8 @@ spec:
                 type: object
               cadence:
                 default: 5m
-                description: 'Base requeue interval for this loop''s tick (e.g. "5m", "30s"). The scheduling dual of the state axis: fine state, bounded loops.'
+                description: 'Base requeue interval for this loop''s tick (e.g. "5m", "30s"). The scheduling
+                  dual of the state axis: fine state, bounded loops.'
                 type: string
               concurrency:
                 default: 4
@@ -166,13 +178,17 @@ spec:
                 minimum: 0.0
                 type: integer
               selector:
-                description: Which workspaces (InfrastructureTemplates) this loop drives. A template is a member iff every label in `matchLabels` is present + equal on the template's `metadata.labels`. An empty selector matches nothing (never "everything" — a runaway loop is unrepresentable by default).
+                description: "Which workspaces (InfrastructureTemplates) this loop drives. A template\
+                  \ is a member iff every label in `matchLabels` is present + equal on the template's\
+                  \ `metadata.labels`. An empty selector matches nothing (never \"everything\" \u2014\
+                  \ a runaway loop is unrepresentable by default)."
                 properties:
                   matchLabels:
                     additionalProperties:
                       type: string
                     default: {}
-                    description: All of these label key=value pairs must be present + equal on a template for it to be a member. Empty ⇒ matches nothing.
+                    description: "All of these label key=value pairs must be present + equal on a template\
+                      \ for it to be a member. Empty \u21D2 matches nothing."
                     type: object
                 type: object
               settlingPolicy:
@@ -253,7 +269,8 @@ spec:
                 type: integer
               matchedWorkspaces:
                 default: []
-                description: The `namespace/name` of every InfrastructureTemplate currently bound to this loop (the resolved membership — the observability half of `roda`).
+                description: "The `namespace/name` of every InfrastructureTemplate currently bound to\
+                  \ this loop (the resolved membership \u2014 the observability half of `roda`)."
                 items:
                   type: string
                 type: array
