@@ -212,9 +212,34 @@ clickhouse:
     # fallback only" -- prose does not fail a deploy.)
     #
     # Now: password is empty, and using a literal one requires opting in
-    # EXPLICITLY via devPasswordOptIn. With neither set the chart refuses to
-    # render, naming both fixes. A missing credential is loud instead of
+    # EXPLICITLY via devPasswordOptIn. A missing credential is loud instead of
     # defaulted, which is the only version of this a reviewer can trust.
+    #
+    # ── TIER, STATED HONESTLY (corrected 2026-08-01) ──────────────────────
+    # This block previously said "the chart refuses to render, naming both
+    # fixes." IT DOES NOT REFUSE, and secret.yaml's own header says so —
+    # the two files described the same guard at two different tiers, and the
+    # stronger claim lived in the file operators actually read and copy from.
+    #
+    # MEASURED: `helm template` with stock values exits 0 and emits 7 kinds.
+    # Secret count is ZERO, while the StatefulSet still carries a
+    # secretKeyRef to `<fullname>-auth`. So the real tier is a RUNTIME
+    # failure — CreateContainerConfigError naming the missing Secret — not a
+    # render-time rejection.
+    #
+    # That is deliberate, not a bug: secret.yaml explains a template-time
+    # `fail()` would also block the chart from being released at all. The
+    # surviving `fail()` covers only the genuinely inconsistent case
+    # (devPasswordOptIn=true with no password), which would otherwise render
+    # an EMPTY credential — a silent success, the one outcome worth refusing
+    # outright.
+    #
+    # WHY THE WORDING MATTERED: "refuses to render" implies `helm template`
+    # / `helm lint` in CI catch a missing credential BEFORE anything reaches
+    # a cluster. They do not — both go green. The failure surfaces only after
+    # deploy, to whoever is watching pod status. Still loud, still not a
+    # silent success, but later and in a different place than the sentence
+    # promised. Never round a runtime failure up to a parse-time rejection.
     password: ""
     # Set true ONLY for kind/dev. Requires `password` to be set too. Never in a
     # cluster anyone else can reach.
