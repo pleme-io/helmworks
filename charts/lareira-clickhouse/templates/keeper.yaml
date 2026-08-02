@@ -165,10 +165,8 @@ spec:
         - name: clickhouse-keeper
           image: "{{ $k.image.repository }}:{{ $k.image.tag }}"
           imagePullPolicy: {{ $k.image.pullPolicy }}
-          {{- with $ch.securityContext }}
           securityContext:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
+            {{- include "lareira-clickhouse.securityContext" $ch.securityContext | nindent 12 }}
           # ── NO command/args: the IMAGE owns its identity (2026-08-01) ────
           # This used to be `command: ["/bin/bash", "-c"]` computing
           #   KEEPER_SERVER_ID=$(( ${HOSTNAME##*-} + 1 ))

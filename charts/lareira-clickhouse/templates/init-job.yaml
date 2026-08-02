@@ -58,18 +58,14 @@ spec:
         sidecar.istio.io/inject: "false"
     spec:
       restartPolicy: OnFailure
-      {{- with $ch.securityContext }}
       securityContext:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- include "lareira-clickhouse.securityContext" $ch.securityContext | nindent 8 }}
       containers:
         - name: init
           image: "{{ $ch.image.repository }}:{{ $ch.image.tag }}"
           imagePullPolicy: {{ $ch.image.pullPolicy }}
-          {{- with $ch.securityContext }}
           securityContext:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
+            {{- include "lareira-clickhouse.securityContext" $ch.securityContext | nindent 12 }}
           # A binary with arguments. No shell, no entrypoint hook, no `sh -c`.
           command: ["clickhouse-client"]
           args:

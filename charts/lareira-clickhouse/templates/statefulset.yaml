@@ -120,10 +120,8 @@ spec:
         - name: clickhouse
           image: "{{ $ch.image.repository }}:{{ $ch.image.tag }}"
           imagePullPolicy: {{ $ch.image.pullPolicy }}
-          {{- with $ch.securityContext }}
           securityContext:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
+            {{- include "lareira-clickhouse.securityContext" $ch.securityContext | nindent 12 }}
           ports:
             - name: http
               containerPort: {{ $ch.ports.http }}
