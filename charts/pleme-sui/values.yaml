@@ -78,6 +78,48 @@ extraEnv: []
 # cofre/ESO-materialized Secret carrying the backend config or credentials.
 extraEnvFrom: []
 
+# --- Extra volumes ---
+# Additional pod volumes + container volume mounts, appended to whichever
+# fixed set the enabled mode already renders (nix-store/tmp for nixAgent,
+# tmp/eval-cache for agent, cache-store + the backend-config and signing-key
+# mounts for cache-only). Standard k8s Volume / VolumeMount list shapes.
+# Empty (the default) renders byte-identically to a chart without these keys.
+#
+# ★ WHY A CONSUMER WANTS THIS: the ingest spool needs DISK, not RAM.
+#
+# sui's HTTP ingest path spools an incoming NAR through
+# `std::env::temp_dir()` — $TMPDIR if set, else /tmp. This container runs
+# `readOnlyRootFilesystem: true`, so /tmp is NOT writable unless something is
+# mounted over it. Every spool attempt then fails and ingest silently falls
+# back to a 256MiB in-memory buffer: bounded, but ~30x the peak of the
+# streaming path (sui fc2a929 made NAR read/write stream at 32x/42x below the
+# NAR size). Nothing goes red — the pod just carries a much higher memory
+# peak than the streaming work was supposed to leave it with.
+#
+# ★ DO NOT reuse the cache-store volume, and DO NOT put `medium: Memory` on
+# the volume you add for this. A `medium: Memory` emptyDir is a tmpfs, and
+# kubelet counts every byte written to it against the pod's own memory cgroup
+# limit. Spooling there IS the cgroup memory consumption the streaming path
+# exists to escape — it converts a disk write straight back into the OOMKill
+# it was meant to prevent. An emptyDir with NO `medium:` key is node-local
+# disk. That distinction is the entire reason this knob exists; a future
+# reader who "tidies" it into the existing tmpfs undoes the fix.
+#
+# The disk-backed /tmp a cache-only deployment wants:
+#
+#   extraVolumes:
+#     - name: spool
+#       emptyDir:
+#         sizeLimit: 10Gi      # NO `medium:` — node disk, deliberately
+#   extraVolumeMounts:
+#     - name: spool
+#       mountPath: /tmp
+#   extraEnv:
+#     - name: TMPDIR
+#       value: /tmp
+extraVolumes: []
+extraVolumeMounts: []
+
 # --- Resources ---
 resources:
   requests:

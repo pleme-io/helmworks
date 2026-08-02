@@ -16,6 +16,11 @@ spec:
       labels:
         {{- include "pleme-sui.selectorLabels" . | nindent 8 }}
     spec:
+      {{- /* True when the enabled mode already emits a `volumes:` / `volumeMounts:`
+             key below, so the extraVolumes / extraVolumeMounts appenders know
+             whether they still have to open one. Declared here, at template top
+             level, so it is in scope for both the container and the pod spec. */}}
+      {{- $modeVolumes := or .Values.nixAgent.enabled .Values.mode.agent.enabled .Values.mode.cache.enabled }}
       serviceAccountName: {{ include "pleme-sui.serviceAccountName" . }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
@@ -155,6 +160,12 @@ spec:
             {{- end }}
           {{- end }}
           {{- end }}
+          {{- if .Values.extraVolumeMounts }}
+          {{- if not $modeVolumes }}
+          volumeMounts:
+          {{- end }}
+          {{- toYaml .Values.extraVolumeMounts | nindent 12 }}
+          {{- end }}
           {{- with .Values.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
@@ -209,4 +220,10 @@ spec:
           secret:
             secretName: {{ .Values.mode.cache.signing.secretName }}
         {{- end }}
+      {{- end }}
+      {{- if .Values.extraVolumes }}
+      {{- if not $modeVolumes }}
+      volumes:
+      {{- end }}
+      {{- toYaml .Values.extraVolumes | nindent 8 }}
       {{- end }}
