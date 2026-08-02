@@ -30,51 +30,54 @@ fullnameOverride: ""
 
 clickhouse:
   image:
-    # ── THIS CHART DEPLOYS UNHARDENED UPSTREAM. Measured 2026-07-31. ──────────
-    # The note below ("mirror before a real-cluster deploy") is now STALE in one
-    # direction and still true in the other: pleme-io HAS hardened ClickHouse
-    # images and publishes them, and this chart consumes NONE of them.
+    # ── MIGRATED TO THE HARDENED LANE 2026-08-02 (operator decision). ────────
+    # Was clickhouse/clickhouse-server:24.8 from Docker Hub. Until this change,
+    # of 141 helmworks charts with a templates/ dir, ZERO referenced any
+    # ghcr.io/pleme-io/hardened-* image -- the entire hardened-images program
+    # (CVE gates, Zot admission faucet, 2F promotion) produced artifacts that no
+    # chart in this repo deployed. Getting an image to 2F and getting a cluster
+    # to RUN it are two different achievements; only the first had been worked.
     #
-    # Counted, with the denominator: of 141 helmworks charts with a templates/
-    # dir, ZERO reference any ghcr.io/pleme-io/hardened-* image. So the entire
-    # hardened-images program -- CVE gates, Zot admission faucet, 2F promotion --
-    # currently produces artifacts that no chart in this repo deploys. Getting an
-    # image to 2F and getting the cluster to RUN it are two different
-    # achievements, and only the first one has been worked.
-    #
-    # THE SWAP IS COUPLED, AND DOING HALF OF IT BREAKS THE DEPLOY. The hardened
-    # images run as uid/gid 65532:65532 (hardened-image-module.nix's typed
-    # default); this chart pins runAsUser 101 and fsGroup 101, which are
-    # UPSTREAM's uid. Repointing the repository without moving both numbers gives
-    # a pod whose process (65532) is not in the volume's group (101), so
-    # /var/lib/clickhouse is unwritable and the container crash-loops -- the
-    # exact failure class already measured on hardened-nats-server and
-    # hardened-clickhouse-keeper this same day. Change all three together:
-    #
-    #   repository: ghcr.io/pleme-io/hardened-clickhouse   (or the 2F coordinate
-    #                registry.secondfront.com/akeyless/akeyless/hardened-clickhouse)
-    #   tag:        the admitted release (NOT "latest" -- AUTOBUMP exact-pin rule)
+    # THE SWAP IS COUPLED — FOUR VALUES MOVE TOGETHER OR THE POD CRASH-LOOPS.
+    # The hardened images run as uid/gid 65532:65532 (hardened-image-module.nix's
+    # typed default). This chart previously pinned runAsUser/fsGroup 101, which
+    # is UPSTREAM's uid. Repointing the repository alone gives a pod whose
+    # process (65532) is not in the volume's group (101), so
+    # /var/lib/clickhouse is unwritable -- the exact failure class measured on
+    # hardened-nats-server and hardened-clickhouse-keeper. The four:
+    #   clickhouse.image.repository + .tag
+    #   keeper.image.repository     + .tag
     #   podSecurityContext.fsGroup: 65532
     #   securityContext.runAsUser:  65532
     #
-    # ALSO NOT EQUIVALENT SOFTWARE: upstream 24.8 here vs 26.7.1.1315-stable in
-    # the hardened lane. The hardened lane moved channels specifically because
-    # 24.05-era ClickHouse had a hard-red vulnix gate (7 affected derivations).
-    # So this chart is running the version whose CVE profile the hardening work
-    # exists to escape.
+    # TAG IS AN EXACT PIN, never "latest" (AUTOBUMP rule). 1.0.53 is the
+    # `release-version` mint in hardened-images and matches the image's own
+    # org.opencontainers.image.version label. NOTE: the registry also carries a
+    # `2.0.0` tag which resolves to the IDENTICAL digest
+    # (sha256:12915f19...) and whose version label reads 1.0.53 -- a mislabelled
+    # alias, not a newer build. Do not pin it.
     #
-    # NOT CHANGED HERE on purpose: repointing is a migration (config paths,
-    # entrypoint, uid, and a real boot test), not a values edit, and this chart
-    # currently works. `pending-hardening: lareira-clickhouse consumes upstream
-    # Docker Hub images; migrate to the hardened lane as one coupled change with
-    # a verified container start.`
+    # /docker-entrypoint-initdb.d IS VESTIGIAL ON THIS LANE and is left mounted
+    # deliberately. That directory is scanned by the OFFICIAL image's shell
+    # entrypoint; the hardened image's Entrypoint is clickhouse-server directly,
+    # with no docker-entrypoint.sh, so files there are silently ignored -- init
+    # SQL would never run, with a healthy pod and no error anywhere. The chart
+    # already carries the lane-independent path: init-job.yaml runs the same
+    # ConfigMap through `clickhouse-client --queries-file`. The mount is inert,
+    # not load-bearing.
     #
-    # The original note, still accurate as far as it goes:
-    # Mirror to ghcr.io/pleme-io per the HERMETIC SUPPLY CHAIN rule before a
-    # real-cluster (air-gapped) deploy; clickhouse/clickhouse-server is the
-    # upstream coordinate.
-    repository: clickhouse/clickhouse-server
-    tag: "24.8"
+    # ALSO NOT EQUIVALENT SOFTWARE, and that is the point: upstream 24.8 vs
+    # 26.7.1.1315-stable in the hardened lane. The hardened lane moved channels
+    # because 24.05-era ClickHouse had a hard-red vulnix gate (7 affected
+    # derivations) -- this chart had been running the version whose CVE profile
+    # the hardening work exists to escape.
+    #
+    # HERMETIC SUPPLY CHAIN: ghcr.io/pleme-io is the pleme-io-owned coordinate,
+    # so this now satisfies the mirror-before-airgap rule that the Docker Hub
+    # reference violated. The 2F coordinate for an air-gapped consumer is
+    # registry.secondfront.com/akeyless/akeyless/hardened-clickhouse.
+    repository: ghcr.io/pleme-io/hardened-clickhouse
+    tag: "1.0.53"
     pullPolicy: IfNotPresent
 
   ports:
@@ -104,8 +107,8 @@ clickhouse:
   keeper:
     enabled: false
     image:
-      repository: clickhouse/clickhouse-keeper
-      tag: "24.8"
+      repository: ghcr.io/pleme-io/hardened-clickhouse-keeper
+      tag: "1.0.53"
       pullPolicy: IfNotPresent
     # ODD ≥ 3 — breathe's Quorum.has_failover_target() guard is voters>=3 && odd.
     voters: 3
@@ -301,9 +304,9 @@ clickhouse:
     enabled: false
 
   podSecurityContext:
-    fsGroup: 101
+    fsGroup: 65532
   securityContext:
-    runAsUser: 101
+    runAsUser: 65532
     runAsNonRoot: true
     allowPrivilegeEscalation: false
     # ── ADDED 2026-07-31 ────────────────────────────────────────────────────
