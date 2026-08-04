@@ -1,40 +1,83 @@
 {
   "$schema": "https://json-schema.org/draft-07/schema#",
   "title": "pleme-zot values",
-  "description": "Cluster-local Zot OCI registry. Permissive schema — it pins the enum'd security axes and key types (catching typos that would silently mis-deploy) while allowing additional keys for forward-compat overrides.",
+  "description": "Cluster-local Zot OCI registry. Permissive schema \u2014 it pins the enum'd security axes and key types (catching typos that would silently mis-deploy) while allowing additional keys for forward-compat overrides.",
   "type": "object",
   "additionalProperties": true,
   "properties": {
-    "replicaCount": { "type": "integer", "minimum": 1 },
-    "mode": { "type": "string", "enum": ["cache", "pull"] },
+    "replicaCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "cache",
+        "pull"
+      ]
+    },
     "image": {
       "type": "object",
       "additionalProperties": true,
       "properties": {
-        "repository": { "type": "string" },
-        "tag": { "type": "string" },
-        "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+        "repository": {
+          "type": "string"
+        },
+        "tag": {
+          "type": "string"
+        },
+        "pullPolicy": {
+          "type": "string",
+          "enum": [
+            "Always",
+            "IfNotPresent",
+            "Never"
+          ]
+        }
       }
     },
     "push": {
       "type": "object",
       "additionalProperties": true,
       "properties": {
-        "via": { "type": "string", "enum": ["portForward", "ingress", "both"] },
-        "allowedCidrs": { "type": "array", "items": { "type": "string" } }
+        "via": {
+          "type": "string",
+          "enum": [
+            "portForward",
+            "ingress",
+            "both"
+          ]
+        },
+        "allowedCidrs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     },
     "tls": {
       "type": "object",
       "additionalProperties": true,
       "properties": {
-        "mode": { "type": "string", "enum": ["edge", "inPod", "mesh"] },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "edge",
+            "inPod",
+            "mesh"
+          ]
+        },
         "inPod": {
           "type": "object",
           "additionalProperties": true,
           "properties": {
-            "certSecret": { "type": "string" },
-            "minVersion": { "type": "string" }
+            "certSecret": {
+              "type": "string"
+            },
+            "minVersion": {
+              "type": "string"
+            }
           }
         }
       }
@@ -43,70 +86,144 @@
       "type": "object",
       "additionalProperties": true,
       "properties": {
-        "backend": { "type": "string", "enum": ["htpasswd", "oidc", "anonymous"] },
-        "htpasswdSecret": { "type": "string" }
+        "backend": {
+          "type": "string",
+          "enum": [
+            "htpasswd",
+            "oidc",
+            "anonymous"
+          ]
+        },
+        "htpasswdSecret": {
+          "type": "string"
+        }
       }
     },
     "authz": {
       "type": "object",
       "additionalProperties": true,
       "properties": {
-        "enabled": { "type": "boolean" },
-        "anonymousReadOnly": { "type": "boolean" },
-        "adminUsers": { "type": "array", "items": { "type": "string" } },
-        "defaultPolicy": { "type": "array", "items": { "type": "string" } },
+        "enabled": {
+          "type": "boolean"
+        },
+        "anonymousReadOnly": {
+          "type": "boolean"
+        },
+        "adminUsers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "defaultPolicy": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "writers": {
           "type": "array",
           "items": {
             "type": "object",
             "additionalProperties": true,
             "properties": {
-              "users": { "type": "array", "items": { "type": "string" } },
-              "repos": { "type": "array", "items": { "type": "string" } },
-              "actions": { "type": "array", "items": { "type": "string" } }
+              "users": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "repos": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "actions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
             }
           }
         },
-        "repositories": { "type": "object" }
+        "repositories": {
+          "type": "object"
+        }
       }
     },
     "cosign": {
       "type": "object",
       "additionalProperties": true,
       "properties": {
-        "enabled": { "type": "boolean" },
-        "verify": { "type": "boolean" },
-        "publicKeySecret": { "type": "string" },
-        "admissionVerify": { "type": "boolean" }
+        "enabled": {
+          "type": "boolean"
+        },
+        "verify": {
+          "type": "boolean"
+        },
+        "publicKeySecret": {
+          "type": "string"
+        },
+        "admissionVerify": {
+          "type": "boolean"
+        }
       }
     },
     "persistence": {
       "type": "object",
       "additionalProperties": true,
       "properties": {
-        "enabled": { "type": "boolean" },
-        "storageClass": { "type": "string" },
-        "size": { "type": "string" },
-        "mountPath": { "type": "string" }
+        "enabled": {
+          "type": "boolean"
+        },
+        "storageClass": {
+          "type": "string"
+        },
+        "size": {
+          "type": "string"
+        },
+        "mountPath": {
+          "type": "string"
+        }
       }
     },
     "networkPolicy": {
       "type": "object",
       "additionalProperties": true,
-      "properties": { "enabled": { "type": "boolean" } }
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        }
+      }
     },
     "compliance": {
       "type": "object",
       "additionalProperties": true,
       "properties": {
-        "baseline": { "type": "string", "enum": ["none", "low", "fedramp-moderate", "fedramp-high"] },
-        "enforce": { "type": "boolean" }
+        "baseline": {
+          "type": "string",
+          "enum": [
+            "none",
+            "low",
+            "fedramp-moderate",
+            "fedramp-high"
+          ]
+        },
+        "enforce": {
+          "type": "boolean"
+        }
       }
     },
     "monitoring": {
       "type": "object",
       "additionalProperties": true,
-      "properties": { "enabled": { "type": "boolean" } }
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        }
+      }
     }
   }
 }

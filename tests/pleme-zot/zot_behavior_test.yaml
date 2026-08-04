@@ -94,3 +94,26 @@ tests:
       - matchRegex:
           path: data["config.json"]
           pattern: '"enable": false'
+
+  - it: "replicaCount 0 renders replicas 0, not the chart default"
+    # Regression guard. Two bugs used to make scale-to-zero impossible:
+    # values.schema.json pinned `replicaCount minimum: 1`, which failed schema
+    # validation and aborted the whole Helm upgrade; and the template used
+    # `{{ .Values.replicaCount | default 2 }}`, where Go treats integer 0 as
+    # empty and substituted 2. Parking a cluster needs zero to mean zero.
+    template: templates/statefulset.yaml
+    set:
+      replicaCount: 0
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 0
+
+  - it: "replicaCount still honors a normal value"
+    template: templates/statefulset.yaml
+    set:
+      replicaCount: 3
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
