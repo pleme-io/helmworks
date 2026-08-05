@@ -21,7 +21,22 @@ description: >-
   (binlog replay is a further increment); a canary round-trip is a recovery
   MITIGATION, not a no-row-lost theorem. See the camelot skill + pitr research.
 type: application
-version: 0.1.0
+version: 0.2.0
+# 0.2.0 (2026-08-05) -- ships the mysql 8.0 pin that 168dc27 stranded.
+#
+# 168dc27 corrected restore.mysqlImage from mysql:8.4 to mysql:8.0 and added the
+# render-time guard that couples it to restore.sourceMysqlTag, but left this
+# version at 0.1.0. auto-release is 404-idempotent, so the run logged
+# `SKIP: lareira-camelot-pitr 0.1.0 already published (immutable)`
+# (run 31003440945, 2026-08-05T12:01:38Z) and the published 0.1.0 tarball still
+# carries mysql:8.4 -- the exact two-way drill failure that commit existed to
+# remove. Minor rather than patch: restore.sourceMysqlTag is a NEW required
+# value, and the guard turns a previously-rendering override of
+# restore.mysqlImage into a hard `fail`.
+#
+# appVersion deliberately unchanged -- this chart pins engine images by digest,
+# so appVersion tracks the engine, not the wrapper (same shape as
+# lareira-camelot-observe 0.1.1/appVersion 1.0.0).
 appVersion: "0.1.0"
 keywords:
   - camelot
