@@ -51,7 +51,7 @@ tests:
     asserts:
       - equal:
           path: spec.source.gitRepository.path
-          value: workspaces/akeyless-datadog/monitors-aws.rb
+          value: workspaces/akeyless-datadog/generated/shards/monitors-aws.rb
 
   - it: carries the shard's importHints verbatim
     set:

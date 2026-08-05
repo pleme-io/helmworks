@@ -4,7 +4,7 @@ workspace:
   gitRepository:
     url: https://github.com/pleme-io/pangea-architectures.git
     ref: main
-    path: workspaces/akeyless-datadog
+    path: workspaces/akeyless-datadog/generated/shards
   catalog: akeyless-datadog
   pangeaNamespace: akeyless-datadog
 
