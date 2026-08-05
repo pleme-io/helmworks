@@ -546,6 +546,31 @@ securityContext:
     drop:
       - ALL
 
+# -- Downward API env (POD_NAME, POD_NAMESPACE, NODE_NAME) — REQUIRED, not optional.
+#
+# The operator's leader election reads POD_NAMESPACE to decide where its Lease
+# lives (pangea-operator `leader.rs:94-97`), falling back to the literal
+# "pangea-system" — while `leader.rs:59` documents the intent as "the
+# operator's OWN namespace". With this flag off, that fallback is always in
+# force, and it is correct only on a cluster that happens to have a namespace
+# by that name.
+#
+# MEASURED 2026-08-05: rio has `pangea-system` (Active) so it works there.
+# camelot runs this chart in namespace `camelot`, has no such namespace, and
+# the operator looped forever on
+#   Leader election acquire attempt failed — namespaces "pangea-system" not found (404)
+# every ~3s since install. It never became leader, so it reconciled NOTHING —
+# all 16 InfrastructureTemplates carried no phase, no resources, no cycle,
+# including `pleme-io-opensource`, which owns the GitHub org's posture.
+#
+# It was invisible: pod 1/1 Running, HelmRelease "Helm upgrade succeeded", and
+# the CRs show EMPTY status rather than an error.
+#
+# pleme-lib already renders exactly these three vars via fieldRef
+# (`_deployment.tpl:105-119`), so this is one value, not new template code.
+downwardApi:
+  enabled: true
+
 # -- Pod annotations
 podAnnotations: {}
 
