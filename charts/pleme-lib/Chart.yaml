@@ -2,7 +2,34 @@ apiVersion: v2
 name: pleme-lib
 description: Shared library chart for pleme-io internal services
 type: library
-version: 0.42.0
+version: 0.43.0
+# 0.43.0 (2026-08-05) -- trust: the private-CA anchor as a chart-side quality.
+#
+# templates/_trust.tpl. A chart declares `trust.enabled` + a domain and gets its
+# serving Certificate from the domain's CA issuer plus the anchor propagated to
+# its process, instead of hand-rolling both. Issued leaves carry isCA
+# explicitly: zot's original hand-applied cert had NO basicConstraints, so it
+# could never be a trust anchor no matter what any node was told, and it was
+# pinned into node userData anyway where it did nothing for weeks.
+#
+# Refuses `trust.selfSigned` outright -- a SelfSigned issuer mints a new key per
+# install, invalidating every pinned copy of the anchor at the next cluster
+# inception, which is the defect being removed. Does NOT set SSL_CERT_FILE by
+# default: it REPLACES the OpenSSL bundle rather than adding to it, so a bare
+# private CA there breaks every public TLS call the workload makes.
+#
+# The fingerprint is recorded as an annotation, not checked -- Go templates have
+# no digest function. `ancora verify` (pleme-io/ancora) reads it and does the
+# cross-surface comparison.
+#
+# ⚠️ THE 0.42.0 NOTE BELOW IS STALE AND IS CORRECTED HERE. It said the last
+# published pleme-lib on ghcr was 0.40.1 and that 0.40.2/0.41.0/0.42.0 were git
+# -only. Re-measured 2026-08-05 against the registry: 0.42.0 IS published. The
+# publish pipeline was fixed at some point after that note was written and the
+# note was never updated -- the same coverage-claim rot it warns about
+# elsewhere. Verify with:
+#   gh api /orgs/pleme-io/packages/container/charts%2Fpleme-lib/versions
+#
 # 0.42.0 (2026-07-26) -- breatheBand: the RequestBand (RESERVATION) arm.
 #
 # Every band arm before this one carves a LIMIT. A limit bounds blast radius,
