@@ -105,7 +105,33 @@ restore:
   restoreStatefulSetName: "camelot-mysql-restore"
   size: "20Gi"
   storageClassName: "gp3"
-  mysqlImage: "mysql:8.4"
+  # The SOURCE server's image tag — akeyless-mysql-pleme's own image.tag. Declared
+  # here as DATA rather than left implicit, because mysqlImage below is not free
+  # to disagree with it and the template enforces that. If the akeyless mysql
+  # subchart moves, move this first, then mysqlImage.
+  sourceMysqlTag: "8.0"
+  # MUST track the SOURCE server's major.minor — this server mounts a datadir
+  # restored from a snapshot of it, so the two are not independent choices.
+  # akeyless-mysql-pleme pins `mysql:8.0` (its values.yaml image.tag), so this is
+  # 8.0. It read `mysql:8.4` until 2026-08-05, which would have failed the first
+  # drill two independent ways:
+  #
+  #  1. AUTH. MySQL 8.4 ships mysql_native_password DISABLED by default (present
+  #     but not loaded; it needs --mysql-native-password=ON, and 9.0 drops it
+  #     entirely). camelot-bootstrap deliberately sets root@'%' to that plugin --
+  #     `caching_sha2 breaks the akeyless driver`, provision_emit.go:32 -- so a
+  #     restored datadir carries a root account an 8.4 server will not
+  #     authenticate, and the temporary restore saas cannot connect at all.
+  #     MYSQL_ALLOW_EMPTY_PASSWORD does NOT rescue this: it only governs
+  #     initialization of a FRESH datadir, and a restore is by definition not one.
+  #
+  #  2. DATADIR. An 8.0 datadir started under 8.4 enters the in-place upgrade
+  #     path, which 8.4 accepts only from recent 8.0.x. The `8.0` tag floats, so
+  #     whether a given snapshot satisfies that is not knowable in advance.
+  #
+  # Both are silent-until-the-drill-runs, which is why the version is pinned here
+  # with the reason rather than left to look like a free choice.
+  mysqlImage: "mysql:8.0"
   # binlog replay forward from the snapshot for arbitrary-second granularity — DESIGN (M3).
   binlogReplay: false
 
