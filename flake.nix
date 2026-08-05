@@ -155,6 +155,7 @@
             { name = "lareira-breathe-observability"; chartDir = ./charts/lareira-breathe-observability; }
             # ── dashboard-as-code workspace kind (PangeaDashboard CRs from values) ──
             { name = "lareira-pangea-dashboards"; chartDir = ./charts/lareira-pangea-dashboards; }
+            { name = "lareira-akeyless-datadog"; chartDir = ./charts/lareira-akeyless-datadog; }
           ];
 
           # Use substrate's mkHelmAllApps for all chart lifecycle apps

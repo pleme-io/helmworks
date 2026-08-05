@@ -1,0 +1,222 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "lareira-akeyless-datadog values",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "workspace",
+    "adoption",
+    "credentials",
+    "shards"
+  ],
+  "properties": {
+    "additionalLabels": true,
+    "adoption": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "destroyProtection",
+        "defaultDecision",
+        "refreshInterval"
+      ],
+      "properties": {
+        "destroyProtection": {
+          "type": "boolean"
+        },
+        "defaultDecision": {
+          "type": "string",
+          "enum": [
+            "autoApply",
+            "requireApproval",
+            "refuse"
+          ]
+        },
+        "refreshInterval": {
+          "type": "string",
+          "pattern": "^[0-9]+[smh]$"
+        }
+      }
+    },
+    "affinity": true,
+    "annotations": true,
+    "args": true,
+    "attestation": true,
+    "autoscaling": true,
+    "breathe": true,
+    "command": true,
+    "compliance": true,
+    "configMaps": true,
+    "costGuard": true,
+    "credentials": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "secretName"
+      ],
+      "properties": {
+        "secretName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "externalSecret": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "refreshInterval": {
+              "type": "string",
+              "pattern": "^[0-9]+[smh]$"
+            },
+            "secretStore": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "ClusterSecretStore",
+                    "SecretStore"
+                  ]
+                },
+                "name": {
+                  "type": "string"
+                }
+              }
+            },
+            "remoteRef": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "apiKey": {
+                  "type": "string"
+                },
+                "appKey": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "downwardApi": true,
+    "env": true,
+    "envFrom": true,
+    "externalSecret": true,
+    "fullnameOverride": true,
+    "health": true,
+    "image": true,
+    "imagePullSecrets": true,
+    "initContainers": true,
+    "istio": true,
+    "karpenter": true,
+    "lifecycle": true,
+    "limitRange": true,
+    "monitoring": true,
+    "nameOverride": true,
+    "namespace": {
+      "type": "string"
+    },
+    "networkPolicy": true,
+    "nodeSelector": true,
+    "pdb": true,
+    "podAnnotations": true,
+    "podMonitor": true,
+    "podSecurityContext": true,
+    "ports": true,
+    "preflight": true,
+    "priorityClassName": true,
+    "priorityClasses": true,
+    "prometheusRules": true,
+    "rbac": true,
+    "replicaCount": true,
+    "resourceQuota": true,
+    "resources": true,
+    "security": true,
+    "securityContext": true,
+    "service": true,
+    "serviceAccount": true,
+    "shards": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "importHints"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+            "description": "RFC 1123 DNS label; becomes part of the CR name"
+          },
+          "importHints": {
+            "type": "object",
+            "minProperties": 1,
+            "description": "terraform address -> Datadog id, verbatim from the emitter's imports.json. A shard without hints would create duplicates rather than adopt.",
+            "additionalProperties": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    },
+    "shinkaMigration": true,
+    "shinkaWait": true,
+    "sidecars": true,
+    "startupProbe": true,
+    "strategy": true,
+    "terminationGracePeriodSeconds": true,
+    "tolerations": true,
+    "topologySpreadConstraints": true,
+    "vmScrape": true,
+    "volumeMounts": true,
+    "volumes": true,
+    "workspace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "gitRepository",
+        "catalog",
+        "pangeaNamespace"
+      ],
+      "properties": {
+        "gitRepository": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "ref",
+            "path"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "minLength": 1
+            },
+            "ref": {
+              "type": "string",
+              "minLength": 1
+            },
+            "path": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "catalog": {
+          "type": "string",
+          "minLength": 1
+        },
+        "pangeaNamespace": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

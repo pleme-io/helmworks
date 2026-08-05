@@ -1,0 +1,16 @@
+apiVersion: v2
+name: lareira-akeyless-datadog
+description: |
+  Datadog estate KIND — from a `shards:` values list, emits one
+  InfrastructureTemplate CR per shard, each pointing at a generated
+  pangea-datadog-absorb workspace and carrying that shard's importHints so the
+  operator ADOPTS the live objects instead of creating duplicates of them.
+  Datadog rides InfrastructureTemplate rather than PangeaDashboard because that
+  CRD is Grafana-shaped end to end (grafanaInstanceSelector, configMapName,
+  dashboardUid) and delivers via an ownerReference-GC'd ConfigMap, which cannot
+  reach a SaaS object. The emitted shape per kind is the one PROVEN to plan to
+  "No changes" against the live estate: typed datadog_monitor with a lifecycle
+  block ignoring new_host_delay, and datadog_dashboard_json for dashboards.
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

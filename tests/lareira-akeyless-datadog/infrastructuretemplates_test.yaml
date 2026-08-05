@@ -1,0 +1,138 @@
+suite: lareira-akeyless-datadog InfrastructureTemplate
+templates:
+  - templates/infrastructuretemplates.yaml
+release:
+  name: dd
+  namespace: camelot
+set:
+  credentials:
+    secretName: dd-provider-credentials
+tests:
+  - it: renders nothing when no shards are declared
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders one InfrastructureTemplate per shard
+    set:
+      shards:
+        - name: monitors-aws
+          importHints:
+            datadog_monitor.a: "111"
+        - name: dashboards-1
+          importHints:
+            datadog_dashboard_json.b: "abc-def-ghi"
+    asserts:
+      - hasDocuments:
+          count: 2
+
+  - it: names the CR after the shard and opts into the workspace cascade
+    set:
+      shards:
+        - name: monitors-aws
+          importHints:
+            datadog_monitor.a: "111"
+    asserts:
+      - isKind:
+          of: InfrastructureTemplate
+      - equal:
+          path: metadata.name
+          value: akeyless-datadog-monitors-aws
+      - equal:
+          path: metadata.labels["pangea.pleme.io/workspace"]
+          value: akeyless-datadog
+
+  - it: points the source at the shard's own generated workspace file
+    set:
+      shards:
+        - name: monitors-aws
+          importHints:
+            datadog_monitor.a: "111"
+    asserts:
+      - equal:
+          path: spec.source.gitRepository.path
+          value: workspaces/akeyless-datadog/monitors-aws.rb
+
+  - it: carries the shard's importHints verbatim
+    set:
+      shards:
+        - name: monitors-aws
+          importHints:
+            datadog_monitor.cpu_high: "102607020"
+    asserts:
+      - equal:
+          path: spec.importHints["datadog_monitor.cpu_high"]
+          value: "102607020"
+
+  # The adoption defaults are the paranoid ones on purpose: this adopts a live
+  # production observability estate.
+  - it: defaults to destroyProtection and requireApproval
+    set:
+      shards:
+        - name: s
+          importHints:
+            datadog_monitor.a: "1"
+    asserts:
+      - equal:
+          path: spec.destroyProtection
+          value: true
+      - equal:
+          path: spec.defaultDecision
+          value: requireApproval
+
+  - it: wires the provider credential secret
+    set:
+      shards:
+        - name: s
+          importHints:
+            datadog_monitor.a: "1"
+    asserts:
+      - equal:
+          path: spec.providerCredentials.datadog.secretRef.name
+          value: dd-provider-credentials
+
+  # The refusals. They exist because the failure they prevent is SILENT: Datadog
+  # has no uniqueness constraint, so a duplicate create raises nothing.
+  # values.schema.json rejects all three of these BEFORE the template's own
+  # `fail` guards run, which is the stronger outcome: the error names the exact
+  # values path rather than a rendered message. The template guards stay as
+  # defence in depth for anyone who renders with --skip-schema-validation.
+  - it: refuses a shard with no importHints
+    set:
+      shards:
+        - name: unsafe
+          importHints: {}
+    asserts:
+      - failedTemplate:
+          errorPattern: "/shards/0/importHints.*minProperties"
+
+  - it: refuses an empty credential secret name
+    set:
+      credentials:
+        secretName: ""
+      shards:
+        - name: s
+          importHints:
+            datadog_monitor.a: "1"
+    asserts:
+      - failedTemplate:
+          errorPattern: "/credentials/secretName.*minLength"
+
+  - it: refuses a shard with no name
+    set:
+      shards:
+        - importHints:
+            datadog_monitor.a: "1"
+    asserts:
+      - failedTemplate:
+          errorPattern: "/shards/0.*missing property 'name'"
+
+  - it: refuses a shard name that is not a DNS label
+    set:
+      shards:
+        - name: Not_A_Label
+          importHints:
+            datadog_monitor.a: "1"
+    asserts:
+      - failedTemplate:
+          errorPattern: "/shards/0/name.*pattern"

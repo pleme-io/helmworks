@@ -1,0 +1,56 @@
+{{/*
+One InfrastructureTemplate CR per shard.
+
+REFUSES RATHER THAN GUESSES, twice:
+
+  1. a shard with no importHints would have the operator CREATE a duplicate of
+     every live object it was meant to adopt. Datadog monitors and dashboards
+     carry no uniqueness constraint, so that duplicate is silent — there is no
+     "already exists" error to catch it. A shard without hints is therefore a
+     render-time failure, not a deploy-time surprise.
+
+  2. credentials.secretName must be set. Without it the operator resolves an
+     empty provider_configs map and every RPC falls back to the pod's ambient
+     credential chain, which is not the estate we mean.
+
+Adoption is still gated on the operator: rendering a CR does not apply it.
+*/}}
+{{- $root := . -}}
+{{- if not .Values.credentials.secretName }}
+{{- fail "lareira-akeyless-datadog: credentials.secretName is required — an empty provider credential resolves to the pod's ambient chain, not the intended Datadog org" }}
+{{- end }}
+{{- range $i, $shard := .Values.shards }}
+{{- if not $shard.name }}{{ fail (printf "lareira-akeyless-datadog: shards[%d].name is required" $i) }}{{ end }}
+{{- if not $shard.importHints }}
+{{- fail (printf "lareira-akeyless-datadog: shard %q has no importHints. The first apply would CREATE a duplicate of every live object rather than adopt it, and Datadog has no uniqueness constraint to catch that. Supply the shard's slice of the emitter's imports.json." $shard.name) }}
+{{- end }}
+---
+apiVersion: pangea.pleme.io/v1alpha1
+kind: InfrastructureTemplate
+metadata:
+  name: akeyless-datadog-{{ $shard.name }}
+  namespace: {{ $root.Values.namespace | default $root.Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: lareira-akeyless-datadog
+    app.kubernetes.io/managed-by: {{ $root.Release.Service }}
+    app.kubernetes.io/instance: {{ $root.Release.Name }}
+    pangea.pleme.io/workspace: {{ $root.Values.workspace.catalog | quote }}
+spec:
+  source:
+    gitRepository:
+      url: {{ $root.Values.workspace.gitRepository.url | quote }}
+      ref: {{ $root.Values.workspace.gitRepository.ref | quote }}
+      path: {{ printf "%s/%s.rb" $root.Values.workspace.gitRepository.path $shard.name | quote }}
+  pangeaNamespace: {{ $root.Values.workspace.pangeaNamespace | quote }}
+  destroyProtection: {{ $root.Values.adoption.destroyProtection }}
+  refreshInterval: {{ $root.Values.adoption.refreshInterval | quote }}
+  defaultDecision: {{ $root.Values.adoption.defaultDecision }}
+  providerCredentials:
+    datadog:
+      secretRef:
+        name: {{ $root.Values.credentials.secretName | quote }}
+  importHints:
+    {{- range $address, $id := $shard.importHints }}
+    {{ $address | quote }}: {{ $id | quote }}
+    {{- end }}
+{{- end }}
