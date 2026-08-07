@@ -46,8 +46,30 @@ version: 0.44.0
 # _deployment.tpl already uses, and the suite asserts all four bounds in both
 # directions.
 #
-# 16/16 green. Six of the sixteen are RED RUNS -- refusals verified to fail,
-# because a gate that has never failed has not been shown to work.
+# THE SEAL. `rest.assert.enabled` renders a PrometheusRule with three rules
+# against the metric camelot's kube-state-metrics custom-resource-state
+# collector already exports (`keda_scaledobject_state_info`, labels
+# name/exported_namespace/ready/active):
+#   ScalerRejected        -- KEDA reports a rejected ScaledObject ONLY in its
+#                            own status. On 2026-08-04 all eight akeyless-saas
+#                            ScaledObjects were rejected for a same-value cron
+#                            pair, no HPA was ever created, and nothing else
+#                            said so.
+#   DidNotReturnToRest    -- replicas above the floor while the trigger reports
+#                            inactive, for cooldown + slack. The orphaned-worker
+#                            shape: work finished, capacity never released.
+#   NeverObservedAtRest   -- cheapest and strongest. A workload that has never
+#                            been seen at its floor is broken or mis-declared.
+# A StatefulSet target asserts against kube_statefulset_replicas, because a
+# rule querying the Deployment metric for a StatefulSet can never fire, and a
+# seal that cannot fail is decoration.
+#
+# 21/21 green. Six are RED RUNS on the refusals, and five cover the seal --
+# those five exist because the seal shipped BROKEN and the suite passed 16/16
+# anyway: no test enabled it, so a whole rendered object went unexercised. A
+# `{{- /* ... */ -}}` inside the rules list ate the trailing newline and merged
+# `rules:` into `- alert:`. Verified by reintroducing that exact trim and
+# watching four assertions fail.
 #
 # 0.43.0 (2026-08-05) -- trust: the private-CA anchor as a chart-side quality.
 #

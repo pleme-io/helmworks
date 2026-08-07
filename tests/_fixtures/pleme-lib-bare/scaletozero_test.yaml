@@ -214,6 +214,110 @@ tests:
           path: spec.scaleTargetRef.name
           value: external-worker
 
+  # ── THE SEAL ──────────────────────────────────────────────────────────
+  # These exist because the first version of the seal shipped BROKEN and this
+  # suite passed 16/16 anyway — no test enabled it, so a whole rendered object
+  # went unexercised. A `{{- /* … */ -}}` comment inside the rules list ate the
+  # trailing newline and merged `rules:` into `- alert:`, producing invalid
+  # YAML that only `helm template` caught. An untested path is an unshipped
+  # promise.
+  - it: "no assert block by default — the ScaledObject alone"
+    set:
+      <<: *defaults
+      scaleToZero:
+        enabled: true
+        wake:
+          queue: *queue
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ScaledObject
+
+  - it: "assert.enabled emits a second document: the PrometheusRule"
+    set:
+      <<: *defaults
+      scaleToZero:
+        enabled: true
+        rest:
+          assert:
+            enabled: true
+        wake:
+          queue: *queue
+    asserts:
+      - hasDocuments:
+          count: 2
+      - isKind:
+          of: PrometheusRule
+        documentIndex: 1
+      - equal:
+          path: metadata.name
+          value: t-pleme-lib-bare-scaletozero
+        documentIndex: 1
+
+  - it: "all three rules are present and named"
+    set:
+      <<: *defaults
+      scaleToZero:
+        enabled: true
+        rest:
+          assert:
+            enabled: true
+        wake:
+          queue: *queue
+    asserts:
+      - equal:
+          path: spec.groups[0].rules[0].alert
+          value: ScaleToZeroScalerRejected
+        documentIndex: 1
+      - equal:
+          path: spec.groups[0].rules[1].alert
+          value: ScaleToZeroDidNotReturnToRest
+        documentIndex: 1
+      - equal:
+          path: spec.groups[0].rules[2].alert
+          value: ScaleToZeroNeverObservedAtRest
+        documentIndex: 1
+
+  - it: "the did-not-return window is cooldown + slack, not a guess"
+    set:
+      <<: *defaults
+      scaleToZero:
+        enabled: true
+        rest:
+          cooldownSeconds: 60
+          assert:
+            enabled: true
+            slackSeconds: 300
+        wake:
+          queue: *queue
+    asserts:
+      - equal:
+          path: spec.groups[0].rules[1].for
+          value: 360s
+        documentIndex: 1
+
+  - it: "a StatefulSet target asserts against the StatefulSet replica metric"
+    # kube_deployment_spec_replicas does not exist for a StatefulSet; a rule
+    # querying it would never fire — a seal that cannot fail is decoration.
+    set:
+      <<: *defaults
+      scaleToZero:
+        enabled: true
+        target:
+          kind: StatefulSet
+          name: worker
+        rest:
+          assert:
+            enabled: true
+        wake:
+          queue: *queue
+    asserts:
+      - matchRegex:
+          path: spec.groups[0].rules[2].expr
+          pattern: 'kube_statefulset_replicas\{namespace="testns",statefulset="worker"\}'
+        documentIndex: 1
+
   # ── RED RUNS: the refusals ────────────────────────────────────────────
   # Each of these must FAIL the render. A gate that has never failed has not
   # been shown to work.

@@ -158,6 +158,79 @@ spec:
         consumer: {{ required "scaleToZero.wake.queue.consumer is required" $q.consumer | quote }}
         lagThreshold: {{ default "1" $q.lagThreshold | quote }}
         activationLagThreshold: {{ default "0" $q.activationLagThreshold | quote }}
+
+{{- /* ── THE SEAL — did it actually come back down? ──────────────────────
+     Every scale-to-zero mechanism in the fleet answers "can it reach zero".
+     None answers "did it". Measured 2026-08-07: four orphaned runner pods
+     held builder nodes ~18 minutes while every health signal stayed green.
+     A quality whose descent is assumed is a belief, not a guarantee. */ -}}
+{{- $assert := $rest.assert | default dict }}
+{{- if $assert.enabled }}
+{{- $ns := .Release.Namespace }}
+{{- $min := include "pleme-lib.scaleToZero.num" (list $bounds.min 0) }}
+{{- $cooldown := include "pleme-lib.scaleToZero.num" (list $rest.cooldownSeconds 300) }}
+{{- $slack := include "pleme-lib.scaleToZero.num" (list $assert.slackSeconds 300) }}
+{{- $warm := printf "%ds" (add (int $cooldown) (int $slack)) }}
+{{- $window := default "6h" $assert.neverObservedAtMinWindow }}
+{{- $sev := default "warning" $assert.severity }}
+{{- $replicaMetric := ternary "kube_statefulset_replicas" "kube_deployment_spec_replicas" (eq $targetKind "StatefulSet") }}
+{{- $replicaLabel := ternary "statefulset" "deployment" (eq $targetKind "StatefulSet") }}
+{{- $sel := printf "%s{namespace=%q,%s=%q}" $replicaMetric $ns $replicaLabel $targetName }}
+{{- $so := printf "keda_scaledobject_state_info{exported_namespace=%q,name=%q" $ns $fullname }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ $fullname }}-scaletozero
+  labels:
+    {{- $abase := fromYaml (include "pleme-lib.labels" .) }}
+    {{- toYaml (merge (deepCopy ($s.labels | default dict)) $abase) | nindent 4 }}
+spec:
+  groups:
+    - name: {{ $fullname }}.scaletozero
+      rules:
+        {{- /* Rejected outright. KEDA reports this ONLY in its own status: on
+               2026-08-04 all eight akeyless-saas ScaledObjects were rejected
+               for a same-value cron pair, no HPA was ever created, and nothing
+               else said so. */}}
+        - alert: ScaleToZeroScalerRejected
+          expr: {{ $so }},ready="False"} == 1
+          for: 10m
+          labels:
+            severity: {{ $sev }}
+          annotations:
+            summary: "KEDA rejected the ScaledObject for {{ $targetName }}"
+            description: >-
+              The scaler is not Ready, so nothing is scaling this workload.
+              It will sit at whatever replica count it currently has, and no
+              other signal reports this.
+        {{- /* Awake with nothing to do. */}}
+        - alert: ScaleToZeroDidNotReturnToRest
+          expr: {{ $sel }} > {{ $min }} and on() {{ $so }},active="False"} == 1
+          for: {{ $warm }}
+          labels:
+            severity: {{ $sev }}
+          annotations:
+            summary: "{{ $targetName }} is awake with no demand"
+            description: >-
+              The trigger reports inactive while replicas stay above
+              {{ $min }}, for longer than cooldown + slack. This is the
+              orphaned-worker shape: work finished, capacity never released.
+        {{- /* The cheapest and strongest rule. A workload that has NEVER been
+               observed at its floor is either broken or mis-declared; either
+               way the declaration is not true. */}}
+        - alert: ScaleToZeroNeverObservedAtRest
+          expr: min_over_time({{ $sel }}[{{ $window }}]) > {{ $min }}
+          for: 15m
+          labels:
+            severity: {{ $sev }}
+          annotations:
+            summary: "{{ $targetName }} has not been seen at rest in {{ $window }}"
+            description: >-
+              It declares scaleToZero with a floor of {{ $min }} but has not
+              reached it once in {{ $window }}. Either the wake signal never
+              clears or the declaration does not match reality.
+{{- end }}
 {{- end }}
 {{- end }}
 
