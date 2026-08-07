@@ -1,0 +1,91 @@
+suite: pleme-lib bare-fixture — pleme-lib.scaleToZero.replicasField
+# This define shipped in 0.44.0 with NO fixture and NO test — the one piece of
+# _scaletozero.tpl nothing exercised, while being the piece that guards the
+# `replicas: 0` footgun. `.Values.replicaCount | default 1` silently
+# substituted a nonzero value in three separate charts (pleme-lib <=0.40.1,
+# pleme-zot <=0.3.3 which also carried a `minimum: 1` schema, and the upstream
+# ARC controller chart which accepts 0 and ignores it). pleme-zot's commit
+# records the field symptom: "the release sat UpgradeFailed and zot kept
+# running at 1/1 through a full park."
+#
+# All four branches are covered here, both directions.
+templates:
+  - templates/scaletozero-replicas.yaml
+release:
+  name: t
+  namespace: testns
+defaults: &defaults
+  image.repository: ghcr.io/x/y
+  image.tag: "1.0.0"
+
+queue: &queue
+  broker: nats-jetstream
+  url: "nats://pleme-nats.camelot-nats.svc:4222"
+  stream: S
+  consumer: C
+
+tests:
+  - it: "no replicaCount and no autoscaler — defaults to 1"
+    set:
+      <<: *defaults
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: "an explicit replicaCount is honored"
+    set:
+      <<: *defaults
+      replicaCount: 3
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+
+  - it: "replicaCount 0 means ZERO, not the default"
+    # The whole reason this define exists. Sprig treats integer 0 as empty.
+    set:
+      <<: *defaults
+      replicaCount: 0
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 0
+
+  - it: "scaleToZero owning the workload emits NO replicas field at all"
+    # KEDA owns it from minReplicaCount onward. A rendered replicas value makes
+    # Helm and KEDA fight over the field on every reconcile.
+    set:
+      <<: *defaults
+      replicaCount: 3
+      scaleToZero:
+        enabled: true
+        wake:
+          queue: *queue
+    asserts:
+      - notExists:
+          path: spec.replicas
+
+  - it: "an HPA owning the workload emits NO replicas field either"
+    set:
+      <<: *defaults
+      replicaCount: 3
+      autoscaling:
+        enabled: true
+    asserts:
+      - notExists:
+          path: spec.replicas
+
+  - it: "scaleToZero disabled falls back to the replicaCount"
+    # A disabled quality must not keep owning the field.
+    set:
+      <<: *defaults
+      replicaCount: 2
+      scaleToZero:
+        enabled: false
+        wake:
+          queue: *queue
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 2

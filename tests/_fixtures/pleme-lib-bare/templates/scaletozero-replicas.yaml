@@ -1,0 +1,24 @@
+{{- /* Harness for pleme-lib.scaleToZero.replicasField.
+
+     The define emits a bare `replicas: N` fragment (or nothing), which is not
+     a document on its own, so it is wrapped in the minimal object that gives
+     it a place to land. Without this harness the define had no fixture and no
+     test at all — it shipped guarding the `replicas: 0` footgun while being
+     the one piece of _scaletozero.tpl nothing exercised. */ -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}-replicas-harness
+spec:
+  {{- include "pleme-lib.scaleToZero.replicasField" . | nindent 2 }}
+  selector:
+    matchLabels:
+      {{- include "pleme-lib.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "pleme-lib.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: c
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
