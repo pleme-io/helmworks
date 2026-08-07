@@ -1,0 +1,291 @@
+suite: pleme-lib bare-fixture — pleme-lib.scaleToZero.v1
+# Scale-to-zero as a declared QUALITY. Every negative case below is a real
+# failure this repo or camelot has already lived, not a hypothetical:
+#   - a scaler that renders nothing while the workload reports healthy
+#   - Sprig's `default` rewriting an intentional 0
+#   - a ScaledObject park cannot reach, so an operator floor loses to KEDA
+#   - Helm and KEDA fighting over spec.replicas every reconcile
+templates:
+  - templates/scaletozero.yaml
+release:
+  name: t
+  namespace: testns
+defaults: &defaults
+  image.repository: ghcr.io/x/y
+  image.tag: "1.0.0"
+
+# The canonical queue arm, reused below.
+queue: &queue
+  broker: nats-jetstream
+  url: "nats://pleme-nats.camelot-nats.svc:4222"
+  stream: CAMELOT_BREATHE_PROBE
+  consumer: breathe-probe-consumer
+
+tests:
+  # ── off ───────────────────────────────────────────────────────────────
+  - it: "renders nothing when scaleToZero is unset entirely"
+    set:
+      <<: *defaults
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: "renders nothing when scaleToZero.enabled is false"
+    set:
+      <<: *defaults
+      scaleToZero:
+        enabled: false
+        wake:
+          queue: *queue
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # ── the happy path ────────────────────────────────────────────────────
+  - it: "queue arm emits a ScaledObject targeting the chart's own Deployment"
+    set:
+      <<: *defaults
+      scaleToZero:
+        enabled: true
+        wake:
+          queue: *queue
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ScaledObject
+      - equal:
+          path: apiVersion
+          value: keda.sh/v1alpha1
+      - equal:
+          path: spec.scaleTargetRef.kind
+          value: Deployment
+      - equal:
+          path: spec.scaleTargetRef.name
+          value: t-pleme-lib-bare
+      - equal:
+          path: spec.triggers[0].type
+          value: nats-jetstream
+
+  - it: "monitoring endpoint is derived from the queue url (4222 -> 8222)"
+    set:
+      <<: *defaults
+      scaleToZero:
+        enabled: true
+        wake:
+          queue: *queue
+    asserts:
+      - equal:
+          path: spec.triggers[0].metadata.natsServerMonitoringEndpoint
+          value: pleme-nats.camelot-nats.svc:8222
+
+  # ── zero survives, in BOTH directions ─────────────────────────────────
+  # Sprig treats integer 0 as empty, so `default 4 $b.max` rewrites max: 0 to 4
+  # and `default 300 $b.cooldown` rewrites cooldown: 0 to 300 — both still live
+  # in _breathability.tpl. A bound that silently becomes nonzero is a workload
+  # that never rests.
+  - it: "explicit zeros survive the Sprig default footgun"
+    set:
+      <<: *defaults
+      scaleToZero:
+        enabled: true
+        bounds:
+          min: 0
+          max: 0
+        rest:
+          cooldownSeconds: 0
+          pollingIntervalSeconds: 0
+        wake:
+          queue: *queue
+    asserts:
+      - equal:
+          path: spec.minReplicaCount
+          value: 0
+      - equal:
+          path: spec.maxReplicaCount
+          value: 0
+      - equal:
+          path: spec.cooldownPeriod
+          value: 0
+      - equal:
+          path: spec.pollingInterval
+          value: 0
+
+  - it: "non-zero values are still honored"
+    set:
+      <<: *defaults
+      scaleToZero:
+        enabled: true
+        bounds:
+          min: 1
+          max: 8
+        rest:
+          cooldownSeconds: 60
+          pollingIntervalSeconds: 5
+        wake:
+          queue: *queue
+    asserts:
+      - equal:
+          path: spec.minReplicaCount
+          value: 1
+      - equal:
+          path: spec.maxReplicaCount
+          value: 8
+      - equal:
+          path: spec.cooldownPeriod
+          value: 60
+      - equal:
+          path: spec.pollingInterval
+          value: 5
+
+  - it: "omitting bounds and rest falls back to the documented defaults"
+    set:
+      <<: *defaults
+      scaleToZero:
+        enabled: true
+        wake:
+          queue: *queue
+    asserts:
+      - equal:
+          path: spec.minReplicaCount
+          value: 0
+      - equal:
+          path: spec.maxReplicaCount
+          value: 4
+      - equal:
+          path: spec.cooldownPeriod
+          value: 300
+      - equal:
+          path: spec.pollingInterval
+          value: 15
+
+  # ── park must be able to reach this object ────────────────────────────
+  # _breathability.tpl emits no annotations block at all, so a ScaledObject
+  # rendered from it can never carry autoscaling.keda.sh/paused-replicas.
+  # park is an operator floor that must WIN over any autoscaler; a shared
+  # partial it cannot reach is unusable fleet-wide.
+  - it: "annotations reach the object, so park can pause it"
+    set:
+      <<: *defaults
+      scaleToZero:
+        enabled: true
+        annotations:
+          autoscaling.keda.sh/paused-replicas: "0"
+        wake:
+          queue: *queue
+    asserts:
+      - equal:
+          path: metadata.annotations["autoscaling.keda.sh/paused-replicas"]
+          value: "0"
+
+  # ── labels are overridable ────────────────────────────────────────────
+  # pleme-lib.labels hardcodes app.kubernetes.io/part-of: nexus-platform, which
+  # would silently relabel a camelot object.
+  - it: "scaleToZero.labels override part-of rather than being overridden by it"
+    set:
+      <<: *defaults
+      scaleToZero:
+        enabled: true
+        labels:
+          app.kubernetes.io/part-of: camelot
+        wake:
+          queue: *queue
+    asserts:
+      - equal:
+          path: metadata.labels["app.kubernetes.io/part-of"]
+          value: camelot
+
+  # ── an external target ────────────────────────────────────────────────
+  - it: "an explicit external target overrides the chart's own workload"
+    set:
+      <<: *defaults
+      scaleToZero:
+        enabled: true
+        target:
+          kind: StatefulSet
+          name: external-worker
+        wake:
+          queue: *queue
+    asserts:
+      - equal:
+          path: spec.scaleTargetRef.kind
+          value: StatefulSet
+      - equal:
+          path: spec.scaleTargetRef.name
+          value: external-worker
+
+  # ── RED RUNS: the refusals ────────────────────────────────────────────
+  # Each of these must FAIL the render. A gate that has never failed has not
+  # been shown to work.
+
+  - it: "REFUSES a declaration with no wake arm — the silent-nothing case"
+    set:
+      <<: *defaults
+      scaleToZero:
+        enabled: true
+        wake: {}
+    asserts:
+      - failedTemplate:
+          errorMessage: "scaleToZero.wake must declare EXACTLY ONE arm (queue|http|cron|custom); found 0: []. Zero arms renders no scaler while the workload reports healthy — the exact silent failure this template refuses."
+
+  - it: "REFUSES two wake arms — the contract must be unambiguous"
+    set:
+      <<: *defaults
+      scaleToZero:
+        enabled: true
+        wake:
+          queue: *queue
+          cron:
+            start: "0 8 * * 1-5"
+            end: "0 20 * * 1-5"
+    asserts:
+      - failedTemplate: {}
+
+  - it: "REFUSES a wake.kind that contradicts the arm present"
+    set:
+      <<: *defaults
+      scaleToZero:
+        enabled: true
+        wake:
+          kind: http
+          queue: *queue
+    asserts:
+      - failedTemplate: {}
+
+  - it: "REFUSES autoscaling.enabled alongside scaleToZero on the same workload"
+    # Helm renders spec.replicas from _deployment.tpl on autoscaling.enabled;
+    # KEDA owns it from minReplicaCount. Both is a per-reconcile fight.
+    set:
+      <<: *defaults
+      autoscaling:
+        enabled: true
+      scaleToZero:
+        enabled: true
+        wake:
+          queue: *queue
+    asserts:
+      - failedTemplate: {}
+
+  - it: "REFUSES a queue arm with no stream"
+    set:
+      <<: *defaults
+      scaleToZero:
+        enabled: true
+        wake:
+          queue:
+            url: "nats://pleme-nats.camelot-nats.svc:4222"
+            consumer: builder
+    asserts:
+      - failedTemplate: {}
+
+  - it: "an arm not yet implemented fails loudly rather than rendering a partial scaler"
+    set:
+      <<: *defaults
+      scaleToZero:
+        enabled: true
+        wake:
+          cron:
+            start: "0 8 * * 1-5"
+            end: "0 20 * * 1-5"
+    asserts:
+      - failedTemplate: {}

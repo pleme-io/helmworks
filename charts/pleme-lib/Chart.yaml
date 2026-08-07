@@ -2,7 +2,53 @@ apiVersion: v2
 name: pleme-lib
 description: Shared library chart for pleme-io internal services
 type: library
-version: 0.43.0
+version: 0.44.0
+# 0.44.0 (2026-08-07) -- scaleToZero.v1: scale-to-zero as a declared QUALITY.
+#
+# templates/_scaletozero.tpl. `pleme-lib.scaleToZero.v1` +
+# `.replicasField` + `.num`. A workload declares the wake CONTRACT it needs and
+# gets the right scaler, or the render fails. Additive: _breathability.tpl is
+# untouched and all seven of its consumers are unaffected.
+#
+# WHY A VERSIONED TEMPLATE NAME, and why it must never be renamed. Helm's
+# named-template namespace is global and flat, so `pleme-lib.<name>` resolves to
+# whichever vendored copy is parsed last. Measured in this repo on 2026-08-07:
+# 116 packaged pleme-lib copies at 17 distinct versions, and 96 of the 108
+# in-chart copies still carry the pre-fix `replicas | default 1`. An older copy
+# that lacks a define renders NOTHING, silently, exit 0. `.v1` cannot be
+# shadowed by a copy that does not define it; if every copy in the graph is old
+# the include fails outright. Silent-nothing becomes a loud failure. Add `.v2`
+# beside it; never rename this one.
+#
+# WHAT IT REFUSES, each a failure already lived somewhere in the fleet:
+#   * zero wake arms, or two -- a scaler that renders nothing while the
+#     workload reports healthy is the whole failure class this exists to close
+#   * a `wake.kind` contradicting the arm actually present
+#   * `autoscaling.enabled` alongside scaleToZero on the same workload --
+#     _deployment.tpl gates spec.replicas on a DIFFERENT values tree, so both
+#     means Helm and KEDA fight over the field every reconcile (pleme-sui and
+#     pleme-nix-builder are both in that state today under the old template)
+#
+# TWO THINGS _breathability.tpl CANNOT DO, which is why this is a rewrite and
+# not a rename:
+#   * it emits no annotations block, so a ScaledObject rendered from it can
+#     never carry autoscaling.keda.sh/paused-replicas -- park is an operator
+#     floor that must WIN over any autoscaler, so a partial it cannot reach is
+#     unusable fleet-wide
+#   * pleme-lib.labels hardcodes app.kubernetes.io/part-of: nexus-platform.
+#     Appending an override emits a DUPLICATE KEY that strict YAML rejects --
+#     proven by this template's own suite before the labels became a real
+#     map merge rather than appended text.
+#
+# Zeros survive. `default 4 $b.max` rewrites max: 0 to 4 and `default 300
+# $b.cooldown` rewrites cooldown: 0 to 300 -- both still live in
+# _breathability.tpl. `.num` is a `kindIs "invalid"` nil-check, the idiom
+# _deployment.tpl already uses, and the suite asserts all four bounds in both
+# directions.
+#
+# 16/16 green. Six of the sixteen are RED RUNS -- refusals verified to fail,
+# because a gate that has never failed has not been shown to work.
+#
 # 0.43.0 (2026-08-05) -- trust: the private-CA anchor as a chart-side quality.
 #
 # templates/_trust.tpl. A chart declares `trust.enabled` + a domain and gets its
