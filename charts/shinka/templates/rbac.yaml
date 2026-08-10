@@ -28,7 +28,41 @@ template races any same-release CR against Helm's once-per-operation rest-mapper
 and yields `no matches for kind "DatabaseMigration"`.
 */ -}}
 {{- if .Values.rbac.create }}
-{{- $namespaced := eq (.Values.rbac.scope | default "cluster") "namespaced" }}
+{{- $scope := .Values.rbac.scope | default "cluster" }}
+{{- $namespaced := eq $scope "namespaced" }}
+{{- $guest := eq $scope "guest-cluster" }}
+{{- if $guest }}
+{{- /*
+`guest-cluster` — the third scope, for BORROWED ground that must still
+reconcile CRs in namespaces we own but do not know the names of ahead of time
+(ephemeral environments, minted per spawn).
+
+`namespaced` cannot express that: it binds the controller to ONE namespace, and
+an ephemeral namespace does not exist when the release is installed. `cluster`
+over-reaches: it grants read of Secrets and ConfigMaps in every namespace the
+HOST owns, which is exactly what the gentlemanly-guest rule forbids.
+
+So the rules are SPLIT by what they can reach:
+
+  cluster-wide : `shinka.pleme.io` only — DatabaseMigration and its status. The
+                 host owns zero objects of this kind, so this grant reads
+                 nothing of theirs. It is what lets the controller WATCH.
+  namespaced   : everything that could touch host data — Secrets, ConfigMaps,
+                 Deployments, Jobs, CNPG clusters, Events — bound to the release
+                 namespace alone.
+
+A consumer that wants the controller to reconcile in ITS namespace mints a Role
++ RoleBinding there for the same ServiceAccount (viveiro does this per ephemeral
+namespace). Access is therefore GRANTED per namespace by the owner of that
+namespace, rather than assumed cluster-wide — the guest rule expressed
+structurally instead of approximated by a single namespace string.
+
+Pair with WATCH_NAMESPACE UNSET, so the controller watches all namespaces for
+its own kind. A namespace it may watch but holds no Secret grant in fails
+loudly and typed, which is the correct direction: a missing grant is visible,
+never a silent skip.
+*/ -}}
+{{- end }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: {{ if $namespaced }}Role{{ else }}ClusterRole{{ end }}
 metadata:
@@ -39,7 +73,16 @@ metadata:
   labels:
     {{- include "pleme-lib.labels" . | nindent 4 }}
 rules:
+  {{- if $guest }}
+  {{- /* Only our own kind reaches cluster scope. */ -}}
+  {{- range .Values.rbac.rules }}
+  {{- if has "shinka.pleme.io" .apiGroups }}
+  - {{ toYaml . | nindent 4 | trim }}
+  {{- end }}
+  {{- end }}
+  {{- else }}
   {{- toYaml .Values.rbac.rules | nindent 2 }}
+  {{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: {{ if $namespaced }}RoleBinding{{ else }}ClusterRoleBinding{{ end }}
@@ -58,4 +101,37 @@ subjects:
   - kind: ServiceAccount
     name: {{ include "pleme-lib.serviceAccountName" . }}
     namespace: {{ include "pleme-lib.namespace" . }}
+{{- if $guest }}
+---
+{{- /* The host-data half: everything NOT our own kind, release namespace only. */}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}-local
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+rules:
+  {{- range .Values.rbac.rules }}
+  {{- if not (has "shinka.pleme.io" .apiGroups) }}
+  - {{ toYaml . | nindent 4 | trim }}
+  {{- end }}
+  {{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}-local
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "pleme-lib.fullname" . }}-local
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "pleme-lib.serviceAccountName" . }}
+    namespace: {{ include "pleme-lib.namespace" . }}
+{{- end }}
 {{- end }}

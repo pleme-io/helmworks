@@ -1,0 +1,54 @@
+suite: rbac guest-cluster scope
+templates:
+  - rbac.yaml
+tests:
+  # THE safety property. camelot is a guest inside a host EKS cluster, and the
+  # gentlemanly-guest rule forbids reading the host's data. `guest-cluster`
+  # earns its cluster-wide watch by granting cluster scope to ONE api group the
+  # host owns nothing in. If a future rule leaks into that ClusterRole, this
+  # fails — which is the only reason the scope is safe to offer at all.
+  - it: grants cluster scope to shinka.pleme.io and nothing else
+    set:
+      rbac.scope: guest-cluster
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: ClusterRole
+      - lengthEqual:
+          path: rules
+          count: 1
+      - equal:
+          path: rules[0].apiGroups[0]
+          value: shinka.pleme.io
+
+  - it: keeps host-reachable resources in a namespaced Role
+    set:
+      rbac.scope: guest-cluster
+    documentIndex: 2
+    asserts:
+      - isKind:
+          of: Role
+      - notEqual:
+          path: metadata.namespace
+          value: ""
+
+  # Unchanged behaviour for the two existing scopes — a new option must not
+  # quietly alter what existing consumers render.
+  - it: leaves the cluster scope rendering every rule cluster-wide
+    set:
+      rbac.scope: cluster
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: ClusterRole
+      - lengthEqual:
+          path: rules
+          count: 6
+
+  - it: leaves the namespaced scope bound to one namespace
+    set:
+      rbac.scope: namespaced
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: Role

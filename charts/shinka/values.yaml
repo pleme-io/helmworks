@@ -29,6 +29,27 @@ rbac:
   # Every rule below names a namespaced resource, so the same rule set is valid
   # at either scope and narrowing drops nothing.
   #
+  # `guest-cluster` — for BORROWED ground that must still reconcile CRs in
+  #                namespaces we own but cannot name at install time (ephemeral
+  #                environments, minted per spawn). `namespaced` cannot express
+  #                that (it binds to ONE namespace, and the namespace does not
+  #                exist yet); `cluster` over-reaches (it grants Secret and
+  #                ConfigMap reads in every namespace the HOST owns).
+  #
+  #                The rules are SPLIT by what they can reach: `shinka.pleme.io`
+  #                goes cluster-wide — the host owns zero DatabaseMigrations, so
+  #                that grant reads nothing of theirs and is what lets the
+  #                controller WATCH — while Secrets, ConfigMaps, Deployments,
+  #                Jobs, CNPG clusters and Events stay bound to the release
+  #                namespace. A consumer grants access in ITS namespace by
+  #                minting a Role + RoleBinding for the same ServiceAccount
+  #                (viveiro does this per ephemeral namespace), so reach is
+  #                GRANTED by each namespace's owner rather than assumed.
+  #
+  #                Pair with WATCH_NAMESPACE UNSET. A namespace the controller
+  #                may watch but holds no Secret grant in fails loudly and
+  #                typed — a missing grant is visible, never a silent skip.
+  #
   # `namespaced` MUST be paired with WATCH_NAMESPACE in `env` (see the default
   # env block): the scope decides what the controller is ALLOWED to see, the env
   # var decides what it TRIES to see. Setting one without the other gives a
