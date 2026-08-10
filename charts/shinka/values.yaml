@@ -20,6 +20,20 @@ serviceAccount:
 # RBAC for cross-namespace migration management
 rbac:
   create: true
+  # `cluster`    — ClusterRole + ClusterRoleBinding. The controller may watch
+  #                every namespace. Correct on a cluster we own.
+  # `namespaced` — Role + RoleBinding in the release namespace only. Required on
+  #                BORROWED ground (a host cluster we are a guest in), where a
+  #                cluster-wide watch is precisely what we promise not to do.
+  #
+  # Every rule below names a namespaced resource, so the same rule set is valid
+  # at either scope and narrowing drops nothing.
+  #
+  # `namespaced` MUST be paired with WATCH_NAMESPACE in `env` (see the default
+  # env block): the scope decides what the controller is ALLOWED to see, the env
+  # var decides what it TRIES to see. Setting one without the other gives a
+  # controller that fails on RBAC instead of watching its own namespace.
+  scope: cluster
   rules:
     - apiGroups: ["shinka.pleme.io"]
       resources: ["databasemigrations", "databasemigrations/status"]
