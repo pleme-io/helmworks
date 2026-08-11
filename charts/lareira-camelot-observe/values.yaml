@@ -31,6 +31,41 @@ observe:
   # logsStream — the LogQL/stream selector the WorkloadOverview logs row uses.
   logsStream: '{namespace="camelot"}'
 
+  # dashboards — WHICH EVALUATOR renders these boards. Three values, and the
+  # third is the one that matters for Game Warden.
+  #
+  #   ruby           every board is inline Ruby, evaluated in-process by the
+  #                  operator's embedded CRuby. Today's behaviour, and the
+  #                  default so an unedited values file does not move.
+  #   lava-preferred a board whose architecture appears in `lavaCatalogue`
+  #                  below is emitted as a typed `source.architecture` (NO
+  #                  language at all); everything else stays Ruby. This is
+  #                  the migration state — it is what camelot runs while the
+  #                  remaining architectures are ported.
+  #   lava-only      every board must be lava. A board with no catalogue
+  #                  entry FAILS THE TEMPLATE by name, so a Ruby CR cannot be
+  #                  rendered at all.
+  #
+  # `lava-only` is the whole point. The Game Warden boundary rule is that no
+  # Ruby enters it, and the Ruby-free operator image has no Ruby evaluator to
+  # fall back to — a Ruby CR there does not degrade, it fails to reconcile.
+  # Making the chart refuse to EMIT one turns that from a review promise into
+  # something a helm template either produces or does not.
+  dashboards:
+    engine: ruby
+
+    # Ruby architecture name -> lava catalogue entry (the `.tlisp` stem in the
+    # operator image). An explicit map, not a camel->kebab transformation: a
+    # computed name that is subtly wrong resolves to a missing file at
+    # RECONCILE time, on the cluster, where this map is read at TEMPLATE time,
+    # here. Both fail loudly — this one fails earlier and names the board.
+    #
+    # Grows as architectures are ported. Deliberately NOT auto-derived from
+    # the image: a chart cannot read the catalogue it is targeting, and
+    # pretending otherwise would be the more dangerous fiction.
+    lavaCatalogue:
+      WorkloadOverview: workload-overview
+
   # routing — ONE destination enum (luis|akeyless|2f). Stamped as `dest: <v>` on
   # every CR + as spec.routing.destination on every PangeaAlert (via the shared
   # pleme-lib.routing seam). camelot = luis (zero-egress ntfy — the operator's

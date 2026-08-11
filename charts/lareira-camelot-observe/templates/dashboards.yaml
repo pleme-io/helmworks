@@ -15,8 +15,29 @@
       folder:, so neither is splatted; folder rides as the render_json kwarg.
 
   Every CR carries the routing `dest:` label (pleme-lib.routing.labels) + the
-  per-cell compliance overlay marker. pangea-operator's DashboardController evals
-  the inline Ruby → Grafana JSON → a sidecar-labelled ConfigMap.
+  per-cell compliance overlay marker. pangea-operator's DashboardController
+  evaluates the source → Grafana JSON → a sidecar-labelled ConfigMap.
+
+  ── WHICH source shape, and why it is a per-board decision ────────────────
+  Both ranges emit ONE of two shapes, chosen by `observe.dashboards.engine`:
+
+    spec.source.inline.ruby       arbitrary Ruby, evaluated in-process by the
+                                  operator's embedded CRuby — which shares
+                                  its address space and credentials, so
+                                  anyone who can write a CR gets code
+                                  execution on the operator.
+    spec.source.architecture      a catalogue NAME plus scalar params, and no
+                                  language at all. The schema has no field
+                                  that could hold code, so injection here is
+                                  not contained — it is unrepresentable.
+
+  The second shape is the destination for essentially every board. What made
+  the migration possible without a flag day is that the Ruby the 17 CRs
+  carried was never really code: a fixed six-line wrapper around an
+  architecture name, a params blob and a folder. Config wearing a language
+  costume. `lava-preferred` moves each board the moment its architecture is
+  ported, and `lava-only` — the Game Warden setting — makes emitting Ruby
+  impossible rather than merely discouraged.
 */ -}}
 {{- $root := . -}}
 {{- $o := .Values.observe -}}
@@ -27,6 +48,21 @@
 {{- $folder := $o.folder | default $o.env -}}
 {{- /* Resolve + validate the destination ONCE — a bad enum fail()s here. */ -}}
 {{- $dest := include "lareira-camelot-observe.dest" $root -}}
+{{- /*
+  ── Evaluator selection (see values.yaml observe.dashboards) ──────────────
+  Resolved ONCE, validated as an enum here, and consumed as two booleans
+  below. An unknown value fails the template rather than falling through to
+  Ruby: silently defaulting to Ruby is precisely the outcome `lava-only`
+  exists to prevent, so a typo must never produce it.
+*/ -}}
+{{- $d := $o.dashboards | default dict -}}
+{{- $engine := $d.engine | default "ruby" -}}
+{{- if not (has $engine (list "ruby" "lava-preferred" "lava-only")) -}}
+{{- fail (printf "observe.dashboards.engine: %q is not one of ruby|lava-preferred|lava-only" $engine) -}}
+{{- end -}}
+{{- $cat := $d.lavaCatalogue | default dict -}}
+{{- $lavaOnly := eq $engine "lava-only" -}}
+{{- $lavaOk := or $lavaOnly (eq $engine "lava-preferred") -}}
 {{- range $svc := $o.services }}
 {{- if not $svc.name }}{{ fail "observe.services[]: .name is required" }}{{ end }}
 {{- if not $svc.job }}{{ fail (printf "observe.services[%s]: .job is required" $svc.name) }}{{ end }}
@@ -75,6 +111,30 @@ spec:
   folder: {{ $folder | quote }}
   message: {{ printf "%s · %s — workload overview" $o.env $svc.name | quote }}
   source:
+{{- $lavaName := "" }}
+{{- if hasKey $cat "WorkloadOverview" }}{{ $lavaName = index $cat "WorkloadOverview" }}{{ end }}
+{{- if and $lavaOnly (not $lavaName) }}
+{{- fail (printf "observe.dashboards.engine=lava-only but service %s's WorkloadOverview has no observe.dashboards.lavaCatalogue entry — port the architecture or drop the service, do not fall back to Ruby" $svc.name) }}
+{{- end }}
+{{- if and $lavaOk $lavaName }}
+    {{- /*
+      The typed variant. Note what is NOT here: `signals`, and any
+      language. The Ruby CR shipped three hand-generated signal
+      definitions per service, identical across all nine, because the
+      Ruby mixin took them as an argument. In lava that structure lives
+      in the architecture, so the CR carries six scalars and cannot
+      carry code — the schema has no field that could hold it.
+    */}}
+    architecture:
+      name: {{ $lavaName | quote }}
+      params:
+        env: {{ $o.env | quote }}
+        service: {{ $svc.name | quote }}
+        job: {{ $svc.job | quote }}
+        namespace: {{ $ns | quote }}
+        datasource: {{ $ds | quote }}
+        logs_datasource: {{ $lds | quote }}
+{{- else }}
     inline:
       ruby: |
         require 'pangea-dashboards'
@@ -85,6 +145,7 @@ spec:
         PANGEA_PARAMS
           folder: {{ $folder | quote }},
         )
+{{- end }}
 {{- end }}
 {{- range $board := $o.platformBoards }}
 {{- if not $board.name }}{{ fail "observe.platformBoards[]: .name is required" }}{{ end }}
@@ -112,6 +173,45 @@ spec:
   folder: {{ $folder | quote }}
   message: {{ printf "%s · %s — platform board" $o.env $board.name | quote }}
   source:
+{{- $blava := "" }}
+{{- if hasKey $cat $board.architecture }}{{ $blava = index $cat $board.architecture }}{{ end }}
+{{- if and $lavaOnly (not $blava) }}
+{{- fail (printf "observe.dashboards.engine=lava-only but platform board %s (%s) has no observe.dashboards.lavaCatalogue entry — port the architecture or drop the board, do not fall back to Ruby" $board.name $board.architecture) }}
+{{- end }}
+{{- if and $lavaOk $blava }}
+    {{- /*
+      A platform board's params are NOT uniformly scalar — several carry
+      arrays (`denied_outcomes`, `cascade`) and one carries a LogsQL
+      stream selector containing double quotes. The operator's param
+      binding is scalar-only and refuses the rest by design, so a porting
+      pass has to move that structure INTO the architecture rather than
+      pass it through. That is why this map is empty of platform boards
+      today: the entry lands with the ported `.tlisp`, not before it.
+    */}}
+    architecture:
+      name: {{ $blava | quote }}
+      params:
+        id: {{ $bid | quote }}
+{{- range $k, $v := ($board.params | default dict) }}
+{{- if or (kindIs "slice" $v) (kindIs "map" $v) }}
+{{- fail (printf "platform board %s: param %q is structured; the lava binding is scalar-only, so this belongs in the %s architecture" $board.name $k $blava) }}
+{{- end }}
+{{- /*
+  SCALAR IS NOT THE SAME AS SAFE, and this guard is the one the first
+  draft was missing. The operator binds params by TEXTUAL substitution of
+  `{key}` into the architecture source, so a value carrying a delimiter of
+  the syntax it lands in ends that syntax early: a double quote inside a
+  tlisp string literal closes the literal, and what evaluates is a
+  different, still-parseable document. AuditExplorer is the live case —
+  its `stream` param is `{namespace="camelot"}`, a perfectly ordinary
+  string that would silently corrupt the board.
+*/ -}}
+{{- if or (contains "\"" (toString $v)) (contains "\\" (toString $v)) }}
+{{- fail (printf "platform board %s: param %q contains a quote or backslash (%v). lava binds params textually, so this would terminate a string literal inside %s.tlisp and render a document nobody wrote — compose it in the architecture from quote-free parts" $board.name $k $v $blava) }}
+{{- end }}
+        {{ $k }}: {{ $v | quote }}
+{{- end }}
+{{- else }}
     inline:
       ruby: |
         require 'pangea-dashboards'
@@ -122,4 +222,5 @@ spec:
         PANGEA_PARAMS
           folder: {{ $folder | quote }},
         )
+{{- end }}
 {{- end }}

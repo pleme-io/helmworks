@@ -2,7 +2,9 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "additionalProperties": true,
-  "required": ["observe"],
+  "required": [
+    "observe"
+  ],
   "properties": {
     "observe": {
       "type": "object",
@@ -53,15 +55,44 @@
           "minLength": 1,
           "description": "Stream selector the WorkloadOverview logs row uses."
         },
+        "dashboards": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Which evaluator renders these boards. `lava-only` is the Game Warden setting: a board with no lavaCatalogue entry fails the template rather than falling back to Ruby, so a Ruby CR cannot be produced at all.",
+          "properties": {
+            "engine": {
+              "type": "string",
+              "enum": [
+                "ruby",
+                "lava-preferred",
+                "lava-only"
+              ],
+              "description": "ruby = every board inline Ruby (default). lava-preferred = typed source.architecture where a catalogue entry exists, Ruby otherwise. lava-only = every board must be lava; a gap fails the template by name."
+            },
+            "lavaCatalogue": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              },
+              "description": "Ruby architecture name -> lava catalogue entry (the .tlisp stem baked into the operator image)."
+            }
+          }
+        },
         "routing": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["destination"],
+          "required": [
+            "destination"
+          ],
           "description": "ONE destination enum, stamped as `dest:` label + spec.routing.destination via the shared pleme-lib.routing seam.",
           "properties": {
             "destination": {
               "type": "string",
-              "enum": ["luis", "akeyless", "2f"],
+              "enum": [
+                "luis",
+                "akeyless",
+                "2f"
+              ],
               "description": "Routing destination. camelot = luis (zero-egress ntfy)."
             }
           }
@@ -73,7 +104,10 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["name", "job"],
+            "required": [
+              "name",
+              "job"
+            ],
             "properties": {
               "name": {
                 "type": "string",
@@ -101,7 +135,10 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["name", "architecture"],
+            "required": [
+              "name",
+              "architecture"
+            ],
             "properties": {
               "name": {
                 "type": "string",
@@ -117,7 +154,7 @@
               "params": {
                 "type": "object",
                 "additionalProperties": true,
-                "description": "Per-board mixin kwargs splatted into the architecture's build (datasource / logs_datasource / stream / root_label / metric overrides / …). The chart injects `id`; no mixin accepts namespace:/folder:."
+                "description": "Per-board mixin kwargs splatted into the architecture's build (datasource / logs_datasource / stream / root_label / metric overrides / \u2026). The chart injects `id`; no mixin accepts namespace:/folder:."
               }
             }
           }
@@ -125,7 +162,7 @@
         "clickhouseBoard": {
           "type": "object",
           "additionalProperties": false,
-          "description": "ClickHouse analytics board (Path A — Pangea::Dashboards::Library::ClickHouseAnalyticsBoard typed-SQL mixin entry).",
+          "description": "ClickHouse analytics board (Path A \u2014 Pangea::Dashboards::Library::ClickHouseAnalyticsBoard typed-SQL mixin entry).",
           "properties": {
             "enabled": {
               "type": "boolean",
@@ -146,7 +183,10 @@
         "alerts": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["perService", "backend"],
+          "required": [
+            "perService",
+            "backend"
+          ],
           "properties": {
             "perService": {
               "type": "boolean",
@@ -154,7 +194,10 @@
             },
             "backend": {
               "type": "string",
-              "enum": ["vmrule", "prometheusrule"],
+              "enum": [
+                "vmrule",
+                "prometheusrule"
+              ],
               "description": "Render target: vmrule (VMRule, default) | prometheusrule."
             }
           }
@@ -166,7 +209,7 @@
           "properties": {
             "enabled": {
               "type": "boolean",
-              "description": "Emit the cell-baseline PangeaAlert (AlertsBuilder AST → VMRule)."
+              "description": "Emit the cell-baseline PangeaAlert (AlertsBuilder AST \u2192 VMRule)."
             }
           }
         }
@@ -179,7 +222,10 @@
       "properties": {
         "overlays": {
           "type": "array",
-          "items": { "type": "string", "minLength": 1 },
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
           "description": "Overlay names, e.g. [fedramp-high]. Stamps compliance.pleme.io/* markers."
         },
         "enforce": {
@@ -191,7 +237,7 @@
     "global": {
       "type": "object",
       "additionalProperties": true,
-      "description": "Umbrella global (nodeSelector/tolerations/breathe) — inherited, not set here."
+      "description": "Umbrella global (nodeSelector/tolerations/breathe) \u2014 inherited, not set here."
     }
   }
 }
