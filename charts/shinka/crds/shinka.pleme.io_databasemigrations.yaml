@@ -1,487 +1,910 @@
----
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   name: databasemigrations.shinka.pleme.io
-  labels:
-    app.kubernetes.io/name: shinka
-    app.kubernetes.io/component: crd
 spec:
   group: shinka.pleme.io
   names:
+    categories: []
     kind: DatabaseMigration
-    listKind: DatabaseMigrationList
     plural: databasemigrations
-    singular: databasemigration
     shortNames:
-      - dbm
-      - migration
+    - dbm
+    - migration
+    singular: databasemigration
   scope: Namespaced
   versions:
-    - name: v1alpha1
-      served: true
-      storage: true
-      schema:
-        openAPIV3Schema:
-          type: object
-          required:
-            - spec
-          properties:
-            spec:
-              type: object
-              required:
-                - database
-              description: |
-                DatabaseMigration spec. Either `migrator` (single) or `migrators` (multiple)
-                must be provided. If both are specified, `migrators` takes precedence.
-              properties:
-                database:
-                  type: object
-                  description: |
-                    Database source. Exactly ONE of `cnpgClusterRef` (a
-                    CloudNativePG-managed Postgres cluster) or `directRef` (a
-                    direct MySQL/Postgres connection) must be set. `directRef`
-                    is a typed border: the controller reconcile branch for a
-                    direct source is not yet wired (LiveTODO), so a directRef
-                    migration is representable + emittable but does not yet
-                    reconcile live.
-                  properties:
-                    cnpgClusterRef:
-                      type: object
-                      required:
-                        - name
-                      properties:
-                        name:
-                          type: string
-                          description: Name of the CNPG Cluster
-                        database:
-                          type: string
-                          description: Database name within the cluster
-                    directRef:
-                      type: object
-                      description: Direct (non-CNPG) database connection.
-                      required:
-                        - host
-                        - credentialsSecretRef
-                        - sqlConfigMapRef
-                      properties:
-                        engine:
-                          type: string
-                          enum:
-                            - mysql
-                            - postgres
-                          default: mysql
-                          description: Engine wire protocol (defaults to mysql).
-                        host:
-                          type: string
-                          description: Service hostname of the database.
-                        port:
-                          type: integer
-                          description: Port (defaults to the engine standard port).
-                        database:
-                          type: string
-                          description: Database/schema name to apply DDL against.
-                        username:
-                          type: string
-                          description: Admin username (defaults to engine convention).
-                        credentialsSecretRef:
-                          type: object
-                          required:
-                            - name
-                          properties:
-                            name:
-                              type: string
-                              description: Secret holding admin credentials.
-                        passwordKey:
-                          type: string
-                          default: password
-                          description: Key within credentialsSecretRef holding the password.
-                        sqlConfigMapRef:
-                          type: object
-                          required:
-                            - name
-                          properties:
-                            name:
-                              type: string
-                              description: ConfigMap providing the SQL DDL files.
-                migrator:
-                  type: object
-                  description: Single migrator configuration (for backward compatibility)
-                  required:
-                    - deploymentRef
-                  properties:
-                    name:
-                      type: string
-                      description: Optional name for identification in logs and status
-                    type:
-                      type: string
-                      description: |
-                        Migration tool type. Supported: sqlx, seaorm, refinery, diesel,
-                        goose, golang-migrate, atlas, dbmate, flyway, liquibase, custom
-                      enum:
-                        - sqlx
-                        - seaorm
-                        - refinery
-                        - diesel
-                        - goose
-                        - golang-migrate
-                        - atlas
-                        - dbmate
-                        - flyway
-                        - liquibase
-                        - custom
-                      default: sqlx
-                    imageOverride:
-                      type: string
-                      description: Override the container image directly, bypassing deploymentRef lookup
-                    deploymentRef:
-                      type: object
-                      required:
-                        - name
-                      properties:
-                        name:
-                          type: string
-                          description: Name of the deployment
-                        containerName:
-                          type: string
-                          description: Container name to get the image from
-                    command:
-                      type: array
-                      items:
-                        type: string
-                      description: Command to run for migration (overrides default for type)
-                    args:
-                      type: array
-                      items:
-                        type: string
-                      description: Optional arguments
-                    workingDir:
-                      type: string
-                      description: Working directory for migration command
-                    migrationsPath:
-                      type: string
-                      description: Path to migrations directory
-                    env:
-                      type: object
-                      additionalProperties:
-                        type: string
-                      description: Environment variables to set (key-value pairs)
-                    envFrom:
-                      type: array
-                      items:
-                        type: object
-                        properties:
-                          configMapRef:
-                            type: object
-                            required:
-                              - name
-                            properties:
-                              name:
-                                type: string
-                          secretRef:
-                            type: object
-                            required:
-                              - name
-                            properties:
-                              name:
-                                type: string
-                    resources:
-                      type: object
-                      properties:
-                        memoryLimit:
-                          type: string
-                        cpuLimit:
-                          type: string
-                        memoryRequest:
-                          type: string
-                        cpuRequest:
-                          type: string
-                    serviceAccountName:
-                      type: string
-                      description: Service account for migration jobs
-                    toolConfig:
-                      type: object
-                      description: Tool-specific configuration options
-                      properties:
-                        sqlxSource:
-                          type: string
-                          description: SQLx source (path or fixtures)
-                        sqlxIgnoreMissing:
-                          type: boolean
-                          description: SQLx ignore missing migrations
-                        sqlxDryRun:
-                          type: boolean
-                          description: SQLx dry run mode
-                        seaormMigrationDir:
-                          type: string
-                          description: SeaORM migration directory
-                        seaormSchema:
-                          type: string
-                          description: SeaORM schema name
-                        seaormSteps:
-                          type: integer
-                          description: Number of migrations to run
-                        seaormVerbose:
-                          type: boolean
-                          description: Enable verbose output
-                migrators:
-                  type: array
-                  description: |
-                    Ordered list of migrators to run sequentially. Each migrator runs in order.
-                    By default, if any migrator fails, subsequent migrators are not executed.
-                    Set safety.continueOnFailure to true to continue despite failures.
-                  items:
-                    type: object
-                    required:
-                      - deploymentRef
+  - additionalPrinterColumns:
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .status.lastMigration.imageTag
+      name: Last Image
+      type: string
+    - jsonPath: .status.lastMigration.success
+      name: Success
+      type: boolean
+    - jsonPath: .status.totalMigrators
+      name: Migrators
+      priority: 1
+      type: integer
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Auto-generated derived type for DatabaseMigrationSpec via `CustomResource`
+        properties:
+          spec:
+            description: DatabaseMigration is the Schema for the databasemigrations API
+            properties:
+              database:
+                description: Database configuration
+                properties:
+                  clickhouseRef:
+                    description: 'Reference to a ClickHouse **typed-model** source: a create-only converge of an `analitico` typed table model against a Keeper-backed ClickHouse (`ON CLUSTER`, `ReplicatedMergeTree`). Mutually exclusive with `cnpgClusterRef`/`directRef`; exactly one MUST be set.'
+                    nullable: true
                     properties:
-                      name:
+                      cluster:
+                        description: The distributed-DDL cluster for `ON CLUSTER` (e.g. `tendril`).
                         type: string
-                        description: Optional name for identification in logs and status
-                      type:
-                        type: string
-                        description: Migration tool type
-                        enum:
-                          - sqlx
-                          - seaorm
-                          - refinery
-                          - diesel
-                          - goose
-                          - golang-migrate
-                          - atlas
-                          - dbmate
-                          - flyway
-                          - liquibase
-                          - custom
-                        default: sqlx
-                      imageOverride:
-                        type: string
-                        description: Override the container image directly, bypassing deploymentRef lookup
-                      deploymentRef:
-                        type: object
-                        required:
-                          - name
+                      credentialsSecretRef:
+                        description: Secret holding the ClickHouse password.
                         properties:
                           name:
+                            description: Name of the secret
                             type: string
-                            description: Name of the deployment
-                          containerName:
-                            type: string
-                            description: Container name to get the image from
-                      command:
-                        type: array
-                        items:
-                          type: string
-                        description: Command to run for migration
-                      args:
-                        type: array
-                        items:
-                          type: string
-                        description: Optional arguments
-                      workingDir:
-                        type: string
-                        description: Working directory for migration command
-                      migrationsPath:
-                        type: string
-                        description: Path to migrations directory
-                      env:
+                        required:
+                        - name
                         type: object
-                        additionalProperties:
-                          type: string
-                        description: Environment variables
-                      envFrom:
-                        type: array
-                        items:
-                          type: object
+                      database:
+                        description: The target database the model is created in (e.g. `tendril`).
+                        type: string
+                      host:
+                        description: ClickHouse HTTP service hostname (e.g. `clickhouse.monitoring.svc`).
+                        type: string
+                      model:
+                        default: events
+                        description: Which typed `analitico` model to converge (defaults to `events`).
+                        enum:
+                        - events
+                        type: string
+                      passwordKey:
+                        default: clickhouse-password
+                        description: Key within `credentialsSecretRef` holding the password (defaults to `clickhouse-password`).
+                        type: string
+                      port:
+                        description: HTTP port (defaults to 8123).
+                        format: uint16
+                        minimum: 0.0
+                        nullable: true
+                        type: integer
+                      table:
+                        description: Override the model's canonical table name (defaults to the model's own name, e.g. `events`). A distinct name (e.g. `events_m0`) lets a converge prove itself without clobbering a live table of the canonical name.
+                        nullable: true
+                        type: string
+                      username:
+                        description: ClickHouse username (defaults to `default`).
+                        nullable: true
+                        type: string
+                    required:
+                    - cluster
+                    - credentialsSecretRef
+                    - database
+                    - host
+                    type: object
+                  cnpgClusterRef:
+                    description: Reference to a CloudNativePG (Postgres) cluster. Mutually exclusive with `directRef`; exactly one MUST be set.
+                    nullable: true
+                    properties:
+                      database:
+                        description: Database name within the cluster
+                        nullable: true
+                        type: string
+                      name:
+                        description: Name of the CNPG Cluster
+                        type: string
+                    required:
+                    - name
+                    type: object
+                  directRef:
+                    description: Reference to a direct (non-CNPG) database connection. Mutually exclusive with `cnpgClusterRef`/`clickhouseRef`; exactly one MUST be set.
+                    nullable: true
+                    properties:
+                      changelogConfigMapRef:
+                        description: |-
+                          ConfigMap providing Liquibase changelog documents, applied through keifu ([`crate::keifu_apply::run_lineage`]).
+
+                          The difference from [`Self::sql_config_map_ref`] is not the file format, it is **who decides what runs**. A SQL ConfigMap is applied wholesale every time its content hash changes; a changelog is applied against `DATABASECHANGELOG`, so only outstanding changesets run and a re-run is a genuine no-op.
+
+                          Each ConfigMap key is one changelog document. Keys may hold several services' changelogs at once — `keifu_apply::LineageKey` carries the source filename precisely so their changesets cannot collide.
+                        nullable: true
+                        properties:
+                          name:
+                            description: Name of the configmap
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      credentialsSecretRef:
+                        description: Secret holding the admin credentials the migration job authenticates with.
+                        properties:
+                          name:
+                            description: Name of the secret
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      database:
+                        description: Database / schema name to apply DDL against. Optional for multi-database DDL scripts that select their own database (e.g. `USE authdb;`).
+                        nullable: true
+                        type: string
+                      engine:
+                        default: mysql
+                        description: Engine wire protocol (defaults to mysql).
+                        enum:
+                        - mysql
+                        - postgres
+                        type: string
+                      host:
+                        description: Service hostname of the database (e.g. `akeyless-saas-akeyless-mysql`).
+                        type: string
+                      passwordKey:
+                        default: password
+                        description: Key within `credentialsSecretRef` holding the password.
+                        type: string
+                      port:
+                        description: Port (defaults to the engine's standard port when omitted).
+                        format: uint16
+                        minimum: 0.0
+                        nullable: true
+                        type: integer
+                      sqlConfigMapRef:
+                        description: |-
+                          ConfigMap providing the SQL DDL files applied by the migration job.
+
+                          Optional since the changelog source landed: exactly one of this and [`Self::changelog_config_map_ref`] must be set, enforced by [`Self::source`]. It was non-`Option` while it was the only source, and a CR omitting it failed deserialization with `missing field sqlConfigMapRef` — which is the right error for a one-source world and the wrong one for two.
+                        nullable: true
+                        properties:
+                          name:
+                            description: Name of the configmap
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      username:
+                        description: 'Admin username (defaults to the engine convention: `root` for mysql, `postgres` for postgres).'
+                        nullable: true
+                        type: string
+                    required:
+                    - credentialsSecretRef
+                    - host
+                    type: object
+                type: object
+              migrator:
+                description: |-
+                  Single migrator configuration (for backward compatibility)
+
+                  Use `migrators` field instead for multiple ordered migrations. If both `migrator` and `migrators` are specified, `migrators` takes precedence.
+                nullable: true
+                properties:
+                  args:
+                    description: Optional arguments to append to the command
+                    items:
+                      type: string
+                    nullable: true
+                    type: array
+                  command:
+                    description: Command to run for migration (e.g., ["./backend", "--migrate"]) If not specified, uses the default command for the migrator type
+                    items:
+                      type: string
+                    nullable: true
+                    type: array
+                  deploymentRef:
+                    description: Reference to the deployment whose image will run migrations
+                    properties:
+                      containerName:
+                        description: Container name to get the image from (defaults to first container)
+                        nullable: true
+                        type: string
+                      name:
+                        description: Name of the deployment
+                        type: string
+                    required:
+                    - name
+                    type: object
+                  env:
+                    additionalProperties:
+                      type: string
+                    description: Additional environment variables for the migration job
+                    nullable: true
+                    type: object
+                  envFrom:
+                    description: Environment variables from ConfigMaps/Secrets
+                    items:
+                      description: Source for environment variables
+                      properties:
+                        configMapRef:
+                          description: Reference to a ConfigMap
+                          nullable: true
                           properties:
-                            configMapRef:
-                              type: object
-                              required:
-                                - name
-                              properties:
-                                name:
-                                  type: string
-                            secretRef:
-                              type: object
-                              required:
-                                - name
-                              properties:
-                                name:
-                                  type: string
-                      resources:
-                        type: object
-                        properties:
-                          memoryLimit:
-                            type: string
-                          cpuLimit:
-                            type: string
-                          memoryRequest:
-                            type: string
-                          cpuRequest:
-                            type: string
-                      serviceAccountName:
+                            name:
+                              description: Name of the configmap
+                              type: string
+                          required:
+                          - name
+                          type: object
+                        secretRef:
+                          description: Reference to a Secret
+                          nullable: true
+                          properties:
+                            name:
+                              description: Name of the secret
+                              type: string
+                          required:
+                          - name
+                          type: object
+                      type: object
+                    nullable: true
+                    type: array
+                  imageOverride:
+                    description: |-
+                      Override the container image directly, bypassing deploymentRef lookup.
+
+                      When set, Shinka uses this image instead of resolving it from the referenced deployment. Useful for ephemeral environments where the deployment doesn't exist yet (e.g., Kenshi ephemeral test environments run migrations before deploying the application).
+                    nullable: true
+                    type: string
+                  migrationsPath:
+                    description: Path to migrations directory (relative to workingDir or absolute)
+                    nullable: true
+                    type: string
+                  name:
+                    description: |-
+                      Optional name for this migrator (used for identification in logs and status)
+
+                      When using multiple migrators, providing a name helps identify which migrator is running or failed. If not provided, defaults to the migrator type name (e.g., "sqlx", "seaorm").
+                    nullable: true
+                    type: string
+                  resources:
+                    description: Resource requirements for migration jobs
+                    nullable: true
+                    properties:
+                      cpuLimit:
+                        description: CPU limit (e.g., "500m")
+                        nullable: true
                         type: string
-                        description: Service account for migration jobs
-                      toolConfig:
-                        type: object
-                        description: Tool-specific configuration options
+                      cpuRequest:
+                        description: CPU request (e.g., "100m")
+                        nullable: true
+                        type: string
+                      memoryLimit:
+                        description: Memory limit (e.g., "256Mi")
+                        nullable: true
+                        type: string
+                      memoryRequest:
+                        description: Memory request (e.g., "128Mi")
+                        nullable: true
+                        type: string
+                    type: object
+                  secretRefs:
+                    description: Secrets to mount for database credentials
+                    items:
+                      description: Reference to a Secret
+                      properties:
+                        name:
+                          description: Name of the secret
+                          type: string
+                      required:
+                      - name
+                      type: object
+                    nullable: true
+                    type: array
+                  serviceAccountName:
+                    description: Service account to use for migration jobs
+                    nullable: true
+                    type: string
+                  toolConfig:
+                    description: Tool-specific configuration options
+                    nullable: true
+                    properties:
+                      atlasBaseline:
+                        description: 'For atlas: baseline version'
+                        nullable: true
+                        type: string
+                      atlasRevisionSchema:
+                        description: 'For atlas: revision schema name'
+                        nullable: true
+                        type: string
+                      atlasSchema:
+                        description: 'For atlas: schema name'
+                        nullable: true
+                        type: string
+                      dbmateMigrationsTable:
+                        description: 'For dbmate: migrations table name'
+                        nullable: true
+                        type: string
+                      dbmateNoDumpSchema:
+                        description: 'For dbmate: no dump schema'
+                        nullable: true
+                        type: boolean
+                      dieselMigrationDir:
+                        description: 'For diesel: migration directory'
+                        nullable: true
+                        type: string
+                      flywayBaselineVersion:
+                        description: 'For flyway: baseline version'
+                        nullable: true
+                        type: string
+                      flywayCleanDisabled:
+                        description: 'For flyway: clean disabled (safety)'
+                        nullable: true
+                        type: boolean
+                      flywaySchemas:
+                        description: 'For flyway: schemas to manage'
+                        items:
+                          type: string
+                        nullable: true
+                        type: array
+                      gooseDriver:
+                        description: 'For goose: driver name (postgres, mysql, sqlite3, etc.)'
+                        nullable: true
+                        type: string
+                      gooseTable:
+                        description: 'For goose: table name for tracking migrations'
+                        nullable: true
+                        type: string
+                      liquibaseChangelogFile:
+                        description: 'For liquibase: changelog file path'
+                        nullable: true
+                        type: string
+                      liquibaseDefaultSchema:
+                        description: 'For liquibase: default schema'
+                        nullable: true
+                        type: string
+                      migrateLockTimeout:
+                        description: 'For golang-migrate: lock timeout'
+                        format: uint32
+                        minimum: 0.0
+                        nullable: true
+                        type: integer
+                      seaormMigrationDir:
+                        description: 'For seaorm: migration directory (defaults to "migration")'
+                        nullable: true
+                        type: string
+                      seaormSchema:
+                        description: 'For seaorm: database schema (if not using default ''public'')'
+                        nullable: true
+                        type: string
+                      seaormSteps:
+                        description: 'For seaorm: number of migrations to apply (default: all pending)'
+                        format: uint32
+                        minimum: 0.0
+                        nullable: true
+                        type: integer
+                      seaormVerbose:
+                        description: 'For seaorm: verbose output'
+                        nullable: true
+                        type: boolean
+                      sqlxDryRun:
+                        description: 'For sqlx: run in dry-run mode (show what would be applied)'
+                        nullable: true
+                        type: boolean
+                      sqlxEmbedded:
+                        description: 'For sqlx: use embedded migrations (binary flag like --migrate) When true, runs the binary with --migrate flag instead of sqlx CLI'
+                        nullable: true
+                        type: boolean
+                      sqlxIgnoreMissing:
+                        description: 'For sqlx: ignore missing migrations in the database'
+                        nullable: true
+                        type: boolean
+                      sqlxSource:
+                        description: 'For sqlx: migrations source directory (defaults to "migrations")'
+                        nullable: true
+                        type: string
+                    type: object
+                  type:
+                    default: sqlx
+                    description: |-
+                      Type of migration tool to use (defaults to sqlx)
+
+                      Supported types: - Rust: sqlx (default), refinery, diesel, seaorm - Go: goose, golang-migrate, atlas, dbmate - Java: flyway, liquibase - custom: user-defined command
+                    enum:
+                    - sqlx
+                    - refinery
+                    - diesel
+                    - seaorm
+                    - goose
+                    - golang-migrate
+                    - atlas
+                    - dbmate
+                    - flyway
+                    - liquibase
+                    - custom
+                    type: string
+                  workingDir:
+                    description: Working directory for migration execution
+                    nullable: true
+                    type: string
+                required:
+                - deploymentRef
+                type: object
+              migrators:
+                description: |-
+                  Ordered list of migrators to run sequentially
+
+                  Each migrator runs in order. By default, if any migrator fails, subsequent migrators are not executed. Set `safety.continueOnFailure` to `true` to continue despite failures.
+
+                  Example: ```yaml migrators: - name: sqlx-migrations type: sqlx deploymentRef: name: backend - name: seaorm-migrations type: seaorm deploymentRef: name: backend ```
+                items:
+                  description: Migrator configuration - which deployment and tool to use for migrations
+                  properties:
+                    args:
+                      description: Optional arguments to append to the command
+                      items:
+                        type: string
+                      nullable: true
+                      type: array
+                    command:
+                      description: Command to run for migration (e.g., ["./backend", "--migrate"]) If not specified, uses the default command for the migrator type
+                      items:
+                        type: string
+                      nullable: true
+                      type: array
+                    deploymentRef:
+                      description: Reference to the deployment whose image will run migrations
+                      properties:
+                        containerName:
+                          description: Container name to get the image from (defaults to first container)
+                          nullable: true
+                          type: string
+                        name:
+                          description: Name of the deployment
+                          type: string
+                      required:
+                      - name
+                      type: object
+                    env:
+                      additionalProperties:
+                        type: string
+                      description: Additional environment variables for the migration job
+                      nullable: true
+                      type: object
+                    envFrom:
+                      description: Environment variables from ConfigMaps/Secrets
+                      items:
+                        description: Source for environment variables
                         properties:
-                          sqlxSource:
-                            type: string
-                          sqlxIgnoreMissing:
-                            type: boolean
-                          sqlxDryRun:
-                            type: boolean
-                          seaormMigrationDir:
-                            type: string
-                          seaormSchema:
-                            type: string
-                          seaormSteps:
-                            type: integer
-                          seaormVerbose:
-                            type: boolean
-                safety:
-                  type: object
-                  properties:
-                    requireHealthyCluster:
-                      type: boolean
-                      default: true
-                    maxRetries:
-                      type: integer
-                      default: 3
-                    checksumMode:
+                          configMapRef:
+                            description: Reference to a ConfigMap
+                            nullable: true
+                            properties:
+                              name:
+                                description: Name of the configmap
+                                type: string
+                            required:
+                            - name
+                            type: object
+                          secretRef:
+                            description: Reference to a Secret
+                            nullable: true
+                            properties:
+                              name:
+                                description: Name of the secret
+                                type: string
+                            required:
+                            - name
+                            type: object
+                        type: object
+                      nullable: true
+                      type: array
+                    imageOverride:
+                      description: |-
+                        Override the container image directly, bypassing deploymentRef lookup.
+
+                        When set, Shinka uses this image instead of resolving it from the referenced deployment. Useful for ephemeral environments where the deployment doesn't exist yet (e.g., Kenshi ephemeral test environments run migrations before deploying the application).
+                      nullable: true
                       type: string
-                      description: |
-                        How to handle migration checksum mismatches:
-                        - auto-reconcile (default): Automatically fix checksum mismatches
-                        - strict: Fail immediately if checksum doesn't match
-                        - pre-flight: Validate all checksums BEFORE running any migrations
+                    migrationsPath:
+                      description: Path to migrations directory (relative to workingDir or absolute)
+                      nullable: true
+                      type: string
+                    name:
+                      description: |-
+                        Optional name for this migrator (used for identification in logs and status)
+
+                        When using multiple migrators, providing a name helps identify which migrator is running or failed. If not provided, defaults to the migrator type name (e.g., "sqlx", "seaorm").
+                      nullable: true
+                      type: string
+                    resources:
+                      description: Resource requirements for migration jobs
+                      nullable: true
+                      properties:
+                        cpuLimit:
+                          description: CPU limit (e.g., "500m")
+                          nullable: true
+                          type: string
+                        cpuRequest:
+                          description: CPU request (e.g., "100m")
+                          nullable: true
+                          type: string
+                        memoryLimit:
+                          description: Memory limit (e.g., "256Mi")
+                          nullable: true
+                          type: string
+                        memoryRequest:
+                          description: Memory request (e.g., "128Mi")
+                          nullable: true
+                          type: string
+                      type: object
+                    secretRefs:
+                      description: Secrets to mount for database credentials
+                      items:
+                        description: Reference to a Secret
+                        properties:
+                          name:
+                            description: Name of the secret
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      nullable: true
+                      type: array
+                    serviceAccountName:
+                      description: Service account to use for migration jobs
+                      nullable: true
+                      type: string
+                    toolConfig:
+                      description: Tool-specific configuration options
+                      nullable: true
+                      properties:
+                        atlasBaseline:
+                          description: 'For atlas: baseline version'
+                          nullable: true
+                          type: string
+                        atlasRevisionSchema:
+                          description: 'For atlas: revision schema name'
+                          nullable: true
+                          type: string
+                        atlasSchema:
+                          description: 'For atlas: schema name'
+                          nullable: true
+                          type: string
+                        dbmateMigrationsTable:
+                          description: 'For dbmate: migrations table name'
+                          nullable: true
+                          type: string
+                        dbmateNoDumpSchema:
+                          description: 'For dbmate: no dump schema'
+                          nullable: true
+                          type: boolean
+                        dieselMigrationDir:
+                          description: 'For diesel: migration directory'
+                          nullable: true
+                          type: string
+                        flywayBaselineVersion:
+                          description: 'For flyway: baseline version'
+                          nullable: true
+                          type: string
+                        flywayCleanDisabled:
+                          description: 'For flyway: clean disabled (safety)'
+                          nullable: true
+                          type: boolean
+                        flywaySchemas:
+                          description: 'For flyway: schemas to manage'
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        gooseDriver:
+                          description: 'For goose: driver name (postgres, mysql, sqlite3, etc.)'
+                          nullable: true
+                          type: string
+                        gooseTable:
+                          description: 'For goose: table name for tracking migrations'
+                          nullable: true
+                          type: string
+                        liquibaseChangelogFile:
+                          description: 'For liquibase: changelog file path'
+                          nullable: true
+                          type: string
+                        liquibaseDefaultSchema:
+                          description: 'For liquibase: default schema'
+                          nullable: true
+                          type: string
+                        migrateLockTimeout:
+                          description: 'For golang-migrate: lock timeout'
+                          format: uint32
+                          minimum: 0.0
+                          nullable: true
+                          type: integer
+                        seaormMigrationDir:
+                          description: 'For seaorm: migration directory (defaults to "migration")'
+                          nullable: true
+                          type: string
+                        seaormSchema:
+                          description: 'For seaorm: database schema (if not using default ''public'')'
+                          nullable: true
+                          type: string
+                        seaormSteps:
+                          description: 'For seaorm: number of migrations to apply (default: all pending)'
+                          format: uint32
+                          minimum: 0.0
+                          nullable: true
+                          type: integer
+                        seaormVerbose:
+                          description: 'For seaorm: verbose output'
+                          nullable: true
+                          type: boolean
+                        sqlxDryRun:
+                          description: 'For sqlx: run in dry-run mode (show what would be applied)'
+                          nullable: true
+                          type: boolean
+                        sqlxEmbedded:
+                          description: 'For sqlx: use embedded migrations (binary flag like --migrate) When true, runs the binary with --migrate flag instead of sqlx CLI'
+                          nullable: true
+                          type: boolean
+                        sqlxIgnoreMissing:
+                          description: 'For sqlx: ignore missing migrations in the database'
+                          nullable: true
+                          type: boolean
+                        sqlxSource:
+                          description: 'For sqlx: migrations source directory (defaults to "migrations")'
+                          nullable: true
+                          type: string
+                      type: object
+                    type:
+                      default: sqlx
+                      description: |-
+                        Type of migration tool to use (defaults to sqlx)
+
+                        Supported types: - Rust: sqlx (default), refinery, diesel, seaorm - Go: goose, golang-migrate, atlas, dbmate - Java: flyway, liquibase - custom: user-defined command
                       enum:
-                        - auto-reconcile
-                        - strict
-                        - pre-flight
-                      default: auto-reconcile
-                    continueOnFailure:
-                      type: boolean
-                      default: false
-                      description: |
-                        Continue running subsequent migrators even if one fails.
-                        When using multiple migrators, this controls what happens when a migrator fails:
-                        - false (default): Stop immediately on the first failure
-                        - true: Continue running remaining migrators
-                timeouts:
-                  type: object
-                  properties:
-                    migration:
+                      - sqlx
+                      - refinery
+                      - diesel
+                      - seaorm
+                      - goose
+                      - golang-migrate
+                      - atlas
+                      - dbmate
+                      - flyway
+                      - liquibase
+                      - custom
                       type: string
-                      default: "5m"
-            status:
-              type: object
-              properties:
-                phase:
-                  type: string
-                  enum:
-                    - Pending
-                    - CheckingHealth
-                    - WaitingForDatabase
-                    - Migrating
-                    - Ready
-                    - Failed
-                lastMigration:
+                    workingDir:
+                      description: Working directory for migration execution
+                      nullable: true
+                      type: string
+                  required:
+                  - deploymentRef
                   type: object
+                nullable: true
+                type: array
+              safety:
+                default:
+                  requireHealthyCluster: true
+                  maxRetries: 3
+                  checksumMode: auto-reconcile
+                  continueOnFailure: false
+                description: Safety settings
+                properties:
+                  checksumMode:
+                    default: auto-reconcile
+                    description: |-
+                      How to handle checksum mismatches when migration files have been modified after being applied.
+
+                      Options: - `strict`: Fail on any mismatch, no auto-reconciliation (recommended for production) - `auto-reconcile`: Automatically fix mismatches (default, safe for idempotent migrations) - `pre-flight`: Validate all checksums before running any migrations
+                    enum:
+                    - strict
+                    - auto-reconcile
+                    - pre-flight
+                    type: string
+                  continueOnFailure:
+                    default: false
+                    description: |-
+                      Continue running subsequent migrators even if one fails
+
+                      When using multiple migrators (`spec.migrators`), this controls what happens when a migrator fails: - `false` (default): Stop immediately on the first failure. The overall migration is marked as Failed and subsequent migrators are not run. - `true`: Continue running remaining migrators. The overall migration is marked as Failed if any migrator failed, but all migrators will execute.
+
+                      Recommended to keep as `false` for production to ensure data consistency.
+                    type: boolean
+                  maxRetries:
+                    default: 3
+                    description: Maximum number of retry attempts for failed migrations
+                    format: uint32
+                    minimum: 0.0
+                    type: integer
+                  requireHealthyCluster:
+                    default: true
+                    description: Require CNPG cluster to be healthy before migration
+                    type: boolean
+                type: object
+              timeouts:
+                default:
+                  migration: 5m
+                description: Timeout settings
+                properties:
+                  migration:
+                    default: 5m
+                    description: Migration job timeout (e.g., "5m")
+                    type: string
+                type: object
+            required:
+            - database
+            type: object
+          status:
+            description: Status of the DatabaseMigration
+            nullable: true
+            properties:
+              conditions:
+                description: Conditions represent the latest available observations
+                items:
+                  description: Condition represents an observation of an object's state
                   properties:
-                    imageTag:
+                    lastTransitionTime:
+                      description: Time when the condition last transitioned
+                      format: date-time
+                      nullable: true
+                      type: string
+                    message:
+                      description: Human-readable message
+                      nullable: true
+                      type: string
+                    observedGeneration:
+                      description: Observed generation when condition was set
+                      format: int64
+                      nullable: true
+                      type: integer
+                    reason:
+                      description: Machine-readable reason for the condition
+                      nullable: true
+                      type: string
+                    status:
+                      description: Status of the condition ("True", "False", "Unknown")
+                      type: string
+                    type:
+                      description: Type of condition (e.g., "Ready", "DatabaseHealthy", "MigrationSucceeded")
+                      type: string
+                  required:
+                  - status
+                  - type
+                  type: object
+                nullable: true
+                type: array
+              currentJob:
+                description: Name of the currently running or last migration job
+                nullable: true
+                type: string
+              currentMigratorIndex:
+                description: |-
+                  Index of the currently running migrator (0-based)
+
+                  When using multiple migrators, this tracks which one is currently executing. Starts at 0 for the first migrator.
+                format: uint32
+                minimum: 0.0
+                nullable: true
+                type: integer
+              currentMigratorName:
+                description: |-
+                  Name of the currently running migrator
+
+                  Either the user-provided name or the migrator type name.
+                nullable: true
+                type: string
+              jobStartedAt:
+                description: When the current job was started (for timeout tracking)
+                format: date-time
+                nullable: true
+                type: string
+              lastMigration:
+                description: Information about the last migration run
+                nullable: true
+                properties:
+                  completedAt:
+                    description: When the migration completed
+                    format: date-time
+                    nullable: true
+                    type: string
+                  duration:
+                    description: Duration of the migration
+                    nullable: true
+                    type: string
+                  error:
+                    description: Error message if migration failed
+                    nullable: true
+                    type: string
+                  imageTag:
+                    description: Image tag that was migrated
+                    type: string
+                  success:
+                    description: Whether the migration succeeded
+                    type: boolean
+                required:
+                - imageTag
+                - success
+                type: object
+              migratorResults:
+                description: |-
+                  Results of each migrator execution
+
+                  Contains the outcome of each migrator that has completed (or failed). Useful for debugging and understanding which migrator caused issues.
+                items:
+                  description: Result of a single migrator execution
+                  properties:
+                    completedAt:
+                      description: When this migrator completed
+                      format: date-time
+                      nullable: true
+                      type: string
+                    duration:
+                      description: Duration of this migrator's execution
+                      nullable: true
+                      type: string
+                    error:
+                      description: Error message if this migrator failed
+                      nullable: true
+                      type: string
+                    index:
+                      description: Index of this migrator (0-based)
+                      format: uint32
+                      minimum: 0.0
+                      type: integer
+                    jobName:
+                      description: Job name for this migrator
+                      nullable: true
+                      type: string
+                    migratorType:
+                      description: Type of migrator used
+                      type: string
+                    name:
+                      description: Name of the migrator
                       type: string
                     success:
+                      description: Whether this migrator succeeded
                       type: boolean
-                    duration:
-                      type: string
-                    completedAt:
-                      type: string
-                      format: date-time
-                    error:
-                      type: string
-                retryCount:
-                  type: integer
-                currentJob:
-                  type: string
-                jobStartedAt:
-                  type: string
-                  format: date-time
-                conditions:
-                  type: array
-                  items:
-                    type: object
-                    required:
-                      - type
-                      - status
-                    properties:
-                      type:
-                        type: string
-                      status:
-                        type: string
-                      observedGeneration:
-                        type: integer
-                        format: int64
-                      reason:
-                        type: string
-                      message:
-                        type: string
-                      lastTransitionTime:
-                        type: string
-                        format: date-time
-                observedGeneration:
-                  type: integer
-                  format: int64
-                # Multi-migrator status fields
-                currentMigratorIndex:
-                  type: integer
-                  description: Index of the currently running migrator (0-based)
-                currentMigratorName:
-                  type: string
-                  description: Name of the currently running migrator
-                totalMigrators:
-                  type: integer
-                  description: Total number of migrators to run
-                migratorResults:
-                  type: array
-                  description: Results of each migrator execution
-                  items:
-                    type: object
-                    properties:
-                      index:
-                        type: integer
-                      name:
-                        type: string
-                      migratorType:
-                        type: string
-                      success:
-                        type: boolean
-                      duration:
-                        type: string
-                      completedAt:
-                        type: string
-                        format: date-time
-                      error:
-                        type: string
-                      jobName:
-                        type: string
-      subresources:
-        status: {}
-      additionalPrinterColumns:
-        - name: Phase
-          type: string
-          jsonPath: .status.phase
-        - name: Last Image
-          type: string
-          jsonPath: .status.lastMigration.imageTag
-        - name: Success
-          type: boolean
-          jsonPath: .status.lastMigration.success
-        - name: Migrators
-          type: integer
-          jsonPath: .status.totalMigrators
-          priority: 1
-        - name: Age
-          type: date
-          jsonPath: .metadata.creationTimestamp
+                  required:
+                  - index
+                  - migratorType
+                  - name
+                  - success
+                  type: object
+                nullable: true
+                type: array
+              observedGeneration:
+                description: Observed generation (for detecting spec changes)
+                format: int64
+                nullable: true
+                type: integer
+              phase:
+                description: Current phase of the migration
+                enum:
+                - Pending
+                - CheckingHealth
+                - WaitingForDatabase
+                - Migrating
+                - Ready
+                - Failed
+                nullable: true
+                type: string
+              retryCount:
+                description: Current retry count
+                format: uint32
+                minimum: 0.0
+                nullable: true
+                type: integer
+              totalMigrators:
+                description: Total number of migrators to run
+                format: uint32
+                minimum: 0.0
+                nullable: true
+                type: integer
+            type: object
+        required:
+        - spec
+        title: DatabaseMigration
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
