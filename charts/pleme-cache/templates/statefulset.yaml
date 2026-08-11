@@ -39,9 +39,33 @@ spec:
           command: ["sh", "-c"]
           args:
             - |
+              # COMPOSE the config; never rewrite it in place.
+              #
+              # This was `sed -i "s/__REDIS_PASSWORD__/$PASS/"`, which put the
+              # cache password through a REGEX REPLACEMENT: `&` means the whole
+              # match there, so a password containing `&` silently set a
+              # different password than intended, with sed exiting 0 and valkey
+              # booting healthy. `/` was the delimiter and aborted outright.
+              #
+              # Appending has no pattern and no placeholder, so that class does
+              # not exist rather than being handled. `set -eu` is new too: with
+              # no `set -e`, a failed `cp` or unreadable credential produced an
+              # empty `requirepass` and a cache that answered to nothing.
+              #
+              # Both `printf` and the redirect are shell builtins, so the value
+              # never reaches any process's argv — unlike the old form, where
+              # the shell expanded $PASS into sed's command line and it landed
+              # in world-readable /proc/<pid>/cmdline.
+              #
+              # Known remaining constraint, stated rather than silently assumed:
+              # redis parses `requirepass` as a bare token, so a password
+              # containing whitespace needs quoting the generator would have to
+              # agree on. That was equally true of the sed form; it is not a
+              # regression, and it is the reason to keep passwords alphanumeric.
+              set -eu
               cp /config/redis.conf /tmp/redis/redis.conf
               PASS=$(cat /credentials/{{ .Values.cache.password.key | default "REDIS_PASSWORD" }})
-              sed -i "s/__REDIS_PASSWORD__/$PASS/" /tmp/redis/redis.conf
+              printf 'requirepass %s\n' "$PASS" >> /tmp/redis/redis.conf
           securityContext:
             {{- include "pleme-lib.containerSecurityContext" . | nindent 12 }}
           volumeMounts:

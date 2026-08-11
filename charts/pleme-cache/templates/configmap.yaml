@@ -9,9 +9,27 @@ data:
   redis.conf: |
     bind 0.0.0.0
     port {{ .Values.cache.port | default 6379 }}
-    {{- if .Values.cache.password.enabled }}
-    requirepass __REDIS_PASSWORD__
-    {{- end }}
+    {{- /*
+      NO `requirepass` LINE HERE, and no placeholder for one.
+
+      This used to carry `requirepass __REDIS_PASSWORD__`, which the
+      config-init initContainer rewrote with `sed -i`. Two failures came from
+      that, and the placeholder is what made both possible:
+
+      CORRUPTION — in sed's REPLACEMENT half `&` means the whole match, so a
+      password containing `&` produced a requirepass value containing the
+      literal text `__REDIS_PASSWORD__`. sed exits 0, valkey boots healthy,
+      and every client using the real secret is rejected while the effective
+      password is partly derivable from this public chart's source. `/` is the
+      delimiter and aborts; `\` mangles.
+
+      SILENT DEFAULT — any failure to substitute at all left this literal
+      string AS the password, published in a public chart.
+
+      The initContainer now APPENDS the directive instead, so there is no
+      pattern to match and no placeholder to leak. Deleting the line is the
+      fix; a safer sed would only have made the same shape harder to notice.
+    */}}
     maxmemory {{ .Values.cache.maxmemory | default "256mb" }}
     maxmemory-policy {{ .Values.cache.maxmemoryPolicy | default "allkeys-lru" }}
     {{- if .Values.cache.persistence.enabled }}
