@@ -1,0 +1,39 @@
+# Run every chart's helm-unittest suites on PR and on merge.
+#
+# A 5-line shim over substrate's reusable, per ★★ Super-Cache-CI: the
+# vocabulary lives once, upstream, and a consumer is configuration.
+#
+# WHY THIS REPO HAD NO SUCH WORKFLOW UNTIL 2026-08-11: it had exactly one,
+# auto-release.yml. So every helm-unittest suite in this repo — the surface
+# that decides whether Ruby reaches a FedRAMP boundary among them — was a
+# file nothing executed. `helm unittest .` passing on a laptop is not a
+# gate; this is.
+#
+# The floor is deliberately below today's count so adding a suite never
+# demands an edit here, while a repo that silently loses most of them still
+# fails. A gate that makes every new test a two-file change acquires a
+# reputation for friction and then gets deleted.
+name: chart-tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  charts:
+    uses: pleme-io/substrate/.github/workflows/helm-unittest.yml@main
+    with:
+      chartsDir: charts
+      # Measured 2026-08-11 over all 148 charts, with `helm dependency
+      # update` run first: 0 lint failures, 15 charts carrying suites, 0
+      # test failures. So this repo needs no lint ratchet — the reusable's
+      # `lintFailureCeiling` defaults to 0 and that is already met.
+      #
+      # Floor is half of 15, deliberately. Adding a suite must never
+      # require editing this file, while a repo that silently loses most of
+      # them still fails.
+      chartsWithTestsFloor: 7
