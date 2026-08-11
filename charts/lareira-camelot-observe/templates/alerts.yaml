@@ -28,12 +28,30 @@
 {{- if not $svc.name }}{{ fail "observe.services[]: .name is required" }}{{ end }}
 {{- if not $svc.job }}{{ fail (printf "observe.services[%s]: .job is required" $svc.name) }}{{ end }}
 {{- $aid := printf "%s-%s-baseline" $o.env $svc.name -}}
+{{- /*
+  NOTE THE CLOSING `}}` — it must NOT be `-}}`.
+
+  A right-trim here eats the newline before the `---` below, which glues
+  the separator onto the last line of the PREVIOUS document. Measured
+  2026-08-11 on the 9-service render: `)---` (the Ruby heredoc's closing
+  paren, then the separator), one `---` in the whole file instead of
+  nine. The `---` stops being a document separator and becomes the last
+  line of a `|` block scalar, so all nine PangeaAlerts collapse into ONE
+  document with nine sets of duplicate keys and eight alerts silently
+  disappear.
+
+  It fails quietly in the worst way: helm template exits 0, helm lint
+  passes, the output looks plausible, and what applies is one alert with
+  a stray `)---` inside its source. dashboards.yaml never had this
+  because its equivalent dict closes with a plain `}}`; the two templates
+  were one character apart.
+*/ -}}
 {{- $params := dict
       "name" $svc.name
       "namespace" $ns
       "job" $svc.job
       "id" $aid
--}}
+}}
 ---
 apiVersion: pangea.pleme.io/v1alpha1
 kind: PangeaAlert

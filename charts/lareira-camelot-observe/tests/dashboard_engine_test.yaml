@@ -81,11 +81,11 @@ tests:
       observe.services:
         - { name: auth, job: auth, port: 2770 }
       observe.platformBoards:
-        - { name: homeostasis, architecture: HomeostasisControlBoard, params: { datasource: vm } }
+        - { name: security-posture, architecture: SecurityPostureBoard, params: { datasource: vm } }
       observe.clickhouseBoard.enabled: false
     documentSelector:
       path: metadata.name
-      value: camelot-homeostasis
+      value: camelot-security-posture
     asserts:
       # Falling back is CORRECT here and wrong under lava-only. That
       # difference is the whole design.
@@ -100,7 +100,7 @@ tests:
       observe.services:
         - { name: auth, job: auth, port: 2770 }
       observe.platformBoards:
-        - { name: homeostasis, architecture: HomeostasisControlBoard, params: { datasource: vm } }
+        - { name: security-posture, architecture: SecurityPostureBoard, params: { datasource: vm } }
       observe.clickhouseBoard.enabled: false
     documentSelector:
       path: metadata.name
@@ -118,13 +118,13 @@ tests:
       observe.services:
         - { name: auth, job: auth, port: 2770 }
       observe.platformBoards:
-        - { name: homeostasis, architecture: HomeostasisControlBoard, params: { datasource: vm } }
+        - { name: security-posture, architecture: SecurityPostureBoard, params: { datasource: vm } }
       observe.clickhouseBoard.enabled: false
     asserts:
       # Named, not a generic failure: an operator reading this needs to
       # know WHICH board is unported, or the message costs a bisect.
       - failedTemplate:
-          errorPattern: "lava-only but platform board homeostasis"
+          errorPattern: "lava-only but platform board security-posture"
 
   - it: lava-only renders when every board has a lava architecture
     set:
@@ -164,7 +164,7 @@ tests:
       observe.platformBoards:
         - name: audit
           architecture: AuditExplorer
-          params: { datasource: vlogs, stream: '{namespace="camelot"}' }
+          lavaParams: { stream: '{namespace="camelot"}' }
       observe.clickhouseBoard.enabled: false
     asserts:
       # SCALAR IS NOT SAFE. `stream` is an ordinary string, and it is the
@@ -184,8 +184,8 @@ tests:
       observe.platformBoards:
         - name: auth-methods
           architecture: AuthMethodHealth
-          params: { datasource: vm, denied_outcomes: [error, denied] }
+          lavaParams: { denied_outcomes: [error, denied] }
       observe.clickhouseBoard.enabled: false
     asserts:
       - failedTemplate:
-          errorPattern: "is structured; the lava binding is scalar-only"
+          errorPattern: "lavaParam .* is structured; the lava binding is scalar-only"

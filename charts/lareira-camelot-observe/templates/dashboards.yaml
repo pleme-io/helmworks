@@ -180,21 +180,38 @@ spec:
 {{- end }}
 {{- if and $lavaOk $blava }}
     {{- /*
-      A platform board's params are NOT uniformly scalar — several carry
-      arrays (`denied_outcomes`, `cascade`) and one carries a LogsQL
-      stream selector containing double quotes. The operator's param
-      binding is scalar-only and refuses the rest by design, so a porting
-      pass has to move that structure INTO the architecture rather than
-      pass it through. That is why this map is empty of platform boards
-      today: the entry lands with the ported `.tlisp`, not before it.
+      `params` is NOT read on this path, and that is the design rather
+      than an omission. `params` holds the RUBY MIXIN's kwargs — arrays
+      (`denied_outcomes`, `cascade`), a LogsQL stream selector full of
+      double quotes, metric-name overrides — and none of it is meaningful
+      to a lava architecture, which owns its own structure by
+      construction. Splatting it would either refuse every ported board
+      (the structure guard below) or, worse, textually inject a
+      quote-bearing value into a tlisp string literal.
+
+      A lava architecture needing something beyond the cell scalars
+      declares `lavaParams` on the board. Explicit, so nothing is
+      silently dropped and nothing is silently smuggled.
     */}}
     architecture:
       name: {{ $blava | quote }}
       params:
-        id: {{ $bid | quote }}
-{{- range $k, $v := ($board.params | default dict) }}
+        {{- /*
+          The same four cell scalars every service board gets, plus
+          `board`. `board` is what makes the rendered Grafana uid
+          (`{env}-{board}`) EQUAL the PangeaDashboard CR name — so a board
+          someone is looking at in Grafana traces back to the CR that made
+          it with no lookup, and two CRs sharing one architecture cannot
+          collide on a hardcoded uid.
+        */}}
+        env: {{ $o.env | quote }}
+        board: {{ $board.name | quote }}
+        namespace: {{ $ns | quote }}
+        datasource: {{ $ds | quote }}
+        logs_datasource: {{ $lds | quote }}
+{{- range $k, $v := ($board.lavaParams | default dict) }}
 {{- if or (kindIs "slice" $v) (kindIs "map" $v) }}
-{{- fail (printf "platform board %s: param %q is structured; the lava binding is scalar-only, so this belongs in the %s architecture" $board.name $k $blava) }}
+{{- fail (printf "platform board %s: lavaParam %q is structured; the lava binding is scalar-only, so this belongs in the %s architecture" $board.name $k $blava) }}
 {{- end }}
 {{- /*
   SCALAR IS NOT THE SAME AS SAFE, and this guard is the one the first
@@ -207,7 +224,7 @@ spec:
   string that would silently corrupt the board.
 */ -}}
 {{- if or (contains "\"" (toString $v)) (contains "\\" (toString $v)) }}
-{{- fail (printf "platform board %s: param %q contains a quote or backslash (%v). lava binds params textually, so this would terminate a string literal inside %s.tlisp and render a document nobody wrote — compose it in the architecture from quote-free parts" $board.name $k $v $blava) }}
+{{- fail (printf "platform board %s: lavaParam %q contains a quote or backslash (%v). lava binds params textually, so this would terminate a string literal inside %s.tlisp and render a document nobody wrote — compose it in the architecture from quote-free parts" $board.name $k $v $blava) }}
 {{- end }}
         {{ $k }}: {{ $v | quote }}
 {{- end }}

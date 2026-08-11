@@ -1,0 +1,98 @@
+---
+# The boundary claim, asserted against the file that ships.
+#
+# `values:` points at examples/gamewarden.values.yaml rather than restating
+# it under `set:`. That distinction is the whole test: a suite that copies
+# the values proves its own copy is Ruby-free and says nothing about what
+# an operator actually deploys. This renders the shipped artifact.
+#
+# What it establishes, in order of how easy each is to get wrong:
+#
+#   1. It renders at all. Under engine=lava-only that is already the
+#      claim — a board without a lava architecture fails the template, so
+#      a successful render means every board found one.
+#   2. Not one document carries spec.source.inline. The Ruby-free operator
+#      image has no evaluator to degrade to; one such field is a CR that
+#      cannot reconcile inside the boundary.
+#   3. The count is what we think it is. Without this the two assertions
+#      above hold vacuously for a render of zero documents.
+suite: gamewarden boundary → no Ruby crosses it
+templates:
+  - templates/dashboards.yaml
+tests:
+  - it: renders the shipped boundary values with every board typed
+    values:
+      - ../examples/gamewarden.values.yaml
+    asserts:
+      - notFailedTemplate: {}
+      # 9 services + 4 platform boards. The DENOMINATOR: "no document has
+      # inline Ruby" is trivially true of no documents, and a values file
+      # that stopped producing boards would otherwise read as a pristine
+      # boundary.
+      - hasDocuments:
+          count: 13
+
+  - it: emits no inline source anywhere in the boundary render
+    values:
+      - ../examples/gamewarden.values.yaml
+    asserts:
+      # No documentSelector and no index: this evaluates across EVERY
+      # rendered document, which is exactly what is wanted here. The
+      # plugin's index-scoped asserts spilling across documents was a
+      # nuisance in the engine suite; here it is the mechanism.
+      - notExists:
+          path: spec.source.inline
+      - notExists:
+          path: spec.source.inline.ruby
+
+  - it: every service board resolves to the typed architecture
+    values:
+      - ../examples/gamewarden.values.yaml
+    documentSelector:
+      path: metadata.name
+      value: gamewarden-auth
+    asserts:
+      - equal:
+          path: spec.source.architecture.name
+          value: workload-overview
+      - equal:
+          path: spec.source.architecture.params.namespace
+          value: gamewarden
+
+  - it: a ported platform board carries the cell scalars, not the Ruby kwargs
+    values:
+      - ../examples/gamewarden.values.yaml
+    documentSelector:
+      path: metadata.name
+      value: gamewarden-audit
+    asserts:
+      - equal:
+          path: spec.source.architecture.name
+          value: audit-explorer
+      # `board` is what makes the rendered Grafana uid equal this CR's
+      # name, so a board on screen traces back to the CR with no lookup.
+      - equal:
+          path: spec.source.architecture.params.board
+          value: audit
+      # The Ruby kwargs are NOT splatted through. `stream` in particular
+      # carries double quotes, and lava binds params textually — pasted
+      # into a tlisp string literal it would close the literal early and
+      # evaluate a document nobody wrote. The architecture composes its
+      # selector from `namespace` instead.
+      - notExists:
+          path: spec.source.architecture.params.stream
+
+  - it: adding an unported board to the boundary fails the render
+    values:
+      - ../examples/gamewarden.values.yaml
+    set:
+      observe.platformBoards:
+        - name: security-posture
+          architecture: SecurityPostureBoard
+          params: { datasource: vm }
+    asserts:
+      # The guarantee is only worth something if it still bites when
+      # someone edits the boundary values later. Named, so the failure
+      # says which board to port.
+      - failedTemplate:
+          errorPattern: "lava-only but platform board security-posture"
