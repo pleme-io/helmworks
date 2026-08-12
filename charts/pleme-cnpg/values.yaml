@@ -128,6 +128,31 @@ walArchive:
   wal:
     compression: gzip
     maxParallel: 8
+    # ["--no-partial"] by default, and it is a correctness fix, not a tuning knob.
+    #
+    # barman's OWN source states the hazard (barman/clients/cloud_walrestore.py:79-88):
+    # "If a standby server is archiving and gets promoted to primary, it will
+    #  attempt to archive the incomplete WAL segment as a .partial file, and then
+    #  the WALs from the new timeline. When executing a barman-cloud-wal-restore
+    #  through restore_command, it might find the .partial file instead of the
+    #  complete WAL file and unintentionally apply those changes."
+    #
+    # So the default (partial substitution ON) can replay an INCOMPLETE segment
+    # from the OLD timeline in preference to the complete one, silently. This
+    # cluster runs instances: 2 -- a promotion is a normal event here, not an
+    # exotic one.
+    #
+    # Verified before landing, not assumed:
+    #   * `restoreAdditionalCommandArgs` is PRESENT on the live
+    #     clusters.postgresql.cnpg.io CRD (queried against rio).
+    #   * `--no-partial` exists in the barman we actually ship
+    #     (cloud_walrestore.py:102, argparse store_true, default False).
+    #
+    # Empty list = CNPG's default = partial substitution ON. Set it to []
+    # deliberately only if some consumer genuinely needs a .partial served,
+    # and say why at the call site.
+    restoreAdditionalCommandArgs:
+      - "--no-partial"
 
 # ── Scheduled base backup ──────────────────────────────────────────
 #

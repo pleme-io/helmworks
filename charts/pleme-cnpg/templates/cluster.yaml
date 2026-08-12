@@ -130,6 +130,10 @@ spec:
         wal:
           compression: {{ .Values.walArchive.wal.compression }}
           maxParallel: {{ .Values.walArchive.wal.maxParallel }}
+          {{- with .Values.walArchive.wal.restoreAdditionalCommandArgs }}
+          restoreAdditionalCommandArgs:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
   {{- end }}
 
   {{- if .Values.walArchive.enabled }}
@@ -147,6 +151,10 @@ spec:
       wal:
         compression: {{ .Values.walArchive.wal.compression }}
         maxParallel: {{ .Values.walArchive.wal.maxParallel }}
+        {{- with .Values.walArchive.wal.restoreAdditionalCommandArgs }}
+        restoreAdditionalCommandArgs:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
     retentionPolicy: {{ .Values.walArchive.retentionPolicy | quote }}
   {{- end }}
 {{- end }}
