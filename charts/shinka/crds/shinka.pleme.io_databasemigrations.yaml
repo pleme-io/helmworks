@@ -112,6 +112,16 @@ spec:
                     description: Reference to a direct (non-CNPG) database connection. Mutually exclusive with `cnpgClusterRef`/`clickhouseRef`; exactly one MUST be set.
                     nullable: true
                     properties:
+                      adoptChangelog:
+                        description: |-
+                          Adopt [`Self::changelog_config_map_ref`] wholesale instead of executing it — only legal ALONGSIDE [`Self::sql_config_map_ref`], which supplies the schema the adoption is claiming.
+
+                          **Why this exists, when the CLI's adoption is deliberately human-only.** A human gate is the right answer when the stop point is a JUDGEMENT: a bound past what the database holds marks never-run changesets applied and nothing downstream can detect it. Here the bound is not a judgement. The SQL ConfigMap is a SNAPSHOT of the schema that this exact changelog produces, and the two are versioned in the same commit — so "every changeset in this changelog is present" is a verifiable property of the pairing, not something an operator is asked to believe.
+
+                          **Why it is a field on the SAME ref rather than a second CR.** Applying the snapshot and recording the adoption must happen in that order, and shinka gives no cross-CR ordering. Two CRs would let the adoption land first, leaving a ledger that claims the whole changelog while the schema is empty — the precise durable lie adoption exists to prevent. One CR makes the order internal and the wrong order unrepresentable.
+
+                          This is what makes a snapshot the base and the changelog the FUTURE, which is the only workable shape when upstream's changelogs cannot build a database from empty (17 akeyless foundation tables have no `createTable` anywhere in them).
+                        type: boolean
                       changelogConfigMapRef:
                         description: |-
                           ConfigMap providing Liquibase changelog documents, applied through keifu ([`crate::keifu_apply::run_lineage`]).
@@ -121,6 +131,15 @@ spec:
                           Each ConfigMap key is one changelog document. Keys may hold several services' changelogs at once — `keifu_apply::LineageKey` carries the source filename precisely so their changesets cannot collide.
                         nullable: true
                         properties:
+                          keys:
+                            description: |-
+                              Apply only these keys, in the order given. `None` applies every key in lexical order (the historical behaviour, and still the default).
+
+                              Exists because one ConfigMap can carry several databases' snapshots — akeyless ships `authdb.sql`, `uamdb.sql`, … in a single map — while a snapshot+adopt migration is PER DATABASE, since the ledger is. Without a selector each of the six CRs would apply all six dumps, and those dumps open with a table-drop per table: the fifth CR would drop and rebuild what the first four had already adopted. Selecting the key is what makes one shared snapshot artifact safe to reference from many CRs.
+                            items:
+                              type: string
+                            nullable: true
+                            type: array
                           name:
                             description: Name of the configmap
                             type: string
@@ -148,7 +167,10 @@ spec:
                         - postgres
                         type: string
                       host:
-                        description: Service hostname of the database (e.g. `akeyless-saas-akeyless-mysql`).
+                        description: |-
+                          Service hostname of the database (e.g. `mysql` or `my-release-mysql.my-namespace.svc.cluster.local`).
+
+                          Deliberately a generic example: this doc comment is rendered into the generated CRD's `description`, which ships in every chart that carries the CRD. A consumer's own service name in that field would put one deployment's private naming into an artifact distributed to all of them.
                         type: string
                       passwordKey:
                         default: password
@@ -167,6 +189,15 @@ spec:
                           Optional since the changelog source landed: exactly one of this and [`Self::changelog_config_map_ref`] must be set, enforced by [`Self::source`]. It was non-`Option` while it was the only source, and a CR omitting it failed deserialization with `missing field sqlConfigMapRef` — which is the right error for a one-source world and the wrong one for two.
                         nullable: true
                         properties:
+                          keys:
+                            description: |-
+                              Apply only these keys, in the order given. `None` applies every key in lexical order (the historical behaviour, and still the default).
+
+                              Exists because one ConfigMap can carry several databases' snapshots — akeyless ships `authdb.sql`, `uamdb.sql`, … in a single map — while a snapshot+adopt migration is PER DATABASE, since the ledger is. Without a selector each of the six CRs would apply all six dumps, and those dumps open with a table-drop per table: the fifth CR would drop and rebuild what the first four had already adopted. Selecting the key is what makes one shared snapshot artifact safe to reference from many CRs.
+                            items:
+                              type: string
+                            nullable: true
+                            type: array
                           name:
                             description: Name of the configmap
                             type: string
@@ -229,6 +260,15 @@ spec:
                           description: Reference to a ConfigMap
                           nullable: true
                           properties:
+                            keys:
+                              description: |-
+                                Apply only these keys, in the order given. `None` applies every key in lexical order (the historical behaviour, and still the default).
+
+                                Exists because one ConfigMap can carry several databases' snapshots — akeyless ships `authdb.sql`, `uamdb.sql`, … in a single map — while a snapshot+adopt migration is PER DATABASE, since the ledger is. Without a selector each of the six CRs would apply all six dumps, and those dumps open with a table-drop per table: the fifth CR would drop and rebuild what the first four had already adopted. Selecting the key is what makes one shared snapshot artifact safe to reference from many CRs.
+                              items:
+                                type: string
+                              nullable: true
+                              type: array
                             name:
                               description: Name of the configmap
                               type: string
@@ -479,6 +519,15 @@ spec:
                             description: Reference to a ConfigMap
                             nullable: true
                             properties:
+                              keys:
+                                description: |-
+                                  Apply only these keys, in the order given. `None` applies every key in lexical order (the historical behaviour, and still the default).
+
+                                  Exists because one ConfigMap can carry several databases' snapshots — akeyless ships `authdb.sql`, `uamdb.sql`, … in a single map — while a snapshot+adopt migration is PER DATABASE, since the ledger is. Without a selector each of the six CRs would apply all six dumps, and those dumps open with a table-drop per table: the fifth CR would drop and rebuild what the first four had already adopted. Selecting the key is what makes one shared snapshot artifact safe to reference from many CRs.
+                                items:
+                                  type: string
+                                nullable: true
+                                type: array
                               name:
                                 description: Name of the configmap
                                 type: string
@@ -683,10 +732,10 @@ spec:
                 type: array
               safety:
                 default:
-                  requireHealthyCluster: true
-                  maxRetries: 3
                   checksumMode: auto-reconcile
                   continueOnFailure: false
+                  maxRetries: 3
+                  requireHealthyCluster: true
                 description: Safety settings
                 properties:
                   checksumMode:
