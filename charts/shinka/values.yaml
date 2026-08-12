@@ -71,7 +71,27 @@ rbac:
     - apiGroups: [""]
       resources: ["configmaps", "secrets"]
       verbs: ["get", "list"]
-    - apiGroups: [""]
+    # BOTH event API groups, and the pair is the fix rather than belt-and-braces.
+    #
+    # Kubernetes ships two Events APIs — core/v1 `events` and `events.k8s.io/v1`
+    # `events` — and a grant for one does NOT cover the other. This rule listed
+    # only `""`, while kube-rs's recorder writes to events.k8s.io, so every event
+    # the controller tried to publish was rejected:
+    #
+    #   events.events.k8s.io is forbidden: User "system:serviceaccount:camelot:
+    #   shinka" cannot create resource "events" in API group "events.k8s.io"
+    #
+    # MEASURED 2026-08-12 in camelot, and the consequence is worse than a missing
+    # nicety: six DatabaseMigrations failed with distinct, well-written typed
+    # errors, and NONE of them surfaced as a Kubernetes Event. `kubectl describe`
+    # and `kubectl get events` showed nothing at all. The only signal was
+    # `status.phase: Failed` plus the controller's own stdout — so diagnosing it
+    # meant knowing to read the pod logs of a controller you may not know exists.
+    #
+    # The failure is logged at DEBUG and swallowed, which is the right call for a
+    # non-essential side channel; it is also why this went unnoticed. A grant
+    # this cheap should never be the reason a typed error is invisible.
+    - apiGroups: ["", "events.k8s.io"]
       resources: ["events"]
       verbs: ["create", "patch"]
 
