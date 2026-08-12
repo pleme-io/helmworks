@@ -112,6 +112,15 @@ spec:
                     description: Reference to a direct (non-CNPG) database connection. Mutually exclusive with `cnpgClusterRef`/`clickhouseRef`; exactly one MUST be set.
                     nullable: true
                     properties:
+                      adoptChangelog:
+                        description: |-
+                          **The old boolean spelling, kept ONLY so a rename survives a rolling deploy.** Deserialized and ignored; never emitted.
+
+                          Renaming a CRD field without a transition breaks the deploy in whichever order it happens, and I proved that live: applying the new schema while the previous controller image was still emitting `adoptChangelog` made every migration apply fail with `field not declared in schema`, and the environment sat Warming for 1500s. The schema and its emitter cannot be updated atomically, so the schema has to accept BOTH for one release.
+
+                          A CRD `properties` map is closed: a field the types do not declare is PRUNED, so an old CR silently loses this and reads as no adoption at all. Declaring it keeps that old CR parseable until its controller rolls. Remove it once no deployed image emits the boolean. `pending-adopt-changelog-alias`
+                        nullable: true
+                        type: boolean
                       adoptChangelogThrough:
                         description: |-
                           Record this changelog as applied UP TO AND INCLUDING the named changeset, then EXECUTE everything after it. Only legal alongside [`Self::sql_config_map_ref`], which supplies the schema being claimed.
