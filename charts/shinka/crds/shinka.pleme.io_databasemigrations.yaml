@@ -112,16 +112,21 @@ spec:
                     description: Reference to a direct (non-CNPG) database connection. Mutually exclusive with `cnpgClusterRef`/`clickhouseRef`; exactly one MUST be set.
                     nullable: true
                     properties:
-                      adoptChangelog:
+                      adoptChangelogThrough:
                         description: |-
-                          Adopt [`Self::changelog_config_map_ref`] wholesale instead of executing it — only legal ALONGSIDE [`Self::sql_config_map_ref`], which supplies the schema the adoption is claiming.
+                          Record this changelog as applied UP TO AND INCLUDING the named changeset, then EXECUTE everything after it. Only legal alongside [`Self::sql_config_map_ref`], which supplies the schema being claimed.
+
+                          **The cut is required and has no default, because defaulting to the head is a measured mistake I made and shipped.** The first version of this field was a bool that adopted the WHOLE changelog, justified by "the snapshot is the end state of exactly this changelog". Measured on a live environment: `authdb.oidc_consent_requests.enc_session` was `varchar(8000)` while auth changeset 41 makes it `text` — the dump was cut BEFORE the changelog head, so 40 of 40 changesets were recorded while at least one had demonstrably never run, and being recorded, never would.
+
+                          **The error is asymmetric, which is why a cut is safe to state by hand.** Too LOW and the remainder re-applies DDL that is already present, which fails loudly on the next reconcile with a duplicate-column error naming the changeset. Too HIGH and it lies silently forever. So state the cut conservatively: a wrong-low cut is self-detecting, a wrong-high cut is not detectable at all.
 
                           **Why this exists, when the CLI's adoption is deliberately human-only.** A human gate is the right answer when the stop point is a JUDGEMENT: a bound past what the database holds marks never-run changesets applied and nothing downstream can detect it. Here the bound is not a judgement. The SQL ConfigMap is a SNAPSHOT of the schema that this exact changelog produces, and the two are versioned in the same commit — so "every changeset in this changelog is present" is a verifiable property of the pairing, not something an operator is asked to believe.
 
                           **Why it is a field on the SAME ref rather than a second CR.** Applying the snapshot and recording the adoption must happen in that order, and shinka gives no cross-CR ordering. Two CRs would let the adoption land first, leaving a ledger that claims the whole changelog while the schema is empty — the precise durable lie adoption exists to prevent. One CR makes the order internal and the wrong order unrepresentable.
 
                           This is what makes a snapshot the base and the changelog the FUTURE, which is the only workable shape when upstream's changelogs cannot build a database from empty (17 akeyless foundation tables have no `createTable` anywhere in them).
-                        type: boolean
+                        nullable: true
+                        type: string
                       changelogConfigMapRef:
                         description: |-
                           ConfigMap providing Liquibase changelog documents, applied through keifu ([`crate::keifu_apply::run_lineage`]).
