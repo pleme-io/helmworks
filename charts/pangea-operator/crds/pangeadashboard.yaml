@@ -18,16 +18,16 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .spec.folder
+    - jsonPath: ".spec.folder"
       name: Folder
       type: string
-    - jsonPath: .status.phase
+    - jsonPath: ".status.phase"
       name: Phase
       type: string
-    - jsonPath: .status.dashboardUid
+    - jsonPath: ".status.dashboardUid"
       name: Dashboard
       type: string
-    - jsonPath: .metadata.creationTimestamp
+    - jsonPath: ".metadata.creationTimestamp"
       name: Age
       type: date
     name: v1alpha1
@@ -36,12 +36,14 @@ spec:
         description: Auto-generated derived type for PangeaDashboardSpec via `CustomResource`
         properties:
           spec:
-            description: PangeaDashboard synthesizes a Grafana dashboard from Pangea Ruby DSL.
+            description: PangeaDashboard synthesizes a Grafana dashboard from Pangea
+              Ruby DSL.
             properties:
               extendModules:
                 default:
                 - Pangea::Grafana
-                description: Ruby modules to extend the synthesizer with before evaluation. Defaults to `["Pangea::Grafana"]` for dashboard builder access.
+                description: Ruby modules to extend the synthesizer with before evaluation.
+                  Defaults to `["Pangea::Grafana"]` for dashboard builder access.
                 items:
                   type: string
                 type: array
@@ -53,7 +55,8 @@ spec:
                 additionalProperties:
                   type: string
                 default: {}
-                description: 'Label selector for the target Grafana instance. Must match the Grafana CR''s labels (e.g., `dashboards: grafana`).'
+                description: 'Label selector for the target Grafana instance. Must
+                  match the Grafana CR''s labels (e.g., `dashboards: grafana`).'
                 type: object
               message:
                 description: Commit message for Grafana's built-in version tracking.
@@ -61,18 +64,38 @@ spec:
                 type: string
               overwrite:
                 default: true
-                description: Whether to overwrite an existing dashboard with the same UID.
+                description: Whether to overwrite an existing dashboard with the same
+                  UID.
                 type: boolean
               source:
-                description: Dashboard source — inline Ruby DSL or reference to a ConfigMap.
+                description: Dashboard source — inline Ruby DSL or reference to a
+                  ConfigMap.
                 oneOf:
                 - required:
                   - inline
                 - required:
+                  - inlineTlisp
+                - required:
+                  - architecture
+                - required:
                   - configMapRef
                 properties:
+                  architecture:
+                    description: A named architecture from the image's catalogue,
+                      plus its parameters. Carries no evaluable source.
+                    properties:
+                      name:
+                        description: Catalogue entry name, e.g. `workload-overview`.
+                        type: string
+                      params:
+                        description: Parameters bound into the architecture.
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
+                    required:
+                    - name
+                    type: object
                   configMapRef:
-                    description: Reference to a ConfigMap containing the Ruby source.
+                    description: Reference to a ConfigMap containing the source.
                     properties:
                       key:
                         description: Key within the ConfigMap.
@@ -85,18 +108,31 @@ spec:
                     - name
                     type: object
                   inline:
-                    description: Inline Ruby code that returns a Grafana dashboard JSON string.
+                    description: Inline Ruby code that returns a Grafana dashboard
+                      JSON string.
                     properties:
                       ruby:
-                        description: Ruby source code. Must return a JSON string (e.g., via DashboardBuilder.build).
+                        description: Ruby source code. Must return a JSON string (e.g.,
+                          via DashboardBuilder.build).
                         type: string
                     required:
                     - ruby
                     type: object
+                  inlineTlisp:
+                    description: 'Inline tatara-lisp: a `(deflava-dashboard …)` form.'
+                    properties:
+                      tlisp:
+                        description: tatara-lisp source. Evaluated by the lava backend.
+                        type: string
+                    required:
+                    - tlisp
+                    type: object
                 type: object
               suspend:
                 default: false
-                description: When true, the dashboard controller skips synthesis + Grafana publish entirely. Compose with the cluster-scoped `OperatorPolicy/default` for fleet-wide pause.
+                description: When true, the dashboard controller skips synthesis +
+                  Grafana publish entirely. Compose with the cluster-scoped `OperatorPolicy/default`
+                  for fleet-wide pause.
                 type: boolean
             required:
             - source
@@ -135,11 +171,13 @@ spec:
                   type: object
                 type: array
               configMapName:
-                description: Name of the generated ConfigMap containing dashboard JSON.
+                description: Name of the generated ConfigMap containing dashboard
+                  JSON.
                 nullable: true
                 type: string
               dashboardUid:
-                description: UID of the dashboard in Grafana (extracted from synthesized JSON).
+                description: UID of the dashboard in Grafana (extracted from synthesized
+                  JSON).
                 nullable: true
                 type: string
               error:
@@ -165,7 +203,8 @@ spec:
                 nullable: true
                 type: string
               sourceHash:
-                description: SHA-256 hash of the last successfully compiled Ruby source. Used for change detection to avoid unnecessary recompilations.
+                description: SHA-256 hash of the last successfully compiled Ruby source.
+                  Used for change detection to avoid unnecessary recompilations.
                 nullable: true
                 type: string
             type: object

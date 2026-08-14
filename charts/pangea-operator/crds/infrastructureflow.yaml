@@ -18,16 +18,16 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .status.phase
+    - jsonPath: ".status.phase"
       name: Phase
       type: string
-    - jsonPath: .status.totalSteps
+    - jsonPath: ".status.totalSteps"
       name: Steps
       type: integer
-    - jsonPath: .status.readySteps
+    - jsonPath: ".status.readySteps"
       name: Ready
       type: integer
-    - jsonPath: .metadata.creationTimestamp
+    - jsonPath: ".metadata.creationTimestamp"
       name: Age
       type: date
     name: v1alpha1
@@ -36,26 +36,32 @@ spec:
         description: Auto-generated derived type for InfrastructureFlowSpec via `CustomResource`
         properties:
           spec:
-            description: InfrastructureFlow orchestrates multiple InfrastructureTemplates as a DAG.
+            description: InfrastructureFlow orchestrates multiple InfrastructureTemplates
+              as a DAG.
             properties:
               destroyOrder:
                 default: reverse
-                description: 'How to order destruction. Default: reverse dependency order.'
+                description: 'How to order destruction. Default: reverse dependency
+                  order.'
                 enum:
                 - reverse
                 - parallel
                 - none
                 type: string
               destroyProtection:
-                default: false
-                description: Prevent destruction of all templates in this flow.
+                default: true
+                description: |-
+                  Prevent destruction of all templates in this flow. **Defaults to `true`.**
+
+                  Same reasoning and same default as [`InfrastructureTemplateSpec::destroy_protection`]: it was `#[serde(default)]` on a bool, i.e. `false`, so a flow that never mentioned the field was destroyable BY SAYING NOTHING — and a flow carries N templates, so the blast radius of that silence was larger here than on a single template.
                 type: boolean
               pangeaNamespace:
                 description: PangeaNamespace for all templates in this flow.
                 type: string
               parallelism:
                 default: 1
-                description: 'Maximum number of templates to reconcile in parallel. Default: 1.'
+                description: 'Maximum number of templates to reconcile in parallel.
+                  Default: 1.'
                 format: uint32
                 minimum: 0.0
                 type: integer
@@ -74,7 +80,12 @@ spec:
                         type: string
                       type: array
                     destroyProtection:
-                      description: Override destroy protection for this step.
+                      description: |-
+                        Override destroy protection for this step. **Can only RAISE it.**
+
+                        `Some(true)` protects a step inside an unprotected flow. `Some(false)` does NOT unprotect a step inside a protected flow — see [`InfrastructureFlowSpec::step_destroy_protection`], which takes the stricter of the two.
+
+                        A per-step override that could lower the flow's protection is a second, quieter place to arrive at a destroy: the flow says protected, one step buried in a list says otherwise, and the reader of the flow spec sees only the protection. Monotone-upward removes that shape entirely.
                       nullable: true
                       type: boolean
                     name:
@@ -90,7 +101,8 @@ spec:
                       properties:
                         backoff:
                           default: exponential
-                          description: 'Backoff strategy: exponential (default), linear, or constant.'
+                          description: 'Backoff strategy: exponential (default), linear,
+                            or constant.'
                           enum:
                           - exponential
                           - linear
@@ -112,28 +124,35 @@ spec:
                           type: integer
                       type: object
                     templateRef:
-                      description: Template to deploy. Either reference an existing template or provide inline source.
+                      description: Template to deploy. Either reference an existing
+                        template or provide inline source.
                       properties:
                         name:
-                          description: Name of an existing InfrastructureTemplate to manage.
+                          description: Name of an existing InfrastructureTemplate
+                            to manage.
                           nullable: true
                           type: string
                         source:
-                          description: Inline template source. The flow controller creates an InfrastructureTemplate from this source, named `{flow}-{step}`.
+                          description: Inline template source. The flow controller
+                            creates an InfrastructureTemplate from this source, named
+                            `{flow}-{step}`.
                           nullable: true
                           properties:
                             configMapRef:
-                              description: Reference to a ConfigMap containing the template.
+                              description: Reference to a ConfigMap containing the
+                                template.
                               nullable: true
                               properties:
                                 key:
-                                  description: Key within the ConfigMap containing the template.
+                                  description: Key within the ConfigMap containing
+                                    the template.
                                   type: string
                                 name:
                                   description: Name of the ConfigMap.
                                   type: string
                                 namespace:
-                                  description: Namespace of the ConfigMap (defaults to same namespace as the InfrastructureTemplate).
+                                  description: Namespace of the ConfigMap (defaults
+                                    to same namespace as the InfrastructureTemplate).
                                   nullable: true
                                   type: string
                               required:
@@ -141,25 +160,30 @@ spec:
                               - name
                               type: object
                             gitRepository:
-                              description: Reference to a Git repository containing the template.
+                              description: Reference to a Git repository containing
+                                the template.
                               nullable: true
                               properties:
                                 path:
-                                  description: Path to the template file within the repository.
+                                  description: Path to the template file within the
+                                    repository.
                                   type: string
                                 ref:
                                   default: main
-                                  description: Git reference (branch, tag, or commit SHA).
+                                  description: Git reference (branch, tag, or commit
+                                    SHA).
                                   type: string
                                 secretRef:
-                                  description: Reference to a Secret containing Git credentials.
+                                  description: Reference to a Secret containing Git
+                                    credentials.
                                   nullable: true
                                   properties:
                                     name:
                                       description: Name of the Secret.
                                       type: string
                                     namespace:
-                                      description: Namespace of the Secret (defaults to same namespace as the resource).
+                                      description: Namespace of the Secret (defaults
+                                        to same namespace as the resource).
                                       nullable: true
                                       type: string
                                   required:
@@ -180,7 +204,8 @@ spec:
                       type: object
                     variables:
                       additionalProperties: true
-                      description: Variables for this step. Values may contain {{ steps.X.outputs.Y }} references.
+                      description: Variables for this step. Values may contain {{
+                        steps.X.outputs.Y }} references.
                       nullable: true
                       type: object
                   required:
@@ -276,8 +301,11 @@ spec:
                       nullable: true
                       type: string
                     state:
-                      description: Full terraform state snapshot (from `tofu show -json`). Enables {{ steps.X.state.resource_type.resource_name.attribute }} references. Stored as an opaque JSON object.
+                      description: Full terraform state snapshot (from `tofu show
+                        -json`). Enables {{ steps.X.state.resource_type.resource_name.attribute
+                        }} references. Stored as an opaque JSON object.
                       type: object
+                      x-kubernetes-preserve-unknown-fields: true
                     templateName:
                       description: Name of the managed InfrastructureTemplate.
                       nullable: true

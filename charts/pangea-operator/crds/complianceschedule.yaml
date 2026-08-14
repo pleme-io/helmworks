@@ -1,3 +1,4 @@
+---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
@@ -17,19 +18,19 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .status.phase
+    - jsonPath: ".status.phase"
       name: Phase
       type: string
-    - jsonPath: .spec.schedule
+    - jsonPath: ".spec.schedule"
       name: Schedule
       type: string
-    - jsonPath: .status.lastRunAt
+    - jsonPath: ".status.lastRunAt"
       name: Last Run
       type: date
-    - jsonPath: .status.controlSummary
+    - jsonPath: ".status.controlSummary"
       name: Controls
       type: string
-    - jsonPath: .metadata.creationTimestamp
+    - jsonPath: ".metadata.creationTimestamp"
       name: Age
       type: date
     name: v1alpha1
@@ -38,8 +39,9 @@ spec:
         description: Auto-generated derived type for ComplianceScheduleSpec via `CustomResource`
         properties:
           spec:
-            description: ComplianceSchedule drives continuous compliance testing against live infrastructure
-              and feeds results into the observability + gating pipeline.
+            description: ComplianceSchedule drives continuous compliance testing against
+              live infrastructure and feeds results into the observability + gating
+              pipeline.
             properties:
               attestation:
                 description: Tameshi attestation configuration.
@@ -63,12 +65,14 @@ spec:
                       type: string
                     type: array
                   signatureGateRef:
-                    description: Reference to a sekiban SignatureGate to update with compliance hash.
+                    description: Reference to a sekiban SignatureGate to update with
+                      compliance hash.
                     nullable: true
                     type: string
                 type: object
               onChange:
-                description: Trigger a run when referenced InfrastructureTemplates change.
+                description: Trigger a run when referenced InfrastructureTemplates
+                  change.
                 items:
                   description: Reference to another InfrastructureTemplate.
                   properties:
@@ -76,7 +80,8 @@ spec:
                       description: Name of the InfrastructureTemplate.
                       type: string
                     namespace:
-                      description: Namespace (defaults to same namespace as the referencing template).
+                      description: Namespace (defaults to same namespace as the referencing
+                        template).
                       nullable: true
                       type: string
                   required:
@@ -94,25 +99,29 @@ spec:
                 nullable: true
                 properties:
                   akeyless:
-                    description: "Akeyless credentials configuration. Used by templates whose Ruby workspace\
-                      \ declares an inline `provider :akeyless do api_key_login( access_id:, access_key:)\
-                      \ end` block (e.g. workspaces/akeyless-dev-shaar-concentrator, added 2026-07-21\
-                      \ for Pangea::Architectures::ShaarAkeyless \u2014 Step 0 of theory/SHAAR-CAMELOT-BINDING.md\
-                      \ \xA74). Ruby-side authority model, same as GitHub: the referenced Secret's data\
-                      \ keys (typically `AKEYLESS_ACCESS_ID` / `AKEYLESS_ACCESS_KEY` / optionally `AKEYLESS_API_GATEWAY`)\
-                      \ are installed verbatim as env vars by the generic `iter_secret_refs` injection\
-                      \ loop; the Ruby workspace reads them via `ENV.fetch(...)`. The operator never renders\
-                      \ its own `provider \"akeyless\" { ... }` block."
+                    description: 'Akeyless credentials configuration. Used by templates
+                      whose Ruby workspace declares an inline `provider :akeyless
+                      do api_key_login( access_id:, access_key:) end` block (e.g.
+                      workspaces/akeyless-dev-shaar-concentrator, added 2026-07-21
+                      for Pangea::Architectures::ShaarAkeyless — Step 0 of theory/SHAAR-CAMELOT-BINDING.md
+                      §4). Ruby-side authority model, same as GitHub: the referenced
+                      Secret''s data keys (typically `AKEYLESS_ACCESS_ID` / `AKEYLESS_ACCESS_KEY`
+                      / optionally `AKEYLESS_API_GATEWAY`) are installed verbatim
+                      as env vars by the generic `iter_secret_refs` injection loop;
+                      the Ruby workspace reads them via `ENV.fetch(...)`. The operator
+                      never renders its own `provider "akeyless" { ... }` block.'
                     nullable: true
                     properties:
                       secretRef:
-                        description: Secret containing the Akeyless access-id/access-key pair.
+                        description: Secret containing the Akeyless access-id/access-key
+                          pair.
                         properties:
                           name:
                             description: Name of the Secret.
                             type: string
                           namespace:
-                            description: Namespace of the Secret (defaults to same namespace as the resource).
+                            description: Namespace of the Secret (defaults to same
+                              namespace as the resource).
                             nullable: true
                             type: string
                         required:
@@ -140,7 +149,8 @@ spec:
                             description: Name of the Secret.
                             type: string
                           namespace:
-                            description: Namespace of the Secret (defaults to same namespace as the resource).
+                            description: Namespace of the Secret (defaults to same
+                              namespace as the resource).
                             nullable: true
                             type: string
                         required:
@@ -160,7 +170,35 @@ spec:
                             description: Name of the Secret.
                             type: string
                           namespace:
-                            description: Namespace of the Secret (defaults to same namespace as the resource).
+                            description: Namespace of the Secret (defaults to same
+                              namespace as the resource).
+                            nullable: true
+                            type: string
+                        required:
+                        - name
+                        type: object
+                    required:
+                    - secretRef
+                    type: object
+                  datadog:
+                    description: Datadog credentials configuration. Used by the absorbed
+                      Datadog estate workspace (workspaces/akeyless-datadog), whose
+                      shard entry points declare `provider :datadog` with `ENV.fetch`.
+                      Without this field the chart's `providerCredentials.datadog`
+                      was silently DROPPED by serde -- no error, no condition -- and
+                      every RPC fell back to the pod's ambient credential chain.
+                    nullable: true
+                    properties:
+                      secretRef:
+                        description: Secret containing the Datadog API and application
+                          keys.
+                        properties:
+                          name:
+                            description: Name of the Secret.
+                            type: string
+                          namespace:
+                            description: Namespace of the Secret (defaults to same
+                              namespace as the resource).
                             nullable: true
                             type: string
                         required:
@@ -170,10 +208,11 @@ spec:
                     - secretRef
                     type: object
                   github:
-                    description: "GitHub credentials configuration. Used by templates that declare github_*\
-                      \ providers (e.g. pangea-github's `cloudflare_zero_trust_*` adjacent shapes \u2014\
-                      \ repos, runner groups, branch protection). Same shape as the cloudflare credentials\
-                      \ block: a secretRef to a Secret containing a PAT."
+                    description: 'GitHub credentials configuration. Used by templates
+                      that declare github_* providers (e.g. pangea-github''s `cloudflare_zero_trust_*`
+                      adjacent shapes — repos, runner groups, branch protection).
+                      Same shape as the cloudflare credentials block: a secretRef
+                      to a Secret containing a PAT.'
                     nullable: true
                     properties:
                       secretRef:
@@ -183,7 +222,8 @@ spec:
                             description: Name of the Secret.
                             type: string
                           namespace:
-                            description: Namespace of the Secret (defaults to same namespace as the resource).
+                            description: Namespace of the Secret (defaults to same
+                              namespace as the resource).
                             nullable: true
                             type: string
                         required:
@@ -193,22 +233,26 @@ spec:
                     - secretRef
                     type: object
                   porkbun:
-                    description: "Porkbun credentials configuration. Used by templates that declare `porkbun_*`\
-                      \ resources (e.g. `platform-dns`'s registrar delegation) via the `marcfrederick/porkbun`\
-                      \ terraform provider. Same operator-side authority model as AWS/Cloudflare: the\
-                      \ referenced Secret holds the two-part `api_key` + `secret_api_key` credential pair,\
-                      \ resolved by the operator and rendered into its own ephemeral `providers.tf.json`\
-                      \ \u2014 never baked into the workspace's own compiled/git-committed output."
+                    description: 'Porkbun credentials configuration. Used by templates
+                      that declare `porkbun_*` resources (e.g. `platform-dns`''s registrar
+                      delegation) via the `marcfrederick/porkbun` terraform provider.
+                      Same operator-side authority model as AWS/Cloudflare: the referenced
+                      Secret holds the two-part `api_key` + `secret_api_key` credential
+                      pair, resolved by the operator and rendered into its own ephemeral
+                      `providers.tf.json` — never baked into the workspace''s own
+                      compiled/git-committed output.'
                     nullable: true
                     properties:
                       secretRef:
-                        description: Secret containing the Porkbun `api_key` + `secret_api_key` pair.
+                        description: Secret containing the Porkbun `api_key` + `secret_api_key`
+                          pair.
                         properties:
                           name:
                             description: Name of the Secret.
                             type: string
                           namespace:
-                            description: Namespace of the Secret (defaults to same namespace as the resource).
+                            description: Namespace of the Secret (defaults to same
+                              namespace as the resource).
                             nullable: true
                             type: string
                         required:
@@ -257,7 +301,8 @@ spec:
                             description: Name of the Secret.
                             type: string
                           namespace:
-                            description: Namespace of the Secret (defaults to same namespace as the resource).
+                            description: Namespace of the Secret (defaults to same
+                              namespace as the resource).
                             nullable: true
                             type: string
                         required:
@@ -298,8 +343,8 @@ spec:
                 nullable: true
                 type: string
               schedule:
-                description: Cron schedule for compliance runs (e.g., "0 */6 * * *"). If omitted, runs
-                  only on infrastructure change events.
+                description: Cron schedule for compliance runs (e.g., "0 */6 * * *").
+                  If omitted, runs only on infrastructure change events.
                 nullable: true
                 type: string
               suites:
@@ -310,9 +355,10 @@ spec:
                     config:
                       description: Additional runner configuration.
                       type: object
+                      x-kubernetes-preserve-unknown-fields: true
                     controlFamilies:
-                      description: NIST 800-53 control family mappings for this suite. Used for compliance
-                        reporting and OSCAL export.
+                      description: NIST 800-53 control family mappings for this suite.
+                        Used for compliance reporting and OSCAL export.
                       items:
                         type: string
                       type: array
@@ -401,7 +447,8 @@ spec:
                 minimum: 0.0
                 type: integer
               controlSummary:
-                description: Human-readable control summary (e.g., "118/120 controls passed").
+                description: Human-readable control summary (e.g., "118/120 controls
+                  passed").
                 nullable: true
                 type: string
               lastRunAt:
