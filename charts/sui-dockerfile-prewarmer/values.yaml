@@ -58,17 +58,17 @@ prewarmer:
   pollIntervalSecs: 900 # 15 minutes, per the Phase 3 spec
   githubApiBase: https://api.github.com
   githubRawBase: https://raw.githubusercontent.com
-  watched:
-    - owner: akeylesslabs
-      repo: akeyless-main-repo
-      ref: master
-      path: tools/deployment/docker/base/Dockerfile
-      imageTag: akeyless/base:prewarm
-    - owner: akeylesslabs
-      repo: akeyless-main-repo
-      ref: master
-      path: tools/deployment/docker/base/Dockerfile.nonroot_gateway
-      imageTag: akeyless/gateway-nonroot:prewarm
+  # The watched set is a REQUIRED per-install value — the chart cannot know
+  # which repositories a consumer wants pre-warmed, and shipping someone
+  # else's repo/branch/path here would bake one deployment's private layout
+  # into an artifact distributed to all of them. Empty ⇒ nothing is polled.
+  #
+  #   - owner: example-org
+  #     repo: example-repo
+  #     ref: main
+  #     path: docker/base/Dockerfile
+  #     imageTag: example/base:prewarm
+  watched: []
   # Tiered L1(Redis)/L2(Postgres) cache — the same super-cache-ci backend
   # sui-dockerfile-wrapper falls through against. See sui-cache's BackendConfig.
   cacheBackend:
