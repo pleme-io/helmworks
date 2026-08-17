@@ -11,9 +11,8 @@ enabled: true
 # `pleme-io/tend/flake.nix` uses) would silently fail to compile against
 # that spec. This HelmRelease/Deployment is real and committed, matching
 # this cluster's OWN precedent for a chart authored ahead of a publishable
-# image (`pleme-breathe`/`lareira-lookout` in
-# akeyless-k8s/clusters/camelot-mode1/README.md) — installing it today would
-# ImagePullBackOff, safely, not silently.
+# image (`pleme-breathe`/`lareira-lookout` in the private GitOps repo) —
+# installing it today would ImagePullBackOff, safely, not silently.
 image:
   repository: ghcr.io/pleme-io/escuta-breathe-bridge
   tag: amd64-dev
@@ -32,7 +31,7 @@ serviceAccount:
   name: "escuta-breathe-bridge"
 
 # ─── Bridge config (env — matches src/bin/escuta_breathe_bridge.rs) ──
-# Helm fullname of the pleme-nats release in akeyless-k8s/.../infrastructure/nats
+# Helm fullname of the pleme-nats release in the GitOps repo's infrastructure/nats
 # is "nats-pleme-nats" (release name "nats" + chart name "pleme-nats" — the
 # chart's own `pleme-lib.fullname` helper concatenates them since "pleme-nats"
 # does not contain "nats" as a prefix). Matches the fleet's own live precedent

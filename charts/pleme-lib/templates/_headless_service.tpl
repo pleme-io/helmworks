@@ -1,7 +1,7 @@
 {{/*
 pleme-lib: headless Service for StatefulSet workloads
 
-Ported from the akeyless-side pleme-lib fork (mysql/uam-redis/neo4j-pleme
+Ported from a downstream pleme-lib fork (its mysql / redis / neo4j charts
 depend on it): `pleme-lib.statefulset.serviceName` computes the StatefulSet's
 governing Service name (default `<fullname>-headless`, matching the inline
 default `pleme-lib.statefulset` already uses); `pleme-lib.headlessService`

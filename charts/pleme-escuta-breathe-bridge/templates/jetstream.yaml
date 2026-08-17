@@ -1,7 +1,7 @@
 {{- if .Values.enabled }}
 {{/*
 Declare this chart's OWNED JetStream stream (BREATHE_EVENTS) via the shared
-pleme-lib template. The broker (pleme-nats, ../nats/ in akeyless-k8s) is
+pleme-lib template. The broker (pleme-nats, ../nats/ in the GitOps repo) is
 unaware of this stream — Cilium-style identity, same pattern
 pleme-tend-throttle already established for TEND_GITHUB_JOBS. Removing this
 chart removes the stream.

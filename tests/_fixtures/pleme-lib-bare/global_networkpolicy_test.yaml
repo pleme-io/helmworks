@@ -3,8 +3,8 @@ suite: pleme-lib bare-fixture — global.networkPolicy default-deny fallback
 # every workload behind a deny-all NetworkPolicy from one toggle — the lockdown
 # analogue of the global.nodeSelector / global.breathe fallbacks. This is Camelot's
 # "born locked" floor: one value denies all ingress+egress on every element, and
-# access is added back only as explicit allow rules (DNS, then the akeyless
-# SRA-bastion ingress). Per-chart networkPolicy still wins wholesale.
+# access is added back only as explicit allow rules (DNS, then the
+# bastion ingress). Per-chart networkPolicy still wins wholesale.
 templates:
   - templates/networkpolicy.yaml
 release:

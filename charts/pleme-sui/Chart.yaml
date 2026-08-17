@@ -2,7 +2,7 @@ apiVersion: v2
 name: pleme-sui
 description: "sui (粋) — Rust-native Nix build + cache platform (ro platform)"
 type: application
-version: 0.2.9
+version: 0.2.10
 appVersion: "0.2.2"
 dependencies:
   - name: pleme-lib

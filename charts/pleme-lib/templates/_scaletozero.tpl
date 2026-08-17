@@ -190,8 +190,8 @@ spec:
     - name: {{ $fullname }}.scaletozero
       rules:
         {{- /* Rejected outright. KEDA reports this ONLY in its own status: on
-               2026-08-04 all eight akeyless-saas ScaledObjects were rejected
-               for a same-value cron pair, no HPA was ever created, and nothing
+               2026-08-04 every ScaledObject in one namespace was rejected for
+               a same-value cron pair, no HPA was ever created, and nothing
                else said so. */}}
         - alert: ScaleToZeroScalerRejected
           expr: {{ $so }},ready="False"} == 1

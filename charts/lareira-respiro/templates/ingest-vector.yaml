@@ -136,7 +136,7 @@ metadata:
 spec:
   {{- $svc := ($ingest.vector).service | default dict }}
   {{- /* Default ClusterIP (rio/kind unaffected). An external tap pushing
-         cross-VPC (e.g. the akeyless Vector forward-sink reaching the tendril
+         cross-VPC (e.g. a remote Vector forward-sink reaching the tendril
          ingest over a peering) sets type: LoadBalancer + the internal-NLB
          annotations above. */}}
   type: {{ $svc.type | default "ClusterIP" }}

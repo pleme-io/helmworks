@@ -1,5 +1,5 @@
 {{/*
-pleme-lib.routing — the destination-routing seam (luis | akeyless | 2f).
+pleme-lib.routing — the destination-routing seam (luis | akeyless | partner).
 
 ONE `routing.destination` enum drives every routing surface, authored ONCE here
 so alert charts (lareira-pangea-alerts) and the respiro OBSERVE stage never fork
@@ -17,7 +17,8 @@ Destination contract:
   akeyless — INERT-IF-EMPTY. Emits a named receiver whose webhookConfigs is `[]`
              until routing.webhookUrl is wired (build-but-configure-off — the
              `dest: akeyless` seam exists and matches, the sink is a later wiring).
-  2f       — INERT-IF-EMPTY. Same seam as akeyless, a distinct receiver name.
+  partner  — INERT-IF-EMPTY. Same seam as akeyless, a distinct receiver name.
+             A generic third sink for a downstream consumer of our artifacts.
 
 Call convention — EVERY helper takes ONE dict argument:
   (dict "destination" <string> "routing" <dict> "ctx" <string>)
@@ -32,10 +33,10 @@ Call convention — EVERY helper takes ONE dict argument:
 {{- $dest := .destination -}}
 {{- $ctx := .ctx | default "routing" -}}
 {{- if not $dest -}}
-{{- fail (printf "pleme-lib.routing (%s): routing.destination is required — one of luis|akeyless|2f" $ctx) -}}
+{{- fail (printf "pleme-lib.routing (%s): routing.destination is required — one of luis|akeyless|partner" $ctx) -}}
 {{- end -}}
-{{- if not (has $dest (list "luis" "akeyless" "2f")) -}}
-{{- fail (printf "pleme-lib.routing (%s): unknown routing.destination %q — must be one of luis|akeyless|2f" $ctx $dest) -}}
+{{- if not (has $dest (list "luis" "akeyless" "partner")) -}}
+{{- fail (printf "pleme-lib.routing (%s): unknown routing.destination %q — must be one of luis|akeyless|partner" $ctx $dest) -}}
 {{- end -}}
 {{- $dest -}}
 {{- end -}}

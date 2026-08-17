@@ -2,7 +2,7 @@ apiVersion: v2
 name: pleme-lib
 description: Shared library chart for pleme-io internal services
 type: library
-version: 0.44.0
+version: 0.44.1
 # 0.44.0 (2026-08-07) -- scaleToZero.v1: scale-to-zero as a declared QUALITY.
 #
 # templates/_scaletozero.tpl. `pleme-lib.scaleToZero.v1` +
@@ -51,8 +51,8 @@ version: 0.44.0
 # collector already exports (`keda_scaledobject_state_info`, labels
 # name/exported_namespace/ready/active):
 #   ScalerRejected        -- KEDA reports a rejected ScaledObject ONLY in its
-#                            own status. On 2026-08-04 all eight akeyless-saas
-#                            ScaledObjects were rejected for a same-value cron
+#                            own status. On 2026-08-04 every ScaledObject in
+#                            one namespace was rejected for a same-value cron
 #                            pair, no HPA was ever created, and nothing else
 #                            said so.
 #   DidNotReturnToRest    -- replicas above the floor while the trigger reports
