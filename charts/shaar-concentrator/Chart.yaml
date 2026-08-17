@@ -29,7 +29,7 @@ description: |
   operator renders with `helm template | kubectl apply` from the pleme-io side,
   into its own `shaar` namespace on borrowed (guest) ground.
 type: application
-version: 0.1.0
+version: 0.1.1
 appVersion: "0.1.0"
 keywords: [shaar, wireguard, vpn, concentrator, akeyless, mesh, skunkworks, private]
 maintainers: [{name: drzzln, email: drzzln@protonmail.com}]
@@ -49,7 +49,7 @@ dependencies:
   # the ServiceAccount, and the optional breatheBand. Requires >=0.33.0 for
   # values-driven securityContext.capabilities.add and honest runAsUser:0 /
   # runAsNonRoot:false (the root+NET_ADMIN surface — same floor the twin
-  # lareira-akeyless-gateway pins).
+  # lareira-fortigate-gateway pins).
   - name: pleme-lib
     version: ">=0.33.0"
     repository: "file://../pleme-lib"

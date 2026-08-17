@@ -127,7 +127,7 @@ custom-producer → deploy → client cutover) lives in
   the Service requires *also* widening `admin.bind` to a Service-reachable
   address, and must never sit on a public path.
 - **pleme-lib version pin.** `>=0.33.0` (floor, per the helmworks floor-only
-  convention) — the same floor the twin `lareira-akeyless-gateway` pins for
+  convention) — the same floor the twin `lareira-fortigate-gateway` pins for
   values-driven `securityContext.capabilities.add` + honest `runAsUser: 0`. The
   in-tree pleme-lib (0.40.1) is vendored at release time; the ServiceAccount +
   breatheBand named templates this chart consumes are stable across that range.

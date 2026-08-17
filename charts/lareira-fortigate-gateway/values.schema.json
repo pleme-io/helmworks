@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "lareira-akeyless-gateway values",
-  "description": "Typed authoring surface for the akeyless WARP->FortiGate egress gateway. additionalProperties:false everywhere — an unknown/misspelled key is rejected at install time instead of being silently dropped by Helm.",
+  "title": "lareira-fortigate-gateway values",
+  "description": "Typed authoring surface for the WARP->FortiGate egress gateway. additionalProperties:false everywhere — an unknown/misspelled key is rejected at install time instead of being silently dropped by Helm.",
   "type": "object",
   "additionalProperties": false,
   "properties": {

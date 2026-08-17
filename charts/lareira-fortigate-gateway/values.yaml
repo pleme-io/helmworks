@@ -1,4 +1,4 @@
-# lareira-akeyless-gateway — akeyless FortiGate SSL-VPN gateway on rio.
+# lareira-fortigate-gateway — a FortiGate SSL-VPN egress gateway pod.
 #
 # ONE typed authoring surface. The chart's templates translate every key below
 # into the flat values pleme-lib.deployment consumes (command / securityContext
@@ -9,10 +9,14 @@
 #
 # One pod, two containers sharing one netns:
 #   (B) fortictl-gateway  — NET_ADMIN + /dev/net/tun; SSH-relays the
-#       SVPNCOOKIE from drzzln@cid, runs openconnect to the FortiGate, and
-#       installs ONLY split-include routes (never a default route).
+#       SVPNCOOKIE from the canonical SAML driver host, runs openconnect to the
+#       FortiGate, and installs ONLY split-include routes (never a default route).
 #   (A) cloudflared        — userspace token connector, warp-routing on,
 #       NO extra caps.
+#
+# EVERY NETWORK IDENTIFIER BELOW IS A PLACEHOLDER. The FortiGate endpoint, the
+# profile name and the SSH relay peer are REQUIRED per-install values; the chart
+# never ships a real endpoint or a real host.
 
 # ---------------------------------------------------------------------------
 # COMPLIANCE — MUST stay empty.
@@ -24,7 +28,7 @@ compliance:
   baseline: ""
 
 # Resource naming. Pins every rendered object to the shared convention.
-fullnameOverride: akeyless-gateway
+fullnameOverride: fortigate-gateway
 nameOverride: ""
 
 replicaCount: 1
@@ -65,21 +69,22 @@ nodeSelector: {}
 gateway:
   # fortictl profile NAME. Drives `command: [fortictl, gateway, --profile, <profile>]`
   # AND the profile key in the rendered fortictl.yaml ConfigMap — they stay in sync.
-  profile: akeyless
+  profile: corp
 
   fortigate:
     # openconnect target (the FortiGate SSL-VPN endpoint).
-    endpoint: office.akeyless.fans:10443
+    # REQUIRED per-install — this is a placeholder, not a real endpoint.
+    endpoint: vpn.example.com:10443
 
-  # SSH cookie-relay: pull the SVPNCOOKIE from the canonical SAML driver
-  # (drzzln@cid) over SSH instead of driving SAML in-pod.
+  # SSH cookie-relay: pull the SVPNCOOKIE from the canonical SAML driver host
+  # over SSH instead of driving SAML in-pod. REQUIRED per-install.
   relaySsh:
-    secretName: akeyless-gateway-relay-ssh   # keys: id_ed25519, known_hosts
-    peer: drzzln@cid
+    secretName: fortigate-gateway-relay-ssh   # keys: id_ed25519, known_hosts
+    peer: operator@saml-driver-host
     # Headless pod — never fall back to a local Chromium SAML flow.
     fallbackToLocal: false
 
-  # Refreshed-cookie fallback (when cid is unreachable). When NON-EMPTY, the
+  # Refreshed-cookie fallback (when the driver host is unreachable). When NON-EMPTY, the
   # ConfigMap points fortictl at this cookie-file path and DISABLES the SSH
   # relay; the operator mounts the refreshed SVPNCOOKIE Secret at this path
   # out-of-band (see the commented alternative in templates/configmap.yaml).
@@ -120,7 +125,7 @@ cloudflared:
   image: cloudflare/cloudflared
   tag: "2026.3.0"
   # Secret carrying the connector token (TUNNEL_TOKEN).
-  tokenSecret: akeyless-gateway-cloudflared-token
+  tokenSecret: fortigate-gateway-cloudflared-token
   tokenKey: token
 
 # ---------------------------------------------------------------------------
@@ -140,9 +145,9 @@ forwarding:
 # NetworkPolicy — EGRESS-ONLY (deny-all base + selective allows), NO ingress.
 # The chart always emits the built-in egress allows below; additionalEgress is
 # APPENDED to them:
-#   - DNS                              : resolve office.akeyless.fans + cid
+#   - DNS                              : resolve the FortiGate + the relay peer
 #   - 10443/TCP  fortigate-vpn         : openconnect → the FortiGate
-#   - 22/TCP     ssh-cookie-relay      : fortictl → drzzln@cid (SVPNCOOKIE)
+#   - 22/TCP     ssh-cookie-relay      : fortictl → the relay peer (SVPNCOOKIE)
 #   - 443/TCP + 7844/UDP cloudflared-edge : the sidecar's tunnel CONTROL
 #       connection to Cloudflare's edge (only when cloudflared.enabled).
 # Zero ingress is allowed.

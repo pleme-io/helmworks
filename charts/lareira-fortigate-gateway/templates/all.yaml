@@ -1,5 +1,5 @@
 {{/*
-lareira-akeyless-gateway: all resources.
+lareira-fortigate-gateway: all resources.
 
 The TRANSLATION layer. The chart's typed authoring surface (gateway.* /
 cloudflared.* / forwarding / networkPolicy / serviceMonitor / breathe) is
@@ -23,7 +23,7 @@ Deliberately NO pleme-lib.service — egress-only workload, no listening port.
 {{- $fullname := include "pleme-lib.fullname" . -}}
 
 {{/* ── Entrypoint: fortictl gateway --profile <profile> ──────────────────── */}}
-{{- $_ := set .Values "command" (list "fortictl" "gateway" "--profile" ($g.profile | default "akeyless")) -}}
+{{- $_ := set .Values "command" (list "fortictl" "gateway" "--profile" ($g.profile | default "corp")) -}}
 
 {{/* ── Args: --l3-forward only when the M4 forwarding gate is opened ──────── */}}
 {{- $args := list -}}

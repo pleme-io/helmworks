@@ -19,7 +19,7 @@ data:
       log_level: info
       state_dir: "/var/lib/fortictl"
     profiles:
-      {{ .Values.gateway.profile | default "akeyless" }}:
+      {{ .Values.gateway.profile | default "corp" }}:
         server: {{ .Values.gateway.fortigate.endpoint | quote }}
         user: ""
         # Relay-consumer mode: never drive SAML in-pod.
@@ -27,7 +27,7 @@ data:
           enable: false
         cookie_source:
         {{- if .Values.gateway.cookieFile }}
-          # Refreshed-cookie-Secret fallback (cid unreachable): read the cookie
+          # Refreshed-cookie-Secret fallback (driver host unreachable): read the cookie
           # from this mounted path; SSH relay + local SAML both disabled. The
           # operator mounts the refreshed SVPNCOOKIE Secret at this path
           # out-of-band (see the commented alternative below).
@@ -52,12 +52,12 @@ data:
         route_source: dynamic
         {{- end }}
     # ---------------------------------------------------------------------
-    # ALTERNATIVE — refreshed-cookie-Secret mode (when cid is unreachable).
+    # ALTERNATIVE — refreshed-cookie-Secret mode (driver host unreachable).
     # Instead of the live SSH relay, the operator refreshes the SVPNCOOKIE
-    # out-of-band (`fortictl emit-cookie --refresh akeyless` on the driver),
+    # out-of-band (`fortictl emit-cookie --refresh <profile>` on the driver),
     # writes it into a Secret, and mounts that Secret into the per-profile
-    # cookie cache at {state_dir}/cookies/akeyless. Then set
-    # gateway.cookieFile to that path (e.g. /var/lib/fortictl/cookies/akeyless)
+    # cookie cache at {state_dir}/cookies/<profile>. Then set
+    # gateway.cookieFile to that path (e.g. /var/lib/fortictl/cookies/corp)
     # — the relay branch above is replaced by the cookie_file branch and
     # fortictl reads the cached cookie, skipping both SSH and SAML.
     # ---------------------------------------------------------------------
