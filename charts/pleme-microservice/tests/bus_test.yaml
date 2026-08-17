@@ -5,17 +5,17 @@ tests:
   # ── OFF BY DEFAULT: an un-opted deployment must be untouched ───────────────
   - it: emits no env block at all when the bus block is absent
     set:
-      image.repository: zot.camelot.svc/akeyless-gator
+      image.repository: zot.example.svc/alpha
     asserts:
       - notExists:
           path: spec.template.spec.containers[0].env
 
   - it: emits no env block when the bus block is present but disabled
     set:
-      image.repository: zot.camelot.svc/akeyless-gator
+      image.repository: zot.example.svc/alpha
       bus:
         enabled: false
-        service: gator
+        service: alpha
         families:
           general: nats
         natsUrl: "nats://pleme-nats.camelot-nats.svc:4222"
@@ -25,7 +25,7 @@ tests:
 
   - it: leaves a pre-existing env list exactly as it was when no bus is selected
     set:
-      image.repository: zot.camelot.svc/akeyless-gator
+      image.repository: zot.example.svc/alpha
       env:
         - name: EXISTING_ONE
           value: "alpha"
@@ -39,26 +39,26 @@ tests:
   # ── RABBIT: the explicit, reversible way back ─────────────────────────────
   - it: selects rabbitmq for the general family with the exact Go constant
     set:
-      image.repository: zot.camelot.svc/akeyless-gator
+      image.repository: zot.example.svc/alpha
       bus:
         enabled: true
-        service: gator
+        service: alpha
         families:
           general: rabbitmq
     asserts:
       - equal:
           path: spec.template.spec.containers[0].env
           value:
-            - name: GATOR_MQ_TYPE
+            - name: ALPHA_MQ_TYPE
               value: "RABBITMQ"
 
   # ── NATS: the flip ────────────────────────────────────────────────────────
   - it: selects nats for the general family and carries the broker URL
     set:
-      image.repository: zot.camelot.svc/akeyless-gator
+      image.repository: zot.example.svc/alpha
       bus:
         enabled: true
-        service: gator
+        service: alpha
         families:
           general: nats
         natsUrl: "nats://pleme-nats.camelot-nats.svc:4222"
@@ -66,17 +66,17 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].env
           value:
-            - name: GATOR_MQ_TYPE
+            - name: ALPHA_MQ_TYPE
               value: "NATS"
-            - name: GATOR_NATS_URL
+            - name: ALPHA_NATS_URL
               value: "nats://pleme-nats.camelot-nats.svc:4222"
 
   - it: emits NATS uppercase, never the lowercase values-level spelling
     set:
-      image.repository: zot.camelot.svc/akeyless-gator
+      image.repository: zot.example.svc/alpha
       bus:
         enabled: true
-        service: gator
+        service: alpha
         families:
           general: nats
         natsUrl: "nats://pleme-nats.camelot-nats.svc:4222"
@@ -87,10 +87,10 @@ tests:
 
   - it: prefers an explicit internal URL key when one is given
     set:
-      image.repository: zot.camelot.svc/akeyless-gator
+      image.repository: zot.example.svc/alpha
       bus:
         enabled: true
-        service: gator
+        service: alpha
         families:
           general: nats
         natsUrlInternal: "nats://pleme-nats.camelot-nats.svc:4222"
@@ -98,18 +98,18 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].env
           value:
-            - name: GATOR_MQ_TYPE
+            - name: ALPHA_MQ_TYPE
               value: "NATS"
-            - name: GATOR_NATS_URL_INTERNAL
+            - name: ALPHA_NATS_URL_INTERNAL
               value: "nats://pleme-nats.camelot-nats.svc:4222"
 
   # ── PER-FAMILY SPLIT: bis_mq_type is an INDEPENDENT gate ──────────────────
   - it: moves only the BIS family to nats while the general family stays on rabbit
     set:
-      image.repository: zot.camelot.svc/akeyless-uam
+      image.repository: zot.example.svc/beta
       bus:
         enabled: true
-        service: uam
+        service: beta
         families:
           general: rabbitmq
           bis: nats
@@ -118,19 +118,19 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].env
           value:
-            - name: UAM_MQ_TYPE
+            - name: BETA_MQ_TYPE
               value: "RABBITMQ"
-            - name: UAM_BIS_MQ_TYPE
+            - name: BETA_BIS_MQ_TYPE
               value: "NATS"
-            - name: UAM_NATS_URL
+            - name: BETA_NATS_URL
               value: "nats://pleme-nats.camelot-nats.svc:4222"
 
   - it: sets only the BIS knob when only the BIS family is declared
     set:
-      image.repository: zot.camelot.svc/akeyless-bis
+      image.repository: zot.example.svc/gamma
       bus:
         enabled: true
-        service: bis
+        service: gamma
         families:
           bis: nats
         natsUrl: "nats://pleme-nats.camelot-nats.svc:4222"
@@ -138,40 +138,40 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].env
           value:
-            - name: BIS_BIS_MQ_TYPE
+            - name: GAMMA_BIS_MQ_TYPE
               value: "NATS"
-            - name: BIS_NATS_URL
+            - name: GAMMA_NATS_URL
               value: "nats://pleme-nats.camelot-nats.svc:4222"
 
   # ── PREFIXES: one per service that actually reads mq_type ─────────────────
-  - it: derives the AUTH_ prefix from the auth service
+  - it: derives the DELTA_ prefix from the delta service
     set:
-      image.repository: zot.camelot.svc/akeyless-auth
-      bus: { enabled: true, service: auth, families: { general: rabbitmq } }
+      image.repository: zot.example.svc/delta
+      bus: { enabled: true, service: delta, families: { general: rabbitmq } }
     asserts:
       - equal:
           path: spec.template.spec.containers[0].env[0].name
-          value: AUTH_MQ_TYPE
+          value: DELTA_MQ_TYPE
 
-  - it: derives the LOGAN_ prefix from the logan service
+  - it: derives the EPSILON_ prefix from the epsilon service
     set:
-      image.repository: zot.camelot.svc/akeyless-logan
-      bus: { enabled: true, service: logan, families: { general: rabbitmq } }
+      image.repository: zot.example.svc/epsilon
+      bus: { enabled: true, service: epsilon, families: { general: rabbitmq } }
     asserts:
       - equal:
           path: spec.template.spec.containers[0].env[0].name
-          value: LOGAN_MQ_TYPE
+          value: EPSILON_MQ_TYPE
 
   # ── COMPOSITION: the bus never displaces the caller's own env ─────────────
   - it: appends bus env after the caller's own env rather than replacing it
     set:
-      image.repository: zot.camelot.svc/akeyless-gator
+      image.repository: zot.example.svc/alpha
       env:
         - name: EXISTING_ONE
           value: "alpha"
       bus:
         enabled: true
-        service: gator
+        service: alpha
         families:
           general: nats
         natsUrl: "nats://pleme-nats.camelot-nats.svc:4222"
@@ -181,56 +181,71 @@ tests:
           value:
             - name: EXISTING_ONE
               value: "alpha"
-            - name: GATOR_MQ_TYPE
+            - name: ALPHA_MQ_TYPE
               value: "NATS"
-            - name: GATOR_NATS_URL
+            - name: ALPHA_NATS_URL
               value: "nats://pleme-nats.camelot-nats.svc:4222"
 
   # ── GUARDS: every silent-knob failure becomes a render failure ────────────
   - it: refuses to select nats without a broker URL
     set:
-      image.repository: zot.camelot.svc/akeyless-gator
+      image.repository: zot.example.svc/alpha
       bus:
         enabled: true
-        service: gator
+        service: alpha
         families:
           general: nats
     asserts:
       - failedTemplate:
           errorMessage: "bus: a queue family selects nats but neither bus.natsUrl nor bus.natsUrlInternal is set — GetMQ() would fail at boot with 'nats_url is not configured'"
 
-  - it: refuses a service that does not read mq_type, because the env var would be ignored
+  - it: refuses a service outside knownServices, because the env var would be ignored
     set:
-      image.repository: zot.camelot.svc/akeyless-gateway
+      image.repository: zot.example.svc/zeta
       bus:
         enabled: true
-        service: gateway
+        service: zeta
+        knownServices: [alpha, gamma, delta, epsilon, beta]
         families:
           general: rabbitmq
     asserts:
       - failedTemplate:
-          errorMessage: 'bus: service "gateway" does not read mq_type (only auth, bis, gator, logan, uam construct an MQConfigManager) — the env var would be silently ignored; set bus.allowUnknownService=true to override'
+          errorMessage: 'bus: service "zeta" is not in bus.knownServices (alpha, gamma, delta, epsilon, beta), so it does not construct an MQConfigManager — the env var would be silently ignored; set bus.allowUnknownService=true to override'
 
-  - it: allows an unknown service only when the caller explicitly acknowledges it
+  - it: leaves the guard inactive when knownServices is absent
     set:
-      image.repository: zot.camelot.svc/akeyless-gateway
+      image.repository: zot.example.svc/zeta
       bus:
         enabled: true
-        service: gateway
+        service: zeta
+        families:
+          general: rabbitmq
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[0].name
+          value: ZETA_MQ_TYPE
+
+  - it: allows a service outside knownServices only when the caller acknowledges it
+    set:
+      image.repository: zot.example.svc/zeta
+      bus:
+        enabled: true
+        service: zeta
+        knownServices: [alpha, gamma, delta, epsilon, beta]
         allowUnknownService: true
         families:
           general: rabbitmq
     asserts:
       - equal:
           path: spec.template.spec.containers[0].env[0].name
-          value: GATEWAY_MQ_TYPE
+          value: ZETA_MQ_TYPE
 
   - it: refuses a queue type that is not a real Go constant
     set:
-      image.repository: zot.camelot.svc/akeyless-gator
+      image.repository: zot.example.svc/alpha
       bus:
         enabled: true
-        service: gator
+        service: alpha
         families:
           general: kafka
     asserts:
@@ -239,17 +254,17 @@ tests:
 
   - it: refuses an enabled bus that selects no family at all
     set:
-      image.repository: zot.camelot.svc/akeyless-gator
+      image.repository: zot.example.svc/alpha
       bus:
         enabled: true
-        service: gator
+        service: alpha
     asserts:
       - failedTemplate:
           errorMessage: "bus: bus.enabled is true but neither families.general nor families.bis is set — the block would emit no selection at all"
 
   - it: refuses an enabled bus with no service to prefix the env vars with
     set:
-      image.repository: zot.camelot.svc/akeyless-gator
+      image.repository: zot.example.svc/alpha
       bus:
         enabled: true
         families:

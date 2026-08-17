@@ -1,5 +1,5 @@
 {{/*
-_bus.tpl — typed message-bus selection for akeyless-main-repo microservices.
+_bus.tpl — typed message-bus selection for viper-configured Go microservices.
 
 OFF BY DEFAULT. Every helper here returns the empty string unless
 `.Values.bus.enabled` is set, and `templates/deployment.yaml` keeps its
@@ -8,46 +8,36 @@ original, untouched code path in that case. A chart rendered without a
 
 WHY THIS EXISTS
 ---------------
-akeyless-main-repo picks its message-queue implementation from viper config,
-NOT from a code fork. Two INDEPENDENT keys select it, so one queue family can
-move to NATS while every other family stays on RabbitMQ:
+The target application picks its message-queue implementation from viper
+config, NOT from a code fork. Two INDEPENDENT keys select it, so one queue
+family can move to NATS while every other family stays on RabbitMQ:
 
   mq_type      — the general queue family
-  bis_mq_type  — the BIS (billing/statistics) queue family
+  bis_mq_type  — the second (billing/statistics) queue family
 
-Both are registered in go/src/microservices/common/mqueue/config.go
-(setGeneralDefaults) and both default to RABBITMQ.
+Both are registered as viper defaults and both default to RABBITMQ.
 
 THE ENV VAR NAMES ARE PREFIXED — this is the load-bearing detail
 -----------------------------------------------------------------
 Each service builds its own viper instance and calls SetEnvPrefix with its
-own name, then infra/config.NewFileConfigManager calls AutomaticEnv() on it.
-viper's mergeWithEnvPrefix therefore resolves `mq_type` to
-`<PREFIX>_MQ_TYPE`, uppercased. There is NO SetEnvKeyReplacer anywhere in
-go/src, so underscores are preserved verbatim.
+own name, then calls AutomaticEnv() on it. viper's mergeWithEnvPrefix
+therefore resolves `mq_type` to `<PREFIX>_MQ_TYPE`, uppercased. With no
+SetEnvKeyReplacer configured, underscores are preserved verbatim.
 
 An UNPREFIXED `MQ_TYPE` is read by NOTHING. Setting it is a silent no-op.
 
-Only these five services construct an MQConfigManager, so only these five
-have a bus to select. kfm, sdr and the gateway have no mqueue usage at all
-and must never be given a bus block:
-
-  service  viper prefix   general knob        BIS knob
-  -------  ------------   -----------------   ---------------------
-  auth     auth           AUTH_MQ_TYPE        AUTH_BIS_MQ_TYPE
-  bis      bis            BIS_MQ_TYPE         BIS_BIS_MQ_TYPE
-  gator    gator          GATOR_MQ_TYPE       GATOR_BIS_MQ_TYPE
-  logan    logan          LOGAN_MQ_TYPE       LOGAN_BIS_MQ_TYPE
-  uam      uam            UAM_MQ_TYPE         UAM_BIS_MQ_TYPE
+NOT EVERY SERVICE READS mq_type
+-------------------------------
+Only the services that actually construct an MQConfigManager have a bus to
+select; giving one to any other service emits a knob that does nothing. The
+chart cannot know another codebase's roster, so it is supplied as
+`bus.knownServices` (a values list). Empty ⇒ the guard is inactive.
 
 VALUES ARE CASE-SENSITIVE ON THE WIRE
 -------------------------------------
 GetMQ() dispatches with a Go `switch` on the raw string, so the value must
-match the Go constant EXACTLY. The constants are uppercase:
-
-  busnats.MQType   = "NATS"      go/src/infra/mqueue/bus/busnats/adapter.go:17
-  rabbitmq.MQType  = "RABBITMQ"  go/src/infra/mqueue/rabbitmq/message_queue.go:27
-  aws_sqs.MQType   = "AWS"       go/src/infra/mqueue/aws-sqs/message_queue.go:26
+match the Go constant EXACTLY. The constants are uppercase: "NATS",
+"RABBITMQ", "AWS".
 
 A lowercase `nats` falls through to `default:` and the service dies with
 "unknown message queue type". This chart therefore takes readable lowercase
@@ -56,13 +46,14 @@ unrecognised rather than shipping a pod that crashes on boot.
 */}}
 
 {{/*
-The verified set of services that actually read mq_type. Selecting a bus for
-anything outside this set produces a knob that does nothing, so it is a
-render error unless the caller explicitly acknowledges the risk with
-`bus.allowUnknownService: true`.
+The set of services that actually read mq_type, supplied by the caller as
+`bus.knownServices`. Selecting a bus for anything outside a NON-EMPTY set
+produces a knob that does nothing, so it is a render error unless the caller
+explicitly acknowledges the risk with `bus.allowUnknownService: true`. An
+empty/absent list leaves the guard inactive.
 */}}
 {{- define "pleme-microservice.bus.knownServices" -}}
-auth bis gator logan uam
+{{- join " " ((.Values.bus | default dict).knownServices | default list) -}}
 {{- end }}
 
 {{/*
@@ -85,10 +76,11 @@ absent or disabled. Consumed by templates/deployment.yaml.
 {{- $bus := .Values.bus | default dict -}}
 {{- if $bus.enabled -}}
 {{- $service := required "bus.service is required when bus.enabled is true" $bus.service | toString -}}
-{{- if not $bus.allowUnknownService -}}
-{{- $known := splitList " " (include "pleme-microservice.bus.knownServices" .) -}}
+{{- $knownRaw := include "pleme-microservice.bus.knownServices" . -}}
+{{- if and (not $bus.allowUnknownService) (ne $knownRaw "") -}}
+{{- $known := splitList " " $knownRaw -}}
 {{- if not (has $service $known) -}}
-{{- fail (printf "bus: service %q does not read mq_type (only %s construct an MQConfigManager) — the env var would be silently ignored; set bus.allowUnknownService=true to override" $service (join ", " $known)) -}}
+{{- fail (printf "bus: service %q is not in bus.knownServices (%s), so it does not construct an MQConfigManager — the env var would be silently ignored; set bus.allowUnknownService=true to override" $service (join ", " $known)) -}}
 {{- end -}}
 {{- end -}}
 {{- $prefix := upper $service -}}

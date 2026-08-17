@@ -57,8 +57,8 @@ resources:
 # trait's `promotion_mode()` is `mode_spec().unwrap_or(ShadowConfirmEffect)`
 # and never consults `dry_run()` (only HostParam/KubeParam bands still do).
 # So these bands SHADOW-CONFIRMED AND THEN CARVED LIVE the whole time.
-# Measured on camelot-eks 2026-07-26: auth-cpu 74 carves, bis-cpu 56,
-# gator-cpu 53 — several collapsed to their 200m floor. Writes go through
+# Measured on camelot-eks 2026-07-26: three CPU bands at 74 / 56 / 53
+# carves — several collapsed to their 200m floor. Writes go through
 # the in-place pod RESIZE subresource, which mutates the POD and not the
 # Deployment template, so Flux sees no drift and the divergence never
 # appears in git. That invisibility is why this survived a config audit.
@@ -76,8 +76,8 @@ resources:
 # Left deliberately LIVE (no `mode: shadow`): these are stateless,
 # restart-tolerant microservices whose degradation is contained. The
 # never-shrink tiers + shadow are reserved for the database and the control
-# plane (see akeyless-mysql-pleme / pangea-operator). To observe-only
-# without carving, set `mode: shadow` here.
+# plane (the MySQL chart / pangea-operator). To observe-only without
+# carving, set `mode: shadow` here.
 breathe:
   enabled: true
   postureRef: standard
@@ -174,23 +174,24 @@ prometheusRules:
   enabled: false
   groups: []
 
-# ── bus: typed message-bus selection (akeyless-main-repo microservices) ──────
+# ── bus: typed message-bus selection (viper-configured Go microservices) ─────
 #
 # OFF BY DEFAULT and intentionally ABSENT from this file. A chart rendered
 # without a `bus:` block emits NO bus env vars and is byte-identical to the
 # chart before this surface existed, so a deployment that does not opt in
 # behaves exactly as it does today.
 #
-# akeyless-main-repo selects its message queue from viper config, never from
-# a code fork. Two INDEPENDENT keys drive it, so one queue family can move to
-# NATS while every other family stays on RabbitMQ:
+# The target application selects its message queue from viper config, never
+# from a code fork. Two INDEPENDENT keys drive it, so one queue family can move
+# to NATS while every other family stays on RabbitMQ:
 #
 #   families.general -> <SERVICE>_MQ_TYPE       (mq_type)
 #   families.bis     -> <SERVICE>_BIS_MQ_TYPE   (bis_mq_type)
 #
-# `service` is the viper SetEnvPrefix of the target microservice. Only auth,
-# bis, gator, logan and uam construct an MQConfigManager; anything else is a
-# render error because the env var would be silently ignored.
+# `service` is the viper SetEnvPrefix of the target microservice. Not every
+# service constructs an MQConfigManager; list the ones that do in
+# `knownServices` and anything else becomes a render error, because the env var
+# would otherwise be silently ignored. An empty/absent list disables the guard.
 #
 # Values are readable lowercase (rabbitmq | nats | aws) and are mapped to the
 # exact case-sensitive Go constant on the wire (RABBITMQ | NATS | AWS).
@@ -200,7 +201,8 @@ prometheusRules:
 #
 # bus:
 #   enabled: true
-#   service: gator
+#   service: alpha
+#   knownServices: [alpha, beta, gamma]
 #   families:
 #     general: nats
 #     bis: rabbitmq

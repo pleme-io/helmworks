@@ -113,14 +113,21 @@
     "volumes": { "type": "array" },
     "bus": {
       "type": "object",
-      "description": "Typed message-bus selection for akeyless-main-repo microservices. Absent by default; when absent the chart emits no bus env vars at all.",
+      "description": "Typed message-bus selection for viper-configured Go microservices. Absent by default; when absent the chart emits no bus env vars at all.",
       "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean", "default": false },
         "service": {
           "type": "string",
-          "description": "The target microservice's viper SetEnvPrefix. Only auth, bis, gator, logan and uam construct an MQConfigManager and therefore read mq_type; the template rejects anything else unless allowUnknownService is set, so the allowed set is enforced there rather than pinned here.",
+          "description": "The target microservice's viper SetEnvPrefix. Not every service constructs an MQConfigManager and therefore reads mq_type; list the ones that do in knownServices and the template rejects anything else unless allowUnknownService is set.",
           "minLength": 1
+        },
+        "knownServices": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "default": [],
+          "description": "The services that actually construct an MQConfigManager (i.e. read mq_type). Supplied per-install — the chart cannot know another codebase's roster. Empty or absent leaves the guard inactive.",
+          "uniqueItems": true
         },
         "allowUnknownService": {
           "type": "boolean",
