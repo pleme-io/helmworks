@@ -2,10 +2,11 @@ apiVersion: v2
 name: supacharge-cache
 description: >-
   The OPTION-A parked-cache umbrella — the ISOLATED, strict-no-sharing
-  composition of the four shipped supa-charge-akeyless-ci pieces into ONE
+  composition of the four shipped supa-charge-ci pieces into ONE
   version-controlled Helm artifact, wound onto OUR OWN tainted node group inside
-  a resident CI cluster (default target: akeyless's us-east-1-cicd-eks, acct
-  730335276278 — the LIVE prod-image CI cluster).
+  a resident CI cluster owned by another team (the environment identity —
+  cluster name, region, account id, profile — is a REQUIRED per-environment
+  value, never baked into the chart).
 
   OPTION A — STRICT NO-SHARING (the whole point). Every workload runs ONLY on
   OUR nodes and shares NOTHING of theirs:
@@ -28,8 +29,8 @@ description: >-
   DaemonSet renders at all — runners reach the cache over the in-cluster LAN
   (pleme-spegel P2P among OUR nodes + the sui serve endpoint), sharing nothing.
   Flipping it on is the Option-B increment (a pod on their nodes) and is gated
-  externally on a measured warmth benchmark + a human gate + akeyless buy-in —
-  never a silent footprint. The door is typed-open but shut.
+  externally on a measured warmth benchmark + a human gate + the resident team's
+  buy-in — never a silent footprint. The door is typed-open but shut.
 
   COMPOSES (nothing new is invented — a thin umbrella + Option-A values):
     - super-cache-ci                     — the L1(Redis)+L2(Postgres)+serve STORE keystone
@@ -43,10 +44,10 @@ description: >-
   node group and never bootstrapping Flux into the CICD cluster, committing this
   to main is safe + inert. The isolation FLOOR (the supacharge node group) is a
   pangea-architectures SupachargeNodeGroup InfrastructureTemplate; the live
-  topology (subnets/AZs) is PENDING akeyless-cicd re-auth and is a REQUIRED
-  value, never guessed.
+  topology (subnets/AZs) is PENDING a read-only re-auth against the resident
+  account and is a REQUIRED value, never guessed.
 type: application
-version: 0.1.0
+version: 0.1.1
 appVersion: "0.1.0"
 keywords:
   - supacharge
@@ -58,7 +59,6 @@ keywords:
   - sui
   - dockerfile-cache
   - gentlemanly-guest
-  - us-east-1-cicd-eks
 home: https://github.com/pleme-io/helmworks
 sources:
   - https://github.com/pleme-io/helmworks

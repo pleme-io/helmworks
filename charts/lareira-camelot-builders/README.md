@@ -2,8 +2,8 @@
 
 The **camelot nix builder fleet** — a per-arch (`arm64` + `amd64`),
 camelot-tainted, 100%-spot, scale-to-zero native-metal builder substrate that
-unblocks cold cross-arch Nix builds inside the camelot (`mte-staging`)
-environment. Owns **minimal new algebra** — a composition index over
+unblocks cold cross-arch Nix builds inside the camelot environment. Owns
+**minimal new algebra** — a composition index over
 `pangea-spot` (the `nix_builder` catalog), `CamelotNodeGroup`,
 `BreatheCloudPool`, `retirada`, and `pleme-lib`.
 
@@ -68,12 +68,12 @@ preheat:
   cadenceSeconds: 21600     # 6h — re-warm at least this often
   warmFractionTargetPct: 99 # the warm-fraction objective
   floorSpin: { warmFloor: 1, idleFloor: 0, maxFloor: 8 }  # spin the floor ONLY while warming
-  targets: []               # [{name: akeyless-auth, arch: amd64, inputs: [flake.lock]}]
+  targets: []               # [{name: service-a, arch: amd64, inputs: [flake.lock]}]
 ```
 
 - **The pure decision core** is `sui-supercacheci::preheat` (WHEN/WHICH to warm +
   the floor-spin plan + the typed `WarmthPromessa`).
-- **The executable preheat** is the `akeyless-nix-images` `camelot-cache-warm`
+- **The executable preheat** is the image-build repo's `camelot-cache-warm`
   workflow (6h cadence + on tracked-input change), which spins the 100%-spot
   scale-to-zero builder floor **only while warming**.
 - **The closed loop** that proves the promessa is autorevivy's CLEAN face

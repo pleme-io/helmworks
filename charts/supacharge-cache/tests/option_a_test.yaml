@@ -42,7 +42,7 @@ tests:
       infraTemplate.subnetIds: []
     asserts:
       - failedTemplate:
-          errorMessage: "supacharge-cache: infraTemplate.enabled=true but infraTemplate.subnetIds is empty. The resident subnets are PENDING akeyless-cicd re-auth and must not be guessed — supply OUR OWN isolated subnet id(s) in values-cicd.yaml before enabling. Refusing to render a node group with no subnets."
+          errorMessage: "supacharge-cache: infraTemplate.enabled=true but infraTemplate.subnetIds is empty. The resident subnets are PENDING a read-only re-auth and must not be guessed — supply OUR OWN isolated subnet id(s) in values-cicd.yaml before enabling. Refusing to render a node group with no subnets."
 
   - it: renders the Option-A SupachargeNodeGroup InfraTemplate when enabled + subnets supplied
     template: templates/infratemplate.yaml
@@ -100,7 +100,7 @@ tests:
       - equal:
           path: spec.suspend
           value: true
-      # Reconciles from OUR OWN source, never an akeyless repo / their ArgoCD.
+      # Reconciles from OUR OWN source, never a resident repo / their ArgoCD.
       - equal:
           path: spec.sourceRef.name
           value: supacharge-cache

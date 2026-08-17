@@ -12,7 +12,7 @@ InfraTemplate uses.
 DOUBLE-GATED — renders ONLY when:
   1. infraTemplate.enabled = true, AND
   2. infraTemplate.subnetIds is NON-EMPTY.
-The live topology (subnets/AZs) is PENDING akeyless-cicd re-auth and MUST NOT be
+The live topology (subnets/AZs) is PENDING a read-only re-auth and MUST NOT be
 guessed — so with the default empty subnetIds this renders NOTHING, and a
 misconfigured enable can never produce a node group with no subnets.
 
@@ -23,7 +23,7 @@ pangea-operator applies it — which the operator does NOT do at authoring time
 {{- if .Values.infraTemplate.enabled }}
 {{- $it := .Values.infraTemplate -}}
 {{- if not $it.subnetIds }}
-{{- fail "supacharge-cache: infraTemplate.enabled=true but infraTemplate.subnetIds is empty. The resident subnets are PENDING akeyless-cicd re-auth and must not be guessed — supply OUR OWN isolated subnet id(s) in values-cicd.yaml before enabling. Refusing to render a node group with no subnets." }}
+{{- fail "supacharge-cache: infraTemplate.enabled=true but infraTemplate.subnetIds is empty. The resident subnets are PENDING a read-only re-auth and must not be guessed — supply OUR OWN isolated subnet id(s) in values-cicd.yaml before enabling. Refusing to render a node group with no subnets." }}
 {{- end }}
 {{- $cfg := dict
       "cluster_name" $it.cluster

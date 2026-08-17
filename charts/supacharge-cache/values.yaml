@@ -22,8 +22,8 @@
 # THE OPTION-B DOOR — `nodeCache.enabled: false` (below). Off = NO DaemonSet on
 # the resident runner nodes. Runners use Spegel P2P (our nodes) + the LAN serve
 # endpoint, sharing nothing. On = the L0 host-socket DaemonSet (a pod on THEIR
-# nodes) — gated externally on a warmth benchmark + a human gate + akeyless
-# buy-in. Typed-open, shut.
+# nodes) — gated externally on a warmth benchmark + a human gate + the resident
+# team's buy-in. Typed-open, shut.
 # ═════════════════════════════════════════════════════════════════════════════
 
 # ── (a) THE ISOLATION TRIPLE — the single source of truth ────────────────────
@@ -84,8 +84,8 @@ namespaces:
 #   RESIDENT runner nodes (tolerating THEIR taint), giving runner pods a
 #   host-socket-local read. This is a pod on their nodes + a bounded slice of
 #   their disk/cpu/mem — the higher-trust-bar increment, gated externally on a
-#   measured warmth benchmark + a human gate + akeyless buy-in. Never flip this
-#   silently.
+#   measured warmth benchmark + a human gate + the resident team's buy-in. Never
+#   flip this silently.
 # ═════════════════════════════════════════════════════════════════════════════
 nodeCache:
   enabled: false
@@ -95,9 +95,9 @@ nodeCache:
 # calling pangea-architectures SupachargeNodeGroup (Option A: own tainted nodes,
 # 100% spot, scale-from-zero; the Option-B DaemonSet arm off). PENDING re-auth.
 # Off by default in the chart: rendered only when infraTemplate.enabled, because
-# the live topology (subnets/AZs) is PENDING akeyless-cicd re-auth — a REQUIRED
-# value that must not be guessed. Set the topology in values-cicd.yaml and flip
-# infraTemplate.enabled after re-auth.
+# the live topology (subnets/AZs) is PENDING a read-only re-auth against the
+# resident account — a REQUIRED value that must not be guessed. Set the topology
+# in values-cicd.yaml and flip infraTemplate.enabled after re-auth.
 # ═════════════════════════════════════════════════════════════════════════════
 infraTemplate:
   # Render the InfrastructureTemplate CR? Off until the live topology is
@@ -106,12 +106,14 @@ infraTemplate:
   # pangea-operator plumbing.
   pangeaNamespace: cicd
   executor: magma
-  # The resident cluster + region + account (VERIFIED — not guessed).
-  cluster: us-east-1-cicd-eks
+  # The resident cluster + region + account. PLACEHOLDERS — supply the real
+  # environment identity in an environment values file (values-cicd.yaml),
+  # never here. The chart never ships a live account id.
+  cluster: resident-cicd-eks
   region: us-east-1
-  awsProfile: akeyless-cicd
-  accountId: "730335276278"
-  # ── PENDING akeyless-cicd re-auth — OUR OWN isolated private subnets ───────
+  awsProfile: resident-cicd
+  accountId: "000000000000"
+  # ── PENDING re-auth — OUR OWN isolated private subnets ─────────────────────
   # REQUIRED before infraTemplate.enabled=true. These MUST be OUR OWN isolated
   # subnet(s) in the resident VPC, chosen after re-auth — NEVER a runner subnet
   # reused blindly. Single-AZ preferred (the store keystone rides gp3 EBS).
@@ -159,10 +161,10 @@ fluxKustomization:
   targetNamespace: supacharge-cache
   sourceRef:
     kind: GitRepository
-    # OUR OWN source — never an akeyless repo, never their ArgoCD/Flux.
+    # OUR OWN source — never a resident-owned repo, never their ArgoCD/Flux.
     name: supacharge-cache
     namespace: flux-system
-  path: "./clusters/us-east-1-cicd-eks/supacharge-cache"
+  path: "./clusters/resident-cicd-eks/supacharge-cache"
 
 # ═════════════════════════════════════════════════════════════════════════════
 # SUBCHART VALUES — each pinned to the isolation triple + Option-A posture.

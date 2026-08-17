@@ -1,21 +1,24 @@
 # ═════════════════════════════════════════════════════════════════════════════
 # supacharge-cache — values-cicd.yaml
 #
-# The us-east-1-cicd-eks environment binding (akeyless acct 730335276278,
-# profile akeyless-cicd — the LIVE prod-image CI cluster). Layers on top of the
-# umbrella's Option-A defaults (values.yaml); overrides ONLY the environment
-# identity + the prepared-not-live gates. Everything Option-A (the isolation
-# triple, own namespace, shadow-first bands, egress-scoped netpol,
-# nodeCache.enabled=false) is inherited unchanged.
+# The resident-CI-cluster environment binding. Layers on top of the umbrella's
+# Option-A defaults (values.yaml); overrides ONLY the environment identity + the
+# prepared-not-live gates. Everything Option-A (the isolation triple, own
+# namespace, shadow-first bands, egress-scoped netpol, nodeCache.enabled=false)
+# is inherited unchanged.
 #
-# HIGHER GUEST BAR. us-east-1-cicd-eks builds + pushes akeyless's PRODUCTION
-# images and hosts central argocd.akeyless.io. Read-resident-only, mutate
+# The environment identity below is a PLACEHOLDER. A real binding supplies the
+# cluster name / region / account id / profile out of band — this file never
+# carries another team's account identifiers.
+#
+# HIGHER GUEST BAR. The resident cluster builds + pushes another team's
+# PRODUCTION images and hosts their central ArgoCD. Read-resident-only, mutate
 # nothing of theirs, minimal blast radius, one-line-revertable.
 #
 # PREPARED-NOT-LIVE (structural). Committed to main, safe + inert:
 #   (a) infraTemplate.enabled=false + empty subnetIds — the node group is never
 #       applied and cannot render without OUR-OWN isolated subnets (PENDING
-#       akeyless-cicd re-auth; NEVER guessed).
+#       a read-only re-auth; NEVER guessed).
 #   (b) no Flux is bootstrapped into the cicd cluster.
 #   (c) fluxKustomization.suspend=true — even a present Flux would not reconcile.
 #
@@ -45,7 +48,7 @@ isolation:
 
 # ═════════════════════════════════════════════════════════════════════════════
 # THE ISOLATION FLOOR — the SupachargeNodeGroup InfrastructureTemplate.
-# DISABLED until akeyless-cicd re-auth supplies OUR-OWN isolated subnets.
+# DISABLED until a read-only re-auth supplies OUR-OWN isolated subnets.
 # ═════════════════════════════════════════════════════════════════════════════
 infraTemplate:
   # PREPARED-NOT-LIVE: off. Flipping true ALSO requires non-empty subnetIds
@@ -56,19 +59,20 @@ infraTemplate:
   pangeaNamespace: cicd
   executor: magma
 
-  # VERIFIED identity (live AWS + akeylesslabs/k8s repo) — not guessed.
-  cluster: us-east-1-cicd-eks
+  # PLACEHOLDER identity — replace with the real environment values out of
+  # band. The chart never ships another team's cluster name or account id.
+  cluster: resident-cicd-eks
   region: us-east-1
-  awsProfile: akeyless-cicd
-  accountId: "730335276278"
+  awsProfile: resident-cicd
+  accountId: "000000000000"
 
-  # ── PENDING akeyless-cicd re-auth — OUR OWN isolated private subnets ───────
+  # ── PENDING re-auth — OUR OWN isolated private subnets ─────────────────────
   # REQUIRED before infraTemplate.enabled=true. MUST be OUR OWN isolated
-  # subnet(s) in the us-east-1-cicd-eks VPC — chosen after a READ-ONLY re-auth,
-  # NEVER a runner subnet reused blindly. Single-AZ preferred (the store
-  # keystone rides gp3 EBS). Discover via:
-  #   aws --profile akeyless-cicd eks describe-cluster --name us-east-1-cicd-eks \
-  #     --region us-east-1 --query cluster.resourcesVpcConfig.subnetIds
+  # subnet(s) in the resident VPC — chosen after a READ-ONLY re-auth, NEVER a
+  # runner subnet reused blindly. Single-AZ preferred (the store keystone rides
+  # gp3 EBS). Discover via:
+  #   aws --profile <profile> eks describe-cluster --name <cluster> \
+  #     --region <region> --query cluster.resourcesVpcConfig.subnetIds
   # then CHOOSE our own isolated subnet(s).
   subnetIds: []          # PENDING re-auth — e.g. [subnet-OUR-isolated-aaa]
 
@@ -114,7 +118,7 @@ fluxKustomization:
     kind: GitRepository
     name: supacharge-cache
     namespace: flux-system
-  path: "./clusters/us-east-1-cicd-eks/supacharge-cache"
+  path: "./clusters/resident-cicd-eks/supacharge-cache"
 
 # ── spegel — serve OUR layers only (ghcr), OUR nodes only (inherited triple) ─
 spegel:
@@ -127,7 +131,8 @@ spegel:
 # ── nodeCache L0 (Option B) — runner-node topology PENDING re-auth ───────────
 # Only consulted when nodeCache.enabled=true (Option B, gated externally). The
 # runner-node selector/toleration + a HARD hostPath sizeLimit are supplied here
-# ONLY after re-auth + a warmth benchmark + a human gate + akeyless buy-in.
+# ONLY after re-auth + a warmth benchmark + a human gate + the resident team's
+# buy-in.
 node-cache:
   nodeSelector: {}       # PENDING re-auth — the resident runner-node selector
   tolerations: []        # PENDING re-auth — the resident runner-node taint

@@ -3,7 +3,7 @@ name: lareira-camelot-builders
 description: >-
   Camelot Nix builder fleet — the per-arch (arm64 + amd64), camelot-tainted,
   100%-spot, scale-to-zero native-metal builder substrate that unblocks cold
-  cross-arch Nix builds inside the camelot (mte-staging) environment. Tier A
+  cross-arch Nix builds inside the camelot environment. Tier A
   (shipped-primitive composition, the unblock-NOW lane): per-arch
   InfrastructureTemplate CRs render a CamelotBuilderNodeGroup (magma applies the
   AWS ASG + IAM + NixOS builder AMI); a shadow-first BreatheCloudPool carves the
@@ -20,7 +20,7 @@ description: >-
   commit; the operator's two verbs are declare + observe. CAMELOT-SCOPED.
   See scratchpad/camelot-builder-fleet-design.md.
 type: application
-version: 0.1.2
+version: 0.1.3
 appVersion: "0.1.1"
 keywords:
   - camelot

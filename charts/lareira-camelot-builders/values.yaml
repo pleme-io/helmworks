@@ -15,9 +15,11 @@ arches:
   - amd64
 
 # ── Shared cloud context (the borrowed camelot ground; host-free split). ───────
-cluster:    mte-staging      # the EKS cluster camelot is carved into
+# PLACEHOLDERS — the environment identity is a REQUIRED per-install override.
+# The chart never carries a live cluster name or account profile.
+cluster:    example-cluster  # the EKS cluster camelot is carved into
 region:     us-east-1
-awsProfile: mte-staging      # BreatheCloudPool.target.profile
+awsProfile: example-profile  # BreatheCloudPool.target.profile
 # pangeaNamespace = the pangea-operator state-isolation boundary (Postgres schema)
 # the builder InfrastructureTemplates settle into.
 pangeaNamespace: camelot-builders
@@ -252,7 +254,7 @@ dashboard:
 # ~seconds) instead of cold-compiling (~minutes). SHADOW-FIRST + GATED OFF:
 # `preheat.enabled` renders the Viggy Promessa CR (the declared outcome); it
 # declares `dryRun: true` and actuates nothing. The EXECUTABLE preheat is the
-# akeyless-nix-images `camelot-cache-warm` workflow (6h cadence + on tracked-input
+# image-build repo's `camelot-cache-warm` workflow (6h cadence + on tracked-input
 # change), which spins the 100%-spot scale-to-zero builder floor ONLY while
 # warming. The pure decision core is sui-supercacheci::preheat (WHEN/WHICH to warm
 # + the floor-spin plan); the closed loop that PROVES this promessa is autorevivy's
@@ -277,14 +279,14 @@ preheat:
   # The warm targets (dep/service → builder arch → tracked inputs). Empty = an
   # honest empty plan (no fabricated microservice names); supply the real set.
   targets: []
-  #   - name: akeyless-auth
+  #   - name: service-a
   #     arch: amd64
   #     inputs: [flake.lock]
   # The Viggy (defpromessa) the loop reconciles toward.
   promessa:
     name: camelot-cache-warm
     scope: camelot
-    canaryService: auth        # the warm-build-substitutes canary
+    canaryService: service-a   # the warm-build-substitutes canary
     slaObjective: "0.99"
     slaWindow: "7d"
     remediationPolicy: AutoCorrect

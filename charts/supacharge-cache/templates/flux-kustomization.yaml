@@ -7,9 +7,9 @@ NOT reconcile this — it is inert by construction. Combined with (a) never
 applying the SupachargeNodeGroup InfraTemplate and (b) never bootstrapping Flux
 into the cicd cluster, committing this whole umbrella to main is safe + inert.
 
-Reconciles from OUR OWN GitRepository (never an akeyless repo, never their
-ArgoCD/Flux — argocd.akeyless.io lives in this cluster and we never register in
-it). Un-suspend is a deliberate later operator act, post-confidence.
+Reconciles from OUR OWN GitRepository (never a resident-owned repo, never their
+ArgoCD/Flux — the resident cluster runs its own central ArgoCD and we never
+register in it). Un-suspend is a deliberate later operator act, post-confidence.
 
 Off by default (fluxKustomization.enabled=false) — usually this umbrella is a
 subchart of a HelmRelease, not self-Kustomized. When on, it is SUSPENDED.

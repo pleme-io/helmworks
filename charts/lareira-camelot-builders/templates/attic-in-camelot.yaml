@@ -1,7 +1,7 @@
 {{- /*
 L4 substituter — Attic-in-camelot (design §2i). An in-cluster Nix binary cache
 that makes the builder-fleet substituter path VPN-INDEPENDENT (immune to the
-Tailscale ⊥ akeyless-VPN mutex): builders substitute from this in-cluster Attic
+Tailscale ⊥ corporate-VPN mutex): builders substitute from this in-cluster Attic
 first, then cache.nixos.org. Runs on the camelot nodes (NOT the builder-tainted
 nodes — those are for build workers only). Security baseline enforced.
 */ -}}
