@@ -102,7 +102,7 @@ spec:
                     description: 'Akeyless credentials configuration. Used by templates
                       whose Ruby workspace declares an inline `provider :akeyless
                       do api_key_login( access_id:, access_key:) end` block (e.g.
-                      workspaces/akeyless-dev-shaar-concentrator, added 2026-07-21
+                      workspaces/example-shaar-concentrator, added 2026-07-21
                       for Pangea::Architectures::ShaarAkeyless — Step 0 of theory/SHAAR-CAMELOT-BINDING.md
                       §4). Ruby-side authority model, same as GitHub: the referenced
                       Secret''s data keys (typically `AKEYLESS_ACCESS_ID` / `AKEYLESS_ACCESS_KEY`
@@ -182,7 +182,7 @@ spec:
                     type: object
                   datadog:
                     description: Datadog credentials configuration. Used by the absorbed
-                      Datadog estate workspace (workspaces/akeyless-datadog), whose
+                      Datadog estate workspace (workspaces/example-datadog), whose
                       shard entry points declare `provider :datadog` with `ENV.fetch`.
                       Without this field the chart's `providerCredentials.datadog`
                       was silently DROPPED by serde -- no error, no condition -- and

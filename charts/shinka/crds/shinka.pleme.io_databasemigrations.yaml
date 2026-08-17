@@ -125,7 +125,7 @@ spec:
                         description: |-
                           Record this changelog as applied UP TO AND INCLUDING the named changeset, then EXECUTE everything after it. Only legal alongside [`Self::sql_config_map_ref`], which supplies the schema being claimed.
 
-                          **The cut is required and has no default, because defaulting to the head is a measured mistake I made and shipped.** The first version of this field was a bool that adopted the WHOLE changelog, justified by "the snapshot is the end state of exactly this changelog". Measured on a live environment: `authdb.oidc_consent_requests.enc_session` was `varchar(8000)` while auth changeset 41 makes it `text` — the dump was cut BEFORE the changelog head, so 40 of 40 changesets were recorded while at least one had demonstrably never run, and being recorded, never would.
+                          **The cut is required and has no default, because defaulting to the head is a measured mistake I made and shipped.** The first version of this field was a bool that adopted the WHOLE changelog, justified by "the snapshot is the end state of exactly this changelog". Measured on a live environment: one column was still `varchar(8000)` while a changeset partway through the changelog makes it `text` — the dump was cut BEFORE the changelog head, so 40 of 40 changesets were recorded while at least one had demonstrably never run, and being recorded, never would.
 
                           **The error is asymmetric, which is why a cut is safe to state by hand.** Too LOW and the remainder re-applies DDL that is already present, which fails loudly on the next reconcile with a duplicate-column error naming the changeset. Too HIGH and it lies silently forever. So state the cut conservatively: a wrong-low cut is self-detecting, a wrong-high cut is not detectable at all.
 
@@ -133,7 +133,7 @@ spec:
 
                           **Why it is a field on the SAME ref rather than a second CR.** Applying the snapshot and recording the adoption must happen in that order, and shinka gives no cross-CR ordering. Two CRs would let the adoption land first, leaving a ledger that claims the whole changelog while the schema is empty — the precise durable lie adoption exists to prevent. One CR makes the order internal and the wrong order unrepresentable.
 
-                          This is what makes a snapshot the base and the changelog the FUTURE, which is the only workable shape when upstream's changelogs cannot build a database from empty (17 akeyless foundation tables have no `createTable` anywhere in them).
+                          This is what makes a snapshot the base and the changelog the FUTURE, which is the only workable shape when upstream's changelogs cannot build a database from empty (17 foundation tables observed with no `createTable` anywhere in them).
                         nullable: true
                         type: string
                       changelogConfigMapRef:
@@ -149,7 +149,7 @@ spec:
                             description: |-
                               Apply only these keys, in the order given. `None` applies every key in lexical order (the historical behaviour, and still the default).
 
-                              Exists because one ConfigMap can carry several databases' snapshots — akeyless ships `authdb.sql`, `uamdb.sql`, … in a single map — while a snapshot+adopt migration is PER DATABASE, since the ledger is. Without a selector each of the six CRs would apply all six dumps, and those dumps open with a table-drop per table: the fifth CR would drop and rebuild what the first four had already adopted. Selecting the key is what makes one shared snapshot artifact safe to reference from many CRs.
+                              Exists because one ConfigMap can carry several databases' snapshots — a consumer may ship `first.sql`, `second.sql`, … in a single map — while a snapshot+adopt migration is PER DATABASE, since the ledger is. Without a selector each of the six CRs would apply all six dumps, and those dumps open with a table-drop per table: the fifth CR would drop and rebuild what the first four had already adopted. Selecting the key is what makes one shared snapshot artifact safe to reference from many CRs.
                             items:
                               type: string
                             nullable: true
@@ -170,7 +170,7 @@ spec:
                         - name
                         type: object
                       database:
-                        description: Database / schema name to apply DDL against. Optional for multi-database DDL scripts that select their own database (e.g. `USE authdb;`).
+                        description: Database / schema name to apply DDL against. Optional for multi-database DDL scripts that select their own database (e.g. `USE appdb;`).
                         nullable: true
                         type: string
                       engine:
@@ -207,7 +207,7 @@ spec:
                             description: |-
                               Apply only these keys, in the order given. `None` applies every key in lexical order (the historical behaviour, and still the default).
 
-                              Exists because one ConfigMap can carry several databases' snapshots — akeyless ships `authdb.sql`, `uamdb.sql`, … in a single map — while a snapshot+adopt migration is PER DATABASE, since the ledger is. Without a selector each of the six CRs would apply all six dumps, and those dumps open with a table-drop per table: the fifth CR would drop and rebuild what the first four had already adopted. Selecting the key is what makes one shared snapshot artifact safe to reference from many CRs.
+                              Exists because one ConfigMap can carry several databases' snapshots — a consumer may ship `first.sql`, `second.sql`, … in a single map — while a snapshot+adopt migration is PER DATABASE, since the ledger is. Without a selector each of the six CRs would apply all six dumps, and those dumps open with a table-drop per table: the fifth CR would drop and rebuild what the first four had already adopted. Selecting the key is what makes one shared snapshot artifact safe to reference from many CRs.
                             items:
                               type: string
                             nullable: true
@@ -278,7 +278,7 @@ spec:
                               description: |-
                                 Apply only these keys, in the order given. `None` applies every key in lexical order (the historical behaviour, and still the default).
 
-                                Exists because one ConfigMap can carry several databases' snapshots — akeyless ships `authdb.sql`, `uamdb.sql`, … in a single map — while a snapshot+adopt migration is PER DATABASE, since the ledger is. Without a selector each of the six CRs would apply all six dumps, and those dumps open with a table-drop per table: the fifth CR would drop and rebuild what the first four had already adopted. Selecting the key is what makes one shared snapshot artifact safe to reference from many CRs.
+                                Exists because one ConfigMap can carry several databases' snapshots — a consumer may ship `first.sql`, `second.sql`, … in a single map — while a snapshot+adopt migration is PER DATABASE, since the ledger is. Without a selector each of the six CRs would apply all six dumps, and those dumps open with a table-drop per table: the fifth CR would drop and rebuild what the first four had already adopted. Selecting the key is what makes one shared snapshot artifact safe to reference from many CRs.
                               items:
                                 type: string
                               nullable: true
@@ -537,7 +537,7 @@ spec:
                                 description: |-
                                   Apply only these keys, in the order given. `None` applies every key in lexical order (the historical behaviour, and still the default).
 
-                                  Exists because one ConfigMap can carry several databases' snapshots — akeyless ships `authdb.sql`, `uamdb.sql`, … in a single map — while a snapshot+adopt migration is PER DATABASE, since the ledger is. Without a selector each of the six CRs would apply all six dumps, and those dumps open with a table-drop per table: the fifth CR would drop and rebuild what the first four had already adopted. Selecting the key is what makes one shared snapshot artifact safe to reference from many CRs.
+                                  Exists because one ConfigMap can carry several databases' snapshots — a consumer may ship `first.sql`, `second.sql`, … in a single map — while a snapshot+adopt migration is PER DATABASE, since the ledger is. Without a selector each of the six CRs would apply all six dumps, and those dumps open with a table-drop per table: the fifth CR would drop and rebuild what the first four had already adopted. Selecting the key is what makes one shared snapshot artifact safe to reference from many CRs.
                                 items:
                                   type: string
                                 nullable: true

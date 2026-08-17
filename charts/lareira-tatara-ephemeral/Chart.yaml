@@ -22,7 +22,7 @@ description: |
   Compliance overlays cascade via subcharts' `compliance.overlays`.
 
 type: application
-version: 0.3.1
+version: 0.3.2
 appVersion: "0.3.0"
 
 keywords: [tatara, ephemeral, lareira, umbrella, pool, allocation, github]

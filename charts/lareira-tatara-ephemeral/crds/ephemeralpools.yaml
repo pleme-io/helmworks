@@ -325,7 +325,7 @@ spec:
                                     type: object
                                 type: object
                               testReport:
-                                description: A test report stored in a ConfigMap by an in-cluster test runner (Job, gator, closed-loop probe). Worker reads the ConfigMap, packages it per `format`, and forwards.
+                                description: A test report stored in a ConfigMap by an in-cluster test runner (Job, test-runner sidecar, closed-loop probe). Worker reads the ConfigMap, packages it per `format`, and forwards.
                                 nullable: true
                                 properties:
                                   configmap:
@@ -463,7 +463,7 @@ spec:
                               Emitted FQDN: `${app}.${ephemeral_id}.${cluster}.${location}.${domain}` where: * `app` and (optional) `instance` come from this struct; * `cluster` falls back to reconciler-config when unset; * `location` and `domain` are reconciler-config (from `nix/lib/fleet-domains.nix`).
                             properties:
                               app:
-                                description: 'Application slot — `api`, `gator`, `gateway`, `web`, etc. Must be a valid DNS label (RFC 1123): lowercase alpha-num + hyphen, 1–63 chars, no leading/trailing hyphen. The reconciler validates this at the boundary.'
+                                description: 'Application slot — `api`, `worker`, `gateway`, `web`, etc. Must be a valid DNS label (RFC 1123): lowercase alpha-num + hyphen, 1–63 chars, no leading/trailing hyphen. The reconciler validates this at the boundary.'
                                 type: string
                               cluster:
                                 description: Cluster override. Empty/None ⇒ reconciler-config default (e.g., `pleme-dev`). Used for cross-cluster routing rules, rare in practice.

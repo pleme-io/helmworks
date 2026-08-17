@@ -6,9 +6,8 @@ This chart used to emit ClusterRole + ClusterRoleBinding unconditionally, which
 makes it unusable on BORROWED GROUND -- a cluster we are a guest in and where a
 cluster-wide watch of every namespace is exactly the thing we promise not to do.
 Camelot hit this and worked around it by hand-rolling a namespaced copy of the
-whole operator inside lareira-akeyless-deployment's 34-shinka-operator template.
-That is the second declaration of one controller; this value exists so there is
-never a third.
+whole operator inside another chart's own operator template. That is the second
+declaration of one controller; this value exists so there is never a third.
 
 `scope: namespaced` is the guest-safe shape: a Role + RoleBinding in the release
 namespace only. Every rule below names a NAMESPACED resource
