@@ -9,8 +9,8 @@ time — a **separate, parallel consumer** of the generic pleme-io PITR engine.
   `ghcr.io/pleme-io/{pitr-tools,function-pitr-drill}@sha256:…` digests
   (TOOL-DISTRIBUTION — consume, never fork/edit) and fills the SAME typed
   `RestoreInput` surface with **camelot** values.
-- **IS NOT** an edit of the engine, and **IS NOT** the team's in-review
-  `pitr-akeyless` chart in `akeyless-environments`. The team reviews THEIR consumer;
+- **IS NOT** an edit of the engine, and **IS NOT** the resident team's own in-review
+  PITR chart in their environments repo. That team reviews THEIR consumer;
   camelot runs OURS; the two never touch (different repo · branch · Flux scope · ns ·
   creds · data-plane · config). Both are external OSS consumers of the same engine.
 
@@ -59,7 +59,7 @@ ergonomic `nix run .#camelot-pitr declare|observe` keyway wrapper is the DESIGN 
   breathe bands, isolation, RBAC, cofre SecretRef, camelot-scoped XRD/CR).
 - **OPERATOR-GATED (named, not claimed working):** the LIVE drill needs (1) **Crossplane
   core + provider-kubernetes** on the camelot floor, (2) a **CSI VolumeSnapshotClass**
-  (`restore.snapshotClassName`), and (3) **camelot akeyless creds via cofre**
+  (`restore.snapshotClassName`), and (3) **camelot-scoped store creds via cofre**
   (`externalSecrets`). Until those exist, a rendered `CamelotPITRSession` simply stays
   `Pending` — harmless, node-gated, exactly like the camelot C0 skeleton.
 

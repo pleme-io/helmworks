@@ -4,8 +4,8 @@
 # The camelot-scoped composite type — the client-facing PITR trigger surface.
 #
 # GENTLEMANLY GUEST: camelot uses its OWN group ({{ $x.group }}, kind {{ $x.kind }}) so
-# the CLUSTER-SCOPED CRD this XRD generates can NEVER collide with the team's
-# pitr.akeyless.io/PITRSession if both land in mte-staging. Same client-facing signature
+# the CLUSTER-SCOPED CRD this XRD generates can NEVER collide with the resident team's
+# own PITR composite if both land in the same cluster. Same client-facing signature
 # invariant — (spec.restoreTime, spec.secretNames) → status.retrievedSecrets — camelot
 # group. OPERATOR-GATED: requires Crossplane core.
 apiVersion: apiextensions.crossplane.io/v1
@@ -32,8 +32,8 @@ spec:
         openAPIV3Schema:
           type: object
           description: >-
-            A single camelot PITR drill: restore camelot's OWN in-cluster akeyless data
-            plane (gp3-PVC MySQL) to a snapshot point and prove a canary written before
+            A single camelot PITR drill: restore camelot's OWN in-cluster secret-store
+            data plane (gp3-PVC MySQL) to a snapshot point and prove a canary written before
             it is retrievable after restore. The engine runs the drill; the restore
             VECTOR (CSI VolumeSnapshot) is camelot config, not RDS.
           properties:
@@ -50,7 +50,7 @@ spec:
                   items: { type: string }
                   default: []
                   description: >-
-                    camelot akeyless paths to verify in the restored env. Empty ⇒
+                    camelot secret paths to verify in the restored env. Empty ⇒
                     auto-canary at /drill-canary/<correlationId>.
                 retention:
                   type: object

@@ -42,7 +42,7 @@ spec:
           logs-type: saas
           camelot.pleme.io/surface: pitr
         # camelot-scoped cofre SecretRef — the drill authenticates to CAMELOT's OWN
-        # akeyless, NEVER the resident akeyless pitr-akeyless-admin-creds.
+        # store, NEVER a resident team's admin-creds Secret.
         jobEnv:
           - name: AKEYLESS_ACCESS_KEY
             valueFrom:

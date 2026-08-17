@@ -15,7 +15,7 @@ imagePullSecrets:
 ---
 # LEAST-PRIVILEGE — ns-scoped ONLY. The drill Jobs create/manage Jobs/Pods/ConfigMaps in
 # the release namespace and take CSI VolumeSnapshot verbs on CAMELOT's OWN PVCs. NEVER
-# cluster-scoped; NEVER reaches a resident akeyless namespace (gentlemanly guest).
+# cluster-scoped; NEVER reaches a resident namespace (gentlemanly guest).
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:

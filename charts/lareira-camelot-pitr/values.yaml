@@ -2,7 +2,7 @@
 #
 # Everything camelot-specific is CONFIG the chart Helm-templates into the UNCHANGED
 # engine's RestoreInput; none of it lives in the engine binary. camelot fills the SAME
-# surface the team's pitr-akeyless chart fills, with camelot values. The engine is
+# surface the resident team's own PITR chart fills, with camelot values. The engine is
 # consumed BY DIGEST (below) — never forked, never edited.
 #
 # TIER-HONEST: this chart RENDERS + LINTS + UNIT-TESTS green (the layer is WIRED). The
@@ -27,10 +27,10 @@ function:
   replicas: 2   # stateless request/response gRPC — HA by replica count, no election
   install: true # install the Function CR + DeploymentRuntimeConfig (OPERATOR-GATED: needs Crossplane)
 
-# ── CAMELOT-SCOPED XRD (collision-free — NOT the team's pitr.akeyless.io) ──────
+# ── CAMELOT-SCOPED XRD (collision-free — NOT the resident team's own group) ────
 # The gentlemanly-guest move: camelot uses its OWN Crossplane composite group so the
-# CLUSTER-SCOPED CRD never collides with the team's pitr.akeyless.io if both land in
-# mte-staging. Same client-facing signature invariant, camelot group.
+# CLUSTER-SCOPED CRD never collides with the resident team's own PITR group if both
+# land in the same cluster. Same client-facing signature invariant, camelot group.
 xrd:
   install: true
   group: pitr.camelot.pleme.io
@@ -45,14 +45,17 @@ composition:
   tenant: "camelot"           # seeds the deterministic correlation id → drill-camelot-<8hex>
   concurrencyLimit: 1         # single-drill camelot; never two restores racing the same PVC snap
 
-  # camelot's OWN saas set (the 6 restore microservices wired to the restored MySQL).
+  # camelot's OWN saas set (the restore microservices wired to the restored MySQL).
+  # PLACEHOLDER ROSTER — the real service names are supplied per-install. The shape
+  # is what matters here: N plain services plus one sharded service (the `kfmID`
+  # discriminator the engine reads to fan a single appName into replicas).
   akeylessServices:
-    auth:  { appName: auth,  dbSource: unified, svc: { appPort: 80 } }
-    uam:   { appName: uam,   dbSource: unified, svc: { appPort: 80 } }
-    kfm1:  { appName: kfm, kfmID: "1", dbSource: unified, svc: { appPort: 80 } }
-    kfm2:  { appName: kfm, kfmID: "2", dbSource: unified, svc: { appPort: 80 } }
-    kfm3:  { appName: kfm, kfmID: "3", dbSource: unified, svc: { appPort: 80 } }
-    gator: { appName: gator, dbSource: unified, svc: { appPort: 80 } }
+    service-a: { appName: service-a, dbSource: unified, svc: { appPort: 80 } }
+    service-b: { appName: service-b, dbSource: unified, svc: { appPort: 80 } }
+    shard1:    { appName: service-c, kfmID: "1", dbSource: unified, svc: { appPort: 80 } }
+    shard2:    { appName: service-c, kfmID: "2", dbSource: unified, svc: { appPort: 80 } }
+    shard3:    { appName: service-c, kfmID: "3", dbSource: unified, svc: { appPort: 80 } }
+    service-d: { appName: service-d, dbSource: unified, svc: { appPort: 80 } }
 
   # ★ THE HONEST DIVERGENCE (§2.4): camelot has NO RDS — its MySQL is an in-cluster
   # StatefulSet on a gp3 volumeClaimTemplate. sourceDbInstances is EMPTY, so the
@@ -66,14 +69,15 @@ composition:
   restoreKmsKeyId: ""
   restoreVpcSecurityGroupIds: []
 
-  # camelot's own akeyless (NEVER the resident akeyless): the drill Jobs canary-create
-  # + verify against THIS url with the access-id below; the access-KEY arrives via the
-  # camelot-scoped cofre SecretRef (external-secrets.yaml → jobEnv), never the team's.
-  sourceAkeylessUrl: "http://saas-auth-service-ingress.camelot.svc.cluster.local"
+  # camelot's own in-cluster instance (NEVER a resident one): the drill Jobs
+  # canary-create + verify against THIS url with the access-id below; the access-KEY
+  # arrives via the camelot-scoped cofre SecretRef (external-secrets.yaml → jobEnv),
+  # never the resident team's. PLACEHOLDER service name — supply the real one.
+  sourceAkeylessUrl: "http://saas-service-ingress.camelot.svc.cluster.local"
   akeylessAccessId: ""              # set per-drill via the CamelotPITRSession/values (camelot access-id)
   akeylessK8sAuthConfigName: ""
 
-  # camelot akeyless-nix-images pins (the temporary restore saas image set).
+  # camelot image-build-repo pins (the temporary restore saas image set).
   saasImage:
     mode: pinned
     pinned: {}
@@ -93,7 +97,8 @@ composition:
 restore:
   enabled: true
   # the durable gp3 MySQL PVC in camelot (the break-glass durable PVC, 2026-07-06 fix).
-  sourcePvcName: "akeyless-saas-akeyless-mysql-data"
+  # PLACEHOLDER — supply the real PVC name per-install.
+  sourcePvcName: "saas-mysql-data"
   # the CSI VolumeSnapshotClass (gp3/ebs.csi.aws.com). OPERATOR-GATED: must exist.
   snapshotClassName: "ebs-vsc"
   # restore FROM this pre-existing snapshot (the one at/before restoreTime — selected by
@@ -105,21 +110,21 @@ restore:
   restoreStatefulSetName: "camelot-mysql-restore"
   size: "20Gi"
   storageClassName: "gp3"
-  # The SOURCE server's image tag — akeyless-mysql-pleme's own image.tag. Declared
-  # here as DATA rather than left implicit, because mysqlImage below is not free
-  # to disagree with it and the template enforces that. If the akeyless mysql
-  # subchart moves, move this first, then mysqlImage.
+  # The SOURCE server's image tag — the source MySQL subchart's own image.tag.
+  # Declared here as DATA rather than left implicit, because mysqlImage below is
+  # not free to disagree with it and the template enforces that. If the source
+  # MySQL subchart moves, move this first, then mysqlImage.
   sourceMysqlTag: "8.0"
   # MUST track the SOURCE server's major.minor — this server mounts a datadir
   # restored from a snapshot of it, so the two are not independent choices.
-  # akeyless-mysql-pleme pins `mysql:8.0` (its values.yaml image.tag), so this is
-  # 8.0. It read `mysql:8.4` until 2026-08-05, which would have failed the first
+  # The source MySQL subchart pins `mysql:8.0` (its values.yaml image.tag), so this
+  # is 8.0. It read `mysql:8.4` until 2026-08-05, which would have failed the first
   # drill two independent ways:
   #
   #  1. AUTH. MySQL 8.4 ships mysql_native_password DISABLED by default (present
   #     but not loaded; it needs --mysql-native-password=ON, and 9.0 drops it
   #     entirely). camelot-bootstrap deliberately sets root@'%' to that plugin --
-  #     `caching_sha2 breaks the akeyless driver`, provision_emit.go:32 -- so a
+  #     `caching_sha2 breaks the app's MySQL driver`, provision_emit.go:32 -- so a
   #     restored datadir carries a root account an 8.4 server will not
   #     authenticate, and the temporary restore saas cannot connect at all.
   #     MYSQL_ALLOW_EMPTY_PASSWORD does NOT rescue this: it only governs
@@ -166,19 +171,19 @@ pitrsession:
     mode: Drill                          # Drill (auto-teardown) | Recover (hold for retrieval)
     maxHold: "6h"
 
-# ── RBAC (least-privilege, ns-scoped — never reaches a resident akeyless ns) ──
+# ── RBAC (least-privilege, ns-scoped — never reaches a resident namespace) ────
 rbac:
   create: true
 serviceAccount:
   create: true
   name: camelot-pitr-job-runner
 
-# ── COFRE SECRETREF (camelot-scoped — NEVER the akeyless pitr-akeyless-admin-creds) ──
+# ── COFRE SECRETREF (camelot-scoped — NEVER a resident admin-creds Secret) ────
 externalSecrets:
   create: true
   # the camelot-scoped ExternalSecret → the k8s Secret the jobEnv reads. Points at
-  # camelot's OWN akeyless access-key. OPERATOR-GATED: needs external-secrets + a
-  # camelot ClusterSecretStore + the camelot access-key provisioned in cofre.
+  # camelot's OWN access-key. OPERATOR-GATED: needs external-secrets + a camelot
+  # ClusterSecretStore + the camelot access-key provisioned in cofre.
   secretName: camelot-pitr-admin-creds
   secretStoreRef: camelot-akeyless          # a camelot-scoped SecretStore/ClusterSecretStore
   accessKeyRemoteRef: "/camelot/pitr/access-key"

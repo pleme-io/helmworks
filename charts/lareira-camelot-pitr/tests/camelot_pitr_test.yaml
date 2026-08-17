@@ -64,7 +64,7 @@ tests:
           value: StatefulSet
       - equal:
           path: spec.pipeline[0].input.extraResources[0].spec.source.persistentVolumeClaimName
-          value: akeyless-saas-akeyless-mysql-data
+          value: saas-mysql-data
 
   - it: pins the restore StatefulSet to the role=camelot tainted nodes (isolation)
     template: templates/composition.yaml
@@ -74,11 +74,11 @@ tests:
           value: camelot
 
   # The restore server mounts a datadir snapshotted from the SOURCE server, so
-  # their versions are one decision, not two. akeyless-mysql-pleme pins mysql:8.0.
+  # their versions are one decision, not two. The source MySQL subchart pins mysql:8.0.
   # This read mysql:8.4 until 2026-08-05 and would have failed the first drill:
   # 8.4 ships mysql_native_password DISABLED by default, and camelot-bootstrap
   # deliberately sets root@'%' to exactly that plugin (provision_emit.go:32 --
-  # caching_sha2 breaks the akeyless driver), so the restored root account is
+  # caching_sha2 breaks the app's MySQL driver), so the restored root account is
   # unauthenticatable and the temporary restore saas cannot connect at all.
   # MYSQL_ALLOW_EMPTY_PASSWORD does not save it: that only governs FRESH datadir
   # initialization, which a restore never is.
@@ -95,7 +95,7 @@ tests:
       restore.mysqlImage: "mysql:8.4"
     asserts:
       - failedTemplate:
-          errorMessage: 'restore.mysqlImage="mysql:8.4" must be tag "8.0" to match restore.sourceMysqlTag: the restore server mounts a datadir snapshotted from the source server, so a major.minor mismatch is a broken drill, not a preference. MySQL 8.4 additionally ships mysql_native_password DISABLED by default, and camelot-bootstrap sets root@% to exactly that plugin (caching_sha2 breaks the akeyless driver), so a restored root account cannot authenticate at all. Change both together, or change neither.'
+          errorMessage: 'restore.mysqlImage="mysql:8.4" must be tag "8.0" to match restore.sourceMysqlTag: the restore server mounts a datadir snapshotted from the source server, so a major.minor mismatch is a broken drill, not a preference. MySQL 8.4 additionally ships mysql_native_password DISABLED by default, and camelot-bootstrap sets root@% to exactly that plugin (caching_sha2 breaks the app''s MySQL driver), so a restored root account cannot authenticate at all. Change both together, or change neither.'
 
   # ── THE DECLARE TRIGGER: camelot-scoped CR (collision-free) ────────────────
   - it: renders the CamelotPITRSession trigger under the camelot-scoped group

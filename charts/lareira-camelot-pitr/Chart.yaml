@@ -6,8 +6,8 @@ description: >-
   engine: it pins the SAME ghcr.io/pleme-io/{pitr-tools,function-pitr-drill}@sha256
   digests (TOOL-DISTRIBUTION — consume, never fork/edit) and fills the SAME typed
   RestoreInput surface with CAMELOT values. It NEVER touches the engine repos or the
-  team's in-review pitr-akeyless chart in akeyless-environments — the team reviews
-  THEIR consumer, camelot runs OURS, the two never touch (different repo · branch ·
+  resident team's own in-review PITR chart in their environments repo — that team
+  reviews THEIR consumer, camelot runs OURS, the two never touch (different repo · branch ·
   Flux scope · ns · creds · data-plane · config). Camelot's data plane is in-cluster
   gp3-PVC MySQL (not RDS), so the restore vector is a CSI VolumeSnapshot of the gp3
   PVC fed to the UNCHANGED engine as extraResources with empty sourceDbInstances
@@ -16,12 +16,14 @@ description: >-
   camelot-isolated (role: camelot taint + toleration). Peer of lareira-autorevivy.
   Tier-honest: the chart renders + lints + unit-tests green (the layer is WIRED);
   the LIVE drill is OPERATOR-GATED on Crossplane-on-the-camelot-floor + a
-  VolumeSnapshotClass + camelot akeyless cofre creds — named, never claimed working.
+  VolumeSnapshotClass + camelot-scoped cofre creds — named, never claimed working.
   Recovery is snapshot-point (the snapshot cadence), NOT arbitrary-second PITR
   (binlog replay is a further increment); a canary round-trip is a recovery
   MITIGATION, not a no-row-lost theorem. See the camelot skill + pitr research.
 type: application
-version: 0.2.0
+version: 0.2.1
+# 0.2.1 -- placeholder identifiers in the default values (no environment identity
+#          ships in the chart); prose genericized.
 # 0.2.0 (2026-08-05) -- ships the mysql 8.0 pin that 168dc27 stranded.
 #
 # 168dc27 corrected restore.mysqlImage from mysql:8.4 to mysql:8.0 and added the

@@ -4,7 +4,7 @@ camelot-pitr.drillSteps — the ordered drill steps as engine DrillSteps (config
 Each step runs the generic pitr-tools binary (images.pitrTools, by digest) as a Job with
 the step's command/args; the engine substitutes the runtime {{placeholder}} vocabulary
 ({{correlationId}} / {{restoreNamespace}} / {{secretPaths}} / …). Store-neutral: the
-binaries hit camelot's OWN in-cluster akeyless via jobEnv creds (external-secrets.yaml).
+binaries hit camelot's OWN in-cluster store via jobEnv creds (external-secrets.yaml).
 */}}
 {{- define "camelot-pitr.drillSteps" -}}
 {{- $d := .Values.drillSteps -}}

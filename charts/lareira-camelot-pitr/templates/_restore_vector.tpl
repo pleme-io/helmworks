@@ -19,10 +19,10 @@ OPERATOR-GATED on Crossplane + provider-kubernetes + a CSI VolumeSnapshotClass.
   their versions are ONE decision. Enforced at render rather than documented,
   because both failure modes are silent until a drill actually runs.
 */ -}}
-{{- $wantTag := $r.sourceMysqlTag | required "restore.sourceMysqlTag is required: it declares the SOURCE mysql version the snapshot comes from (akeyless-mysql-pleme's image.tag), which the restore server must match." -}}
+{{- $wantTag := $r.sourceMysqlTag | required "restore.sourceMysqlTag is required: it declares the SOURCE mysql version the snapshot comes from (the source MySQL subchart's image.tag), which the restore server must match." -}}
 {{- $gotTag := (splitList ":" $r.mysqlImage) | last -}}
 {{- if ne $gotTag $wantTag -}}
-{{- fail (printf "restore.mysqlImage=%q must be tag %q to match restore.sourceMysqlTag: the restore server mounts a datadir snapshotted from the source server, so a major.minor mismatch is a broken drill, not a preference. MySQL 8.4 additionally ships mysql_native_password DISABLED by default, and camelot-bootstrap sets root@%% to exactly that plugin (caching_sha2 breaks the akeyless driver), so a restored root account cannot authenticate at all. Change both together, or change neither." $r.mysqlImage $wantTag) -}}
+{{- fail (printf "restore.mysqlImage=%q must be tag %q to match restore.sourceMysqlTag: the restore server mounts a datadir snapshotted from the source server, so a major.minor mismatch is a broken drill, not a preference. MySQL 8.4 additionally ships mysql_native_password DISABLED by default, and camelot-bootstrap sets root@%% to exactly that plugin (caching_sha2 breaks the app's MySQL driver), so a restored root account cannot authenticate at all. Change both together, or change neither." $r.mysqlImage $wantTag) -}}
 {{- end -}}
 {{- if $r.createSnapshot }}
 # (optional) snapshot the live gp3 PVC now — the drill smoke path (snap-now → restore-now).
