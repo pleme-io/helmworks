@@ -52,6 +52,38 @@ spec:
                   description: >-
                     camelot secret paths to verify in the restored env. Empty ⇒
                     auto-canary at /drill-canary/<correlationId>.
+                # ★ DECLARED HERE OR IT DOES NOT EXIST. `properties` is a CLOSED
+                # schema: a field a client sends that this omits is PRUNED by the
+                # apiserver before the controller ever sees it. The CR applies, the
+                # apply reports success, and the field is simply gone — there is no
+                # error anywhere in that sequence. So the engine reading
+                # `spec.restoreNamespace` (pitr-tools function/function.go) is only
+                # half of the mechanism; this is the other half, and either alone
+                # renders green.
+                restoreNamespace:
+                  type: string
+                  description: >-
+                    Namespace every artifact of THIS drill lands in, overriding the
+                    chart-wide function input. Empty ⇒ the chart-wide value, and if
+                    that is also empty, the engine-derived restore-<correlationId>.
+
+                    Set it when something else already owns a namespace the drill
+                    belongs inside. viveiro spawns viveiro-env-<8hex>, owns its whole
+                    lifecycle and reaps it by finalizer, so a drill scattering half
+                    its artifacts elsewhere leaves them outside the thing that cleans
+                    up.
+
+                    It is per-CR rather than chart-wide because the chart-wide input
+                    is per-Composition: under one release, N drills would all restore
+                    into one namespace, and each one after the first would verify a
+                    different drill's data. That failure is silent — two drills
+                    writing one namespace is not an error, just a wrong answer.
+
+                    REQUIRED, not merely tidier, for the CSI vector: VolumeSnapshot is
+                    Namespaced and a PVC dataSource is a TypedLocalObjectReference
+                    (same namespace only), so a restore PVC can only clone a snapshot
+                    beside it. Supplying the namespace makes that constraint vacuous
+                    rather than working around it.
                 retention:
                   type: object
                   default: {}

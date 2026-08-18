@@ -308,3 +308,35 @@ tests:
       - equal:
           path: spec.pipeline[0].input.extraResources[3].spec.selector["app.kubernetes.io/name"]
           value: camelot-mysql-restore
+
+  # ── THE XRD MUST DECLARE restoreNamespace, OR IT IS PRUNED ────────────────
+  #
+  # `properties` is a CLOSED schema. A field a client sends that the XRD does not
+  # declare is stripped by the apiserver before any controller sees it: the CR
+  # applies, the apply reports success, and the field is gone. No error, no event,
+  # no condition.
+  #
+  # So the engine reading `spec.restoreNamespace` (pitr-tools function/function.go,
+  # with its own end-to-end test) is only half the mechanism. This is the other
+  # half. Either half alone renders green and does nothing — which is the shape
+  # this chart has now produced four times.
+  - it: declares spec.restoreNamespace, without which the field is silently pruned
+    template: templates/xrd.yaml
+    asserts:
+      - equal:
+          path: spec.versions[0].schema.openAPIV3Schema.properties.spec.properties.restoreNamespace.type
+          value: string
+      # NOT required, and NOT defaulted. A default would write a namespace into
+      # every CR that omitted one, which is exactly the chart-wide behaviour this
+      # field exists to override — the fallback belongs in the engine's precedence
+      # chain, where the chart-wide input still gets its turn.
+      - notContains:
+          path: spec.versions[0].schema.openAPIV3Schema.properties.spec.required
+          content: restoreNamespace
+      - notExists:
+          path: spec.versions[0].schema.openAPIV3Schema.properties.spec.properties.restoreNamespace.default
+      # The status field stays too: the engine reports back where the drill
+      # actually landed, which is not necessarily what any one CR asked for.
+      - equal:
+          path: spec.versions[0].schema.openAPIV3Schema.properties.status.properties.restoreNamespace.type
+          value: string
