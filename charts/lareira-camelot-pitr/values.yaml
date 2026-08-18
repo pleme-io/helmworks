@@ -17,13 +17,33 @@ images:
   # the store-NEUTRAL drill-step binaries (canary-create / verify / cleanup /
   # wait-for-deps / diagnostic-collect) — internal/borealis, run as Jobs against
   # camelot's OWN in-cluster akeyless. The canary round-trip proof is identical.
-  pitrTools: "ghcr.io/pleme-io/pitr-tools@sha256:8dc18919cd410027240792ffcc2156ff615fbf542a93409d85e0d70c8e753576"
+  # RE-PINNED 2026-08-18: amd64-886774d (2026-07-16). The previous digest was
+  # built from 5d30956 (2026-06-08), which PREDATES the vendor-neutral rename
+  # (0078434, 2026-06-10) -- it still expected --source-akeyless-url and would
+  # reject every flag the corrected drill steps now emit. Verified at this
+  # commit: cmd/canary-create defines source-borealis-url, cmd/verify defines
+  # restored-uam-url, cmd/wait-for-deps defines max-restarts.
+  #
+  # NOTE this image lags pitr-tools HEAD (1908156, 2026-08-05) by ~3 weeks --
+  # 886774d is the newest PUBLISHED amd64 image, not the newest commit. The
+  # image pipeline has not run since 07-16. Not blocking (886774d is
+  # post-rename and defines every flag emitted here), but the pin is a
+  # published-artifact ceiling, not a source ceiling.
+  pitrTools: "ghcr.io/pleme-io/pitr-tools@sha256:69be0a0831ba17a98678153bdc39c0ee2ea354f93bae7b1dfaf5370330ee375f"
 
 function:
   # the generic drill-orchestration engine (correlation, per-drill ns, per-step Jobs,
   # result observer, status lifecycle, generic extraResources emitter) — zero "akeyless".
   package: "ghcr.io/pleme-io/function-pitr-drill"
-  ref: "@sha256:448384b1569376225729acdc3c5d308ecf9278152fd9033fc6bcbd200eadd878"
+  # RE-PINNED 2026-08-18: sha-1908156, built from pitr-tools HEAD (2026-08-05),
+  # likewise past the vendor-neutral rename the old digest predated.
+  #
+  # ORDERING RULE (README): re-pin the ENGINE xpkg BEFORE the drill image on a
+  # LIVE release -- reversed, teardown never runs. Both land together here
+  # because this chart has no HelmRelease anywhere yet, so there is no live
+  # release whose ordering could be violated. When it IS deployed, split the
+  # two into separate commits with a reconcile between.
+  ref: "@sha256:32795f871b163590c147a461e8e7a741e30b942248270fa671e7c9b028b7109a"
   replicas: 2   # stateless request/response gRPC — HA by replica count, no election
   install: true # install the Function CR + DeploymentRuntimeConfig (OPERATOR-GATED: needs Crossplane)
 

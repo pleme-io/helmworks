@@ -7,6 +7,16 @@ templates:
   - templates/rbac.yaml
   - templates/breatheband.yaml
   - templates/external-secrets.yaml
+
+# Suite-level values so every case can RENDER. store.sourceUrl / store.accessId
+# are `required` in the template (a drill pointed at the wrong source store
+# verifies a secret it never wrote -- worse than a render error), so without
+# these every unrelated case fails on a missing value rather than on its own
+# subject. The one case that DELIBERATELY omits sourceUrl overrides it back to
+# empty locally.
+set:
+  store.sourceUrl: "https://src.example"
+  store.accessId: "p-abc"
 tests:
   # ── TOOL-DISTRIBUTION: consume the engine BY DIGEST ────────────────────────
   - it: installs the engine Function pinned by @sha256 (never a moving tag)
@@ -169,3 +179,73 @@ tests:
       - notEqual:
           path: metadata.name
           value: pitr-akeyless-admin-creds
+
+  # ── FLAG CONTRACT: every emitted arg must be a flag its binary defines ─────
+  #
+  # THE DEFECT THIS EXISTS FOR (2026-08-18): every drill step passed at least
+  # one flag its binary does not define. Go's `flag` exits 2 on an unknown flag
+  # BEFORE any work, so no drill step had ever executed -- while this chart
+  # rendered green and this suite passed. Nothing compared the emitted args
+  # against the binaries receiving them, so a step could be arbitrarily wrong
+  # and still look correct at every layer a reviewer inspects.
+  #
+  # ★ TIER, stated rather than implied: this pins a MEASURED SNAPSHOT of the
+  # per-binary flag sets, read from pitr-tools/cmd/* on 2026-08-18. helm-unittest
+  # cannot read another repo's Go source, so it CANNOT catch a flag removed on
+  # the binary side -- only drift introduced HERE, which is where this drift
+  # actually happened. A true cross-repo contract check needs CI with both trees
+  # checked out; until then this is the honest half.
+  # `pending-flag-contract: cross-repo check needs both trees in one CI job`
+  #
+  # The flags below are the ones each binary genuinely defines. All four of the
+  # removed ones were REAL flags living in OTHER binaries, which is exactly how
+  # this drifted:
+  #   /canary-create      borealis-access-id, correlation-id, source-borealis-url
+  #   /verify             + max-wait, mode, poll-interval, restored-borealis-url,
+  #                         restored-uam-url, secret-paths
+  #   /wait-for-deps      correlation-id, max-restarts, max-wait, poll-interval
+  #   /cleanup            correlation-id, restore-namespace (+ others)
+  #   /diagnostic-collect correlation-id, diagnostics-bucket, pitrsession-name,
+  #                       tenant, xr-group, xr-resource, xr-version
+  - it: emits only flags the drill binaries actually define
+    template: templates/composition.yaml
+    set:
+      store.sourceUrl: "https://src.example"
+      store.accessId: "p-abc"
+    asserts:
+      # canary-create: writes the canary into the SOURCE store, so it needs the
+      # source URL + an identity. --secret-paths belongs to /verify, not here.
+      - matchRegex:
+          path: spec.pipeline[0].input.drillSteps[0].args[0]
+          pattern: "^--source-borealis-url=https://src\\.example$"
+      - matchRegex:
+          path: spec.pipeline[0].input.drillSteps[0].args[1]
+          pattern: "^--borealis-access-id=p-abc$"
+      - notMatchRegex:
+          path: spec.pipeline[0].input.drillSteps[0].args[0]
+          pattern: "secret-paths"
+
+      # verify: both restored endpoints must be present. When --restored-uam-url
+      # is empty the binary falls back to the borealis URL, which describes items
+      # against the AUTH service and fails in a way that names neither.
+      - matchRegex:
+          path: spec.pipeline[0].input.drillSteps[1].args[0]
+          pattern: "^--restored-borealis-url=http://auth\\.\\{\\{restoreNamespace\\}\\}\\."
+      - matchRegex:
+          path: spec.pipeline[0].input.drillSteps[1].args[1]
+          pattern: "^--restored-uam-url=http://uam\\.\\{\\{restoreNamespace\\}\\}\\."
+      # --mode is asserted EXPLICITLY. `presence` never reads the secret back and
+      # exits 0 even on failure, so a drill running it proves nothing; flipping
+      # this value is the single edit that would make every drill pass falsely.
+      - matchRegex:
+          path: spec.pipeline[0].input.drillSteps[1].args[4]
+          pattern: "^--mode=api$"
+
+  - it: refuses to render without a source store, rather than drilling against nothing
+    template: templates/composition.yaml
+    set:
+      store.sourceUrl: ""
+      store.accessId: "p-abc"
+    asserts:
+      - failedTemplate:
+          errorMessage: 'store.sourceUrl is required: /canary-create writes the canary into the SOURCE store, and with no URL it has nowhere to write. There is no runtime placeholder for it: the source store is static config, unlike the restored endpoints below which derive from the per-drill restore namespace.'
