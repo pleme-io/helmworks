@@ -273,3 +273,38 @@ tests:
       - equal:
           path: spec.pipeline[0].input.restoreNamespace
           value: ""
+
+  # ── THE RESTORE MySQL MUST BE REACHABLE ───────────────────────────────────
+  #
+  # Until 2026-08-18 the vector emitted a StatefulSet declaring
+  # `serviceName: camelot-mysql-restore` and NO Service by that name. A
+  # StatefulSet does not create its governing Service — it only names one, and
+  # Kubernetes does not complain when the name resolves to nothing. So the
+  # restore plane came up healthy, the PVC bound, MySQL started, and the restored
+  # data had no DNS name any client could use.
+  #
+  # This asserts the pair together, because either half alone renders green: the
+  # StatefulSet's serviceName and a Service that actually answers to it.
+  - it: emits a Service for the restore MySQL, matching the StatefulSet's serviceName
+    template: templates/composition.yaml
+    asserts:
+      - equal:
+          path: spec.pipeline[0].input.extraResources[3].kind
+          value: Service
+      - equal:
+          path: spec.pipeline[0].input.extraResources[3].metadata.name
+          value: camelot-mysql-restore
+      - equal:
+          path: spec.pipeline[0].input.extraResources[2].spec.serviceName
+          value: camelot-mysql-restore
+      # Headless: it governs a StatefulSet, so the per-pod DNS a StatefulSet's
+      # identity contract depends on must exist. A ClusterIP would load-balance
+      # across replicas, which is wrong for a database addressed as one instance.
+      - equal:
+          path: spec.pipeline[0].input.extraResources[3].spec.clusterIP
+          value: None
+      # The selector must actually match the StatefulSet's pods — a Service with a
+      # wrong selector is exactly as unreachable as no Service, and reports Healthy.
+      - equal:
+          path: spec.pipeline[0].input.extraResources[3].spec.selector["app.kubernetes.io/name"]
+          value: camelot-mysql-restore

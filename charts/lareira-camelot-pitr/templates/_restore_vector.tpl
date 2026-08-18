@@ -101,5 +101,50 @@ OPERATOR-GATED on Crossplane + provider-kubernetes + a CSI VolumeSnapshotClass.
           - name: data
             persistentVolumeClaim:
               claimName: {{ $r.restorePvcName }}
+# ★ THE RESTORE MySQL'S SERVICE. Added 2026-08-18 — it was MISSING, and its absence
+# is why nothing could ever reach the restored database.
+#
+# EMITTED LAST, after the StatefulSet, purely to keep the existing positional
+# assertions in tests/camelot_pitr_test.yaml valid — extraResources are indexed by
+# position there. Order carries no meaning to the engine: each entry becomes an
+# independent provider-kubernetes Object and Kubernetes has no Service-before-
+# StatefulSet requirement (a StatefulSet names its governing Service; it does not
+# wait on it).
+#
+# The StatefulSet below declares `serviceName: <restoreStatefulSetName>` and no
+# Service by that name was ever emitted. A StatefulSet does not create its governing
+# Service; it only names one, and Kubernetes does not complain when the name resolves
+# to nothing. So the restore plane came up healthy, the PVC bound, MySQL started, and
+# the restored data had no DNS name any client could use. Same shape as every other
+# defect found this session: the declaration was present and correct, and the thing
+# that makes it reachable was absent.
+#
+# Headless (clusterIP: None) because it governs a StatefulSet: that gives the stable
+# per-pod DNS a StatefulSet's identity contract is built on, and a restore server is
+# addressed as one specific instance, never load-balanced across replicas.
+#
+# The NAME is deliberately `restore.mysqlServiceName`, defaulting to the same value
+# the StatefulSet's serviceName uses, rather than being hardcoded: a consumer whose
+# conf renderer expects the database at a fixed name (camelot-bootstrap's
+# EnvSpec.MysqlHost is ONE field — `db_host_name for every service`) points the whole
+# SaaS at the restored database by setting this to what that renderer already emits,
+# instead of re-rendering every service's conf.
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: {{ $r.mysqlServiceName | default $r.restoreStatefulSetName }}
+    namespace: {{ .Release.Namespace }}
+    labels:
+      camelot.pleme.io/surface: pitr
+      camelot.pleme.io/ephemeral: "true"
+  spec:
+    clusterIP: None
+    selector:
+      app.kubernetes.io/name: {{ $r.restoreStatefulSetName }}
+    ports:
+      - name: mysql
+        port: 3306
+        targetPort: 3306
+        protocol: TCP
 {{- end -}}
 {{- end -}}

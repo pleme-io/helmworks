@@ -178,6 +178,15 @@ restore:
   createSnapshot: true
   restorePvcName: "camelot-mysql-restore-data"
   restoreStatefulSetName: "camelot-mysql-restore"
+  # The Service that fronts the restore MySQL. Defaults to restoreStatefulSetName,
+  # which is what the StatefulSet's own `serviceName` names — until 2026-08-18 that
+  # Service was never emitted at all, so the restored database had no DNS name.
+  #
+  # Override it when a consumer's conf renderer expects the database at a fixed
+  # name. camelot-bootstrap renders `db_host_name` for EVERY service from one
+  # EnvSpec.MysqlHost field, so setting this to the name that renderer already
+  # emits points the whole SaaS at the restored data without re-rendering any conf.
+  mysqlServiceName: ""
   size: "20Gi"
   storageClassName: "gp3"
   # The SOURCE server's image tag — the source MySQL subchart's own image.tag.
