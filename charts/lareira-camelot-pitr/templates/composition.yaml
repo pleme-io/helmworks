@@ -45,12 +45,28 @@ spec:
         # camelot-scoped cofre SecretRef — the drill authenticates to CAMELOT's OWN
         # store, NEVER a resident team's admin-creds Secret.
         jobEnv:
-          - name: AKEYLESS_ACCESS_KEY
+          # ★ BOREALIS_ACCESS_KEY, not AKEYLESS_ACCESS_KEY. Corrected 2026-08-18.
+          #
+          # This is what the binaries actually read — `cmd/canary-create/main.go:51`
+          # does `os.Getenv("BOREALIS_ACCESS_KEY")` and exits non-zero without it,
+          # and /verify is the same. Under the old name BOTH authenticating steps
+          # failed before doing any work, while the chart rendered green and every
+          # test passed, because nothing compared the emitted name against the
+          # consumer that reads it. The rename to the vendor-neutral form landed in
+          # pitr-tools 0078434 (2026-06-10) and this half never followed.
+          #
+          # `optional: true` REMOVED, and that matters independently. With it, a
+          # missing Secret does not stop the pod: the Job starts, the env var is
+          # simply absent, and the binary reports a credential problem rather than
+          # the missing Secret that caused it. Since the ExternalSecret feeding this
+          # can itself fail to materialise, optional turned one silent failure into
+          # two. Without it the pod stays in CreateContainerConfigError naming the
+          # Secret — which is the diagnosis, not a riddle.
+          - name: BOREALIS_ACCESS_KEY
             valueFrom:
               secretKeyRef:
                 name: {{ .Values.externalSecrets.secretName | quote }}
                 key: access-key
-                optional: true
         drillSteps:
         {{- include "camelot-pitr.drillSteps" . | nindent 8 }}
         # the restore VECTOR (VolumeSnapshot + restore PVC + restore StatefulSet) — the

@@ -43,6 +43,11 @@ legible at the call site rather than inherited silently.
 {{- define "camelot-pitr.drillSteps" -}}
 {{- $d := .Values.drillSteps -}}
 {{- $s := .Values.store -}}
+{{- /* $r: the restore vector's own values — the pod-watch selector must name the
+       SAME StatefulSet _restore_vector.tpl emits, so it is read from one place
+       rather than retyped here. Two spellings of one name is how a selector comes
+       to match nothing while looking right. */ -}}
+{{- $r := .Values.restore -}}
 {{- if $d.canaryCreate }}
 - name: canary-create
   phase: Restoring
@@ -77,9 +82,33 @@ legible at the call site rather than inherited silently.
     - --poll-interval={{ $d.waitPollInterval }}
     - --correlation-id={{ "{{correlationId}}" }}
   initContainers:
+    # ★ --service WAS MISSING, and the binary refuses without it. Corrected
+    # 2026-08-18. `cmd/wait-for-deps/main.go:96` exits 2 on `len(services) == 0`
+    # with "at least one --service URL required" — so this initContainer failed
+    # before doing any work and the verify Job it gates could never start. The
+    # --max-wait / --max-restarts budget below described a wait that never
+    # happened.
+    #
+    # (Worth stating precisely, because it was first read the other way: this is a
+    # hard exit 2, not a vacuous pass. It fails loudly — but into an initContainer
+    # whose failure reads as "verify is stuck pending", which is why it went
+    # unnoticed.)
+    #
+    # The URLs are the SAME endpoints /verify then calls, with /health appended:
+    # `internal/depwait.Probe` GETs the URL verbatim and appends nothing, so the
+    # path belongs here. Waiting on exactly what verify will use is the point — a
+    # wait against some other endpoint proves the wrong service came up.
     - name: wait-for-restore-deps
       command: ["/wait-for-deps"]
       args:
+        - --service=http://{{ $s.restoredAuthService }}.{{ "{{restoreNamespace}}" }}.{{ $s.clusterDomain }}:{{ $s.restoredPort }}/health
+        - --service=http://{{ $s.restoredUamService }}.{{ "{{restoreNamespace}}" }}.{{ $s.clusterDomain }}:{{ $s.restoredPort }}/health
+        # Watch the restore database's pods too. Without this the step can only
+        # time out: a CrashLoopBackOff restore server is indistinguishable from a
+        # slow one until --max-wait elapses, which is 45m of a drill spent waiting
+        # for something already dead. --max-restarts is the threshold that turns
+        # that into an early, typed failure.
+        - --watch-pod={{ "{{restoreNamespace}}" }}/app.kubernetes.io/name={{ $r.restoreStatefulSetName }}
         - --max-wait={{ $d.waitVerifyMaxWait }}
         - --poll-interval={{ $d.waitPollInterval }}
         - --max-restarts={{ $d.waitMaxRestarts }}

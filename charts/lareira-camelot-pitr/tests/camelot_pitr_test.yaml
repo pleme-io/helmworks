@@ -82,12 +82,32 @@ tests:
           path: spec.pipeline[0].input.extraResources[0].spec.source.persistentVolumeClaimName
           value: saas-mysql-data
 
-  - it: pins the restore StatefulSet to the role=camelot tainted nodes (isolation)
+  # ── PLACEMENT MUST BE SATISFIABLE ─────────────────────────────────────────
+  #
+  # This case used to assert `nodeSelector.role == camelot` and was titled "pins
+  # the restore StatefulSet to the role=camelot tainted nodes (isolation)". It was
+  # green for as long as it existed and it pinned a value that can never schedule:
+  # measured 2026-08-18, NO node carries `role=camelot` (the values in use are
+  # `camelot-builder` and empty) and none of the seven Karpenter NodePools
+  # produces it. The restore StatefulSet would have sat Pending forever while the
+  # Crossplane composite reported Healthy.
+  #
+  # A test asserting a specific label can only ever confirm that the chart says
+  # what the chart says. It cannot see the cluster, so it cannot tell a real
+  # placement from an imaginary one — which is exactly how this survived. The
+  # replacement asserts the property that actually matters and that the chart CAN
+  # know: the workload carries no constraint that pins it to nothing.
+  #
+  # If real isolation is wanted later, it needs a NodePool that produces the label
+  # and a test that names it — not a string that reads like one.
+  - it: gives the restore StatefulSet a satisfiable placement
     template: templates/composition.yaml
     asserts:
-      - equal:
+      - notExists:
           path: spec.pipeline[0].input.extraResources[2].spec.template.spec.nodeSelector.role
-          value: camelot
+      - equal:
+          path: spec.pipeline[0].input.extraResources[2].spec.template.spec.nodeSelector
+          value: {}
 
   # The restore server mounts a datadir snapshotted from the SOURCE server, so
   # their versions are one decision, not two. The source MySQL subchart pins mysql:8.0.
@@ -209,8 +229,10 @@ tests:
   #   /canary-create      borealis-access-id, correlation-id, source-borealis-url
   #   /verify             + max-wait, mode, poll-interval, restored-borealis-url,
   #                         restored-uam-url, secret-paths
-  #   /wait-for-deps      correlation-id, max-restarts, max-wait, poll-interval
-  #   /cleanup            correlation-id, restore-namespace (+ others)
+  #   /wait-for-deps      correlation-id, max-restarts, max-wait, poll-interval,
+  #                         service (>=1 REQUIRED), watch-pod
+  #   /cleanup            correlation-id, restore-namespace, pod-namespace,
+  #                         pitrsession (the last two REQUIRED at HEAD)
   #   /diagnostic-collect correlation-id, diagnostics-bucket, pitrsession-name,
   #                       tenant, xr-group, xr-resource, xr-version
   - it: emits only flags the drill binaries actually define
@@ -511,3 +533,56 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "seed.mysqlHost is required: the seed writes to a real database and must name it in full, host.namespace.svc.cluster.local. There is no safe default — a bare or wrong host writes the marker into whichever database answers."
+
+  # ── THE INVERSE CONTRACT: every REQUIRED flag must be emitted ─────────────
+  #
+  # The contract above asserts emitted ⊆ defined. That direction catches a flag
+  # the binary does not know. It is structurally blind to the opposite defect — a
+  # flag the binary REQUIRES and the chart never sends — and both are exit-2
+  # before any work.
+  #
+  # Two live instances the one-directional check could not see:
+  #
+  #   /wait-for-deps  refuses without at least one --service
+  #                   (cmd/wait-for-deps/main.go:96, "at least one --service URL
+  #                   required"). The step therefore failed before doing anything,
+  #                   and its 45m --max-wait budget described a wait that never ran.
+  #   /cleanup        requires --pod-namespace and --pitrsession at HEAD
+  #                   (cmd/cleanup/main.go:209). The chart emits neither.
+  #
+  # Same tier caveat as the forward direction: this pins a MEASURED SNAPSHOT read
+  # from pitr-tools/cmd/* on 2026-08-18, because helm-unittest cannot read another
+  # repo's Go source. It catches drift introduced HERE, which is where both of
+  # these happened.
+  #
+  # ★ /cleanup's two required flags are DELIBERATELY NOT asserted yet, and this is
+  # not an oversight. Adding --pod-namespace is exactly what arms the namespace
+  # deleter: /cleanup deletes whatever --restore-namespace names, and under viveiro
+  # that is the environment's own namespace. The ownership guard landed in
+  # pitr-tools afc3c25 but the DEPLOYED drill-step image is amd64-886774d
+  # (2026-07-16) and does not carry it — image-release has been red since
+  # 2026-07-23. Emit those flags only against an image that has the guard.
+  # `pending-cleanup-flags: blocked on a drill-step image carrying afc3c25`
+  - it: emits every flag its binaries REQUIRE, not merely valid ones
+    template: templates/composition.yaml
+    asserts:
+      # wait-for-deps: >=1 --service, pointed at the endpoints verify will call.
+      # Asserting the SAME hosts is the point — waiting on some other endpoint
+      # proves the wrong service came up.
+      - matchRegex:
+          path: spec.pipeline[0].input.drillSteps[1].initContainers[0].args[0]
+          pattern: "^--service=http://auth\\..*/health$"
+      - matchRegex:
+          path: spec.pipeline[0].input.drillSteps[1].initContainers[0].args[1]
+          pattern: "^--service=http://uam\\..*/health$"
+      # The /health path must be present: internal/depwait.Probe GETs the URL
+      # verbatim and appends nothing, so a bare base URL probes the wrong thing.
+      - matchRegex:
+          path: spec.pipeline[0].input.drillSteps[1].initContainers[0].args[0]
+          pattern: "/health$"
+      # The pod watch must name the SAME StatefulSet the restore vector emits.
+      # A selector that matches nothing cannot fail early — it can only time out,
+      # which is 45m of drill spent waiting on something already dead.
+      - matchRegex:
+          path: spec.pipeline[0].input.drillSteps[1].initContainers[0].args[2]
+          pattern: "^--watch-pod=.*app\\.kubernetes\\.io/name=camelot-mysql-restore$"

@@ -272,7 +272,12 @@ restore:
   # emits points the whole SaaS at the restored data without re-rendering any conf.
   mysqlServiceName: ""
   size: "20Gi"
-  storageClassName: "gp3"
+  # `ebs-gp3`, NOT `gp3`. Measured 2026-08-18: the cluster serves exactly two
+  # StorageClasses, `ebs-gp3` (ebs.csi.aws.com, default) and `gp2`
+  # (kubernetes.io/aws-ebs, legacy in-tree). A PVC naming a class that does not
+  # exist does not error — it sits Pending forever with no provisioner and no
+  # event naming the real cause, and the composite reports Healthy throughout.
+  storageClassName: "ebs-gp3"
   # The SOURCE server's image tag — the source MySQL subchart's own image.tag.
   # Declared here as DATA rather than left implicit, because mysqlImage below is
   # not free to disagree with it and the template enforces that. If the source
@@ -390,18 +395,37 @@ externalSecrets:
   # camelot's OWN access-key. OPERATOR-GATED: needs external-secrets + a camelot
   # ClusterSecretStore + the camelot access-key provisioned in cofre.
   secretName: camelot-pitr-admin-creds
-  secretStoreRef: camelot-akeyless          # a camelot-scoped SecretStore/ClusterSecretStore
+  # The live ClusterSecretStore is `camelot-eks-akeyless` (verified Valid,
+  # 2026-08-18); `camelot-akeyless` does not exist. An ExternalSecret naming a
+  # missing store never materialises its Secret and reports its own condition,
+  # which nothing downstream reads — so the failure surfaced only as a drill step
+  # with no credentials.
+  secretStoreRef: camelot-eks-akeyless
   accessKeyRemoteRef: "/camelot/pitr/access-key"
 
 # ── CAMELOT POSTURE (§III non-negotiables — every workload is pinned + tolerated) ──
-nodeSelector:
-  role: camelot
+# EMPTY, deliberately. `role: camelot` matched NO node and no Karpenter NodePool —
+# measured 2026-08-18, the label values in use are `camelot-builder` and empty, and
+# the seven NodePools are builder, builder-arm64, controllers, critical, general,
+# pace-ramdisk, viveiro-env. It pinned BOTH the engine Function's Deployment and
+# the restore StatefulSet, so each would sit Pending forever while the composite
+# reported Healthy.
+#
+# `{}` lets the `general` pool take them, which has no role constraint and no
+# taints. Set a real selector when there is a real placement requirement; do not
+# reinstate a label because it reads like one.
+nodeSelector: {}
 tolerations:
   - key: camelot-only
     operator: Exists
     effect: NoSchedule
+# `ghcr-pull` is the fleet's pull secret and it exists in 5 namespaces;
+# `ghcr-pleme-pull` exists in ZERO (measured 2026-08-18). A dangling pull secret
+# is harmless while the images are public — and it is the kind of harmless that
+# ends the day one image goes private, at which point the failure is an
+# ImagePullBackOff naming a Secret nobody ever created.
 imagePullSecrets:
-  - name: ghcr-pleme-pull
+  - name: ghcr-pull
 
 # ── BREATHE (every restore workload carries a band with EXPLICIT dryRun) ───────
 # Shadow-first (dryRun: true) — the camelot band footgun guard. The drill's own
