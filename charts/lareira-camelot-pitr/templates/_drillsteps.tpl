@@ -35,6 +35,44 @@ What changed, and why each:
                      session by --pitrsession-name + --tenant + the xr coordinates.
   cleanup            UNCHANGED. It is the one step that was already right.
 
+★ THREE STEP-INVENTORY QUESTIONS, SETTLED BY MEASUREMENT 2026-08-18 — so nobody
+re-opens them. Two were reported as defects and are not; the third is real and
+its obvious fix would break every drill.
+
+1. `canary-delete` EXISTS IN cmd/ AND IS WIRED NOWHERE — and it must stay that
+   way in this file. The leak is real: every drill writes a canary into the
+   source store and nothing removes it, unbounded and invisible.
+
+   But adding it as a drill step would DELETE THE CANARY BEFORE /verify READS IT.
+   There is no step sequencing: function/jobs.go:71 emits every Job into one
+   desired set, filtered only by GateOnNotification, never by Phase — the engine
+   says "Crossplane applies the desired set as a whole and gives no
+   intra-response sequencing". A `phase: Succeeded` label buys nothing.
+
+   /cleanup gets away with it because it SELF-GATES: cmd/cleanup/main.go polls
+   the drill-result ConfigMap for a phase before acting. `canary-delete` has zero
+   such constructs (measured: 0 poll/wait/drill-result references), so it would
+   race and win.
+
+   The right home is therefore /cleanup, which already sequences correctly and
+   already holds the correlation id — it needs --source-borealis-url and
+   --borealis-access-id. That is blocked for the same reason its other required
+   flags are: the deployed drill-step image predates the namespace-ownership
+   guard. `pending-cleanup-flags` covers it.
+
+2. `diagnostic-collect` RUNNING ON SUCCESSFUL DRILLS IS DELIBERATE, not a missing
+   gate. Its own header: "On phase=Succeeded: minimal proof bundle (manifest +
+   pitrsession + retrieved-secrets describe). On phase=Failed (or any
+   non-Succeeded): full bundle." It reads the phase off PITRSession.status and
+   adjusts. Gating it out of successful drills would DELETE the proof bundle a
+   passing drill produces.
+
+3. THE EMPTY `--diagnostics-bucket` IS NOT A BROKEN UPLOAD. The flag's own help
+   text reads "S3 bucket for future upload (deferred to v0.4.0; informational
+   only here)". Nothing uploads, so nothing needs S3 credentials, and the absence
+   of a role-arn on the job ServiceAccount costs nothing today. It becomes real
+   when v0.4.0 lands.
+
 --mode is passed EXPLICITLY even though `api` is already the binary's default
 (cmd/verify/main.go:56). The two modes are not interchangeable — `presence` never reads
 the secret back and exits 0 even on failure — so which one a drill ran is worth being

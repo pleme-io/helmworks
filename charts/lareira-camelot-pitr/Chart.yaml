@@ -21,7 +21,7 @@ description: >-
   (binlog replay is a further increment); a canary round-trip is a recovery
   MITIGATION, not a no-row-lost theorem. See the camelot skill + pitr research.
 type: application
-version: 0.8.0
+version: 0.9.0
 # 0.2.1 -- placeholder identifiers in the default values (no environment identity
 #          ships in the chart); prose genericized.
 # 0.2.0 (2026-08-05) -- ships the mysql 8.0 pin that 168dc27 stranded.

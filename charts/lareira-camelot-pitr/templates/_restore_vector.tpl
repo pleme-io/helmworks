@@ -149,7 +149,7 @@ OPERATOR-GATED on Crossplane + provider-kubernetes + a CSI VolumeSnapshotClass.
   spec:
     volumeSnapshotClassName: {{ $r.snapshotClassName | quote }}
     source:
-      persistentVolumeClaimName: {{ $r.sourcePvcName | quote }}
+      persistentVolumeClaimName: {{ $r.sourcePvcName | required "restore.sourcePvcName is required when restore.createSnapshot is true: a VolumeSnapshot whose source PVC does not exist never becomes readyToUse, so the restore PVC waits on it forever while the composite reports Healthy — a hang, not an error. Name the PVC in the RESTORE namespace, or use restore.sourceSnapshotHandle to import an EBS snapshot instead (which needs no source PVC and is what camelot uses, its MySQL PVC being a legacy in-tree volume the CSI snapshotter cannot snapshot)." | quote }}
 {{- end }}
 # the restore PVC — cloned from the (pre-existing OR just-created) VolumeSnapshot.
 - apiVersion: v1

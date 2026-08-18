@@ -233,7 +233,19 @@ restore:
   enabled: true
   # the durable gp3 MySQL PVC in camelot (the break-glass durable PVC, 2026-07-06 fix).
   # PLACEHOLDER — supply the real PVC name per-install.
-  sourcePvcName: "saas-mysql-data"
+  # EMPTY, not a plausible-looking name. `saas-mysql-data` was the default until
+  # 2026-08-18 and NO SUCH PVC EXISTS anywhere on the cluster (measured: 0 of 9).
+  # A default that names a nonexistent object is worse than no default: with
+  # `createSnapshot: true` it produces a VolumeSnapshot whose source cannot be
+  # found, which does not error — the snapshot simply never becomes readyToUse,
+  # the restore PVC waits on it forever, and the composite reports Healthy the
+  # whole time. A hang with a plausible-looking config behind it.
+  #
+  # Empty means the dynamic path must be told its source explicitly. The IMPORT
+  # path (restore.sourceSnapshotHandle) needs no PVC at all and is what camelot
+  # actually uses, since its MySQL PVC is a legacy in-tree volume the CSI
+  # snapshotter cannot snapshot.
+  sourcePvcName: ""
   # the CSI VolumeSnapshotClass (gp3/ebs.csi.aws.com). OPERATOR-GATED: must exist.
   snapshotClassName: "ebs-vsc"
   # restore FROM this pre-existing snapshot (the one at/before restoreTime — selected by

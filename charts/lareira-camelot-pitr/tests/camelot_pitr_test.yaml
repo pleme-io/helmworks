@@ -21,6 +21,13 @@ set:
   # pipeline lints by templating with defaults. Every case here is testing the
   # chart as DEPLOYED, so the suite turns it on.
   enabled: true
+  # `restore.sourcePvcName` is `required` in the vector whenever createSnapshot is
+  # true (its default was emptied 2026-08-18 — it used to name `saas-mysql-data`,
+  # a PVC that exists nowhere, which renders a snapshot that never becomes
+  # readyToUse and hangs the restore PVC while the composite reports Healthy).
+  # Set here for the same reason store.sourceUrl is: so every unrelated case fails
+  # on its own subject rather than on a missing value.
+  restore.sourcePvcName: "saas-mysql-data"
   store.sourceUrl: "https://src.example"
   store.accessId: "p-abc"
 tests:
@@ -711,3 +718,30 @@ tests:
           path: spec.pipeline[0].input.drillImage
       - exists:
           path: spec.pipeline[0].input.extraResources
+
+  # A source PVC that does not exist must REFUSE, not hang. Until 2026-08-18 the
+  # default was `saas-mysql-data`, which exists nowhere on the cluster (0 of 9
+  # PVCs) — and a VolumeSnapshot whose source cannot be found does not error. It
+  # simply never becomes readyToUse, the restore PVC waits on it forever, and the
+  # Crossplane composite reports Healthy throughout. A plausible-looking default
+  # is worse than none, because it makes the hang look configured.
+  - it: refuses a dynamic snapshot with no source rather than hanging on one
+    set:
+      restore.sourcePvcName: ""
+    template: templates/composition.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: "restore.sourcePvcName is required when restore.createSnapshot is true: a VolumeSnapshot whose source PVC does not exist never becomes readyToUse, so the restore PVC waits on it forever while the composite reports Healthy — a hang, not an error. Name the PVC in the RESTORE namespace, or use restore.sourceSnapshotHandle to import an EBS snapshot instead (which needs no source PVC and is what camelot uses, its MySQL PVC being a legacy in-tree volume the CSI snapshotter cannot snapshot)."
+
+  # ...but the IMPORT path needs no source PVC at all, so an empty one must be
+  # fine there. Without this, the guard above would quietly forbid the only mode
+  # camelot can actually use.
+  - it: needs no source PVC on the import path
+    set:
+      restore.sourcePvcName: ""
+      restore.sourceSnapshotHandle: snap-0abc123
+    template: templates/composition.yaml
+    asserts:
+      - equal:
+          path: spec.pipeline[0].input.extraResources[0].kind
+          value: VolumeSnapshotContent
