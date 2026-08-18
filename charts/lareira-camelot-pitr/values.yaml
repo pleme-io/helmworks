@@ -59,15 +59,36 @@ function:
   # the generic drill-orchestration engine (correlation, per-drill ns, per-step Jobs,
   # result observer, status lifecycle, generic extraResources emitter) — zero "akeyless".
   package: "ghcr.io/pleme-io/function-pitr-drill"
-  # RE-PINNED 2026-08-18: sha-1908156, built from pitr-tools HEAD (2026-08-05),
-  # likewise past the vendor-neutral rename the old digest predated.
+  # RE-PINNED 2026-08-18 (second time today): sha-855f27d, published 14:2x UTC.
+  #
+  # This digest is what makes a PER-DRILL restore namespace actually work. The
+  # previous pin (sha-1908156, 2026-08-05) predates BOTH namespace commits, so it
+  # ignores `spec.restoreNamespace` entirely and derives `restore-<hash>` — and it
+  # does so SILENTLY: an unread spec field is not an error, and Crossplane reports
+  # the composite Healthy while the drill restores into a namespace nobody asked
+  # for. With viveiro as the orchestrator that means the snapshot and the PVC that
+  # must clone it land in different namespaces, and the restore is inexpressible
+  # (VolumeSnapshot is Namespaced; a PVC dataSource is a TypedLocalObjectReference).
+  #
+  # What this digest adds over the previous one, in order:
+  #   6b7aeec  Input.restoreNamespace — the chart-wide supplied namespace
+  #   855f27d  spec.restoreNamespace on the XR beats it — the PER-DRILL namespace,
+  #            without which N drills under one release all collide in one namespace
+  #
+  # A NOTE ON WHY THIS WAS PINNED STALE: this chart's own history recorded the
+  # engine image as blocked on a CI credential. It was not, or is no longer —
+  # sha-6b7aeec published 2026-08-18T13:32Z and sha-855f27d shortly after, both
+  # from ordinary pushes. A "blocked" note is a dated claim like any other; this
+  # one had gone stale and was re-measured (`gh api .../versions`) rather than
+  # inherited.
   #
   # ORDERING RULE (README): re-pin the ENGINE xpkg BEFORE the drill image on a
-  # LIVE release -- reversed, teardown never runs. Both land together here
-  # because this chart has no HelmRelease anywhere yet, so there is no live
-  # release whose ordering could be violated. When it IS deployed, split the
-  # two into separate commits with a reconcile between.
-  ref: "@sha256:32795f871b163590c147a461e8e7a741e30b942248270fa671e7c9b028b7109a"
+  # LIVE release -- reversed, teardown never runs. Still no ordering hazard here:
+  # the HelmRelease that now exists (akeylesslabs/k8s, infrastructure/pitr) is
+  # `enabled: false` and renders nothing, so there is no live Function to sequence
+  # against. The moment it is turned on, split the two into separate commits with
+  # a reconcile between.
+  ref: "@sha256:3da8b9d206d7e65f120ba2da8e8c4986041200072e57c1ce15b20f6d7aa0a1e5"
   replicas: 2   # stateless request/response gRPC — HA by replica count, no election
   install: true # install the Function CR + DeploymentRuntimeConfig (OPERATOR-GATED: needs Crossplane)
 
