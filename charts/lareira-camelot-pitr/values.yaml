@@ -150,6 +150,48 @@ drillSteps:
   diagnosticCollect: true   # runs ONLY on phase=Failed
   waitVerifyMaxWait: "45m"
   waitPollInterval: "15s"
+  # /wait-for-deps gives up after this many restarts of a dependency it is
+  # waiting on — a crashlooping restore plane should fail the drill, not hold it
+  # open until waitVerifyMaxWait expires with no explanation.
+  waitMaxRestarts: 5
+  # /verify's own budget, separate from the initContainer's wait above: one
+  # bounds how long we wait for the plane to EXIST, the other how long we wait
+  # for the secret to be retrievable through it.
+  verifyMaxWait: "10m"
+  # api = authenticate against the restored store and describe-item the canary.
+  # presence = record the canary path as retrieved WITHOUT reading it back, and
+  # exit 0 even on failure. `presence` cannot prove a restore; it is only for
+  # exercising the plumbing. Changing this to `presence` makes every drill pass.
+  verifyMode: "api"
+
+# store — the endpoints and identity the drill binaries authenticate with.
+#
+# SPLIT DELIBERATELY between static and derived. The SOURCE store is a fixed
+# property of the environment, so it is a plain value. The RESTORED endpoints
+# live in a per-drill namespace the engine mints at runtime, so they are printf
+# templates taking {{restoreNamespace}} — there is no placeholder for a full URL
+# and there should not be, since only the chart knows its own restore topology.
+store:
+  # Where /canary-create writes the canary. Required: no default is honest here,
+  # because a wrong source store means the drill verifies a secret it never wrote.
+  sourceUrl: ""
+  # Access-id both /canary-create and /verify authenticate with. Paired with the
+  # access-key delivered through jobEnv (external-secrets.yaml), never inlined.
+  accessId: ""
+  # The restored endpoints are assembled as
+  #   http://<service>.<restoreNamespace>.<clusterDomain>:<port>
+  # with the namespace supplied at runtime by the engine. Parts rather than one
+  # format string: Helm's lexer closes an action at the first `}}`, so a runtime
+  # placeholder cannot be nested inside a printf here.
+  #
+  # borealis -> the AUTH microservice (/auth); uam -> the UAM one
+  # (/describe-item). Both are passed explicitly: when --restored-uam-url is
+  # empty the binary falls back to the borealis URL, which would describe items
+  # against the auth service and fail in a way that names neither.
+  restoredAuthService: "auth"
+  restoredUamService: "uam"
+  restoredPort: 80
+  clusterDomain: "svc.cluster.local"
 
 # ── OBSERVABILITY / NOTIFICATION ──────────────────────────────────────────────
 # STEALTH: no host-facing artifacts. Notification OFF (no Slack to the host).
