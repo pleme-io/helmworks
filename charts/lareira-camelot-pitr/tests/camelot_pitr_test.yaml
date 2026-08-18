@@ -15,6 +15,11 @@ templates:
 # subject. The one case that DELIBERATELY omits sourceUrl overrides it back to
 # empty locally.
 set:
+  # The chart is off by default (see values.yaml's header): a component that
+  # restores against a production store is opted into, and the fleet release
+  # pipeline lints by templating with defaults. Every case here is testing the
+  # chart as DEPLOYED, so the suite turns it on.
+  enabled: true
   store.sourceUrl: "https://src.example"
   store.accessId: "p-abc"
 tests:
@@ -340,3 +345,27 @@ tests:
       - equal:
           path: spec.versions[0].schema.openAPIV3Schema.properties.status.properties.restoreNamespace.type
           value: string
+
+  # ── OFF BY DEFAULT MEANS NOTHING RENDERS ──────────────────────────────────
+  #
+  # `enabled: false` must produce an EMPTY render, not a partial one. A chart that
+  # emitted, say, the XRD but not the Composition while "off" would install a CRD
+  # into every cluster that pulled it and leave no controller for it.
+  #
+  # This case overrides the suite-level `set:` back to false, which is why it
+  # asserts per-template: helm-unittest evaluates one template per case, and
+  # `hasDocuments: 0` on each is how "nothing at all" is expressed.
+  - it: renders nothing at all when disabled
+    set:
+      enabled: false
+    templates:
+      - templates/xrd.yaml
+      - templates/composition.yaml
+      - templates/function.yaml
+      - templates/rbac.yaml
+      - templates/pitrsession.yaml
+      - templates/external-secrets.yaml
+      - templates/breatheband.yaml
+    asserts:
+      - hasDocuments:
+          count: 0

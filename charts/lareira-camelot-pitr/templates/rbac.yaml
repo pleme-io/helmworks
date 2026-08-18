@@ -1,3 +1,4 @@
+{{- if .Values.enabled }}
 {{- if .Values.serviceAccount.create }}
 apiVersion: v1
 kind: ServiceAccount
@@ -58,4 +59,5 @@ subjects:
   - kind: ServiceAccount
     name: {{ .Values.serviceAccount.name }}
     namespace: {{ .Release.Namespace }}
+{{- end }}
 {{- end }}

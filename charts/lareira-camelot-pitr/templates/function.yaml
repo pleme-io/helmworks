@@ -1,3 +1,4 @@
+{{- if .Values.enabled }}
 {{- include "camelot-pitr.validateConfig" . -}}
 {{- if .Values.function.install }}
 ---
@@ -38,4 +39,5 @@ spec:
             {{- toYaml .Values.nodeSelector | nindent 12 }}
           tolerations:
             {{- toYaml .Values.tolerations | nindent 12 }}
+{{- end }}
 {{- end }}

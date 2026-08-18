@@ -1,3 +1,4 @@
+{{- if .Values.enabled }}
 {{/*
 The restore workload is breathe-managed (CAMELOT §III #4). Every band carries an
 EXPLICIT dryRun (shadow-first, the camelot footgun guard). Bands only render when the
@@ -116,5 +117,6 @@ spec:
   failoverPolicy: {{ $d.failoverPolicy | quote }}
   mode: shadow
   dryRun: true
+{{- end }}
 {{- end }}
 {{- end }}

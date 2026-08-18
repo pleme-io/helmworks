@@ -13,6 +13,30 @@
 # Both are pleme-io-owned, public, immutable @sha256 pins read from the engine's GHCR
 # (the SAME digests the team's worked example pins — camelot adopts the DISCIPLINE,
 # not their file). _helpers.tpl fails the render if either is empty or not @sha256.
+# ── ★ THE CHART IS OFF BY DEFAULT ───────────────────────────────────────────
+#
+# `enabled: false` renders NOTHING. Two independent reasons, either sufficient:
+#
+# 1. This chart drives a restore against a production secret store. A component
+#    with that blast radius is opted INTO, deliberately, by a HelmRelease that
+#    names the store it targets — never acquired by installing a chart.
+#
+# 2. The fleet release pipeline lints every chart by running `helm template` with
+#    DEFAULT values, and `store.sourceUrl` / `store.accessId` are `required` — a
+#    drill with no source URL has nowhere to write its canary, and an empty
+#    string there is worse than a refusal. Those two facts are in direct
+#    conflict: with the chart on by default, a defaults render must fail, so the
+#    chart can never publish. Measured 2026-08-18 — the release job reported
+#    `lareira-camelot-pitr: lint: (helm template): Use --debug flag to render out
+#    invalid YAML`, and the chart had not published since.
+#
+# Both are solved by the same gate rather than by weakening `required`: a chart
+# that is OFF should render to nothing, and one that is ON must be told where the
+# store is. Turning it on without those values still fails, loudly, at the point
+# a human is deciding to turn it on.
+
+enabled: false
+
 images:
   # the store-NEUTRAL drill-step binaries (canary-create / verify / cleanup /
   # wait-for-deps / diagnostic-collect) — internal/borealis, run as Jobs against

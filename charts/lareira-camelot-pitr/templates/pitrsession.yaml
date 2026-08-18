@@ -1,3 +1,4 @@
+{{- if .Values.enabled }}
 {{- if .Values.pitrsession.create }}
 {{- $p := .Values.pitrsession }}
 {{- $x := .Values.xrd }}
@@ -19,4 +20,5 @@ spec:
     {{- toYaml $p.secretNames | nindent 4 }}
   retention:
     {{- toYaml $p.retention | nindent 4 }}
+{{- end }}
 {{- end }}
