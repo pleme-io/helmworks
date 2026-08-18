@@ -62,10 +62,60 @@ xrd:
 # ── THE RestoreInput SURFACE camelot fills (fed to the engine as the function input) ──
 composition:
   namespaced: true            # crossplane-v2 namespaced emission path (per-drill restore-<corr> ns)
+
+  # restoreNamespace — SUPPLY the namespace every drill artifact lands in, instead
+  # of letting the engine derive `restore-<8hex>`. Empty = the derived form, which
+  # is byte-identical to today for every existing caller.
+  #
+  # Set this when something else already owns the namespace the drill belongs
+  # inside. The case it exists for is viveiro: it spawns `viveiro-env-<8hex>`, owns
+  # that namespace's whole lifecycle and reaps it by finalizer, so a drill
+  # scattered across `viveiro-env-<id>` AND `restore-<hash>` leaves half its
+  # artifacts outside the thing that cleans up.
+  #
+  # ★ For the CSI vector this is REQUIRED, not a preference. VolumeSnapshot is
+  # Namespaced and a PVC's dataSource is a TypedLocalObjectReference — same
+  # namespace only — so a restore PVC can only clone a snapshot sitting beside it.
+  # That constraint is why _restore_vector.tpl hardcodes .Release.Namespace: it was
+  # FORCED, not sloppy. Supplying one namespace makes the constraint vacuous rather
+  # than working around it — snapshot, restore PVC, restore MySQL, the restore SaaS
+  # and the drill Jobs all co-locate, and teardown is deleting one namespace.
+  #
+  # Requires an engine build carrying Input.restoreNamespace (pitr-tools 6b7aeec or
+  # later). Against an older function image this key is silently DROPPED on
+  # unmarshal and the namespace falls back to the derived form — the drill still
+  # runs, in the wrong namespace, which for the CSI vector means the restore PVC
+  # cannot find its snapshot. Check the pinned function digest before setting it.
+  restoreNamespace: ""
   tenant: "camelot"           # seeds the deterministic correlation id → drill-camelot-<8hex>
   concurrencyLimit: 1         # single-drill camelot; never two restores racing the same PVC snap
 
-  # camelot's OWN saas set (the restore microservices wired to the restored MySQL).
+  # ★ DEAD VALUE, measured 2026-08-18 — the engine does NOT read this.
+  #
+  # `akeylessServices` appears nowhere in pitr-tools. Input's accepted json tags
+  # are: awsRegion, borealisProviderGroup, concurrencyLimit, diagnosticsBucket,
+  # drillImage, drillKind, drillSteps, extraResources, jobEnv, jobPodLabels,
+  # jobServiceAccount, namespaced, notificationEnabled, reclamation,
+  # releaseNamespace, resolvedSaasImages, restoreKmsKeyId, restoreNamespace,
+  # restoreSubnetGroupName, restoreVpcSecurityGroupIds, sourceDbInstances, tenant.
+  # This key is silently dropped on unmarshal, so the roster below has never
+  # emitted anything, and the line that used to sit here — "camelot's OWN saas set
+  # (the restore microservices wired to the restored MySQL)" — described an intent
+  # rather than a mechanism.
+  #
+  # It matters because `verify --mode=api` needs a restored SaaS to call
+  # (--restored-borealis-url is the auth microservice, --restored-uam-url the uam
+  # one) and NOTHING stands one up: the restore vector emits only
+  # VolumeSnapshot -> PVC -> MySQL StatefulSet, and `resolvedSaasImages` is
+  # drift-attribution that "never gates the drill". Emitting the restore SaaS
+  # belongs in _restore_vector.tpl (extraResources), which is exactly where the
+  # engine takes shapes it has zero knowledge of.
+  #
+  # KEPT rather than deleted (★★ MODULARIZE, DON'T DELETE): this is the roster
+  # shape a vector-side emitter will consume, and re-deriving it later from nothing
+  # is worse than carrying an inert declaration that says it is inert.
+  # `pending-restore-saas: the vector emits no auth/uam for verify --mode=api`
+  #
   # PLACEHOLDER ROSTER — the real service names are supplied per-install. The shape
   # is what matters here: N plain services plus one sharded service (the `kfmID`
   # discriminator the engine reads to fan a single appName into replicas).

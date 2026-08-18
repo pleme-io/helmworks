@@ -249,3 +249,27 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: 'store.sourceUrl is required: /canary-create writes the canary into the SOURCE store, and with no URL it has nowhere to write. There is no runtime placeholder for it: the source store is static config, unlike the restored endpoints below which derive from the per-drill restore namespace.'
+
+  # ── RESTORE NAMESPACE: supplied, not derived ──────────────────────────────
+  #
+  # `.Values.composition` is splatted verbatim into the engine input, so this
+  # needs no template change -- which is exactly why it deserves a test: a key
+  # the engine does not accept is silently DROPPED on unmarshal rather than
+  # rejected, and that is how `akeylessServices` sat in this file emitting
+  # nothing. This asserts the key reaches input; the engine build carrying
+  # Input.restoreNamespace (pitr-tools 6b7aeec+) is what makes it take effect.
+  - it: passes a supplied restoreNamespace through to the engine input
+    template: templates/composition.yaml
+    set:
+      composition.restoreNamespace: "viveiro-env-ff6d4d7f"
+    asserts:
+      - equal:
+          path: spec.pipeline[0].input.restoreNamespace
+          value: "viveiro-env-ff6d4d7f"
+
+  - it: omits restoreNamespace by default, leaving the engine to derive it
+    template: templates/composition.yaml
+    asserts:
+      - equal:
+          path: spec.pipeline[0].input.restoreNamespace
+          value: ""
