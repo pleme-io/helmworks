@@ -164,13 +164,6 @@ composition:
   # PLACEHOLDER ROSTER — the real service names are supplied per-install. The shape
   # is what matters here: N plain services plus one sharded service (the `kfmID`
   # discriminator the engine reads to fan a single appName into replicas).
-  akeylessServices:
-    service-a: { appName: service-a, dbSource: unified, svc: { appPort: 80 } }
-    service-b: { appName: service-b, dbSource: unified, svc: { appPort: 80 } }
-    shard1:    { appName: service-c, kfmID: "1", dbSource: unified, svc: { appPort: 80 } }
-    shard2:    { appName: service-c, kfmID: "2", dbSource: unified, svc: { appPort: 80 } }
-    shard3:    { appName: service-c, kfmID: "3", dbSource: unified, svc: { appPort: 80 } }
-    service-d: { appName: service-d, dbSource: unified, svc: { appPort: 80 } }
 
   # ★ THE HONEST DIVERGENCE (§2.4): camelot has NO RDS — its MySQL is an in-cluster
   # StatefulSet on a gp3 volumeClaimTemplate. sourceDbInstances is EMPTY, so the
@@ -188,20 +181,8 @@ composition:
   # canary-create + verify against THIS url with the access-id below; the access-KEY
   # arrives via the camelot-scoped cofre SecretRef (external-secrets.yaml → jobEnv),
   # never the resident team's. PLACEHOLDER service name — supply the real one.
-  sourceAkeylessUrl: "http://saas-service-ingress.camelot.svc.cluster.local"
-  akeylessAccessId: ""              # set per-drill via the CamelotPITRSession/values (camelot access-id)
-  akeylessK8sAuthConfigName: ""
 
   # camelot image-build-repo pins (the temporary restore saas image set).
-  saasImage:
-    mode: pinned
-    pinned: {}
-  restoreSaasImage: "akeyless"
-  restoreSaasImageVersion: "amd64-latest"   # camelot's nix-images tag; a real drill resolves from live
-  liveSaasNamespace: "camelot"
-  imagePullSecretName: "ghcr-pleme-pull"
-  imagePullSecretSourceNs: "camelot"
-  configmapSourceNs: "camelot"
 
 # ── THE RESTORE VECTOR (camelot's own — CSI VolumeSnapshot, §2.4) ─────────────
 # camelot restores its in-cluster gp3-PVC MySQL by cloning a VolumeSnapshot of the

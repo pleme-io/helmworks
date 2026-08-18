@@ -652,3 +652,62 @@ tests:
           value: VolumeSnapshot
       - notExists:
           path: spec.pipeline[0].input.extraResources[0].spec.source.snapshotHandle
+
+  # ── THE INPUT BLOCK MUST NOT CARRY KEYS THE ENGINE DOES NOT DECLARE ───────
+  #
+  # `input:` is `toYaml .Values.composition` — the whole block, verbatim. So any
+  # key added under `composition:` reaches the Function whether or not `Input`
+  # declares it, and Go's json decoder DROPS an unknown field silently. There is
+  # no error, no warning, and no way to tell from the rendered chart that a value
+  # is inert.
+  #
+  # Measured 2026-08-18 before the cleanup: 31 keys rendered against 22 declared
+  # tags — ELEVEN dead, including `saasImage`, `restoreSaasImage` and
+  # `liveSaasNamespace`, which read exactly like live configuration. Someone
+  # editing one would change nothing and have no way to notice.
+  #
+  # This pins the surviving roster. Adding a key to `composition:` fails here
+  # until it is also declared in pitr-tools' `Input` — which is the point: the
+  # check makes the cross-repo contract visible at the moment it is broken.
+  #
+  # Tier, stated: a MEASURED SNAPSHOT of Input's json tags, read from
+  # pitr-tools/function/config.go on 2026-08-18. helm-unittest cannot read
+  # another repo's Go source, so it catches drift introduced HERE — which is
+  # where all eleven came from.
+  - it: renders no composition input key the engine would silently drop
+    template: templates/composition.yaml
+    asserts:
+      # The eleven that were dead. Each named individually so a regression says
+      # WHICH one came back rather than that a count moved.
+      - notExists:
+          path: spec.pipeline[0].input.saasImage
+      - notExists:
+          path: spec.pipeline[0].input.restoreSaasImage
+      - notExists:
+          path: spec.pipeline[0].input.restoreSaasImageVersion
+      - notExists:
+          path: spec.pipeline[0].input.liveSaasNamespace
+      - notExists:
+          path: spec.pipeline[0].input.akeylessServices
+      - notExists:
+          path: spec.pipeline[0].input.akeylessAccessId
+      - notExists:
+          path: spec.pipeline[0].input.akeylessK8sAuthConfigName
+      - notExists:
+          path: spec.pipeline[0].input.sourceAkeylessUrl
+      - notExists:
+          path: spec.pipeline[0].input.configmapSourceNs
+      - notExists:
+          path: spec.pipeline[0].input.imagePullSecretName
+      - notExists:
+          path: spec.pipeline[0].input.imagePullSecretSourceNs
+      # And the ones that must STAY — removing a live key is the opposite defect,
+      # and a test that only forbids things cannot catch it.
+      - exists:
+          path: spec.pipeline[0].input.tenant
+      - exists:
+          path: spec.pipeline[0].input.releaseNamespace
+      - exists:
+          path: spec.pipeline[0].input.drillImage
+      - exists:
+          path: spec.pipeline[0].input.extraResources
