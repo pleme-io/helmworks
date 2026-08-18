@@ -24,6 +24,46 @@ OPERATOR-GATED on Crossplane + provider-kubernetes + a CSI VolumeSnapshotClass.
 {{- if ne $gotTag $wantTag -}}
 {{- fail (printf "restore.mysqlImage=%q must be tag %q to match restore.sourceMysqlTag: the restore server mounts a datadir snapshotted from the source server, so a major.minor mismatch is a broken drill, not a preference. MySQL 8.4 additionally ships mysql_native_password DISABLED by default, and camelot-bootstrap sets root@%% to exactly that plugin (caching_sha2 breaks the app's MySQL driver), so a restored root account cannot authenticate at all. Change both together, or change neither." $r.mysqlImage $wantTag) -}}
 {{- end -}}
+{{/*
+★ EVERY NAMESPACE BELOW IS THE RUNTIME {{restoreNamespace}}, NOT .Release.Namespace.
+   The value is QUOTED, and that is not style: unquoted, YAML reads
+   `{{restoreNamespace}}` as a nested flow mapping and the render dies with
+   "invalid map key: map[interface{}]interface{}". The drill steps get away
+   without quotes only because there the placeholder sits inside a longer string.
+   Changed 2026-08-18. It was `.Release.Namespace` — helm-static, baked at chart
+   render — and that was wrong in a way nothing reported.
+
+   The engine substitutes {{restoreNamespace}} into every string of every
+   extraResource (pitr-tools function/extra.go, substituteDeep), and its own
+   comment describes the wrapped manifests as "already carrying
+   metadata.namespace = restore-<corr> via the {{restoreNamespace}} substitution".
+   This chart was the outlier: its drill STEPS used the runtime placeholder while
+   its restore VECTOR used the release namespace, so a drill with a supplied
+   restore namespace put the restored MySQL in one namespace and looked for the
+   SaaS to verify in another.
+
+   Nothing errors in that state. The snapshot binds, the PVC binds, the
+   StatefulSet runs, and every object reports Healthy — the restored database
+   simply is not where anything expects it. It is also what would have silently
+   defeated viveiro's `spec.pitr.wireSaas`, which points the environment's confs
+   at camelot-mysql-restore.<env-namespace>.svc.cluster.local.
+
+   And it makes the CSI constraint self-satisfying rather than a hazard to
+   remember: VolumeSnapshot is Namespaced and a PVC's dataSource is a
+   TypedLocalObjectReference, so snapshot and clone MUST share a namespace. With
+   one placeholder driving all four, they cannot diverge.
+
+   CONSEQUENCE for `createSnapshot: true`: `restore.sourcePvcName` must now name a
+   PVC in the RESTORE namespace, not the release namespace. A viveiro environment
+   is RAMDISK — its MySQL is memory-backed and has no PVC at all — so that path
+   cannot apply there. Such a drill uses `createSnapshot: false` with
+   `snapshotName` naming a pre-provisioned VolumeSnapshot in the restore
+   namespace, bound to a cluster-scoped VolumeSnapshotContent produced from the
+   real source. That is the supported cross-namespace shape, and it still requires
+   the source PVC to be CSI-backed — camelot's `data-mysql-0` is in-tree gp2
+   today (7 of 9 PVs are), which is tracked separately.
+   `pending-pitr-source-csi:`
+*/}}
 {{- if $r.createSnapshot }}
 # (optional) snapshot the live gp3 PVC now — the drill smoke path (snap-now → restore-now).
 # For a true point-in-time, set createSnapshot:false + snapshotName to a pre-existing
@@ -32,7 +72,7 @@ OPERATOR-GATED on Crossplane + provider-kubernetes + a CSI VolumeSnapshotClass.
   kind: VolumeSnapshot
   metadata:
     name: {{ $r.restoreStatefulSetName }}-snap
-    namespace: {{ .Release.Namespace }}
+    namespace: "{{ "{{restoreNamespace}}" }}"
     labels:
       camelot.pleme.io/surface: pitr
       camelot.pleme.io/ephemeral: "true"
@@ -46,7 +86,7 @@ OPERATOR-GATED on Crossplane + provider-kubernetes + a CSI VolumeSnapshotClass.
   kind: PersistentVolumeClaim
   metadata:
     name: {{ $r.restorePvcName }}
-    namespace: {{ .Release.Namespace }}
+    namespace: "{{ "{{restoreNamespace}}" }}"
     labels:
       camelot.pleme.io/surface: pitr
       camelot.pleme.io/ephemeral: "true"
@@ -65,7 +105,7 @@ OPERATOR-GATED on Crossplane + provider-kubernetes + a CSI VolumeSnapshotClass.
   kind: StatefulSet
   metadata:
     name: {{ $r.restoreStatefulSetName }}
-    namespace: {{ .Release.Namespace }}
+    namespace: "{{ "{{restoreNamespace}}" }}"
     labels:
       camelot.pleme.io/surface: pitr
       camelot.pleme.io/ephemeral: "true"
@@ -133,7 +173,7 @@ OPERATOR-GATED on Crossplane + provider-kubernetes + a CSI VolumeSnapshotClass.
   kind: Service
   metadata:
     name: {{ $r.mysqlServiceName | default $r.restoreStatefulSetName }}
-    namespace: {{ .Release.Namespace }}
+    namespace: "{{ "{{restoreNamespace}}" }}"
     labels:
       camelot.pleme.io/surface: pitr
       camelot.pleme.io/ephemeral: "true"

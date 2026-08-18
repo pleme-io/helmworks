@@ -369,3 +369,44 @@ tests:
     asserts:
       - hasDocuments:
           count: 0
+
+  # ── THE VECTOR AND THE STEPS MUST NAME THE SAME NAMESPACE ─────────────────
+  #
+  # Until 2026-08-18 the restore vector wrote `namespace: {{ .Release.Namespace }}`
+  # — helm-static, baked at chart render — while the drill steps used the runtime
+  # `{{restoreNamespace}}`. A drill with a supplied restore namespace therefore put
+  # the restored MySQL in one namespace and looked for the SaaS to verify in
+  # another.
+  #
+  # Nothing errors in that state. The snapshot binds, the PVC binds, the
+  # StatefulSet runs, every object reports Healthy — the database is simply not
+  # where anything expects it. Exactly the shape this chart has now produced five
+  # times, and the one that would have silently defeated viveiro's `wireSaas`.
+  #
+  # It also makes the CSI constraint self-satisfying: VolumeSnapshot is Namespaced
+  # and a PVC dataSource is a TypedLocalObjectReference, so snapshot and clone MUST
+  # share a namespace. With one placeholder driving all four they cannot diverge.
+  - it: places every restore-vector object in the runtime restore namespace
+    template: templates/composition.yaml
+    asserts:
+      # All four: the snapshot, the PVC that clones it, the StatefulSet that
+      # mounts it, and the Service that fronts it. Asserting a subset is how three
+      # would move and one would stay.
+      - equal:
+          path: spec.pipeline[0].input.extraResources[0].metadata.namespace
+          value: "{{restoreNamespace}}"
+      - equal:
+          path: spec.pipeline[0].input.extraResources[1].metadata.namespace
+          value: "{{restoreNamespace}}"
+      - equal:
+          path: spec.pipeline[0].input.extraResources[2].metadata.namespace
+          value: "{{restoreNamespace}}"
+      - equal:
+          path: spec.pipeline[0].input.extraResources[3].metadata.namespace
+          value: "{{restoreNamespace}}"
+      # And NOT the release namespace. The suite renders into "NAMESPACE" by
+      # default, so a regression to .Release.Namespace would produce that literal
+      # — this catches the specific way it was wrong before.
+      - notEqual:
+          path: spec.pipeline[0].input.extraResources[0].metadata.namespace
+          value: NAMESPACE
