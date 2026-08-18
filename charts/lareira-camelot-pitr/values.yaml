@@ -258,6 +258,32 @@ restore:
   # restore FROM this pre-existing snapshot (the one at/before restoreTime — selected by
   # the snapshot cadence / autorevivy PROTECT). Empty + createSnapshot:true = snap-now.
   snapshotName: ""
+
+  # ── IMPORT AN EBS SNAPSHOT TAKEN OUTSIDE KUBERNETES ───────────────────────
+  #
+  # Set to an `snap-...` id and the vector switches to IMPORT mode: it emits a
+  # cluster-scoped VolumeSnapshotContent wrapping that handle (deletionPolicy
+  # Retain) plus a pre-provisioned VolumeSnapshot bound to it, and the restore PVC
+  # clones from that. Takes precedence over `createSnapshot`.
+  #
+  # This is the ONLY mode that can restore camelot's real data, for two
+  # independent reasons — see templates/_restore_vector.tpl's header:
+  #   - camelot's MySQL PVC is a legacy IN-TREE volume that the CSI snapshotter
+  #     cannot snapshot at all (7 of 9 PVs on the cluster are in-tree); the EC2
+  #     API can snapshot the underlying volume regardless;
+  #   - a viveiro environment is RAMDISK and has no PVC to snapshot, while
+  #     VolumeSnapshotContent is cluster-scoped and needs none.
+  #
+  # Taking the snapshot is an operator step, deliberately outside this chart: it
+  # touches a real volume and must happen AFTER the seed converges and while the
+  # source database is stopped. For camelot:
+  #
+  #   aws ec2 create-snapshot --volume-id vol-06987dcf4ae315ba7   #     --region us-east-2 --description 'pitr drill source'
+  #
+  # (`vol-06987dcf4ae315ba7` is camelot/data-mysql-0's volume, 8 GiB, gp2. It is
+  # `available` — detached — while mysql is scaled to 0, which is what makes the
+  # snapshot cold and consistent with no quiescing.)
+  sourceSnapshotHandle: ""
   # snap the live PVC now (the drill smoke path: snapshot-now → restore-now → verify).
   createSnapshot: true
   restorePvcName: "camelot-mysql-restore-data"

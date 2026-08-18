@@ -64,7 +64,77 @@ OPERATOR-GATED on Crossplane + provider-kubernetes + a CSI VolumeSnapshotClass.
    today (7 of 9 PVs are), which is tracked separately.
    `pending-pitr-source-csi:`
 */}}
-{{- if $r.createSnapshot }}
+{{- if $r.sourceSnapshotHandle }}
+# ── IMPORT MODE: an EBS snapshot taken OUTSIDE Kubernetes ───────────────────
+#
+# ★ THIS IS WHAT MAKES A DRILL AGAINST REAL DATA POSSIBLE AT ALL, and it dissolves
+# two blockers rather than working around either.
+#
+# 1. camelot's MySQL PVC (`camelot/data-mysql-0`) is bound to a LEGACY IN-TREE PV
+#    — `spec.awsElasticBlockStore`, StorageClass `gp2`, provisioner
+#    `kubernetes.io/aws-ebs`. The CSI snapshotter cannot snapshot it: there is no
+#    CSI driver behind that volume to ask. 7 of the cluster's 9 PVs are in-tree.
+#
+#    But that limit is about OUR abstraction, not about the world. The underlying
+#    EBS volume can be snapshotted by the EC2 API right now, whatever Kubernetes
+#    thinks provisioned it. So the snapshot is taken at the AWS layer and IMPORTED
+#    here as a handle, and the in-tree problem simply stops applying.
+#
+# 2. VolumeSnapshot is Namespaced and a PVC's dataSource is a
+#    TypedLocalObjectReference, so a restore PVC can only clone a snapshot beside
+#    it. A viveiro environment is RAMDISK — memory-backed emptyDir, no PVC at all
+#    — so there is nothing in its namespace to snapshot. VolumeSnapshotContent is
+#    CLUSTER-scoped, so importing through one makes the co-location requirement
+#    vacuous instead of impossible.
+#
+# ★ deletionPolicy: Retain, and this is LOAD-BEARING, not tidiness. Measured
+# 2026-08-18: the `ebs-vsc` VolumeSnapshotClass is `deletionPolicy: Delete`, and
+# the EBS CSI driver's role (camelot-eks-ebs-csi-driver, via
+# AmazonEBSCSIDriverPolicy) holds `ec2:DeleteSnapshot`. Every drill emits its own
+# content pointing at the SAME underlying snapshot handle, so a single `Delete`
+# teardown would destroy the source that every future drill restores from — and
+# it would succeed, because the permission is there.
+#
+# One VolumeSnapshotContent binds exactly one VolumeSnapshot, which is why the
+# pair is emitted per drill rather than shared. That is ordinary static
+# provisioning, not a workaround.
+- apiVersion: snapshot.storage.k8s.io/v1
+  kind: VolumeSnapshotContent
+  metadata:
+    # Cluster-scoped: the name carries the drill's correlation so two concurrent
+    # drills importing the same handle do not collide on it.
+    name: {{ $r.restoreStatefulSetName }}-{{ "{{shortHash}}" }}-content
+    labels:
+      camelot.pleme.io/surface: pitr
+      camelot.pleme.io/ephemeral: "true"
+  spec:
+    deletionPolicy: Retain
+    driver: ebs.csi.aws.com
+    source:
+      snapshotHandle: {{ $r.sourceSnapshotHandle | quote }}
+    # The BACK-reference. A pre-provisioned content and its VolumeSnapshot must
+    # name each other or the binding never completes and the PVC waits forever on
+    # a snapshot that is permanently `readyToUse: false`.
+    volumeSnapshotRef:
+      apiVersion: snapshot.storage.k8s.io/v1
+      kind: VolumeSnapshot
+      name: {{ $r.restoreStatefulSetName }}-snap
+      namespace: "{{ "{{restoreNamespace}}" }}"
+- apiVersion: snapshot.storage.k8s.io/v1
+  kind: VolumeSnapshot
+  metadata:
+    name: {{ $r.restoreStatefulSetName }}-snap
+    namespace: "{{ "{{restoreNamespace}}" }}"
+    labels:
+      camelot.pleme.io/surface: pitr
+      camelot.pleme.io/ephemeral: "true"
+  spec:
+    # NO volumeSnapshotClassName on a pre-provisioned snapshot: the class governs
+    # DYNAMIC creation, and naming `ebs-vsc` here would attach its
+    # `deletionPolicy: Delete` to the thing the Retain above exists to protect.
+    source:
+      volumeSnapshotContentName: {{ $r.restoreStatefulSetName }}-{{ "{{shortHash}}" }}-content
+{{- else if $r.createSnapshot }}
 # (optional) snapshot the live gp3 PVC now — the drill smoke path (snap-now → restore-now).
 # For a true point-in-time, set createSnapshot:false + snapshotName to a pre-existing
 # scheduled snapshot at/before restoreTime.

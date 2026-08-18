@@ -586,3 +586,69 @@ tests:
       - matchRegex:
           path: spec.pipeline[0].input.drillSteps[1].initContainers[0].args[2]
           pattern: "^--watch-pod=.*app\\.kubernetes\\.io/name=camelot-mysql-restore$"
+
+  # ── EBS IMPORT MODE ───────────────────────────────────────────────────────
+  #
+  # The only mode that can restore camelot's REAL data: its MySQL PVC is bound to
+  # a legacy in-tree PV the CSI snapshotter cannot snapshot (7 of 9 PVs on the
+  # cluster are in-tree), while the EC2 API can snapshot the underlying volume
+  # regardless. It also makes the CSI same-namespace constraint vacuous, since
+  # VolumeSnapshotContent is cluster-scoped and a RAMDISK viveiro env has no PVC.
+  - it: imports an out-of-band EBS snapshot as a cluster-scoped content
+    set:
+      restore.sourceSnapshotHandle: snap-0abc123
+    template: templates/composition.yaml
+    asserts:
+      - equal:
+          path: spec.pipeline[0].input.extraResources[0].kind
+          value: VolumeSnapshotContent
+      - equal:
+          path: spec.pipeline[0].input.extraResources[0].spec.source.snapshotHandle
+          value: snap-0abc123
+      # ★ Retain, and it is load-bearing. `ebs-vsc` is deletionPolicy: Delete and
+      # the EBS CSI driver's role holds ec2:DeleteSnapshot (measured 2026-08-18),
+      # so every drill emits its own content over the SAME underlying handle — a
+      # single Delete teardown would destroy the source every future drill
+      # restores from, and would succeed.
+      - equal:
+          path: spec.pipeline[0].input.extraResources[0].spec.deletionPolicy
+          value: Retain
+      # The pre-provisioned VolumeSnapshot and its content must name each other.
+      # Without the back-reference the binding never completes and the PVC waits
+      # forever on a snapshot that stays readyToUse: false — a hang, not an error.
+      - equal:
+          path: spec.pipeline[0].input.extraResources[0].spec.volumeSnapshotRef.name
+          value: camelot-mysql-restore-snap
+      # kind AND namespace too, not just the name. Found by red-running this
+      # case: corrupting `kind` to VolumeSnapshotXX left every assertion green,
+      # because a name-only check cannot see a reference pointing at the wrong
+      # TYPE of object. The binding would simply never complete.
+      - equal:
+          path: spec.pipeline[0].input.extraResources[0].spec.volumeSnapshotRef.kind
+          value: VolumeSnapshot
+      - equal:
+          path: spec.pipeline[0].input.extraResources[0].spec.volumeSnapshotRef.namespace
+          value: "{{restoreNamespace}}"
+      - equal:
+          path: spec.pipeline[0].input.extraResources[1].spec.source.volumeSnapshotContentName
+          value: camelot-mysql-restore-{{shortHash}}-content
+      # NO class on a pre-provisioned snapshot: the class governs DYNAMIC
+      # creation, and naming ebs-vsc here would attach its deletionPolicy: Delete
+      # to the very thing Retain exists to protect.
+      - notExists:
+          path: spec.pipeline[0].input.extraResources[1].spec.volumeSnapshotClassName
+      # Both land in the runtime restore namespace, like the rest of the vector.
+      - equal:
+          path: spec.pipeline[0].input.extraResources[1].metadata.namespace
+          value: "{{restoreNamespace}}"
+
+  - it: leaves the dynamic path untouched when no handle is given
+    template: templates/composition.yaml
+    asserts:
+      # Byte-identical to before import mode existed: the first extraResource is
+      # still the PVC-sourced VolumeSnapshot, not a content.
+      - equal:
+          path: spec.pipeline[0].input.extraResources[0].kind
+          value: VolumeSnapshot
+      - notExists:
+          path: spec.pipeline[0].input.extraResources[0].spec.source.snapshotHandle
