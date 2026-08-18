@@ -209,6 +209,45 @@ composition:
 # StatefulSet on it. These are Helm-templated into input.extraResources; the engine
 # emits them verbatim (provider-kubernetes Objects). Snapshot-point recovery — NOT
 # arbitrary-second PITR (binlog replay is M3).
+# ── THE DRILL'S SOURCE DATA (shinka-seeded) ─────────────────────────────────
+#
+# OFF by default. Turning it on writes a marker row into a REAL database — the
+# one whose volume the drill snapshots — so it is opted into deliberately, with
+# the host named in full.
+#
+# It exists because the drill's own `/canary-create` step cannot work: Crossplane
+# gives no intra-response sequencing, so the canary Job and the VolumeSnapshot are
+# created at the same instant and the snapshot wins. See templates/seed.yaml's
+# header. A reconciled shinka CR replaces that race with a phase you can wait on.
+#
+# ★ ORDER: land the seed → wait for the DatabaseMigration to report Succeeded →
+# THEN snapshot → then run the drill. A snapshot taken before shinka converges
+# captures a source with no marker, and the drill fails looking like a restore bug.
+seed:
+  enabled: false
+  name: camelot-pitr-seed
+  namespace: camelot
+
+  # The source MySQL, fully qualified. REQUIRED — a bare Service name resolves in
+  # whatever namespace the reader sits in, which on 2026-08-12 aimed an ephemeral
+  # environment's migration at camelot's real database.
+  mysqlHost: ""
+  mysqlPort: 3306
+  mysqlUser: root
+  credentialsSecretName: akeyless-mysql-root
+  passwordKey: root-password
+
+  # A dedicated database so the marker cannot collide with akeyless schema and its
+  # presence after a restore is unambiguous.
+  database: pitr_drill
+  table: marker
+
+  # correlationId ties the seeded row to the drill that reads it back. Set it per
+  # drill; the default is deliberately obvious placeholder text rather than
+  # something that could be mistaken for a real correlation.
+  correlationId: "unset-correlation-id"
+  payload: "pitr-drill-marker-v1"
+
 restore:
   enabled: true
   # the durable gp3 MySQL PVC in camelot (the break-glass durable PVC, 2026-07-06 fix).

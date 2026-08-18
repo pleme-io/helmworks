@@ -7,6 +7,7 @@ templates:
   - templates/rbac.yaml
   - templates/breatheband.yaml
   - templates/external-secrets.yaml
+  - templates/seed.yaml
 
 # Suite-level values so every case can RENDER. store.sourceUrl / store.accessId
 # are `required` in the template (a drill pointed at the wrong source store
@@ -410,3 +411,103 @@ tests:
       - notEqual:
           path: spec.pipeline[0].input.extraResources[0].metadata.namespace
           value: NAMESPACE
+
+  # ── THE shinka SEED ───────────────────────────────────────────────────────
+  #
+  # The seed exists because the drill's own /canary-create step is a race it
+  # always loses: Crossplane gives no intra-response sequencing, so the canary Job
+  # and the VolumeSnapshot are created together and the snapshot wins. A reconciled
+  # shinka CR replaces that race with a phase to wait on.
+  - it: is OFF by default — the seed writes to a real database
+    templates:
+      - templates/seed.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: emits exactly the SQL ConfigMap and the shinka CR when enabled
+    set:
+      seed.enabled: true
+      seed.mysqlHost: mysql.camelot.svc.cluster.local
+    templates:
+      - templates/seed.yaml
+    asserts:
+      - hasDocuments:
+          count: 2
+
+  - it: emits a shinka DatabaseMigration pointed at the source it was given
+    set:
+      seed.enabled: true
+      seed.mysqlHost: mysql.camelot.svc.cluster.local
+      seed.correlationId: drill-borealis-deadbeef
+    templates:
+      - templates/seed.yaml
+    # Test-level, not per-assertion: this helm-unittest honours `documentIndex`
+    # here and silently ignores it inside an assert, which reads every path
+    # against document 0 and reports "unknown path".
+    documentIndex: 1
+    asserts:
+      - containsDocument:
+          apiVersion: shinka.pleme.io/v1alpha1
+          kind: DatabaseMigration
+      # Fully-qualified host. A bare Service name resolves in whatever namespace
+      # the reader sits in, and on 2026-08-12 that aimed an ephemeral
+      # environment's migration at camelot's real database — refused only because
+      # the root passwords happened to differ.
+      - equal:
+          path: spec.database.directRef.host
+          value: mysql.camelot.svc.cluster.local
+      # strict: an edited seed cannot silently re-run against a source a snapshot
+      # was already taken from.
+      - equal:
+          path: spec.safety.checksumMode
+          value: strict
+      # The CR must point at the ConfigMap this template also emits — the
+      # StatefulSet/Service class of defect, where one half names something the
+      # other half never produced.
+      - equal:
+          path: spec.database.directRef.sqlConfigMapRef.name
+          value: camelot-pitr-seed-sql
+
+  - it: seeds SQL that is single-quoted and self-checksumming
+    set:
+      seed.enabled: true
+      seed.mysqlHost: mysql.camelot.svc.cluster.local
+      seed.correlationId: drill-borealis-deadbeef
+    templates:
+      - templates/seed.yaml
+    documentIndex: 0
+    asserts:
+      # SINGLE quotes: MySQL reads a double-quoted token as an IDENTIFIER under
+      # ANSI_QUOTES, so `quote` would make the same SQL mean two different things
+      # depending on a server setting nothing here controls.
+      - matchRegex:
+          path: data["seed.sql"]
+          pattern: "SHA2\\('pitr-drill-marker-v1', 256\\)"
+      - notMatchRegex:
+          path: data["seed.sql"]
+          pattern: 'SHA2\("'
+      # The marker carries the correlation, so a drill reads back the row IT
+      # seeded rather than any row that happens to be there.
+      - matchRegex:
+          path: data["seed.sql"]
+          pattern: "'drill-borealis-deadbeef'"
+      # Idempotent: shinka may re-apply, and a re-apply must not duplicate the row
+      # nor change a payload a snapshot may already hold.
+      - matchRegex:
+          path: data["seed.sql"]
+          pattern: "ON DUPLICATE KEY UPDATE"
+      # A dedicated database — never an akeyless one. The marker cannot collide
+      # with schema the SaaS owns, and its presence after restore is unambiguous.
+      - matchRegex:
+          path: data["seed.sql"]
+          pattern: "CREATE DATABASE IF NOT EXISTS `pitr_drill`"
+
+  - it: refuses to render a seed with no host rather than guessing one
+    set:
+      seed.enabled: true
+    templates:
+      - templates/seed.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: "seed.mysqlHost is required: the seed writes to a real database and must name it in full, host.namespace.svc.cluster.local. There is no safe default — a bare or wrong host writes the marker into whichever database answers."
