@@ -11,7 +11,37 @@ on:
   workflow_dispatch: {}
 
 jobs:
+  # ── THE GATE: publication is now a FUNCTION of the tests ──────────────────
+  #
+  # Until 2026-08-19 this workflow and chart-tests.yml were two INDEPENDENT
+  # workflows on the same `push: branches:[main]` event, so a chart published
+  # while its suite was red. Not theoretical — measured on one push:
+  # run 32168256181 (chart-tests) FAILED at 17:56:20Z and run 32168256381
+  # (auto-release) SUCCEEDED at 18:03:08Z, publishing lareira-camelot-pitr
+  # 0.9.0 seven minutes later. That independence is why a version-pair defect
+  # in the shared reusable survived 8 days and 9 pitr releases, and why 14
+  # charts (180 assertions) have shipped every version they have ever had
+  # without one of those assertions executing.
+  #
+  # Same reusable, same inputs as chart-tests.yml — deliberately duplicated
+  # rather than factored, because a `workflow_run` trigger resolves against
+  # the DEFAULT BRANCH's workflow file and adds a second run record; `needs:`
+  # inside one workflow is exact and reads in one place.
+  #
+  # NOT enforced additionally by branch protection: pleme-io is on the GitHub
+  # Free plan, where required status checks on a private/org ruleset are not
+  # available. `needs:` is therefore the whole gate, which is why it lives
+  # here rather than in a repo setting.
+  charts:
+    uses: pleme-io/substrate/.github/workflows/helm-unittest.yml@main
+    with:
+      chartsDir: charts
+      # Kept in lockstep with chart-tests.yml's floor — see its comment for why
+      # the floor is deliberately half the measured count.
+      chartsWithTestsFloor: 7
+
   release:
+    needs: [charts]
     uses: pleme-io/substrate/.github/workflows/helm-monorepo-auto-release.yml@main
     secrets: inherit
 

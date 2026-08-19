@@ -15,10 +15,13 @@
 # reputation for friction and then gets deleted.
 name: chart-tests
 
+# PR-ONLY since 2026-08-19. The merge-to-main run moved into auto-release.yml
+# as a `needs:` of the publish job — see that file's `charts:` comment. Keeping
+# `push: branches:[main]` here as well would run the same suite twice per merge
+# and, worse, would leave a SECOND green/red signal on main that gates nothing,
+# which is exactly the shape that let a chart publish past a red suite.
 on:
   pull_request:
-  push:
-    branches: [main]
 
 permissions:
   contents: read
