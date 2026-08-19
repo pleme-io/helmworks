@@ -48,12 +48,34 @@ images:
   # commit: cmd/canary-create defines source-borealis-url, cmd/verify defines
   # restored-uam-url, cmd/wait-for-deps defines max-restarts.
   #
-  # NOTE this image lags pitr-tools HEAD (1908156, 2026-08-05) by ~3 weeks --
-  # 886774d is the newest PUBLISHED amd64 image, not the newest commit. The
-  # image pipeline has not run since 07-16. Not blocking (886774d is
-  # post-rename and defines every flag emitted here), but the pin is a
-  # published-artifact ceiling, not a source ceiling.
-  pitrTools: "ghcr.io/pleme-io/pitr-tools@sha256:69be0a0831ba17a98678153bdc39c0ee2ea354f93bae7b1dfaf5370330ee375f"
+  # ── RE-PINNED 2026-08-19 to amd64-b98ed9e, AND THIS ONE IS LOAD-BEARING ──
+  #
+  # The previous pin (amd64-886774d, 2026-07-16) was the newest PUBLISHED image
+  # for 34 days because image-release was red that entire time — forge's pre-push
+  # ELF gate had no gzip decoder and could not read a `dockerTools` archive, while
+  # reporting the failure as `doca inspect --tarball returned no Architecture
+  # field`. Fixed in forge bfbdd37; this is the first image published since.
+  #
+  # WHY IT MATTERS HERE rather than being routine currency: 886774d PREDATES
+  # afc3c25 ("a drill may only delete a namespace it created"). In that binary
+  # `/cleanup` deletes whatever `--restore-namespace` names, unconditionally --
+  # and this chart's own same-namespace CSI constraint pushes an operator toward
+  # `camelot`, the fleet control plane's namespace. That is why _drillsteps.tpl
+  # withheld `--pod-namespace`: emitting it is what armed the deleter, tracked as
+  # `pending-cleanup-flags`.
+  #
+  # b98ed9e carries afc3c25 (verified: `git merge-base --is-ancestor afc3c25
+  # b98ed9e`, and neverDeletableNamespaces present in the shipped commit, which
+  # refuses camelot/kube-system/flux-system/crossplane-system/pitr-system ahead
+  # of any ownership reasoning). The deleter is now gated on the namespace's own
+  # label rather than on the caller's templating, so `pending-cleanup-flags` is
+  # UNBLOCKED -- emitting the full required flag set is a separate, now-safe
+  # change to _drillsteps.tpl.
+  #
+  # Checked in the same pass: no chart emits `--confirmation-poll`, which HEAD
+  # removed and the old binary still declared -- the skew that would make this
+  # newer image exit 2 on an unknown flag.
+  pitrTools: "ghcr.io/pleme-io/pitr-tools@sha256:4439992c55c7708f38d6bf5c72d71af998642bb9ca82df8ddf321e3925185ad7"
 
 function:
   # the generic drill-orchestration engine (correlation, per-drill ns, per-step Jobs,

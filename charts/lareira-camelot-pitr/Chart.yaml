@@ -21,7 +21,13 @@ description: >-
   (binlog replay is a further increment); a canary round-trip is a recovery
   MITIGATION, not a no-row-lost theorem. See the camelot skill + pitr research.
 type: application
-version: 0.9.0
+version: 0.9.1
+# 0.9.1 -- re-pin the drill-step image to the first one published in 34 days
+#          (amd64-b98ed9e), which is also the first carrying afc3c25's
+#          namespace-ownership guard. PATCH, not minor: no value is added,
+#          removed or renamed, and nothing renders differently while
+#          `enabled: false`. What changes is WHICH BINARY a drill would run --
+#          specifically, one whose /cleanup refuses to delete `camelot`.
 # 0.2.1 -- placeholder identifiers in the default values (no environment identity
 #          ships in the chart); prose genericized.
 # 0.2.0 (2026-08-05) -- ships the mysql 8.0 pin that 168dc27 stranded.
