@@ -11,3 +11,5 @@ dependencies:
   - name: pleme-lareira
     version: ">=0.1.0"
     repository: "file://../pleme-lareira"
+annotations:
+  org.opencontainers.image.source: https://github.com/pleme-io/helmworks

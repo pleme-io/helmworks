@@ -9,3 +9,5 @@ maintainers: [{name: drzzln, email: drzzln@protonmail.com}]
 dependencies:
   - {name: pleme-lib, version: ">=0.18.0", repository: "file://../pleme-lib"}
   - {name: policy-controller, version: "0.10.0", repository: "https://sigstore.github.io/helm-charts", condition: policyController.enabled}
+annotations:
+  org.opencontainers.image.source: https://github.com/pleme-io/helmworks

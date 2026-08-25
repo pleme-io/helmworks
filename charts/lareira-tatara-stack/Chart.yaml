@@ -38,3 +38,5 @@ dependencies:
     version: ">=0.1.0"
     repository: "file://../lareira-tatara-runtime"
     condition: tataraRuntime.enabled
+annotations:
+  org.opencontainers.image.source: https://github.com/pleme-io/helmworks

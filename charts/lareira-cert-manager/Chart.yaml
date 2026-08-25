@@ -21,3 +21,5 @@ dependencies:
     version: "v1.17.1"
     repository: "https://charts.jetstack.io"
     condition: certManager.enabled
+annotations:
+  org.opencontainers.image.source: https://github.com/pleme-io/helmworks

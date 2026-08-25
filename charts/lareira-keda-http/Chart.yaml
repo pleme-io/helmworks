@@ -31,3 +31,5 @@ dependencies:
     version: "0.10.0"
     repository: "https://kedacore.github.io/charts"
     condition: kedaHttp.enabled
+annotations:
+  org.opencontainers.image.source: https://github.com/pleme-io/helmworks

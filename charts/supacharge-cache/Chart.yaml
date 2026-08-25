@@ -96,3 +96,5 @@ dependencies:
     # THE OPTION-B TOGGLE — off by default (Option A). When false NO DaemonSet
     # renders; runners use Spegel P2P + LAN serve, sharing nothing.
     condition: nodeCache.enabled
+annotations:
+  org.opencontainers.image.source: https://github.com/pleme-io/helmworks

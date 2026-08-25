@@ -33,3 +33,5 @@ dependencies:
     version: ">=0.1.0"
     repository: "file://../lareira-pangea-dashboards"
     condition: lareira-pangea-dashboards.enabled
+annotations:
+  org.opencontainers.image.source: https://github.com/pleme-io/helmworks

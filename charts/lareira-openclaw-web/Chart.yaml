@@ -16,3 +16,5 @@ appVersion: "0.2.5"
 
 keywords: [openclaw, proof-chain, lareira, web, demo]
 maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]
+annotations:
+  org.opencontainers.image.source: https://github.com/pleme-io/helmworks

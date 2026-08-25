@@ -37,3 +37,5 @@ sources:
 maintainers:
   - name: drzzln
     email: drzzln@protonmail.com
+annotations:
+  org.opencontainers.image.source: https://github.com/pleme-io/helmworks

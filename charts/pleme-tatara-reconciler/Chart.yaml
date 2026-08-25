@@ -21,3 +21,5 @@ dependencies:
   - name: pleme-operator
     version: ">=0.1.0"
     repository: "file://../pleme-operator"
+annotations:
+  org.opencontainers.image.source: https://github.com/pleme-io/helmworks

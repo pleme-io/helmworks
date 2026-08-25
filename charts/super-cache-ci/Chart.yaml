@@ -63,3 +63,5 @@ dependencies:
     version: ">=0.2.3"
     repository: "file://../pleme-sui"
     condition: serve.enabled
+annotations:
+  org.opencontainers.image.source: https://github.com/pleme-io/helmworks

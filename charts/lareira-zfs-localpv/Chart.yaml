@@ -19,3 +19,5 @@ dependencies:
     version: "2.10.1"
     repository: "https://openebs.github.io/zfs-localpv"
     condition: zfs-localpv.enabled
+annotations:
+  org.opencontainers.image.source: https://github.com/pleme-io/helmworks

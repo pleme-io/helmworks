@@ -22,3 +22,5 @@ appVersion: "0.1.0"
 
 keywords: [computeunit, wasm, tatara-lisp, lareira]
 maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]
+annotations:
+  org.opencontainers.image.source: https://github.com/pleme-io/helmworks

@@ -22,3 +22,5 @@ sources:
 maintainers:
   - name: pleme-io
     email: team@pleme.io
+annotations:
+  org.opencontainers.image.source: https://github.com/pleme-io/helmworks

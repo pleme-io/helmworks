@@ -9,3 +9,5 @@ maintainers: [{name: drzzln, email: drzzln@protonmail.com}]
 dependencies:
   - {name: pleme-lib, version: ">=0.18.0", repository: "file://../pleme-lib"}
   - {name: kubescape-operator, version: "1.27.6", repository: "https://kubescape.github.io/helm-charts/", condition: kubescape.enabled}
+annotations:
+  org.opencontainers.image.source: https://github.com/pleme-io/helmworks

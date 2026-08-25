@@ -41,6 +41,7 @@ home: https://github.com/pleme-io/helmworks
 # `helm template | kubectl apply` from the pleme-io side; there is no public OCI
 # artifact and no FluxCD/operator wiring for the workload.
 annotations:
+  org.opencontainers.image.source: https://github.com/pleme-io/helmworks
   pleme.io/oci-auto-release: "false"
 dependencies:
   # Only pleme-lib — this chart authors the hostNetwork Deployment / Service /

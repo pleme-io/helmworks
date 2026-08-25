@@ -148,3 +148,5 @@ version: 0.44.1
 # See the template header for why `hasKey` and not `default`: the
 # never-shrink postures use `shrinkBelow: 0`, which a `default` filter would
 # silently rewrite to 0.7.
+annotations:
+  org.opencontainers.image.source: https://github.com/pleme-io/helmworks

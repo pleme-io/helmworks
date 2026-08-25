@@ -22,4 +22,5 @@ dependencies:
     repository: "file://../pleme-microservice"
     condition: enabled
 annotations:
+  org.opencontainers.image.source: https://github.com/pleme-io/helmworks
   pleme.io/oci-auto-release: "false"

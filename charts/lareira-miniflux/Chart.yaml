@@ -7,3 +7,5 @@ appVersion: "2.2.4"
 dependencies:
   - {name: pleme-lib, version: ">=0.18.0", repository: "file://../pleme-lib"}
   - {name: pleme-lareira, version: ">=0.1.0", repository: "file://../pleme-lareira"}
+annotations:
+  org.opencontainers.image.source: https://github.com/pleme-io/helmworks

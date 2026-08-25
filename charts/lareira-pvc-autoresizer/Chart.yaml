@@ -17,3 +17,5 @@ dependencies:
   - name: pleme-computeunit
     version: ">=0.1.0"
     repository: "file://../pleme-computeunit"
+annotations:
+  org.opencontainers.image.source: https://github.com/pleme-io/helmworks

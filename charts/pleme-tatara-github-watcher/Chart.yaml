@@ -26,3 +26,5 @@ dependencies:
   - name: pleme-microservice
     version: ">=0.2.0"
     repository: "file://../pleme-microservice"
+annotations:
+  org.opencontainers.image.source: https://github.com/pleme-io/helmworks

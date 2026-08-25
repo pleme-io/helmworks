@@ -32,3 +32,5 @@ dependencies:
     version: ">=0.8.25"
     repository: "file://../pangea-operator"
     condition: pangea-operator.enabled
+annotations:
+  org.opencontainers.image.source: https://github.com/pleme-io/helmworks

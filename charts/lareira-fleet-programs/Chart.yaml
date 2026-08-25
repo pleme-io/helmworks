@@ -29,3 +29,5 @@ dependencies:
     repository: "file://../pleme-computeunit"
     condition: pleme-computeunit.enabled    # never enabled directly; we
                                             # render multiple CUs ourselves
+annotations:
+  org.opencontainers.image.source: https://github.com/pleme-io/helmworks

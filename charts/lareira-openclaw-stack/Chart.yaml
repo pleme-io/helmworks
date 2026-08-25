@@ -59,4 +59,5 @@ dependencies:
     repository: "file://../lareira-openclaw-web"
     condition: web.enabled
 annotations:
+  org.opencontainers.image.source: https://github.com/pleme-io/helmworks
   pleme.io/oci-auto-release: "false"

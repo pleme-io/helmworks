@@ -23,3 +23,5 @@ dependencies:
   - name: pleme-lib
     version: ">=0.27.0"
     repository: "file://../pleme-lib"
+annotations:
+  org.opencontainers.image.source: https://github.com/pleme-io/helmworks

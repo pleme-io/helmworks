@@ -11,3 +11,5 @@ dependencies:
     # the operator chart only depends on its template stability surface.
     version: ">=0.27.0"
     repository: "file://../pleme-lib"
+annotations:
+  org.opencontainers.image.source: https://github.com/pleme-io/helmworks

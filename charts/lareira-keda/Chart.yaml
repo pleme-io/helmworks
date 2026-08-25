@@ -21,3 +21,5 @@ dependencies:
     version: "2.16.1"
     repository: "https://kedacore.github.io/charts"
     condition: keda.enabled
+annotations:
+  org.opencontainers.image.source: https://github.com/pleme-io/helmworks
