@@ -278,11 +278,20 @@ spec:
                 nullable: true
                 properties:
                   autoOnConflict:
-                    default: false
-                    description: Master switch. When `false` (default), no auto-import
-                      fires regardless of `naturalIds` or bundled defaults — you stay
-                      on today's per-address `importHints`-only behaviour. When `true`,
-                      every `create`-action is a candidate for auto-import.
+                    default: true
+                    description: Master switch. When `true` (the default since
+                      2026-08-26), every `create`-action is a candidate for auto-import.
+                      Set it `false` to stay on per-address `importHints`-only
+                      behaviour. It used to default to `false`, which meant a template
+                      that said nothing about importing got create-instead-of-import —
+                      a plan proposing to CREATE resources that already exist, failing
+                      at apply with `422 already exists`. That is the same dangerous
+                      posture reached by SAYING NOTHING that destroyProtection closed
+                      on the deletion path. Safe as a default because it is a CANDIDACY
+                      switch, not an action — an address still needs an id from
+                      importHints → naturalIds → operator-bundled defaults, so a
+                      resource with no resolvable natural id imports nothing and stays
+                      a plain create.
                     type: boolean
                   naturalIds:
                     additionalProperties:
