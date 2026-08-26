@@ -246,6 +246,7 @@ spec:
                 enum:
                 - auto
                 - ruby
+                - lava
                 - json
                 type: string
               executor:
