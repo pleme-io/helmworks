@@ -12,10 +12,42 @@ embedded mode and drop the compiler sidecar from the pod spec.
      a fresh `--compile-worker` child per compile → cross-template contamination
      unrepresentable by construction). Default keeps today's behavior. */}}
 {{- $rubyIsolation := .Values.rubyIsolation | default "embedded" -}}
-{{- $compilerBackend := "http" -}}
-{{- if $useEmbedded -}}
-{{-   $compilerBackend = ternary "process" "embedded" (eq $rubyIsolation "process") -}}
+{{/*
+  ★ THE BACKEND IS ONE TYPED FIELD, and everything else is DERIVED from it.
+
+  It used to be encoded across two values — a bool (`useEmbeddedRuby`) times an
+  enum (`rubyIsolation`) — which could express only three of the four backends
+  the operator actually accepts. `lava` had NO representation at all: setting
+  `useEmbeddedRuby: false` selected `http`, which points the operator at a Ruby
+  compiler SIDECAR. So a Ruby-free image had no reachable configuration, and the
+  chart was the thing standing between the built artifact and the cluster.
+
+  Four call sites keyed off the old bool independently (backend, gem auth,
+  sidecar, gem cache). Each is now derived from `$backend`, so a new backend
+  cannot be half-wired — the failure mode where an image runs Ruby-free while
+  still being handed a gem-auth token and a sidecar is gone by construction.
+
+  ★ BACK-COMPAT IS EXACT, not approximate. When `compilerBackend` is unset the
+  legacy pair still decides, and both legacy settings render byte-identically to
+  what they rendered before: `true` → embedded/process, `false` → http. Existing
+  consumers need no edit. (★★ MODULARIZE, DON'T DELETE — the Ruby backends stay
+  fully expressible; retirement here is a selection, never a deletion.)
+*/}}
+{{- $backend := .Values.compilerBackend | default "" -}}
+{{- if eq $backend "" -}}
+{{-   $backend = ternary (ternary "process" "embedded" (eq $rubyIsolation "process")) "http" $useEmbedded -}}
 {{- end -}}
+{{/* An unknown backend is rejected AT RENDER TIME rather than becoming a pod
+     that crash-loops on startup with a typed error nobody is watching for.
+     TIER: parse-time-rejected (a helm render failure), not unrepresentable. */}}
+{{- if not (has $backend (list "lava" "embedded" "process" "http")) -}}
+{{-   fail (printf "pangea-operator: compilerBackend=%q is not one of lava|embedded|process|http" $backend) -}}
+{{- end -}}
+{{/* Ruby-bearing backends need a gem-auth token and a writable gem cache;
+     lava and http do not. Only `http` wants the compiler sidecar. */}}
+{{- $needsRuby := has $backend (list "embedded" "process") -}}
+{{- $needsSidecar := eq $backend "http" -}}
+{{- $compilerBackend := $backend -}}
 {{- $gemAuthSecretName := (((.Values.gemAuth).tokenSecret).name | default "") -}}
 {{- $gemAuthSecretKey := (((.Values.gemAuth).tokenSecret).key | default "token") -}}
 {{- $magmaPg := ((.Values.executor.magma).postgres) | default dict -}}
@@ -80,7 +112,7 @@ embedded mode and drop the compiler sidecar from the pod spec.
 {{- $executorEnv = append $executorEnv (dict "name" "PGPASSWORD" "valueFrom" (dict "secretKeyRef" (dict "name" $magmaPg.passwordSecretName "key" ($magmaPg.passwordSecretKey | default "password")))) }}
 {{- end }}
 {{- end }}
-{{- if and $useEmbedded (ne $gemAuthSecretName "") }}
+{{- if and $needsRuby (ne $gemAuthSecretName "") }}
 {{- $executorEnv = append $executorEnv (dict
     "name" "PANGEA_GEM_AUTH_TOKEN"
     "valueFrom" (dict "secretKeyRef" (dict "name" $gemAuthSecretName "key" $gemAuthSecretKey))) }}
@@ -88,15 +120,16 @@ embedded mode and drop the compiler sidecar from the pod spec.
 {{- $mergedValues := deepCopy .Values }}
 {{- $_ := set $mergedValues "env" (concat $executorEnv (.Values.env | default list)) }}
 
-{{/* When embedded, drop the compiler sidecar entirely. */}}
-{{- if $useEmbedded }}
+{{/* Only the `http` backend talks to a compiler sidecar; every other backend
+     compiles in-process, so the sidecar is dropped entirely. */}}
+{{- if not $needsSidecar }}
 {{- $_ := set $mergedValues "sidecars" (list) }}
 {{- end }}
 
 {{/* When embedded, mount an emptyDir gem-cache on the operator
      container so prepare_gem clones land somewhere writable.
      pleme-lib reads .Values.volumes and .Values.volumeMounts. */}}
-{{- if $useEmbedded }}
+{{- if $needsRuby }}
 {{- $existingVolumes := index $mergedValues "volumes" | default (list) }}
 {{- $existingMounts := index $mergedValues "volumeMounts" | default (list) }}
 {{- $cacheDir := .Values.gemCacheDir | default "/var/pangea/gems" }}

@@ -180,6 +180,24 @@ service:
       protocol: TCP
       name: graphql
 
+# ── ★ compilerBackend — the ONE typed field that selects the compiler ──
+# lava | embedded | process | http   (unset = derive from the legacy pair below)
+#
+#   lava      in-process tatara-lisp evaluator. NO Ruby, NO sidecar, no gem
+#             auth, no gem cache. Requires an image built Ruby-free (the
+#             release-train default since Ruby left the default features).
+#   embedded  long-lived in-thread magnus CRuby VM (needs an embedded_ruby image)
+#   process   a fresh --compile-worker child per compile (needs embedded_ruby)
+#   http      the external compiler SIDECAR
+#
+# Everything else — gem auth, the sidecar, the gem cache — is DERIVED from this
+# one value, so a backend cannot be half-wired. An unknown value fails the helm
+# render rather than producing a pod that crash-loops on a startup error.
+#
+# Leave unset to keep the legacy `useEmbeddedRuby` x `rubyIsolation` encoding,
+# which renders byte-identically to what it always has.
+compilerBackend: ""
+
 # -- Executor configuration for external tool invocation
 executor:
   tofu:
