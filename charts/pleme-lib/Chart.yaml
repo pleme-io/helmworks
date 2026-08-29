@@ -2,7 +2,7 @@ apiVersion: v2
 name: pleme-lib
 description: Shared library chart for pleme-io internal services
 type: library
-version: 0.44.1
+version: 0.45.0
 # 0.44.0 (2026-08-07) -- scaleToZero.v1: scale-to-zero as a declared QUALITY.
 #
 # templates/_scaletozero.tpl. `pleme-lib.scaleToZero.v1` +
