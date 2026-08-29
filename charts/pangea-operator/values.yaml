@@ -302,8 +302,8 @@ executor:
         # INCLUDED: while these were hardcoded with requests != limits, a
         # consumer could set requests == limits on the operator container
         # and still not reach Guaranteed, with no values-level way to fix
-        # it and no obvious reason why. Found live on camelot-eks
-        # 2026-07-30 -- pangea-operator holds a ~22-minute
+        # it and no obvious reason why. Found live 2026-07-30 --
+        # pangea-operator holds a ~22-minute
         # non-checkpointable in-memory reconcile cycle and wants the top
         # QoS class so it is never evicted to reclaim resources for
         # another pod; the requests bump landed and the pod still came up
@@ -573,9 +573,9 @@ securityContext:
 # force, and it is correct only on a cluster that happens to have a namespace
 # by that name.
 #
-# MEASURED 2026-08-05: rio has `pangea-system` (Active) so it works there.
-# camelot runs this chart in namespace `camelot`, has no such namespace, and
-# the operator looped forever on
+# MEASURED 2026-08-05: a cluster with `pangea-system` (Active) works. A
+# cluster running this chart in a namespace of its own, with no such
+# namespace present, looped forever on
 #   Leader election acquire attempt failed — namespaces "pangea-system" not found (404)
 # every ~3s since install. It never became leader, so it reconciled NOTHING —
 # all 16 InfrastructureTemplates carried no phase, no resources, no cycle,
@@ -1199,7 +1199,7 @@ operatorPolicy:
 
 # breathe resource-homeostasis (breathe.pleme.io). CPU ONLY — an external
 # MemoryBand already targets this Deployment (created outside this chart,
-# by lareira-observe-operator on rio/camelot); declaring a second MemoryBand
+# by lareira-observe-operator); declaring a second MemoryBand
 # from the chart itself would conflict/duplicate against the same target.
 #
 # ⚠️ CORRECTION 2026-07-26 — this block previously said "Shadow-first
