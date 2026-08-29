@@ -1,0 +1,268 @@
+suite: pleme-lib bare-fixture — pleme-lib.park.verb, EVERY arm of the dispatch table
+#
+# ★★ CLOSED-LOOP MASS-SYNTHESIS applied to a ten-arm dispatch. The park
+# template's whole point is that (objectKind, ownerKind, chart-zero-safety,
+# operator-reconciles) resolves to exactly ONE floor verb — so a table with
+# untested arms is a table whose next variant lands unnoticed.
+#
+# Asserted through a PROBE that renders the resolved verb, not through the
+# emitted patches: two verbs can produce the same patch SHAPE, so inferring the
+# verb from the output cannot tell them apart. The probe makes the table itself
+# the thing under test.
+#
+# The ten verbs, and why each exists rather than collapsing into `replicas`:
+#   replicas            a plain workload nobody else writes
+#   chartReplicas       Helm owns the field, so the value goes in VALUES or the
+#                       next release reverts it
+#   scaleSubresource    the field is not in the chart's values at all
+#   postRenderer        an operator reconciles it back, so the patch must sit
+#                       between render and apply
+#   pausedReplicas      an autoscaler owns the count; only the annotation pins
+#                       a target regardless of what triggers report
+#   hpaFloor            the HPA's own minReplicas
+#   jobSuspend          a Job has no replicas; `suspend` is its floor
+#   fluxSuspend         a reconciled DECLARATION is parked by suspending the
+#                       reconciler, not by editing what it reconciles
+#   nodeSelectorSink    a DaemonSet has no replica count at all
+#   provisionerCeiling  a NodePool floors by its limits, not by a count
+templates:
+  - templates/park-verb.yaml
+release:
+  name: t
+  namespace: testns
+defaults: &defaults
+  image.repository: ghcr.io/x/y
+  image.tag: "1.0.0"
+
+tests:
+  - it: "Deployment + no owner → replicas"
+    set:
+      <<: *defaults
+      parkVerbProbe: { objectKind: Deployment, ownerKind: none }
+    asserts:
+      - equal: { path: data.verb, value: replicas }
+
+  - it: "StatefulSet + no owner → replicas"
+    set:
+      <<: *defaults
+      parkVerbProbe: { objectKind: StatefulSet, ownerKind: none }
+    asserts:
+      - equal: { path: data.verb, value: replicas }
+
+  - it: "ReplicaSet + no owner → replicas"
+    set:
+      <<: *defaults
+      parkVerbProbe: { objectKind: ReplicaSet, ownerKind: none }
+    asserts:
+      - equal: { path: data.verb, value: replicas }
+
+  # ★ Helm OWNERSHIP ALONE does not change the verb — measured, and it
+  # corrected my reading of the table. A plain Helm-owned Deployment still
+  # takes `replicas`; what pulls the verb into the values is a controller
+  # RECONCILING the field back, which is the case below.
+  - it: "Deployment + helm owner alone → still replicas"
+    set:
+      <<: *defaults
+      parkVerbProbe: { objectKind: Deployment, ownerKind: helm }
+    asserts:
+      - equal: { path: data.verb, value: replicas }
+
+  - it: "operator-reconciled + helm owner + zero IS safe → chartReplicas"
+    set:
+      <<: *defaults
+      parkVerbProbe:
+        objectKind: Deployment
+        ownerKind: helm
+        operatorReconciles: true
+        zeroSafe: true
+    asserts:
+      - equal: { path: data.verb, value: chartReplicas }
+
+  - it: "operator-reconciled + NON-helm owner → scaleSubresource"
+    set:
+      <<: *defaults
+      parkVerbProbe:
+        objectKind: Deployment
+        ownerKind: operator
+        operatorReconciles: true
+    asserts:
+      - equal: { path: data.verb, value: scaleSubresource }
+
+  # ★ THE BEST ANSWER IN THE TABLE IS A REFUSAL, and I expected a verb here.
+  # A postRenderer is reverted by the reconciler, which leaves only the chart
+  # value the controller reads — and zeroSafe=false says the chart swallows a
+  # literal 0. So there is genuinely NO safe verb, and the template says so
+  # instead of picking the least-wrong one and floorng nothing.
+  - it: REFUSES operator-reconciled + helm owner when the chart swallows zero
+    set:
+      <<: *defaults
+      parkVerbProbe:
+        objectKind: Deployment
+        ownerKind: helm
+        operatorReconciles: true
+        zeroSafe: false
+    asserts:
+      - failedTemplate:
+          errorPattern: "no safe verb exists"
+
+  # A HelmRelease is where postRenderer genuinely applies: the patch sits
+  # between render and apply, which is the only place Flux does not overwrite.
+  - it: "HelmRelease + cost intent + zero NOT safe → postRenderer"
+    set:
+      <<: *defaults
+      parkVerbProbe:
+        objectKind: HelmRelease
+        ownerKind: flux
+        zeroSafe: false
+        existingPostRenderers: []
+        # A postRenderer patches the RENDERED object, not the release, so it
+        # needs that object's kind. Without it the patch has no target.
+        rendered: { kind: Deployment, name: the-workload }
+    asserts:
+      - equal: { path: data.verb, value: postRenderer }
+
+  - it: REFUSES postRenderer without the rendered object's kind
+    set:
+      <<: *defaults
+      parkVerbProbe:
+        objectKind: HelmRelease
+        ownerKind: flux
+        zeroSafe: false
+        existingPostRenderers: []
+    asserts:
+      - failedTemplate:
+          errorPattern: "rendered.kind is required"
+
+  - it: "HelmRelease + cost intent + zero IS safe → chartReplicas"
+    set:
+      <<: *defaults
+      parkVerbProbe: { objectKind: HelmRelease, ownerKind: flux, zeroSafe: true }
+    asserts:
+      - equal: { path: data.verb, value: chartReplicas }
+
+  - it: "CustomResource → scaleSubresource"
+    set:
+      <<: *defaults
+      parkVerbProbe: { objectKind: CustomResource, ownerKind: none }
+    asserts:
+      - equal: { path: data.verb, value: scaleSubresource }
+
+  # ★ Only the paused-replicas annotation pins a target regardless of what the
+  # triggers report; writing a number is undone on the autoscaler's next tick.
+  - it: "autoscaler=keda → pausedReplicas"
+    set:
+      <<: *defaults
+      parkVerbProbe: { objectKind: Deployment, ownerKind: autoscaler, autoscaler: keda }
+    asserts:
+      - equal: { path: data.verb, value: pausedReplicas }
+
+  - it: "autoscaler=hpa → hpaFloor"
+    set:
+      <<: *defaults
+      parkVerbProbe: { objectKind: Deployment, ownerKind: autoscaler, autoscaler: hpa }
+    asserts:
+      - equal: { path: data.verb, value: hpaFloor }
+
+  # A DaemonSet has no replica count — flooring it means giving it a
+  # nodeSelector that matches nothing.
+  - it: "DaemonSet → nodeSelectorSink"
+    set:
+      <<: *defaults
+      parkVerbProbe: { objectKind: DaemonSet, ownerKind: none }
+    asserts:
+      - equal: { path: data.verb, value: nodeSelectorSink }
+
+  - it: "Job → jobSuspend"
+    set:
+      <<: *defaults
+      parkVerbProbe: { objectKind: Job, ownerKind: none }
+    asserts:
+      - equal: { path: data.verb, value: jobSuspend }
+
+  - it: "CronJob → jobSuspend"
+    set:
+      <<: *defaults
+      parkVerbProbe: { objectKind: CronJob, ownerKind: none }
+    asserts:
+      - equal: { path: data.verb, value: jobSuspend }
+
+  # A NodePool floors by its LIMITS, not by a count — and it carries a guard I
+  # did not expect: a ceiling is not an evictor, but a ceiling of zero means
+  # nothing can REPLACE a node consolidation reclaims. So the caller must say
+  # whether this pool hosts any of the recovery path.
+  - it: "NodePool + recovery-path answered → provisionerCeiling"
+    set:
+      <<: *defaults
+      parkVerbProbe: { objectKind: NodePool, ownerKind: none, hostsRecoveryPath: false }
+    asserts:
+      - equal: { path: data.verb, value: provisionerCeiling }
+
+  - it: REFUSES a NodePool ceiling with the recovery-path question unanswered
+    set:
+      <<: *defaults
+      parkVerbProbe: { objectKind: NodePool, ownerKind: none }
+    asserts:
+      - failedTemplate:
+          errorPattern: "hostsRecoveryPath"
+
+  # ★ INTENT CHANGES THE ANSWER for a reconciled declaration: parking the
+  # DECLARATION means suspending the reconciler, not editing what it reconciles
+  # — which the reconciler would simply put back.
+  - it: "HelmRelease + intent=declaration → fluxSuspend"
+    set:
+      <<: *defaults
+      parkVerbIntent: declaration
+      parkVerbProbe: { objectKind: HelmRelease, ownerKind: flux }
+    asserts:
+      - equal: { path: data.verb, value: fluxSuspend }
+
+  - it: "Kustomization + intent=declaration → fluxSuspend"
+    set:
+      <<: *defaults
+      parkVerbIntent: declaration
+      parkVerbProbe: { objectKind: Kustomization, ownerKind: flux }
+    asserts:
+      - equal: { path: data.verb, value: fluxSuspend }
+
+  - it: "Job + intent=declaration → jobSuspend (suspend is the floor either way)"
+    set:
+      <<: *defaults
+      parkVerbIntent: declaration
+      parkVerbProbe: { objectKind: Job, ownerKind: none }
+    asserts:
+      - equal: { path: data.verb, value: jobSuspend }
+
+  # ── the table's REFUSALS: an unrecognised input has no verb, and guessing
+  #    one renders a park that floors nothing while reporting success.
+  - it: REFUSES an objectKind the table does not name
+    set:
+      <<: *defaults
+      parkVerbProbe: { objectKind: Fleeb, ownerKind: none }
+    asserts:
+      - failedTemplate:
+          errorPattern: "park.target.objectKind"
+
+  - it: REFUSES an ownerKind the table does not name
+    set:
+      <<: *defaults
+      parkVerbProbe: { objectKind: Deployment, ownerKind: chart }
+    asserts:
+      - failedTemplate:
+          errorPattern: "park.target.ownerKind"
+
+  - it: REFUSES an unknown intent
+    set:
+      <<: *defaults
+      parkVerbIntent: vibes
+      parkVerbProbe: { objectKind: Deployment, ownerKind: none }
+    asserts:
+      - failedTemplate:
+          errorPattern: "park.intent"
+
+  - it: REFUSES an autoscaler owner naming neither keda nor hpa
+    set:
+      <<: *defaults
+      parkVerbProbe: { objectKind: Deployment, ownerKind: autoscaler, autoscaler: karpenter }
+    asserts:
+      - failedTemplate:
+          errorPattern: "park.target.autoscaler"

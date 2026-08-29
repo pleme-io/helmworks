@@ -1,0 +1,17 @@
+{{/* Bare fixture: expose pleme-lib.park.verb's RESOLVED verb so the dispatch
+     table can be asserted directly.
+
+     The park entry point emits patches, not the verb name, so a test driving
+     it can only infer the verb from the patch shape — and two verbs that emit
+     the same shape would then be indistinguishable. This probe makes the table
+     itself the thing under test, which is what a ten-arm dispatch needs
+     (★★ CLOSED-LOOP MASS-SYNTHESIS: a variant landing without a row must be
+     visible, and it is only visible if every arm is named). */}}
+{{- if .Values.parkVerbProbe }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: park-verb-probe
+data:
+  verb: {{ include "pleme-lib.park.verb" (dict "target" .Values.parkVerbProbe "intent" (.Values.parkVerbIntent | default "cost") "ctx" "probe") | quote }}
+{{- end }}
