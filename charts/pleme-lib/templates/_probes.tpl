@@ -22,7 +22,7 @@ livenessTimeout/readinessTimeout default to 1 (Kubernetes' own
 probe.timeoutSeconds default when the field is omitted) -- ADDED
 2026-07-24, this chart previously never rendered timeoutSeconds at
 all, so every consumer was silently pinned to that 1s default with no
-values-only escape hatch. Found live on pangea-operator (camelot-eks):
+values-only escape hatch. Found live on pangea-operator:
 an operator embedding a synchronous compiler/state-backend workload
 can legitimately take >1s to answer a probe under a burst of
 concurrent reconcile work without being unhealthy -- kubelet has no

@@ -17,8 +17,9 @@ pipeline installs into a runner, node userData, a chart's values, the live
 Secret -- and nothing knows they must agree. They drift. The drift is invisible
 because every copy carries the SAME SUBJECT, so checking by eye reads
 `CN=<cluster> CA` in both places and reports a match; only the public key
-differs. Measured on camelot 2026-08-05: runner trust pinned CF:0F:CA:59 while
-the cluster served 1C:36:BE:00, both `CN=camelot-eks cluster CA`, surfacing as
+differs. Measured on one cluster, 2026-08: runner trust pinned one
+fingerprint while the cluster served another, both presenting the IDENTICAL
+`CN=<cluster> cluster CA` subject, surfacing as
 `error sending request for url (https://...)` -- which reads as a network fault.
 
 Two causes, and the second is why it recurs:
@@ -43,9 +44,9 @@ USAGE
   values:
     trust:
       enabled: true
-      domain:  camelot
-      issuer:  camelot-ca-issuer          # ClusterIssuer of kind `ca`
-      caSecret: camelot-ca-secret         # holds ca.crt (the anchor)
+      domain:  <trust-domain>
+      issuer:  <domain>-ca-issuer         # ClusterIssuer of kind `ca`
+      caSecret: <domain>-ca-secret        # holds ca.crt (the anchor)
       anchor:  "3F:EC:8A:..."             # asserted by `trust verify`, not here
       dnsNames: [svc.ns.svc.cluster.local]
 

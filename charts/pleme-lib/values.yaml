@@ -392,8 +392,8 @@ breathe:
     # Absent ⇒ breathe reports Blocked(noManifestCoordinate); it does NOT
     # silently downgrade to ephemeral.
     manifestRef: {}
-    #   path: clusters/camelot/apps/sui/release.yaml
-    #   marker: camelot-build/sui-request
+    #   path: clusters/<cluster>/apps/<app>/release.yaml
+    #   marker: <group>/<request-id>
     # -- Advisory lower bound (e.g. 256Mi / 250m). The band never reserves below.
     floor: ""
     # -- Advisory upper bound. NOT the binding ceiling — that is always the LIVE

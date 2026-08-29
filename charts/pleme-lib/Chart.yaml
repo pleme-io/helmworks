@@ -47,8 +47,8 @@ version: 0.44.1
 # directions.
 #
 # THE SEAL. `rest.assert.enabled` renders a PrometheusRule with three rules
-# against the metric camelot's kube-state-metrics custom-resource-state
-# collector already exports (`keda_scaledobject_state_info`, labels
+# against the metric a kube-state-metrics custom-resource-state collector
+# exports (`keda_scaledobject_state_info`, labels
 # name/exported_namespace/ready/active):
 #   ScalerRejected        -- KEDA reports a rejected ScaledObject ONLY in its
 #                            own status. On 2026-08-04 every ScaledObject in

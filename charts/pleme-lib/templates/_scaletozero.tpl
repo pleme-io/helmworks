@@ -40,7 +40,7 @@ Values:
       kind: queue               # exactly one arm; zero or two is a render error
       queue:
         broker: nats-jetstream
-        url: "nats://pleme-nats.camelot-nats.svc:4222"
+        url: "nats://pleme-nats.<nats-namespace>.svc:4222"
         account: "$G"
         stream: BUILD
         consumer: builder

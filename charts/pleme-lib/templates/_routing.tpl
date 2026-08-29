@@ -1,5 +1,5 @@
 {{/*
-pleme-lib.routing — the destination-routing seam (luis | akeyless | partner).
+pleme-lib.routing — the destination-routing seam.
 
 ONE `routing.destination` enum drives every routing surface, authored ONCE here
 so alert charts (lareira-pangea-alerts) and the respiro OBSERVE stage never fork
@@ -10,15 +10,26 @@ the mapping:
   pleme-lib.routing.receiverName  → the Alertmanager receiver name for a destination
   pleme-lib.routing.receiver      → the Alertmanager receiver object for a destination
 
-Destination contract:
-  luis     — WIRED. Routes to ntfy. routing.ntfyTopic + routing.ntfyUrl are
-             REQUIRED; an empty ntfyTopic fail()s (a luis alert with nowhere to
-             go is a bug, not a silent no-op).
-  akeyless — INERT-IF-EMPTY. Emits a named receiver whose webhookConfigs is `[]`
-             until routing.webhookUrl is wired (build-but-configure-off — the
-             `dest: akeyless` seam exists and matches, the sink is a later wiring).
-  partner  — INERT-IF-EMPTY. Same seam as akeyless, a distinct receiver name.
-             A generic third sink for a downstream consumer of our artifacts.
+Destination contract — TWO ARMS, and the allowed SET is caller-declared.
+The enum stays CLOSED (a typo must fail, not route nowhere), but its membership
+is a value rather than a literal in this file: the reusable artifact is the RULE
+and the two arms, never the catalog of who we happen to send to.
+
+  luis            — the NTFY arm. routing.ntfyTopic + routing.ntfyUrl are
+                    REQUIRED; an empty ntfyTopic fail()s (an alert with nowhere
+                    to go is a bug, not a silent no-op). Always permitted.
+  <any declared>  — the WEBHOOK arm, INERT-IF-EMPTY. Emits a named receiver
+                    whose webhookConfigs is `[]` until routing.webhookUrl is
+                    wired (build-but-configure-off — the `dest: <v>` seam exists
+                    and matches, the sink is a later wiring).
+
+  routing.destinations — the caller's declared webhook destination names.
+                    Defaults to ["partner"]. A consumer that routes somewhere
+                    else declares that name in ITS OWN values; this library
+                    never learns who the downstream is.
+                    NOTE (Helm law): a list-typed DEFAULT is discarded wholesale
+                    by any consumer that sets the list — declare the full set,
+                    not the delta.
 
 Call convention — EVERY helper takes ONE dict argument:
   (dict "destination" <string> "routing" <dict> "ctx" <string>)
@@ -32,11 +43,12 @@ Call convention — EVERY helper takes ONE dict argument:
 {{- define "pleme-lib.routing.destination" -}}
 {{- $dest := .destination -}}
 {{- $ctx := .ctx | default "routing" -}}
+{{- $allowed := concat (list "luis") (((.routing | default dict).destinations) | default (list "partner")) -}}
 {{- if not $dest -}}
-{{- fail (printf "pleme-lib.routing (%s): routing.destination is required — one of luis|akeyless|partner" $ctx) -}}
+{{- fail (printf "pleme-lib.routing (%s): routing.destination is required — one of %s" $ctx (join "|" $allowed)) -}}
 {{- end -}}
-{{- if not (has $dest (list "luis" "akeyless" "partner")) -}}
-{{- fail (printf "pleme-lib.routing (%s): unknown routing.destination %q — must be one of luis|akeyless|partner" $ctx $dest) -}}
+{{- if not (has $dest $allowed) -}}
+{{- fail (printf "pleme-lib.routing (%s): unknown routing.destination %q — must be one of %s (declare additional names in routing.destinations)" $ctx $dest (join "|" $allowed)) -}}
 {{- end -}}
 {{- $dest -}}
 {{- end -}}
