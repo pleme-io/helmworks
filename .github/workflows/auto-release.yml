@@ -17,7 +17,7 @@ jobs:
   # workflows on the same `push: branches:[main]` event, so a chart published
   # while its suite was red. Not theoretical — measured on one push:
   # run 32168256181 (chart-tests) FAILED at 17:56:20Z and run 32168256381
-  # (auto-release) SUCCEEDED at 18:03:08Z, publishing lareira-camelot-pitr
+  # (auto-release) SUCCEEDED at 18:03:08Z, publishing a chart
   # 0.9.0 seven minutes later. That independence is why a version-pair defect
   # in the shared reusable survived 8 days and 9 pitr releases, and why 14
   # charts (180 assertions) have shipped every version they have ever had
