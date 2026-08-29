@@ -486,7 +486,18 @@ written to permit.
 {{- $r := .rbac | default (($ctx.Values).rbac | default dict) -}}
 {{- $name := .name | default (include "pleme-lib.fullname" $ctx) -}}
 {{- $args := dict "ctx" $ctx "rbac" $r "name" $name -}}
-{{- if or (not (hasKey $r "create")) $r.create -}}
+{{/* DEFAULT-OFF, like every sibling template in this directory.
+
+     This was `or (not (hasKey $r "create")) $r.create` — i.e. absence meant
+     RENDER — which made the template impossible to `include` unconditionally:
+     a chart that wanted no RBAC still had to declare `rbac.create: false` or
+     the render FAILED demanding a scope. Found by writing the first test that
+     included it with no values at all.
+
+     Default-on is also the wrong direction for this particular template. The
+     thing it emits is a grant; the safe absence is no grant. Changed while it
+     had ZERO consumers (measured), so nothing depended on the old default. */}}
+{{- if $r.create -}}
 {{- include "pleme-lib.rbac.validate" $args -}}
 {{- $scope := include "pleme-lib.rbac.scope" $args -}}
 {{- $ns := include "pleme-lib.namespace" $ctx -}}

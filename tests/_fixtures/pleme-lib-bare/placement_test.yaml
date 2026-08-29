@@ -1,0 +1,113 @@
+suite: pleme-lib bare-fixture — pleme-lib.placement (the isolation triple)
+#
+# Harvested from a frozen cluster tree. The mechanism is: a workload pins to a
+# node pool, tolerates that pool's taint, and (optionally) carries a
+# do-not-disrupt annotation. Every NAME is a required value with no default,
+# because a default pool name is one estate's topology shipped in a library.
+#
+# The four laws under test, each of which is a real trap rather than a nicety:
+#   1. a list-typed values DEFAULT is DISCARDED WHOLESALE by any consumer that
+#      sets that list — so tolerations take no defaults at all
+#   2. Karpenter affinity matches `nodepool Exists`, NEVER a pool NAME
+#   3. the pin goes per-subchart, never through `global.*`
+#   4. enabled-with-nothing-declared must REFUSE, not emit an empty block
+templates:
+  - templates/placement.yaml
+release:
+  name: t
+  namespace: testns
+defaults: &defaults
+  image.repository: ghcr.io/x/y
+  image.tag: "1.0.0"
+
+tests:
+  - it: renders no placement at all when the axis is unset (default-off)
+    set:
+      <<: *defaults
+    asserts:
+      - notExists:
+          path: spec.nodeSelector
+      - notExists:
+          path: spec.tolerations
+
+  - it: renders nothing when explicitly disabled, even with a pool declared
+    set:
+      <<: *defaults
+      placement:
+        enabled: false
+        nodeSelector: { "pleme.io/pool": builders }
+        tolerations:
+          - { key: "pleme.io/pool", operator: Equal, value: builders, effect: NoSchedule }
+    asserts:
+      - notExists:
+          path: spec.nodeSelector
+
+  - it: pins the nodeSelector AND the matching toleration together
+    set:
+      <<: *defaults
+      placement:
+        enabled: true
+        nodeSelector: { "pleme.io/pool": builders }
+        tolerations:
+          - { key: "pleme.io/pool", operator: Equal, value: builders, effect: NoSchedule }
+    asserts:
+      - equal:
+          path: spec.nodeSelector["pleme.io/pool"]
+          value: builders
+      - equal:
+          path: spec.tolerations[0].key
+          value: "pleme.io/pool"
+      - equal:
+          path: spec.tolerations[0].effect
+          value: NoSchedule
+
+  # ★ The whole point of the triple: a pin with no toleration is a pod that
+  # cannot schedule onto the pool it was just pinned to. Half of the pair is
+  # worse than neither, because it looks configured.
+  - it: REFUSES a nodeSelector with no toleration
+    set:
+      <<: *defaults
+      placement:
+        enabled: true
+        nodeSelector: { "pleme.io/pool": builders }
+    asserts:
+      - failedTemplate:
+          errorPattern: "toleration"
+
+  - it: REFUSES a toleration with no nodeSelector
+    set:
+      <<: *defaults
+      placement:
+        enabled: true
+        tolerations:
+          - { key: "pleme.io/pool", operator: Equal, value: builders, effect: NoSchedule }
+    asserts:
+      - failedTemplate:
+          errorPattern: "nodeSelector"
+
+  # ★ Enabled and empty is the vacuity case: it renders clean, applies clean,
+  # and pins nothing. Every other guard here exists to make that unreachable.
+  - it: REFUSES enabled-with-nothing-declared rather than emitting an empty block
+    set:
+      <<: *defaults
+      placement:
+        enabled: true
+    asserts:
+      # The MESSAGE, not just "it failed" — a bare failedTemplate would also be
+      # satisfied by an unrelated error, which is how a guard gets credited for
+      # a refusal it did not make.
+      - failedTemplate:
+          errorPattern: "placement.enabled=true requires placement.nodeSelector"
+
+  - it: carries the do-not-disrupt annotation only when asked
+    set:
+      <<: *defaults
+      placement:
+        enabled: true
+        nodeSelector: { "pleme.io/pool": builders }
+        tolerations:
+          - { key: "pleme.io/pool", operator: Equal, value: builders, effect: NoSchedule }
+        doNotDisrupt: true
+    asserts:
+      - hasDocuments:
+          count: 1

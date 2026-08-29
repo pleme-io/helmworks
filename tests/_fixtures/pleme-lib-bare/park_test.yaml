@@ -1,0 +1,205 @@
+suite: pleme-lib bare-fixture — pleme-lib.park (floor a workload without deleting it)
+#
+# ★★ MODULARIZE, DON'T DELETE at the runtime layer: park drives a workload to
+# zero cost and leaves its declaration standing.
+#
+# The reusable artifact is the VERB TABLE and the ORDERING RULE. The CATALOG —
+# which component sits at which rung — is never shipped: layer membership
+# assigns each component by dependency order and stateless/stateful class, and
+# that survives renaming every literal, so it stays the consumer's.
+#
+# Two guards here were LIFTED out of the emit path on 2026-08-29, because an
+# entry point that computed verbs without emitting (a lint, a dry run, an
+# annotations-only caller) skipped them and reported a park that would fail at
+# apply. Both now live in `park.guards`, which every entry point calls — and the
+# tests below drive them through the GUARDS entry point specifically, which
+# emits nothing, so a regression that moved them back would go red here.
+templates:
+  - templates/park.yaml
+release:
+  name: t
+  namespace: testns
+defaults: &defaults
+  image.repository: ghcr.io/x/y
+  image.tag: "1.0.0"
+
+tests:
+  - it: renders nothing when park is unset (default-off)
+    set:
+      <<: *defaults
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # A park with no stated reason becomes a forgotten one: the reason lives in a
+  # commit message nobody re-reads, and when the need clears nothing signals it.
+  - it: REFUSES a park with no reason
+    set:
+      <<: *defaults
+      park:
+        enabled: true
+        target: { objectKind: Deployment, ownerKind: none, kind: Deployment, name: a, namespace: n }
+    asserts:
+      - failedTemplate:
+          errorPattern: "park.reason is required"
+
+  - it: REFUSES an unrecognised objectKind — the verb table dispatches on it
+    set:
+      <<: *defaults
+      park:
+        enabled: true
+        reason: probe
+        target: { objectKind: Fleeb, ownerKind: none, kind: Fleeb, name: a, namespace: n }
+    asserts:
+      - failedTemplate:
+          errorPattern: "park.target.objectKind"
+
+  # ownerKind names who WRITES the replica field at runtime. Guessing it is how
+  # a park gets reverted on the next reconcile.
+  - it: REFUSES an unrecognised ownerKind
+    set:
+      <<: *defaults
+      park:
+        enabled: true
+        reason: probe
+        target: { objectKind: Deployment, ownerKind: chart, kind: Deployment, name: a, namespace: n }
+    asserts:
+      - failedTemplate:
+          errorPattern: "park.target.ownerKind"
+
+  # ★ LIFTED GUARD 1, driven through the guards-only entry point. The API server
+  # rejects an HPA below 1 unless an alpha gate is on, so this park would fail
+  # at apply — which is a worse place to find out than at render.
+  - it: REFUSES hpaFloor writing minReplicas=0 without the alpha gate
+    set:
+      <<: *defaults
+      park:
+        enabled: true
+        reason: probe
+        floor: 0
+        target:
+          objectKind: Deployment
+          ownerKind: autoscaler
+          autoscaler: hpa
+          kind: HorizontalPodAutoscaler
+          name: x
+          namespace: y
+    asserts:
+      - failedTemplate:
+          errorPattern: "hpaFloor verb cannot write minReplicas=0"
+
+  - it: ALLOWS hpaFloor at 0 once the gate is declared verified
+    set:
+      <<: *defaults
+      park:
+        enabled: true
+        reason: probe
+        floor: 0
+        target:
+          objectKind: Deployment
+          ownerKind: autoscaler
+          autoscaler: hpa
+          kind: HorizontalPodAutoscaler
+          name: x
+          namespace: y
+          hpaScaleToZeroGate: true
+    asserts:
+      - notFailedTemplate: {}
+
+  # ★ LIFTED GUARD 2. Two patches on one path is a conflict the second apply
+  # loses, and if they land from separate components neither author sees it.
+  - it: REFUSES two targets writing the same path on the same object
+    set:
+      <<: *defaults
+      park:
+        enabled: true
+        reason: probe
+        floor: 1
+        targets:
+          - { objectKind: Deployment, ownerKind: none, kind: Deployment, name: a, namespace: n }
+          - { objectKind: Deployment, ownerKind: none, kind: Deployment, name: a, namespace: n }
+    asserts:
+      - failedTemplate:
+          errorPattern: "two park targets both write"
+
+  - it: ALLOWS two targets on DIFFERENT objects
+    set:
+      <<: *defaults
+      park:
+        enabled: true
+        reason: probe
+        floor: 1
+        targets:
+          - { objectKind: Deployment, ownerKind: none, kind: Deployment, name: a, namespace: n }
+          - { objectKind: Deployment, ownerKind: none, kind: Deployment, name: b, namespace: n }
+    asserts:
+      - notFailedTemplate: {}
+
+  # ★ PRECEDENCE IS FIXED: park > scaleToZero > breathe. A park an autoscaler
+  # can undo on its next tick is not a park.
+  - it: REFUSES a replica-writing park while an autoscaler owns the same field
+    set:
+      <<: *defaults
+      scaleToZero:
+        enabled: true
+      park:
+        enabled: true
+        reason: probe
+        floor: 0
+        target: { objectKind: Deployment, ownerKind: none, kind: Deployment, name: a, namespace: n }
+    asserts:
+      - failedTemplate:
+          errorPattern: "owns this workload's replica count"
+
+  # The exemption predicate: some components must never be parked, and each
+  # refusal names WHY rather than just declining.
+  - it: REFUSES parking a component that admits its own unpark
+    set:
+      <<: *defaults
+      park:
+        enabled: true
+        reason: probe
+        exempt: { admitsOwnUnpark: true }
+        target: { objectKind: Deployment, ownerKind: none, kind: Deployment, name: a, namespace: n }
+    asserts:
+      - failedTemplate:
+          errorPattern: "admitsOwnUnpark"
+
+  - it: REFUSES parking the controller that carries the park out
+    set:
+      <<: *defaults
+      park:
+        enabled: true
+        reason: probe
+        exempt: { carriesOutThePark: true }
+        target: { objectKind: Deployment, ownerKind: none, kind: Deployment, name: a, namespace: n }
+    asserts:
+      - failedTemplate:
+          errorPattern: "carriesOutThePark"
+
+  - it: REFUSES parking a universal dependency — no rung is high enough
+    set:
+      <<: *defaults
+      park:
+        enabled: true
+        reason: probe
+        exempt: { universalDependency: true }
+        target: { objectKind: Deployment, ownerKind: none, kind: Deployment, name: a, namespace: n }
+    asserts:
+      - failedTemplate:
+          errorPattern: "universalDependency"
+
+  # ORDERING: park descends by ASCENDING rung, so a reader still running when
+  # its dependency floors gets connection failures nothing else checks for.
+  - it: REFUSES a reader declared at a LATER rung than what it reads
+    set:
+      <<: *defaults
+      park:
+        enabled: true
+        reason: probe
+        rung: 2
+        consumerRungs: [5]
+        target: { objectKind: Deployment, ownerKind: none, kind: Deployment, name: a, namespace: n }
+    asserts:
+      - failedTemplate:
+          errorPattern: "consumerRungs"

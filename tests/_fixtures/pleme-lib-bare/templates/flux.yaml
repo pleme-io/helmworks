@@ -1,0 +1,2 @@
+{{/* Bare fixture: exercise pleme-lib.flux in isolation. */}}
+{{- include "pleme-lib.flux" . }}

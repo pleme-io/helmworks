@@ -1,0 +1,165 @@
+suite: pleme-lib bare-fixture — pleme-lib.grafana (glob → sidecar ConfigMaps)
+#
+# Delivers dashboards found on disk as sidecar-labelled ConfigMaps. Ships NO
+# dashboard CONTENT: panel titles, queries and label keys are telemetry
+# disclosure, and a metric namespace does not port between estates anyway.
+#
+# ★ THE DEFECT THIS SUITE EXISTS TO PIN. Sprig is
+# `regexReplaceAll REGEX STRING REPL`, so the pipeline form
+# `$x | regexReplaceAll "re" "-"` passes $x as the REPLACEMENT and returns the
+# input UNCHANGED. The slug sanitizer was therefore a no-op: `service_overview`
+# named a ConfigMap `…-service_overview`, which is not DNS-1123 and is rejected
+# by the API server at APPLY — the exact failure this template claims to catch
+# at RENDER. It also made the unsluggable-name guard structurally unreachable.
+templates:
+  - templates/grafana.yaml
+release:
+  name: t
+  namespace: testns
+defaults: &defaults
+  image.repository: ghcr.io/x/y
+  image.tag: "1.0.0"
+
+tests:
+  - it: renders nothing when grafana is unset (default-off)
+    set:
+      <<: *defaults
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # No default folder: a folder name is a fact about the TARGET Grafana, not
+  # about this library, and a guessed one scatters delivery into whatever
+  # fallback the sidecar happens to use.
+  - it: REFUSES a missing folder
+    set:
+      <<: *defaults
+      grafana:
+        enabled: true
+        dashboards:
+          enabled: true
+          glob: "dashboards/*.json"
+          labelKey: grafana_dashboard
+          labelValue: "1"
+    asserts:
+      - failedTemplate:
+          errorPattern: "grafana.folder"
+
+  # ★ Opting in and delivering nothing renders clean, applies clean, and ships
+  # no observability at all. That is the vacuity every guard here refuses.
+  - it: REFUSES enabled-with-both-arms-off
+    set:
+      <<: *defaults
+      grafana:
+        enabled: true
+        folder: probe
+    asserts:
+      - failedTemplate:
+          errorPattern: "both arms are off"
+
+  # No default label key: the WRONG key is not an error. The ConfigMap applies,
+  # the sidecar never loads it, and the delivery is indistinguishable from a
+  # successful one. Nothing on this side can check it.
+  - it: REFUSES a missing sidecar labelKey
+    set:
+      <<: *defaults
+      grafana:
+        enabled: true
+        folder: probe
+        dashboards:
+          enabled: true
+          glob: "dashboards/*.json"
+          labelValue: "1"
+    asserts:
+      - failedTemplate:
+          errorPattern: "labelKey"
+
+  - it: REFUSES a missing glob
+    set:
+      <<: *defaults
+      grafana:
+        enabled: true
+        folder: probe
+        dashboards:
+          enabled: true
+          labelKey: grafana_dashboard
+          labelValue: "1"
+    asserts:
+      - failedTemplate:
+          errorPattern: "glob"
+
+  # ★ THE SLUG FIX, asserted on the rendered NAME. Before it, this rendered
+  # `t-pleme-lib-bare-dashboard-test_dash` — illegal as a k8s object name.
+  - it: slugs the filename to a legal DNS-1123 ConfigMap name
+    set:
+      <<: *defaults
+      grafana:
+        enabled: true
+        folder: probe
+        dashboards:
+          enabled: true
+          glob: "dashboards/*.json"
+          labelKey: grafana_dashboard
+          labelValue: "1"
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - matchRegex:
+          path: metadata.name
+          pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+      - equal:
+          path: metadata.labels["grafana_dashboard"]
+          value: "1"
+
+  # ★ The payload goes in VERBATIM via .Files.Get, never through `tpl` — a
+  # dashboard legend contains `{{ … }}` and `tpl` would try to execute it.
+  - it: passes the payload through untouched, Go-template braces and all
+    set:
+      <<: *defaults
+      grafana:
+        enabled: true
+        folder: probe
+        dashboards:
+          enabled: true
+          glob: "dashboards/*.json"
+          labelKey: grafana_dashboard
+          labelValue: "1"
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - isNotNullOrEmpty:
+          path: data
+
+  # An empty glob is the other vacuity: a dashboard chart shipping zero
+  # dashboards and reporting success.
+  - it: REFUSES a glob that matches nothing
+    set:
+      <<: *defaults
+      grafana:
+        enabled: true
+        folder: probe
+        dashboards:
+          enabled: true
+          glob: "dashboards/*.nothing-matches-this"
+          labelKey: grafana_dashboard
+          labelValue: "1"
+    asserts:
+      - failedTemplate: {}
+
+  # The emitted-kind allowlist, so a stray file swept in by a loose glob cannot
+  # become an arbitrary object.
+  - it: REFUSES an allowedKinds entry this mechanism cannot emit
+    set:
+      <<: *defaults
+      grafana:
+        enabled: true
+        folder: probe
+        allowedKinds: [Secret]
+        dashboards:
+          enabled: true
+          glob: "dashboards/*.json"
+          labelKey: grafana_dashboard
+          labelValue: "1"
+    asserts:
+      - failedTemplate:
+          errorPattern: "allowedKinds"

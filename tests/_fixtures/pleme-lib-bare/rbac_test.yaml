@@ -1,0 +1,239 @@
+suite: pleme-lib bare-fixture — pleme-lib.rbac (scoped, observe-broad / mutate-narrow)
+#
+# Emits ServiceAccount + (Role|ClusterRole) + binding, selected by scope. The
+# rules under test are the ones a hand-written RBAC block gets wrong quietly:
+#
+#   - `readOnly: true` must emit ONLY get/list/watch. A read-only claim that
+#     can still mutate is worse than no claim, because it is believed.
+#   - OBSERVE broad / MUTATE narrow are two different rule sets: a controller
+#     may watch cluster-wide and write only in named namespaces.
+#   - the PAIRING LAW: guest-cluster scope means this operator is a guest in
+#     someone else's cluster, so it must not ALSO be namespace-restricted —
+#     the two together describe a shape that cannot work.
+#   - a withheld grant is documented at the point of ABSENCE, so the next
+#     author knows it was a decision rather than an oversight.
+templates:
+  - templates/rbac.yaml
+release:
+  name: t
+  namespace: testns
+defaults: &defaults
+  image.repository: ghcr.io/x/y
+  image.tag: "1.0.0"
+
+tests:
+  - it: renders nothing when rbac is unset (default-off)
+    set:
+      <<: *defaults
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # No default scope: whether a grant is namespaced or cluster-wide is the
+  # single most consequential thing about it, and a default would make the
+  # broader choice the silent one.
+  - it: REFUSES a missing scope
+    set:
+      <<: *defaults
+      rbac:
+        create: true
+        rules:
+          - { apiGroups: [""], resources: [pods], verbs: [get] }
+    asserts:
+      - failedTemplate:
+          errorPattern: "rbac.scope is required"
+
+  - it: REFUSES an unknown scope
+    set:
+      <<: *defaults
+      rbac:
+        create: true
+        scope: galaxy
+        rules:
+          - { apiGroups: [""], resources: [pods], verbs: [get] }
+    asserts:
+      - failedTemplate:
+          errorPattern: "unknown rbac.scope"
+
+  # ★ Enabled with no rules is the vacuity: a ServiceAccount and an empty Role
+  # that grants nothing, applied cleanly, believed to be doing something.
+  - it: REFUSES create with no rules declared at all
+    set:
+      <<: *defaults
+      rbac:
+        create: true
+        scope: namespaced
+    asserts:
+      - failedTemplate:
+          errorPattern: "no rules are declared"
+
+  - it: emits a namespaced Role for scope=namespaced
+    set:
+      <<: *defaults
+      rbac:
+        create: true
+        scope: namespaced
+        # Explicitly opting OUT of the namespace-restriction pairing, because
+        # this fixture has no such env knob. The opt-out is a declaration, not
+        # a default — see the dedicated test below.
+        namespaceEnvVars: []
+        rules:
+          - { apiGroups: [""], resources: [pods], verbs: [get, list, watch] }
+    asserts:
+      - isKind:
+          of: Role
+        documentIndex: 1
+
+  - it: emits a ClusterRole for scope=cluster
+    set:
+      <<: *defaults
+      rbac:
+        create: true
+        scope: cluster
+        rules:
+          - { apiGroups: [""], resources: [nodes], verbs: [get, list, watch] }
+    asserts:
+      - isKind:
+          of: ClusterRole
+        documentIndex: 1
+
+  # ★ readOnly must NARROW, not merely describe. If this ever renders a verb
+  # outside get/list/watch the claim is false and nothing else would say so.
+  - it: readOnly emits ONLY get/list/watch
+    set:
+      <<: *defaults
+      rbac:
+        create: true
+        scope: namespaced
+        readOnly: true
+        namespaceEnvVars: []
+        rules:
+          - { apiGroups: [""], resources: [pods], verbs: [get, list, watch] }
+    asserts:
+      - equal:
+          path: rules[0].verbs
+          value: [get, list, watch]
+        documentIndex: 1
+
+  - it: REFUSES readOnly declared alongside mutate rules — they contradict
+    set:
+      <<: *defaults
+      rbac:
+        create: true
+        scope: cluster
+        readOnly: true
+        mutate:
+          namespaces: [a]
+          rules:
+            - { apiGroups: [""], resources: [pods], verbs: [create] }
+    asserts:
+      - failedTemplate:
+          errorPattern: "readOnly=true alongside rbac.mutate.rules"
+
+  - it: REFUSES a readOnly rule that grants a mutating verb
+    set:
+      <<: *defaults
+      rbac:
+        create: true
+        scope: namespaced
+        readOnly: true
+        namespaceEnvVars: []
+        rules:
+          - { apiGroups: [""], resources: [pods], verbs: [get, delete] }
+    asserts:
+      - failedTemplate:
+          errorPattern: "grants verb"
+
+  - it: REFUSES mixing the raw rules form with observe/mutate
+    set:
+      <<: *defaults
+      rbac:
+        create: true
+        scope: cluster
+        rules:
+          - { apiGroups: [""], resources: [pods], verbs: [get] }
+        observe:
+          rules:
+            - { apiGroups: [""], resources: [pods], verbs: [watch] }
+    asserts:
+      - failedTemplate:
+          errorPattern: "Pick one"
+
+  # ★ THE PAIRING LAW, enforced at render rather than discovered at runtime.
+  - it: REFUSES guest-cluster combined with observe/mutate
+    set:
+      <<: *defaults
+      rbac:
+        create: true
+        scope: guest-cluster
+        observe:
+          rules:
+            - { apiGroups: [""], resources: [pods], verbs: [watch] }
+    asserts:
+      - failedTemplate:
+          errorPattern: "guest-cluster cannot be combined"
+
+  # OBSERVE broad, MUTATE narrow — the split is the point, so the emitted
+  # objects must actually differ rather than collapsing into one grant.
+  - it: splits a broad observe from a namespace-scoped mutate
+    set:
+      <<: *defaults
+      rbac:
+        create: true
+        scope: cluster
+        observe:
+          rules:
+            - { apiGroups: [""], resources: [pods], verbs: [get, list, watch] }
+        mutate:
+          namespaces: [workloads]
+          rules:
+            - { apiGroups: [apps], resources: [deployments], verbs: [patch] }
+    asserts:
+      - isKind:
+          of: ClusterRole
+        documentIndex: 1
+      - notFailedTemplate: {}
+
+  - it: REFUSES mutate namespaces declared with no mutate rules
+    set:
+      <<: *defaults
+      rbac:
+        create: true
+        scope: cluster
+        observe:
+          rules:
+            - { apiGroups: [""], resources: [pods], verbs: [watch] }
+        mutate:
+          namespaces: [workloads]
+    asserts:
+      - failedTemplate:
+          errorPattern: "rbac.mutate.namespaces"
+
+  # ★ THE OTHER HALF OF THE PAIRING LAW. A namespaced grant plus a workload
+  # that still watches cluster-wide fails on RBAC at RUNTIME, not at render —
+  # so the template makes the caller either name the restricting env var or say
+  # out loud that this workload has no such knob. Silence is not an answer,
+  # because silence is exactly what the failing case looks like.
+  - it: REFUSES scope=namespaced with no namespace-restricting env var declared
+    set:
+      <<: *defaults
+      rbac:
+        create: true
+        scope: namespaced
+        rules:
+          - { apiGroups: [""], resources: [pods], verbs: [get, list, watch] }
+    asserts:
+      - failedTemplate:
+          errorPattern: "no namespace-restricting env var is set"
+
+  - it: ACCEPTS scope=namespaced once the opt-out is declared explicitly
+    set:
+      <<: *defaults
+      rbac:
+        create: true
+        scope: namespaced
+        namespaceEnvVars: []
+        rules:
+          - { apiGroups: [""], resources: [pods], verbs: [get, list, watch] }
+    asserts:
+      - notFailedTemplate: {}

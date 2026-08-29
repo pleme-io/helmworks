@@ -37,7 +37,7 @@ tests:
               command: [/bin/catch-api-server, --migrate]
     asserts:
       - hasDocuments: { count: 1 }
-      - containsDocument: { kind: DatabaseMigration, apiVersion: shinka.pleme.io/v1 }
+      - containsDocument: { kind: DatabaseMigration, apiVersion: shinka.pleme.io/v1alpha1 }
 
   - it: breathe leg → a MemoryBand on the data tier
     set:

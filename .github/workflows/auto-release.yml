@@ -36,6 +36,15 @@ jobs:
     uses: pleme-io/substrate/.github/workflows/helm-unittest.yml@main
     with:
       chartsDir: charts
+      # ★ WIRED 2026-08-29. `tests/_fixtures/*` are bare CONSUMER charts that
+      # exist only to exercise pleme-lib's named templates — a library chart
+      # renders nothing, so neither the chartsDir loop nor externalTestsDir can
+      # reach one. They had never been executed: 191 passing tests and one
+      # RED one sat in git, in the repo whose own header above warns about
+      # exactly that. The floor is 1 (two fixtures exist) — anti-vacuity, so a
+      # moved or renamed tree fails instead of silently verifying nothing.
+      fixtureChartsDir: tests/_fixtures
+      fixtureChartsFloor: 1
       # Kept in lockstep with chart-tests.yml's floor — see its comment for why
       # the floor is deliberately half the measured count.
       chartsWithTestsFloor: 7

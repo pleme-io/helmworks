@@ -1,0 +1,2 @@
+{{/* Bare fixture: exercise pleme-lib.grafana in isolation. */}}
+{{- include "pleme-lib.grafana" . }}

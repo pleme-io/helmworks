@@ -1,0 +1,10 @@
+{{/* Bare fixture: exercise pleme-lib.placement in isolation. */}}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}
+spec:
+{{- include "pleme-lib.placement" (dict "ctx" .) | nindent 2 }}
+  containers:
+    - name: c
+      image: busybox

@@ -1,0 +1,3 @@
+{{/* Bare fixture: exercise pleme-lib.park + its guard block in isolation. */}}
+{{- include "pleme-lib.park.guards" (dict "root" . "ctx" "fixture") -}}
+{{- include "pleme-lib.park" (dict "root" . "ctx" "fixture") }}

@@ -1,0 +1,226 @@
+suite: pleme-lib bare-fixture — pleme-lib.flux (sources, the layer DAG, release idiom)
+#
+# Four laws this template exists to carry, each learned the expensive way:
+#   1. NEVER republish an existing version — the push is skipped SILENTLY and
+#      the old bytes stay live
+#   2. a WRONG credential is worse than NONE: it is attached to every request
+#      and the registry answers 401 even for public artifacts, so one dead
+#      token breaks the anonymous path too
+#   3. a GENERATED file is not editable — the next regen reverts you
+#   4. ssh.github.com:443 when port 22 is closed
+#
+# ★ Layer NAMES are operator-supplied with NO default. A default layer list is
+# the architecture, and this library does not ship one.
+templates:
+  - templates/flux.yaml
+release:
+  name: t
+  namespace: testns
+defaults: &defaults
+  image.repository: ghcr.io/x/y
+  image.tag: "1.0.0"
+chart: &chart
+  name: c
+  version: "1.0.0"
+  sourceRef: { kind: HelmRepository, name: r, namespace: flux-system }
+
+tests:
+  - it: renders nothing when flux is unset (default-off)
+    set:
+      <<: *defaults
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: emits a HelmRelease with the idiom defaults
+    set:
+      <<: *defaults
+      flux:
+        enabled: true
+        namespace: flux-system
+        release:
+          enabled: true
+          chart: *chart
+    asserts:
+      - isKind:
+          of: HelmRelease
+      # CreateReplace, not the Helm default: a chart whose CRDs evolve needs the
+      # replace, and the default silently leaves the old schema in place.
+      - equal:
+          path: spec.install.crds
+          value: CreateReplace
+      - equal:
+          path: spec.upgrade.crds
+          value: CreateReplace
+      # Not Helm's 5m. A release doing CreateReplace across a CRD set, or
+      # rolling a Recreate-strategy workload onto thin capacity, routinely needs
+      # longer — and a timeout mid-swap leaves a failed release the next
+      # reconcile must remediate rather than continue.
+      - equal:
+          path: spec.timeout
+          value: 10m
+
+  - it: emits each declared source with its kind
+    set:
+      <<: *defaults
+      flux:
+        enabled: true
+        namespace: flux-system
+        sources:
+          - { name: charts, kind: HelmRepository, url: "https://example.invalid/charts" }
+    asserts:
+      - isKind:
+          of: HelmRepository
+      - equal:
+          path: metadata.name
+          value: charts
+
+  - it: REFUSES an unnamed source — nothing can reference it
+    set:
+      <<: *defaults
+      flux:
+        enabled: true
+        namespace: flux-system
+        sources:
+          - { kind: HelmRepository, url: "https://example.invalid/charts" }
+    asserts:
+      - failedTemplate:
+          errorPattern: "name` is required"
+
+  - it: REFUSES a source with no url
+    set:
+      <<: *defaults
+      flux:
+        enabled: true
+        namespace: flux-system
+        sources:
+          - { name: charts, kind: HelmRepository }
+    asserts:
+      - failedTemplate:
+          errorPattern: "url` is required"
+
+  - it: REFUSES an unknown source kind
+    set:
+      <<: *defaults
+      flux:
+        enabled: true
+        namespace: flux-system
+        sources:
+          - { name: charts, kind: TarballRepository, url: "https://example.invalid/x" }
+    asserts:
+      - failedTemplate:
+          errorPattern: "must be one of HelmRepository"
+
+  # ★ THE ANNOTATION, NOT A COMMENT. disableWait says Ready no longer implies
+  # the workload is up — a real weakening. The reason used to be a YAML `#`
+  # comment, which Helm renders and the API server DISCARDS, so the applied
+  # object carried the weakening with no trace of why.
+  - it: REFUSES disableWait with no stated reason
+    set:
+      <<: *defaults
+      flux:
+        enabled: true
+        namespace: flux-system
+        release:
+          enabled: true
+          disableWait: true
+          chart: *chart
+    asserts:
+      - failedTemplate:
+          errorPattern: "disableWaitReason` is required"
+
+  - it: carries the disableWait reason as an ANNOTATION on the applied object
+    set:
+      <<: *defaults
+      flux:
+        enabled: true
+        namespace: flux-system
+        release:
+          enabled: true
+          disableWait: true
+          disableWaitReason: "chart readiness is not workload readiness here"
+          chart: *chart
+    asserts:
+      - equal:
+          path: metadata.annotations["pleme.io/disable-wait-reason"]
+          value: "chart readiness is not workload readiness here"
+      - equal:
+          path: spec.install.disableWait
+          value: true
+
+  # The staged profile: land the artifact COMPLETE but out of the reconcile set.
+  # All three brakes are required together — a staged release missing one is a
+  # release that reconciles while its author believes it does not.
+  - it: REFUSES staged without blockedBy
+    set:
+      <<: *defaults
+      flux:
+        enabled: true
+        namespace: flux-system
+        bootstrap:
+          staged: true
+          digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+        release:
+          enabled: true
+          chart: *chart
+    asserts:
+      - failedTemplate:
+          errorPattern: "blockedBy` is required"
+
+  - it: REFUSES staged without a digest
+    set:
+      <<: *defaults
+      flux:
+        enabled: true
+        namespace: flux-system
+        bootstrap:
+          staged: true
+          blockedBy: "the operator is not installed"
+          clearedBy: "the operator reports Ready"
+        release:
+          enabled: true
+          chart: *chart
+    asserts:
+      - failedTemplate:
+          errorPattern: "digest` is required"
+
+  # An exact pin, because a staged artifact's whole point is that WHAT it will
+  # apply is decided now, not at the moment it is unblocked.
+  - it: REFUSES a digest that is not an exact sha256 pin
+    set:
+      <<: *defaults
+      flux:
+        enabled: true
+        namespace: flux-system
+        bootstrap:
+          staged: true
+          blockedBy: "the operator is not installed"
+          clearedBy: "the operator reports Ready"
+          digest: "latest"
+        release:
+          enabled: true
+          chart: *chart
+    asserts:
+      - failedTemplate:
+          errorPattern: "exact"
+
+  - it: REFUSES a version RANGE while staged — the range resolves later
+    set:
+      <<: *defaults
+      flux:
+        enabled: true
+        namespace: flux-system
+        bootstrap:
+          staged: true
+          blockedBy: "the operator is not installed"
+          clearedBy: "the operator reports Ready"
+          digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+        release:
+          enabled: true
+          chart:
+            name: c
+            version: ">=1.0.0"
+            sourceRef: { kind: HelmRepository, name: r, namespace: flux-system }
+    asserts:
+      - failedTemplate:
+          errorPattern: "RANGE"

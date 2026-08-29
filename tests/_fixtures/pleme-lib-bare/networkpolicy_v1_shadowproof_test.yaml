@@ -1,0 +1,113 @@
+suite: pleme-lib bare-fixture — pleme-lib.networkpolicy.v1 owns the BODY
+#
+# ★ THIS SUITE EXISTS FOR ONE REASON, and it is a direction, not a feature.
+#
+# Helm's template namespace is FLAT across a chart and every vendored copy of a
+# dependency, and the SHALLOWEST parse wins. `pleme-lib.networkpolicy` is a
+# pre-existing name that every vendored copy of this library defines. So a
+# suffixed `.v1` that merely CALLED the un-suffixed name — which is what it did
+# — dispatched into whichever copy won the namespace race, and a chart carrying
+# a stale shallow copy bypassed all fifteen guards while rendering clean.
+#
+# Proven at the time with a scratch chart: `.v1` rendered exit 0 on values the
+# guards must refuse. A suffixed alias only shadow-proofs anything if it OWNS
+# the body — which is the direction `_scaletozero.tpl` already used, and which
+# this suite pins so the pair cannot be flipped back.
+#
+# What can be tested HERE: that calling `.v1` runs the guards, and that the
+# un-suffixed name and `.v1` produce the same render. What cannot: the
+# vendored-copy race itself, which needs two charts. That asymmetry is stated
+# rather than papered over.
+templates:
+  - templates/networkpolicy-v1.yaml
+release:
+  name: t
+  namespace: testns
+defaults: &defaults
+  image.repository: ghcr.io/x/y
+  image.tag: "1.0.0"
+
+tests:
+  - it: renders nothing through .v1 when networkPolicy is unset
+    set:
+      <<: *defaults
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # ★ The load-bearing assertion. If the body ever moves back out of `.v1`,
+  # this still passes when the un-suffixed name happens to resolve locally —
+  # so the guard assertions below are what actually pin the direction.
+  - it: emits the deny-all pair when called through .v1
+    set:
+      <<: *defaults
+      networkPolicy:
+        enabled: true
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+        documentIndex: 0
+
+  # ★ THE REAL PIN. These guards live in the BODY. If `.v1` were a wrapper
+  # around a name a stale vendored copy could win, that copy would satisfy the
+  # call and the refusal would never fire. Running them THROUGH `.v1` is the
+  # only way, from inside one chart, to assert the body is where it must be. A CIDR hole with no port allows the whole apiserver
+  # range to everything on the pod — so a webhook hole without a port is a
+  # bigger hole than the one it was opened for.
+  - it: a guard reached THROUGH .v1 still refuses — webhook port with no CIDR
+    set:
+      <<: *defaults
+      networkPolicy:
+        enabled: true
+        webhookIngress:
+          port: 9443
+    asserts:
+      - failedTemplate:
+          errorPattern: "webhookIngress.cidr"
+
+  - it: a guard reached THROUGH .v1 still refuses — CIDR with no port
+    set:
+      <<: *defaults
+      networkPolicy:
+        enabled: true
+        webhookIngress:
+          cidr: 10.0.0.0/8
+    asserts:
+      - failedTemplate:
+          errorPattern: "webhookIngress.ports"
+
+  - it: REFUSES both the single and the list port form together
+    set:
+      <<: *defaults
+      networkPolicy:
+        enabled: true
+        webhookIngress:
+          cidr: 10.0.0.0/8
+          port: 9443
+          ports: [9443]
+    asserts:
+      - failedTemplate:
+          errorPattern: "pick one"
+
+  # ★ k8s is default-ALLOW, so an ABSENT policy is indistinguishable from one
+  # permitting everything. `requireDeclaration` makes silence illegal: a
+  # namespace is either policed or DECLARED unpoliced, and the two are then
+  # distinguishable to the next reader.
+  - it: REFUSES an undeclared posture when a declaration is required
+    set:
+      <<: *defaults
+      networkPolicy:
+        requireDeclaration: true
+    asserts:
+      - failedTemplate:
+          errorPattern: "posture is undeclared"
+
+  - it: ACCEPTS a deliberately-unpoliced namespace once it is declared out loud
+    set:
+      <<: *defaults
+      networkPolicy:
+        requireDeclaration: true
+        unpoliced: true
+        unpolicedReason: "this namespace is the tap and policing it defeats it"
+    asserts:
+      - notFailedTemplate: {}

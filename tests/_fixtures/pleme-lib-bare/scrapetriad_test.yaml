@@ -1,0 +1,185 @@
+suite: pleme-lib bare-fixture — pleme-lib.scrapeTriad (Service + scrape + hole, together)
+#
+# The mechanism: emit the Service, the scrape CR and the port-scoped
+# NetworkPolicy hole in ONE call, so having two of the three is unrepresentable.
+# It exists for the default-deny case, where a missing hole is why `up == 1`
+# shows no series — a workload that looks healthy and reports nothing.
+#
+# ★ Two defects this suite pins, both found by an adversarial pass AFTER the
+# template rendered green:
+#   - `x | default y` fills any FALSY value, so an explicitly-empty selector
+#     fell through to the fallback and the guard could never fire
+#   - the CR name defaulted to fullname, colliding with the pre-existing
+#     `pleme-lib.vmServiceScrape`, which defaults the same way — two objects,
+#     one identity, second apply silently wins
+templates:
+  - templates/scrapetriad.yaml
+release:
+  name: t
+  namespace: testns
+defaults: &defaults
+  image.repository: ghcr.io/x/y
+  image.tag: "1.0.0"
+valid: &valid
+  enabled: true
+  flavour: vm
+  port: 9090
+  intervalSeconds: 30
+  alertWindowSeconds: 300
+  scraperNamespaces: [monitoring]
+
+tests:
+  - it: renders nothing when the axis is unset (default-off)
+    set:
+      <<: *defaults
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # ★ The whole reason the template exists: three objects or none.
+  - it: emits all THREE legs together — Service, scrape CR, NetworkPolicy
+    set:
+      <<: *defaults
+      scrapeTriad: *valid
+    asserts:
+      - hasDocuments:
+          count: 3
+      # Indexed by TEMPLATE emission order (Service, scrape CR, hole) — NOT by
+      # `helm template` output order, which re-sorts by install order. The two
+      # disagree, and an index copied from a `helm template` dump silently
+      # asserts against the wrong object.
+      - isKind:
+          of: Service
+        documentIndex: 0
+      - isKind:
+          of: VMServiceScrape
+        documentIndex: 1
+      - isAPIVersion:
+          of: operator.victoriametrics.com/v1beta1
+        documentIndex: 1
+      - isKind:
+          of: NetworkPolicy
+        documentIndex: 2
+
+  # ★ The collision fix. Before it, this name was the bare fullname and the
+  # pre-existing vmServiceScrape emitter produced the same (kind, ns, name).
+  - it: names the scrape CR `-metrics`, not the bare fullname
+    set:
+      <<: *defaults
+      scrapeTriad: *valid
+    asserts:
+      - equal:
+          path: metadata.name
+          value: t-pleme-lib-bare-metrics
+        documentIndex: 1
+
+  - it: dispatches to a prometheus ServiceMonitor on the other flavour
+    set:
+      <<: *defaults
+      scrapeTriad:
+        <<: *valid
+        flavour: prometheus
+    asserts:
+      - isKind:
+          of: ServiceMonitor
+        documentIndex: 1
+      - isAPIVersion:
+          of: monitoring.coreos.com/v1
+        documentIndex: 1
+
+  # An UNKNOWN flavour hard-fails; it never degrades to emitting nothing, which
+  # would be a workload with no scrape that still applied cleanly.
+  - it: REFUSES an unknown flavour rather than emitting nothing
+    set:
+      <<: *defaults
+      scrapeTriad:
+        <<: *valid
+        flavour: datadog
+    asserts:
+      - failedTemplate:
+          errorPattern: "set scrapeTriad.flavour to one of"
+
+  # ★ THE `default` TRAP. `selector: {}` is a STATED empty, not an absent one,
+  # and it used to fall through to selectorLabels silently.
+  - it: REFUSES an explicitly-empty selector (the `default` trap)
+    set:
+      <<: *defaults
+      scrapeTriad:
+        <<: *valid
+        selector: {}
+    asserts:
+      - failedTemplate:
+          errorPattern: "scrapeTriad.selector resolved empty"
+
+  - it: an UNSTATED selector still inherits the workload's own labels
+    set:
+      <<: *defaults
+      scrapeTriad: *valid
+    asserts:
+      - equal:
+          path: spec.selector["app.kubernetes.io/name"]
+          value: pleme-lib-bare
+        documentIndex: 0
+
+  - it: REFUSES a missing port — it is the Service port, targetPort AND the hole
+    set:
+      <<: *defaults
+      scrapeTriad:
+        enabled: true
+        flavour: vm
+        intervalSeconds: 30
+        alertWindowSeconds: 300
+        scraperNamespaces: [monitoring]
+    asserts:
+      - failedTemplate:
+          errorPattern: "set scrapeTriad.port"
+
+  # ★ Nyquist. An interval slower than half the alert window samples a series
+  # the alert cannot express — the alert is then answering about data it never
+  # saw, which reads as a quiet workload rather than as a broken gate.
+  - it: REFUSES an interval too slow to feed its alert window
+    set:
+      <<: *defaults
+      scrapeTriad:
+        <<: *valid
+        intervalSeconds: 300
+        alertWindowSeconds: 300
+    asserts:
+      - failedTemplate:
+          errorPattern: "cannot feed"
+
+  - it: REFUSES an empty scraperNamespaces — empty matches EVERY namespace
+    set:
+      <<: *defaults
+      scrapeTriad:
+        <<: *valid
+        scraperNamespaces: []
+    asserts:
+      - failedTemplate:
+          errorPattern: "scraperNamespaces"
+
+  - it: the pod arm emits a VMPodScrape for a workload with no Service
+    set:
+      <<: *defaults
+      scrapeTriad:
+        <<: *valid
+        attach: pod
+    asserts:
+      # The pod arm emits NO Service, so the triad is two documents and the
+      # indices SHIFT. Asserting the count first makes that explicit rather
+      # than leaving a reader to infer it from an index that moved.
+      - hasDocuments:
+          count: 2
+      - isKind:
+          of: VMPodScrape
+        documentIndex: 0
+
+  - it: REFUSES an unknown attach mode
+    set:
+      <<: *defaults
+      scrapeTriad:
+        <<: *valid
+        attach: sidecar
+    asserts:
+      - failedTemplate:
+          errorPattern: "scrapeTriad.attach"

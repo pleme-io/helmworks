@@ -1,0 +1,2 @@
+{{/* Bare fixture: exercise pleme-lib.rbac in isolation. It takes ONE dict. */}}
+{{- include "pleme-lib.rbac" (dict "ctx" .) }}

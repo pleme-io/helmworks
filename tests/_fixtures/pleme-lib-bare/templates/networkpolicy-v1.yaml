@@ -1,0 +1,10 @@
+{{/* Bare fixture: call the SUFFIXED name directly.
+
+     This exists to pin the shadow-proof DIRECTION. `pleme-lib.networkpolicy`
+     is a pre-existing name every vendored copy of this library defines, and
+     Helm's template namespace is FLAT across a chart and its dependency
+     copies with the shallowest parse winning. So a `.v1` that merely CALLED
+     the un-suffixed name dispatched into whichever copy won — which is what it
+     used to do, and every guard was bypassable by a stale vendored chart.
+     The body must live HERE. */}}
+{{- include "pleme-lib.networkpolicy.v1" . }}

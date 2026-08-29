@@ -1,0 +1,2 @@
+{{/* Bare fixture: exercise pleme-lib.scrapeTriad in isolation. */}}
+{{- include "pleme-lib.scrapeTriad" (dict "ctx" .) }}
