@@ -44,7 +44,7 @@ poolLifecycle — resolve a builder pool's LIFECYCLE class (cost-guard leak
 class 1). Returns the `pleme.io/pool-lifecycle` value that travels to the pool's
 nodes (via node_label) + is stamped on the CR metadata, or "" when
 poolLifecycle.enabled is false. Precedence: per-arch builders.<arch>.poolLifecycle
-override → byPerfClass[<class>] → default. Every camelot builder pool is a
+override → byPerfClass[<class>] → default. Every super-cache builder pool is a
 transient build pool; a time-floor / supercharge perf class maps to
 transient-build-supercharge, else transient-build. Authored ONCE here and reused
 by infraTemplate + nodeGroupTierB (generation-over-composition, Pillar 12).
@@ -323,7 +323,7 @@ spec:
   executor: {{ $root.Values.executor | quote }}
   source:
     inline: |
-      # Tier B (DESTINATION, gated) — EKS-joined camelot builder node group.
+      # Tier B (DESTINATION, gated) — EKS-joined super-cache builder node group.
       template :camelot_builder_eks_{{ $arch }} do
         provider :aws, region: {{ $root.Values.region | quote }}
         self.extend(Pangea::Resources::Aws)

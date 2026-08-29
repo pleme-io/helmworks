@@ -139,7 +139,7 @@ resources:
 # an operator flips it live". That was FALSE. `spec.dryRun` is DEAD CODE for
 # MemoryBand/CpuBand — `promotion_mode()` is
 # `mode_spec().unwrap_or(ShadowConfirmEffect)` and never reads `dry_run()`,
-# so the band shadow-confirms and then carves live. Measured on camelot-eks
+# so the band shadow-confirms and then carves live. Measured on one cluster
 # 2026-07-26: sui-cpu had taken 104 carves. (Its live CR also renders
 # `dryRun: false` — the consumer HelmRelease overrides this default — which
 # changes exactly nothing, since the field is inert either way. That is the

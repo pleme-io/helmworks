@@ -57,7 +57,7 @@ resources:
 # trait's `promotion_mode()` is `mode_spec().unwrap_or(ShadowConfirmEffect)`
 # and never consults `dry_run()` (only HostParam/KubeParam bands still do).
 # So these bands SHADOW-CONFIRMED AND THEN CARVED LIVE the whole time.
-# Measured on camelot-eks 2026-07-26: three CPU bands at 74 / 56 / 53
+# Measured on one cluster, 2026-07-26: three CPU bands at 74 / 56 / 53
 # carves — several collapsed to their 200m floor. Writes go through
 # the in-place pod RESIZE subresource, which mutates the POD and not the
 # Deployment template, so Flux sees no drift and the divergence never

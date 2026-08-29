@@ -33,7 +33,7 @@ spec:
   kind: Custom
   scope: {{ $pr.scope | quote }}
   description: >-
-    The sui super-cache (sui.camelot-build.svc) holds the current camelot build
+    The sui super-cache (sui.camelot-build.svc) holds the current super-cache build
     closures so a build substitutes (warm) instead of cold-compiling. Re-warm on
     tracked-input change or every {{ $p.cadenceSeconds }}s; spin the 100%-spot
     scale-to-zero builder floor ONLY while warming (warmFloor
