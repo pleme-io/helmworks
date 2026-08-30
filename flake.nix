@@ -17,11 +17,6 @@
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.fenix.follows = "fenix";
       inputs.substrate.follows = "substrate";
-      inputs.crate2nix.follows = "crate2nix";
-    };
-    crate2nix = {
-      url = "github:nix-community/crate2nix";
-      inputs.nixpkgs.follows = "nixpkgs";
     };
     devenv = {
       url = "github:cachix/devenv";
