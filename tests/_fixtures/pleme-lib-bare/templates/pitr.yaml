@@ -1,0 +1,3 @@
+{{/* Bare fixture: exercise pleme-lib.pitr's guards + receipt in isolation. */}}
+{{- include "pleme-lib.pitr.guards" (dict "root" . "ctx" "fixture") -}}
+{{- include "pleme-lib.pitr" (dict "root" . "ctx" "fixture") }}

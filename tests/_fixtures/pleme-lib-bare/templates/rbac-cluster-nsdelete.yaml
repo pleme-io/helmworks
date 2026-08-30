@@ -1,0 +1,6 @@
+{{/*
+Bare fixture: exercise pleme-lib.clusterRBAC (the MAP shape) so the
+namespace-delete bound guard is covered on the surface that does NOT route
+through pleme-lib.rbac.validate. Renders nothing when the map is absent.
+*/}}
+{{- include "pleme-lib.clusterRBAC" . }}

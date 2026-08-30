@@ -1,0 +1,229 @@
+suite: pleme-lib bare-fixture — pleme-lib.rbac.namespaceDeleteBound (the blast-radius bound)
+#
+# The measured failure: a reaper's namespace delete issued against an
+# ALL-NAMESPACES client with default delete parameters — no label selector, no
+# ownerReference precondition, no uid precondition, no never-delete list. The
+# only thing scoping it was that the name string happened to be right, and
+# Kubernetes answers 404 for a name that does not exist, which the client read
+# as success. So a WRONG NAME FAILS SILENTLY: the sweep reports clean, the
+# intended namespace is still there, and whatever the wrong name matched is
+# gone — asynchronously, cascading, past the point of observation.
+#
+# RBAC is the one RENDER-TIME place that bound exists, and `resourceNames` DOES
+# apply to `delete`. So an unbounded cluster-wide namespaces:[delete] is
+# refused here, where a reviewer reads it, rather than discovered later.
+#
+# ★ WHAT THIS SUITE IS CAREFUL NOT TO CLAIM. The guard bounds the GRANT, never
+# the CALL. It cannot show a reaper exists, ran, or passed a selector. Every
+# green case below is a statement about a rendered ClusterRole and nothing more.
+#
+# ★ EVERY REFUSAL SHIPS ITS OWN CONTROL. A guard that fires on everything is
+# indistinguishable from a guard that works, so each red case is paired with a
+# green one differing in exactly the bound.
+# Per-test `template:` rather than a suite-level list: with two templates
+# declared at suite level, helm-unittest evaluates EVERY assertion against
+# EACH of them and ANDs the results, so a `failedTemplate` expected from one
+# probe is reported as "No failed document" by the other and a `documentIndex`
+# runs off the end of the empty one. Measured here on v1.1.1.
+release:
+  name: t
+  namespace: testns
+defaults: &defaults
+  image.repository: ghcr.io/x/y
+  image.tag: "1.0.0"
+
+tests:
+  # ── the single-identity emitter, scope=cluster ───────────────────────────
+  - it: REFUSES a cluster-wide namespace delete with no resourceNames
+    template: templates/rbac.yaml
+    set:
+      <<: *defaults
+      rbac:
+        create: true
+        scope: cluster
+        rules:
+          - { apiGroups: [""], resources: [namespaces], verbs: [get, list, watch, create, delete] }
+    asserts:
+      - failedTemplate:
+          errorPattern: "grants \\[delete\\] on namespaces at CLUSTER reach"
+
+  # ★ CONTROL for the refusal above: same scope, same verbs, one added bound.
+  # `delete` IS the by-name verb, so this is a real fix and not a suppression.
+  # NOTE the verb list narrows to the BY-NAME verbs. The sibling guard in
+  # pleme-lib.rbac.validate already refuses resourceNames paired with
+  # list/watch/create/deletecollection, and it is right to: those authorize a
+  # collection, so the pairing reads as a narrow grant and authorizes nothing.
+  # The two guards compose — bounding a delete does not smuggle a bounded list.
+  - it: CONTROL — the same grant bounded by resourceNames renders a ClusterRole
+    template: templates/rbac.yaml
+    set:
+      <<: *defaults
+      rbac:
+        create: true
+        scope: cluster
+        rules:
+          - { apiGroups: [""], resources: [namespaces], verbs: [get, delete], resourceNames: [probe-a, probe-b] }
+    asserts:
+      - documentIndex: 1
+        isKind:
+          of: ClusterRole
+      - documentIndex: 1
+        equal:
+          path: rules[0].resourceNames
+          value: [probe-a, probe-b]
+
+  # `deletecollection` authorizes a COLLECTION, so resourceNames can never bound
+  # it — the message has to say so, or the reader tries fix (a) and finds the
+  # sibling guard refusing the pairing instead.
+  - it: REFUSES deletecollection and says resourceNames cannot bound it
+    template: templates/rbac.yaml
+    set:
+      <<: *defaults
+      rbac:
+        create: true
+        scope: cluster
+        rules:
+          - { apiGroups: [""], resources: [namespaces], verbs: [deletecollection] }
+    asserts:
+      - failedTemplate:
+          errorPattern: "deletecollection` cannot be bounded by resourceNames"
+
+  - it: REFUSES a verb wildcard on namespaces — it contains delete
+    template: templates/rbac.yaml
+    set:
+      <<: *defaults
+      rbac:
+        create: true
+        scope: cluster
+        rules:
+          - { apiGroups: [""], resources: [namespaces], verbs: ["*"] }
+    asserts:
+      - failedTemplate:
+          errorPattern: "on namespaces at CLUSTER reach"
+
+  - it: REFUSES it under an apiGroup wildcard too — "*" contains the core group
+    template: templates/rbac.yaml
+    set:
+      <<: *defaults
+      rbac:
+        create: true
+        scope: cluster
+        rules:
+          - { apiGroups: ["*"], resources: [namespaces], verbs: [delete] }
+    asserts:
+      - failedTemplate:
+          errorPattern: "on namespaces at CLUSTER reach"
+
+  # ── the deliberate scope limits, each with a rendering control ───────────
+  # A Role is bound to ONE namespace, and one namespace IS the bounded
+  # namespace list. Firing here would make the guard un-satisfiable rather than
+  # bounding anything.
+  - it: does NOT fire at scope=namespaced — the Role's namespace is the bound
+    template: templates/rbac.yaml
+    set:
+      <<: *defaults
+      rbac:
+        create: true
+        scope: namespaced
+        namespaceEnvVars: []
+        rules:
+          - { apiGroups: [""], resources: [namespaces], verbs: [get, delete] }
+    asserts:
+      - documentIndex: 1
+        isKind:
+          of: Role
+      - documentIndex: 1
+        equal:
+          path: rules[0].verbs
+          value: [get, delete]
+
+  # ★ A `resources: ["*"]` grant is a LARGER defect with an existing owner —
+  # pleme-lib.compliance.authz.validate / .rbac.validate, over the rendered
+  # result. Re-deciding it here would put one rule in two places and let them
+  # disagree, so this guard fires only on an EXPLICIT `namespaces` resource.
+  # This test pins that limit so nobody "fixes" it into a duplicate wildcard ban.
+  - it: does NOT re-decide a resource wildcard — that rule has another owner
+    template: templates/rbac.yaml
+    set:
+      <<: *defaults
+      rbac:
+        create: true
+        scope: cluster
+        rules:
+          - { apiGroups: ["*"], resources: ["*"], verbs: ["*"] }
+    asserts:
+      - documentIndex: 1
+        isKind:
+          of: ClusterRole
+
+  # ── the guest-cluster split ──────────────────────────────────────────────
+  # Under guest-cluster only the OWNED api groups reach cluster-wide; the core
+  # group is foreign, so a core-group namespaces rule lands in the release
+  # namespace and is bounded by it.
+  - it: does NOT fire on a foreign-group rule under guest-cluster (it is namespaced)
+    template: templates/rbac.yaml
+    set:
+      <<: *defaults
+      rbac:
+        create: true
+        scope: guest-cluster
+        ownApiGroups: [example.pleme.io]
+        rules:
+          - { apiGroups: [example.pleme.io], resources: [probes], verbs: [get, list, watch] }
+          - { apiGroups: [""], resources: [namespaces], verbs: [get, delete] }
+    asserts:
+      - documentIndex: 1
+        isKind:
+          of: ClusterRole
+
+  # ── the MAP shape, which does not route through rbac.validate at all ─────
+  # A ClusterRole from `rbac.clusterRoles` is cluster-wide by construction:
+  # no scope field to consult, no namespace to fall back on. It is a separate
+  # call site precisely because it is a separate code path.
+  - it: REFUSES an unbounded namespace delete in the clusterRoles map
+    template: templates/rbac-cluster-nsdelete.yaml
+    set:
+      # ★ helm-unittest renders the WHOLE chart and only SELECTS the named
+      # template to assert against, so a sibling probe that cannot render
+      # aborts the run and the refusal under test is reported as "No failed
+      # document" — a red run that reads as the guard never firing. Measured
+      # here on v1.1.1: without these two keys, statefulset.yaml dies on a nil
+      # .Values.image.repository first.
+      <<: *defaults
+      rbac:
+        clusterRoles:
+          example-reaper:
+            rules:
+              - { apiGroups: [""], resources: [namespaces], verbs: [get, list, delete] }
+            subjects:
+              - { kind: ServiceAccount, name: example-reaper }
+    asserts:
+      - failedTemplate:
+          errorPattern: 'rbac.clusterRoles\["example-reaper"\].rules\[0\]'
+
+  - it: CONTROL — the same map entry bounded by resourceNames renders both objects
+    template: templates/rbac-cluster-nsdelete.yaml
+    set:
+      # ★ helm-unittest renders the WHOLE chart and only SELECTS the named
+      # template to assert against, so a sibling probe that cannot render
+      # aborts the run and the refusal under test is reported as "No failed
+      # document" — a red run that reads as the guard never firing. Measured
+      # here on v1.1.1: without these two keys, statefulset.yaml dies on a nil
+      # .Values.image.repository first.
+      <<: *defaults
+      rbac:
+        clusterRoles:
+          example-reaper:
+            rules:
+              - { apiGroups: [""], resources: [namespaces], verbs: [get, delete], resourceNames: [probe-a] }
+            subjects:
+              - { kind: ServiceAccount, name: example-reaper }
+    asserts:
+      - hasDocuments:
+          count: 2
+      - documentIndex: 0
+        isKind:
+          of: ClusterRole
+      - documentIndex: 1
+        isKind:
+          of: ClusterRoleBinding

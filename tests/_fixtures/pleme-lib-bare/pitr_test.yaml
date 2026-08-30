@@ -1,0 +1,552 @@
+suite: pleme-lib bare-fixture — pleme-lib.pitr (the point-in-time-restore window)
+#
+# THE SHAPE UNDER TEST: a restore target is only valid inside a window with TWO
+# bounds, and almost every implementation checks one. The bound that gets
+# skipped is the UPPER one, because it is the counter-intuitive half — the
+# newest restorable instant LAGS the wall clock, since the log has not shipped
+# yet. A target past it is refused by the engine with an error that reads like
+# a permissions problem, so the next move looks like widening a grant, which
+# never helps.
+#
+# The two bounds have OPPOSITE remedies, which is why the refusals below name
+# which one failed rather than saying "outside the window":
+#   below earliest -> the data is GONE; waiting cannot recover it
+#   above latest   -> WAIT; the bound advances on its own
+#
+# ★ THE DENOMINATOR. `data.boundsChecked` is the number of comparisons the
+# template actually executed, not a literal 2 — it is produced by the loop that
+# does the comparing. So a bound that quietly stops being checked shows up here
+# as a smaller number. Its negative control is the restore-disabled case, which
+# pins it at "0": that proves the value tracks what ran rather than being a
+# constant that happens to read correctly.
+#
+# ★ A MEASURED helm-unittest TRAP, found building this suite (v1.1.1). A `: `
+# (colon-space) in the prose of a fail() message leaves the render error
+# unattributed to its template: `failedTemplate` then reports "No failed
+# document" and the assertion CANNOT pass, whatever pattern it carries. It
+# looks like the guard never fired, so the instinct is to go debug a guard
+# that is working perfectly. A colon with no space (12:00:00Z) is fine.
+# Every message in _pitr.tpl avoids a prose colon for this reason.
+#
+# ★ RED-RUN RECEIPTS — both denominators here were proven load-bearing by
+# breaking the template on purpose, not by reading it:
+#   - dropping the `latest` row from the bounds table turned 7 tests red and
+#     `data.boundsChecked` from "2" to "1";
+#   - dropping `count` from the retention walk turned 2 tests red and
+#     `retentionBoundsDeclared` from 2 to 1.
+templates:
+  - templates/pitr.yaml
+release:
+  name: t
+  namespace: testns
+defaults: &defaults
+  image.repository: ghcr.io/x/y
+  image.tag: "1.0.0"
+
+# A generic window. No estate facts: these are placeholder instants chosen so
+# the arithmetic is readable, one week wide with a five-minute ship lag.
+#   earliest 2026-01-01T00:00:00Z
+#   latest   2026-01-08T00:00:00Z
+#   target   2026-01-05T12:00:00Z (comfortably inside)
+
+tests:
+  # ── default-off, and the control that proves these zeros mean something ──
+  - it: renders nothing when pitr is unset (default-off)
+    set:
+      <<: *defaults
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders nothing when pitr.enabled is false even with a full restore declared
+    set:
+      <<: *defaults
+      pitr:
+        enabled: false
+        restore:
+          enabled: true
+          target: "2026-01-05T12:00:00Z"
+          window: { earliest: "2026-01-01T00:00:00Z", latest: "2026-01-08T00:00:00Z" }
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # ★ NEGATIVE CONTROL for the two absence assertions above. Identical values to
+  # the previous case with ONLY `enabled` flipped: it renders. Without this the
+  # zeros above would pass just as green against a misspelt values key or a
+  # probe template that includes nothing at all.
+  - it: "NEGATIVE CONTROL — the same values with pitr.enabled=true DO render a receipt"
+    set:
+      <<: *defaults
+      pitr:
+        enabled: true
+        restore:
+          enabled: true
+          target: "2026-01-05T12:00:00Z"
+          window: { earliest: "2026-01-01T00:00:00Z", latest: "2026-01-08T00:00:00Z" }
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: t-pleme-lib-bare-pitr
+
+  # ── the window: the happy path and its denominator ──────────────────────
+  - it: a target inside the window passes and records BOTH bounds as checked
+    set:
+      <<: *defaults
+      pitr:
+        enabled: true
+        restore:
+          enabled: true
+          target: "2026-01-05T12:00:00Z"
+          window: { earliest: "2026-01-01T00:00:00Z", latest: "2026-01-08T00:00:00Z" }
+    asserts:
+      - equal:
+          path: data.boundsChecked
+          value: "2"
+      - equal:
+          path: data.restoreTarget
+          value: "2026-01-05T12:00:00Z"
+      - equal:
+          path: data.windowEarliest
+          value: "2026-01-01T00:00:00Z"
+      - equal:
+          path: data.windowLatest
+          value: "2026-01-08T00:00:00Z"
+
+  # ★ NEGATIVE CONTROL for boundsChecked: with the restore leg off, no bound is
+  # compared and the field reads "0". A hardcoded "2" would fail here.
+  - it: "NEGATIVE CONTROL — boundsChecked is 0 when no restore is declared"
+    set:
+      <<: *defaults
+      pitr:
+        enabled: true
+        snapshot:
+          enabled: true
+          schedule: "0 3 * * *"
+          retention: { days: 30 }
+    asserts:
+      - equal:
+          path: data.boundsChecked
+          value: "0"
+      - equal:
+          path: data.restoreEnabled
+          value: "false"
+
+  # Both bounds are INCLUSIVE — an instant exactly on a bound is restorable, and
+  # an off-by-one here silently narrows the window at both ends.
+  - it: a target exactly ON the earliest bound is inside the window
+    set:
+      <<: *defaults
+      pitr:
+        enabled: true
+        restore:
+          enabled: true
+          target: "2026-01-01T00:00:00Z"
+          window: { earliest: "2026-01-01T00:00:00Z", latest: "2026-01-08T00:00:00Z" }
+    asserts:
+      - equal:
+          path: data.boundsChecked
+          value: "2"
+
+  - it: a target exactly ON the latest bound is inside the window
+    set:
+      <<: *defaults
+      pitr:
+        enabled: true
+        restore:
+          enabled: true
+          target: "2026-01-08T00:00:00Z"
+          window: { earliest: "2026-01-01T00:00:00Z", latest: "2026-01-08T00:00:00Z" }
+    asserts:
+      - equal:
+          path: data.boundsChecked
+          value: "2"
+
+  # ── the lower bound: retention aged it out; waiting does not help ────────
+  - it: REFUSES a target BELOW earliest, and says the data is gone rather than late
+    set:
+      <<: *defaults
+      pitr:
+        enabled: true
+        restore:
+          enabled: true
+          target: "2025-12-20T00:00:00Z"
+          window: { earliest: "2026-01-01T00:00:00Z", latest: "2026-01-08T00:00:00Z" }
+    asserts:
+      - failedTemplate:
+          errorPattern: "is BELOW the window's earliest restorable instant"
+
+  # ── the upper bound: the half that is usually missing ───────────────────
+  - it: REFUSES a target ABOVE latest, and says WAIT rather than widen a grant
+    set:
+      <<: *defaults
+      pitr:
+        enabled: true
+        restore:
+          enabled: true
+          target: "2026-01-09T00:00:00Z"
+          window: { earliest: "2026-01-01T00:00:00Z", latest: "2026-01-08T00:00:00Z" }
+    asserts:
+      - failedTemplate:
+          errorPattern: "is ABOVE the window's latest restorable instant"
+
+  - it: REFUSES a restore with no declared target
+    set:
+      <<: *defaults
+      pitr:
+        enabled: true
+        restore:
+          enabled: true
+          window: { earliest: "2026-01-01T00:00:00Z", latest: "2026-01-08T00:00:00Z" }
+    asserts:
+      - failedTemplate:
+          errorPattern: "pitr.restore.target is required"
+
+  - it: REFUSES a window missing its lower bound
+    set:
+      <<: *defaults
+      pitr:
+        enabled: true
+        restore:
+          enabled: true
+          target: "2026-01-05T12:00:00Z"
+          window: { latest: "2026-01-08T00:00:00Z" }
+    asserts:
+      - failedTemplate:
+          errorPattern: "pitr.restore.window.earliest is required"
+
+  # The upper bound is never defaulted from now(): render time is not
+  # observation time, and a now()-shaped default asserts a bound nobody looked
+  # at — one that drifts further from the truth the longer the rendered
+  # manifest waits to be applied.
+  - it: REFUSES a window missing its upper bound rather than defaulting it from now()
+    set:
+      <<: *defaults
+      pitr:
+        enabled: true
+        restore:
+          enabled: true
+          target: "2026-01-05T12:00:00Z"
+          window: { earliest: "2026-01-01T00:00:00Z" }
+    asserts:
+      - failedTemplate:
+          errorPattern: "pitr.restore.window.latest is required"
+
+  # ── deriving the upper bound from a MEASURED lag ─────────────────────────
+  - it: derives the upper bound from observedAt minus lagSeconds
+    set:
+      <<: *defaults
+      pitr:
+        enabled: true
+        restore:
+          enabled: true
+          target: "2026-01-07T23:58:00Z"
+          window:
+            earliest: "2026-01-01T00:00:00Z"
+            observedAt: "2026-01-08T00:05:00Z"
+            lagSeconds: 300
+    asserts:
+      - equal:
+          path: data.boundsChecked
+          value: "2"
+      - equal:
+          path: data.windowLatest
+          value: ""
+      - equal:
+          path: data.windowLagSeconds
+          value: "300"
+
+  # Proves the derivation is load-bearing rather than decorative: this target is
+  # BEFORE observedAt and would pass a naive check against the observation
+  # instant, but it is after observedAt-minus-lag.
+  - it: REFUSES a target above the DERIVED upper bound
+    set:
+      <<: *defaults
+      pitr:
+        enabled: true
+        restore:
+          enabled: true
+          target: "2026-01-08T00:03:00Z"
+          window:
+            earliest: "2026-01-01T00:00:00Z"
+            observedAt: "2026-01-08T00:05:00Z"
+            lagSeconds: 300
+    asserts:
+      - failedTemplate:
+          errorPattern: "is ABOVE the window's latest restorable instant"
+
+  - it: REFUSES observedAt with a zero lag — that is the assumption, not a measurement
+    set:
+      <<: *defaults
+      pitr:
+        enabled: true
+        restore:
+          enabled: true
+          target: "2026-01-05T12:00:00Z"
+          window:
+            earliest: "2026-01-01T00:00:00Z"
+            observedAt: "2026-01-08T00:05:00Z"
+            lagSeconds: 0
+    asserts:
+      - failedTemplate:
+          errorPattern: "without a positive pitr.restore.window.lagSeconds"
+
+  # ── the window can be EMPTY, and that is neither bound's fault ───────────
+  # Retention shorter than the ship lag means no target is valid at all.
+  # Checking each bound in isolation would report whichever the target crossed
+  # first and send the operator to edit a timestamp.
+  - it: REFUSES an empty window and blames retention, not the target
+    set:
+      <<: *defaults
+      pitr:
+        enabled: true
+        restore:
+          enabled: true
+          target: "2026-01-05T12:00:00Z"
+          window: { earliest: "2026-01-08T00:00:00Z", latest: "2026-01-01T00:00:00Z" }
+    asserts:
+      - failedTemplate:
+          errorPattern: "the restore window is EMPTY"
+
+  # An unparseable instant becomes sprig's ZERO time, which compares as older
+  # than everything — so without this guard a typo'd target sails past the
+  # lower bound and is refused at the engine instead.
+  - it: REFUSES an instant that is not RFC3339 instead of comparing the zero time
+    set:
+      <<: *defaults
+      pitr:
+        enabled: true
+        restore:
+          enabled: true
+          target: "yesterday"
+          window: { earliest: "2026-01-01T00:00:00Z", latest: "2026-01-08T00:00:00Z" }
+    asserts:
+      - failedTemplate:
+          errorPattern: "is not an RFC3339 instant"
+
+  # ── key material: the restore that minted a key and came up GREEN ───────
+  - it: records keyMaterialSource=none when the restore does not need key material
+    set:
+      <<: *defaults
+      pitr:
+        enabled: true
+        restore:
+          enabled: true
+          target: "2026-01-05T12:00:00Z"
+          window: { earliest: "2026-01-01T00:00:00Z", latest: "2026-01-08T00:00:00Z" }
+    asserts:
+      - equal:
+          path: data.keyMaterialSource
+          value: none
+
+  - it: accepts a declared key source and records it
+    set:
+      <<: *defaults
+      pitr:
+        enabled: true
+        restore:
+          enabled: true
+          target: "2026-01-05T12:00:00Z"
+          window: { earliest: "2026-01-01T00:00:00Z", latest: "2026-01-08T00:00:00Z" }
+          keyMaterial: { required: true, source: existingSecret, ref: probe-key }
+    asserts:
+      - equal:
+          path: data.keyMaterialSource
+          value: existingSecret
+
+  - it: REFUSES a restore that needs key material without saying where it comes from
+    set:
+      <<: *defaults
+      pitr:
+        enabled: true
+        restore:
+          enabled: true
+          target: "2026-01-05T12:00:00Z"
+          window: { earliest: "2026-01-01T00:00:00Z", latest: "2026-01-08T00:00:00Z" }
+          keyMaterial: { required: true }
+    asserts:
+      - failedTemplate:
+          errorPattern: "keyMaterial.source is unset"
+
+  # The set is CLOSED and contains no minting arm — the value people reach for
+  # when the key is missing is precisely the one that must not exist.
+  - it: REFUSES an unrecognised key source, minting-shaped or otherwise
+    set:
+      <<: *defaults
+      pitr:
+        enabled: true
+        restore:
+          enabled: true
+          target: "2026-01-05T12:00:00Z"
+          window: { earliest: "2026-01-01T00:00:00Z", latest: "2026-01-08T00:00:00Z" }
+          keyMaterial: { required: true, source: generate, ref: probe-key }
+    asserts:
+      - failedTemplate:
+          errorPattern: "is not one of existingSecret"
+
+  - it: REFUSES a key source with no ref — the engine's default is a fresh key
+    set:
+      <<: *defaults
+      pitr:
+        enabled: true
+        restore:
+          enabled: true
+          target: "2026-01-05T12:00:00Z"
+          window: { earliest: "2026-01-01T00:00:00Z", latest: "2026-01-08T00:00:00Z" }
+          keyMaterial: { required: true, source: kmsKeyRef }
+    asserts:
+      - failedTemplate:
+          errorPattern: "without pitr.restore.keyMaterial.ref"
+
+  # Refused BY NAME, so a caller bringing the habit from elsewhere is told what
+  # it does: a restore that cannot decrypt what it restored must FAIL, never
+  # self-heal. The measured failure was a green environment holding ciphertext
+  # nothing could read.
+  - it: REFUSES generateIfMissing by name — mint-and-go-green has no representation
+    set:
+      <<: *defaults
+      pitr:
+        enabled: true
+        restore:
+          enabled: true
+          target: "2026-01-05T12:00:00Z"
+          window: { earliest: "2026-01-01T00:00:00Z", latest: "2026-01-08T00:00:00Z" }
+          keyMaterial: { required: true, source: existingSecret, ref: probe-key, generateIfMissing: true }
+    asserts:
+      - failedTemplate:
+          errorPattern: "generateIfMissing/mint is set"
+
+  # ── snapshot retention: unbounded is not a policy ────────────────────────
+  - it: records an off snapshot policy with a zero bound count
+    set:
+      <<: *defaults
+      pitr:
+        enabled: true
+    asserts:
+      - matchRegex:
+          path: data.snapshotPolicy
+          pattern: "enabled: false"
+      - matchRegex:
+          path: data.snapshotPolicy
+          pattern: "retentionBoundsDeclared: 0"
+
+  - it: a bounded policy records its schedule and ONE declared bound
+    set:
+      <<: *defaults
+      pitr:
+        enabled: true
+        snapshot:
+          enabled: true
+          schedule: "0 3 * * *"
+          retention: { days: 30 }
+    asserts:
+      - matchRegex:
+          path: data.snapshotPolicy
+          pattern: "retentionDays: 30"
+      - matchRegex:
+          path: data.snapshotPolicy
+          pattern: "retentionBoundsDeclared: 1"
+
+  # ★ The bound COUNT is derived from the fields that actually resolved, so a
+  # policy that loses one reads as a smaller number rather than as an
+  # unchanged-looking block.
+  - it: two declared bounds are counted as two
+    set:
+      <<: *defaults
+      pitr:
+        enabled: true
+        snapshot:
+          enabled: true
+          schedule: "0 3 * * *"
+          retention: { days: 30, count: 10 }
+    asserts:
+      - matchRegex:
+          path: data.snapshotPolicy
+          pattern: "retentionBoundsDeclared: 2"
+      - matchRegex:
+          path: data.snapshotPolicy
+          pattern: "retentionCount: 10"
+
+  - it: REFUSES a snapshot policy with no schedule
+    set:
+      <<: *defaults
+      pitr:
+        enabled: true
+        snapshot:
+          enabled: true
+          retention: { days: 30 }
+    asserts:
+      - failedTemplate:
+          errorPattern: "without pitr.snapshot.schedule"
+
+  - it: REFUSES a snapshot policy with no retention block at all
+    set:
+      <<: *defaults
+      pitr:
+        enabled: true
+        snapshot:
+          enabled: true
+          schedule: "0 3 * * *"
+    asserts:
+      - failedTemplate:
+          errorPattern: "retention is unset"
+
+  # A retention block that is present but declares nothing is unbounded
+  # retention wearing the shape of a policy: review passes over it.
+  - it: REFUSES a retention block that declares neither bound
+    set:
+      <<: *defaults
+      pitr:
+        enabled: true
+        snapshot:
+          enabled: true
+          schedule: "0 3 * * *"
+          retention: { expiryAction: delete }
+    asserts:
+      - failedTemplate:
+          errorPattern: "declares no real bound"
+
+  # 0 casts to 0, and 0 is indistinguishable from the field being absent — so a
+  # sentinel is refused by name rather than silently read as a number.
+  - it: REFUSES the 0 sentinel rather than casting it to an absent bound
+    set:
+      <<: *defaults
+      pitr:
+        enabled: true
+        snapshot:
+          enabled: true
+          schedule: "0 3 * * *"
+          retention: { days: 0 }
+    asserts:
+      - failedTemplate:
+          errorPattern: "reads as unbounded"
+
+  - it: REFUSES a word sentinel meaning keep-everything
+    set:
+      <<: *defaults
+      pitr:
+        enabled: true
+        snapshot:
+          enabled: true
+          schedule: "0 3 * * *"
+          retention: { days: forever }
+    asserts:
+      - failedTemplate:
+          errorPattern: "reads as unbounded"
+
+  - it: REFUSES a negative bound — not a longer one, a typo most engines read as none
+    set:
+      <<: *defaults
+      pitr:
+        enabled: true
+        snapshot:
+          enabled: true
+          schedule: "0 3 * * *"
+          retention: { count: -5 }
+    asserts:
+      - failedTemplate:
+          errorPattern: "is negative"

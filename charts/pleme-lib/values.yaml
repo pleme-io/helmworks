@@ -561,6 +561,41 @@ compliance:
     # When false, the cluster-edge TLS-only egress allow rule is omitted
     # (use only when the workload has no public-internet egress need).
     allowTlsEgress: true
+  # -- Storage POSTURE. `durable` (the default) | `ephemeral`.
+  #    An ephemeral environment should be memory-backed — not for speed, but
+  #    because a drive is where UNDECLARED STATE HIDES; remove it and the
+  #    declaration is the only thing left that can put a byte on the substrate.
+  #    That argument holds only while storage is INCIDENTAL to what is under
+  #    test: when storage BEHAVIOUR is under test (a restore rehearsal, a soak
+  #    measuring IO) a ramdisk is incoherent — you cannot rehearse recovery on a
+  #    substrate that cannot fail the way production fails, tmpfs is unthrottled
+  #    so an IO regression is invisible, and an overflow is an OOMKill rather
+  #    than an ENOSPC. Hence `durable` by default; `ephemeral` is opted into.
+  #
+  #    Under `ephemeral` the render REFUSES: persistence.enabled, a non-empty
+  #    volumeClaimTemplates, a volumes[] entry referencing a PVC, an emptyDir
+  #    without medium=Memory, and a memory-backed emptyDir without a sizeLimit.
+  storage:
+    posture: durable
+    # -- What this workload declares it NEEDS, in a closed set:
+    #    none (default) | outlivesPod | snapshottable.
+    #    `outlivesPod` and `snapshottable` cannot combine with an ephemeral
+    #    posture — that is two declarations contradicting each other, not a
+    #    misconfigured value, so it is refused rather than reconciled.
+    durability: none
+    ephemeral:
+      # -- Declare {name, sizeLimit} and get BOTH the memory-backed volume and
+      #    its contribution to the pod's memory ceiling from the same list, so
+      #    the size cannot drift from the ceiling:
+      #      volumes:
+      #        {{- include "pleme-lib.compliance.storage.ephemeral.volumes" . | nindent 8 }}
+      #      resources:
+      #        limits:
+      #          memory: {{ include "pleme-lib.compliance.storage.ephemeral.memoryCeiling" . }}
+      #    A memory-backed emptyDir is charged to the pod's memory cgroup, so a
+      #    hand-maintained sum is one full scratch dir away from an OOMKill that
+      #    nothing in the manifest predicted.
+      volumes: []
   # -- Namespace-scope compliance primitives (used by pleme-compliance chart
   #    and any application chart that owns its own namespace).
   namespace:

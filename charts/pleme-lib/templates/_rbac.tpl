@@ -81,6 +81,11 @@ subjects get an apiGroup.
 */}}
 {{- define "pleme-lib.clusterRBAC" -}}
 {{- range $name, $spec := (.Values.rbac).clusterRoles }}
+{{/* A ClusterRole is cluster-wide by construction — no scope field to consult,
+     no namespace to fall back on — so every rule here sits at the reach the
+     guard checks. This map does not route through pleme-lib.rbac.validate,
+     which is precisely why the call belongs here as well as there. */}}
+{{- include "pleme-lib.rbac.namespaceDeleteBound" (dict "rules" ($spec.rules | default list) "where" (printf "rbac.clusterRoles[%q].rules" $name)) -}}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -309,6 +314,71 @@ rbac.pleme.io/withheld: {{ toJson . | quote }}
 {{- end }}
 {{- end -}}
 
+{{/*
+pleme-lib.rbac.namespaceDeleteBound — REFUSE an unbounded namespace delete.
+
+★ WHY THIS ONE GRANT GETS ITS OWN GUARD.
+Measured, on a real reaper: the delete went out against an ALL-NAMESPACES
+client with default delete parameters — no label selector, no ownerReference
+precondition, no uid precondition, no never-delete list. The only thing scoping
+it was that the name string happened to be right, and Kubernetes answers 404
+for a name that does not exist, which the client treated as success. So a WRONG
+NAME FAILS SILENTLY: the reaper reports a clean sweep, the intended namespace
+is still there, and whatever the wrong name did match is gone.
+
+A namespace delete is also not a leaf operation. It cascades to everything
+inside, asynchronously, past the point where the object stops being listed —
+so a mistake is neither observable at the moment it is made nor revertible
+after it.
+
+RBAC is the ONE render-time place that bound exists. `resourceNames` DOES apply
+to `delete` (it is the by-name verb; the inert ones are create / list / watch /
+deletecollection, which the sibling guard in `pleme-lib.rbac.validate` already
+refuses to pair with it), so the bound is achievable — and a cluster-wide
+`namespaces: [delete]` with no resourceNames is the whole blast radius, granted
+at render, in a file a reviewer reads.
+
+WHAT THIS DOES NOT DECIDE, deliberately: wildcards. A rule granting
+`resources: ["*"]` is a larger and different defect, and it already has an
+owner — `pleme-lib.compliance.authz.validate` and
+`pleme-lib.compliance.rbac.validate`, which run over the rendered result.
+Re-deciding it here would put one rule in two places and let them disagree. So
+this guard fires only on an EXPLICIT `namespaces` resource, in the core API
+group ("") or under a group wildcard.
+
+WHAT IT CANNOT BOUND, and this is a world-fact rather than one of ours: RBAC
+has no "delete only the namespaces you created" predicate. A controller that
+MINTS namespaces with generated names cannot be bounded by `resourceNames` at
+all — its real bound is a correlation selector on the objects it made
+(`pleme-lib.ephemeral.selector`), which is enforced at the DECLARATION and
+never at the call. Such a controller belongs at `rbac.scope=namespaced` with
+`rbac.mutate.namespaces`, or it takes the unbounded grant knowingly and the
+reviewer meets this refusal explaining what it costs.
+
+Arguments (a dict):
+  rules  the rule list to check
+  where  the values path to name in the message
+*/}}
+{{- define "pleme-lib.rbac.namespaceDeleteBound" -}}
+{{- $where := .where | default "rbac.rules" -}}
+{{- $deleteVerbs := list "delete" "deletecollection" "*" -}}
+{{- range $i, $rule := (.rules | default list) -}}
+{{- $groups := $rule.apiGroups | default list -}}
+{{- $resources := $rule.resources | default list -}}
+{{- if and (or (has "" $groups) (has "*" $groups)) (has "namespaces" $resources) -}}
+{{- $found := list -}}
+{{- range $v := ($rule.verbs | default list) -}}
+{{- if has $v $deleteVerbs -}}
+{{- $found = append $found $v -}}
+{{- end -}}
+{{- end -}}
+{{- if and (gt (len $found) 0) (not (gt (len ($rule.resourceNames | default list)) 0)) -}}
+{{- fail (printf "pleme-lib.rbac: %s[%d] grants %v on namespaces at CLUSTER reach with neither resourceNames nor a bounded namespace list. That is authority to delete ANY namespace, and a namespace delete cascades asynchronously to everything inside it — a reaper calling it with the wrong name gets a 404 that reads as success, so the mistake is silent when it is made and irreversible afterwards. Bound it one of three ways: (a) list the exact namespaces in resourceNames — `delete` IS scopable by name; (b) set rbac.scope=namespaced and move the rule to rbac.mutate.rules with rbac.mutate.namespaces naming them; (c) if the names are minted at runtime and cannot be known here, drop the grant — RBAC has no delete-only-what-you-created predicate, so the real bound is a correlation selector on the objects themselves (pleme-lib.ephemeral.selector), enforced by the CALLER and not by this grant. Note that `deletecollection` cannot be bounded by resourceNames at all — it authorizes a collection — so (a) is unavailable for it." $where $i $found) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
 {{/* ── every refusal, in one place; emits nothing on success ───────────── */}}
 {{- define "pleme-lib.rbac.validate" -}}
 {{- $ctx := .ctx -}}
@@ -475,6 +545,29 @@ written to permit.
 {{- fail (printf "pleme-lib.rbac: rbac.clusterRoles[%q] renders ClusterRole/%s, the same name pleme-lib.rbac emits. Rename the map entry." $k $name) -}}
 {{- end -}}
 {{- end -}}
+
+{{/* an unbounded namespace delete, checked ONLY against the rules THIS scope
+     actually places at cluster reach. Runs last on purpose: under
+     guest-cluster it reads the owned/foreign split, and the guard above has
+     already refused any rule that mixes the two, so asking whether ANY group
+     is owned is a complete test of where the rule lands. Under
+     scope=namespaced nothing here reaches cluster-wide and the check is
+     correctly silent — a Role is bound to one namespace, and one namespace IS
+     the bounded namespace list. */}}
+{{- $clusterReach := list -}}
+{{- if eq $scope "cluster" -}}
+{{- $clusterReach = concat $simple $obs -}}
+{{- else if eq $scope "guest-cluster" -}}
+{{- $ownGroups := $r.ownApiGroups | default list -}}
+{{- range $rule := $simple -}}
+{{- $owned := false -}}
+{{- range $g := ($rule.apiGroups | default list) -}}
+{{- if has $g $ownGroups -}}{{- $owned = true -}}{{- end -}}
+{{- end -}}
+{{- if $owned -}}{{- $clusterReach = append $clusterReach $rule -}}{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- include "pleme-lib.rbac.namespaceDeleteBound" (dict "rules" $clusterReach "where" (printf "rbac.rules (placed at cluster reach by rbac.scope=%s)" $scope)) -}}
 {{- end -}}
 
 {{/* ── the emitter ─────────────────────────────────────────────────────── */}}

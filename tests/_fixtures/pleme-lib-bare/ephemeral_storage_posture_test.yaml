@@ -1,0 +1,479 @@
+suite: pleme-lib bare-fixture — compliance.storage POSTURE (ephemeral | durable)
+#
+# THE PATTERN. An ephemeral environment should be memory-backed — not for speed,
+# but because a drive is where UNDECLARED STATE HIDES. Remove the drive and the
+# declaration becomes the only thing that can put a byte on the substrate.
+#
+# AND ITS BOUNDARY, which is why this is a posture and not a default. The
+# argument holds only while storage is INCIDENTAL to what is under test. When
+# storage BEHAVIOUR is under test, a ramdisk is incoherent: you cannot rehearse
+# recovery on a substrate that cannot fail the way production fails, and tmpfs is
+# unthrottled so an IO regression is invisible and an overflow is an OOMKill
+# rather than an ENOSPC. So `durable` is the default and `ephemeral` is opted
+# into — an existing chart cannot change behaviour by upgrading pleme-lib.
+#
+# ── HOW THIS SUITE IS BUILT TO NOT BE VACUOUS ───────────────────────────────
+# Three of helm-unittest's shapes go green while checking nothing, and all three
+# are load-bearing here, so each is paired with a control:
+#
+#   * BOUNDEDNESS IS NOT `contains`-EXPRESSIBLE. `contains` subset-matching is
+#     one level deep — a nested map goes through DEEP equality, so
+#     `{emptyDir: {medium: Memory}}` matches zero volumes that also carry a
+#     sizeLimit. "Every volume is bounded" cannot be written as a contains
+#     assertion at all, and pinning one exact sizeLimit only matches volumes of
+#     that size. Boundedness therefore comes from the template's own `fail()`,
+#     asserted via `failedTemplate` — see the six refusal cases below.
+#
+#   * ★ A NEGATED `containsDocument` IS NOT AN ABSENCE CHECK AT ALL — measured
+#     on 1.1.1, and the reason this suite does not use one. Unindexed,
+#     `containsDocument` is ANDed per-document ("EVERY document is a PVC"), so
+#     negating it yields an OR ("at least one document is not a PVC") that any
+#     Pod in the render satisfies. Injecting a real v1 PersistentVolumeClaim
+#     into the ephemeral probe left the negation GREEN while `hasDocuments` and
+#     `notExists` both went red. Absence is proved here instead by pinning the
+#     document COUNT and then each document's KIND + apiVersion: exactly one
+#     document, and it is a v1 Pod, so no claim document can be hiding in the
+#     render. Both halves are falsifiable.
+#
+#   * `volumeClaimTemplates` IS A FIELD, NOT A DOCUMENT, so no document-level
+#     absence check can see it. It gets its own `notExists`, with its own
+#     control proving the path resolves when the field is present.
+#
+# TEMPLATE SCOPING, measured rather than assumed: a per-test `templates:` NARROWS
+# the suite-level list and cannot reach a template the suite never listed — it
+# reports "not exists or not selected in test suite". And the suite-level list is
+# what actually gets RENDERED for every test — a template that needs values this
+# suite does not set errors the WHOLE render, and every assertion in the file then
+# fails at once with an unrelated message. That is why the two workload entry
+# points (which need an image) live in ephemeral_storage_posture_wiring_test.yaml
+# instead of here. Both templates below render on empty values, and EVERY test
+# names the one it drives — which also keeps every path validator
+# template-scoped, since an unscoped one fails on any document lacking the path
+# (an empty lookup is `unknown path`, and results are ANDed across manifests).
+templates:
+  - templates/ephemeral-storage.yaml
+  - templates/ephemeral-storage-durable-proof.yaml
+release:
+  name: t
+  namespace: testns
+
+tests:
+  # ── DEFAULT OFF / DEFAULT DURABLE ─────────────────────────────────────────
+  # Absent is not a request. A chart that has never heard of this surface must
+  # render exactly as it did before, which is what makes the posture safe to
+  # land in a library chart every consumer already depends on.
+  - it: defaults to the durable posture with no durability need and no volumes
+    templates: &probe
+      - templates/ephemeral-storage.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.annotations["pleme.io/storage-posture"]
+          value: durable
+      - equal:
+          path: metadata.annotations["pleme.io/storage-durability"]
+          value: none
+      # 0Mi is the empty-set reading of the ceiling — and the reason the ceiling
+      # doubles as this suite's denominator further down.
+      - equal:
+          path: metadata.annotations["pleme.io/ephemeral-memory-ceiling"]
+          value: 0Mi
+
+  # The negative half of DEFAULT DURABLE: under the default posture, every one
+  # of the five shapes the ephemeral posture refuses renders WITHOUT complaint.
+  # If this ever goes red, an upgrade of pleme-lib has silently started refusing
+  # charts that were valid before it.
+  - it: the durable posture refuses NOTHING — all five ephemeral-only refusals render clean
+    templates: *probe
+    set:
+      persistence:
+        enabled: true
+        storageClass: standard
+      volumeClaimTemplates:
+        - metadata: { name: data }
+          spec: { accessModes: [ReadWriteOnce], resources: { requests: { storage: 1Gi } } }
+      volumes:
+        - name: node-disk
+          emptyDir: {}
+        - name: unbounded-tmpfs
+          emptyDir: { medium: Memory }
+        - name: claim-by-reference
+          persistentVolumeClaim: { claimName: someclaim }
+      compliance:
+        storage:
+          durability: snapshottable
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.annotations["pleme.io/storage-durability"]
+          value: snapshottable
+
+  # ── THE CLOSED SETS ───────────────────────────────────────────────────────
+  # A typo must not read as the permissive arm. `posture: ephmeral` falling back
+  # to `durable` would hand the workload a disk while the values file says it
+  # took one away.
+  - it: REFUSES an unrecognised posture rather than falling back to the default
+    templates: *probe
+    set:
+      compliance.storage.posture: ephmeral
+    asserts:
+      - failedTemplate:
+          errorPattern: 'compliance.storage.posture="ephmeral" is not a posture'
+
+  - it: REFUSES an unrecognised durability rather than reading it as "needs nothing"
+    templates: *probe
+    set:
+      compliance.storage.posture: durable
+      compliance.storage.durability: durable
+    asserts:
+      - failedTemplate:
+          errorPattern: 'compliance.storage.durability="durable" is not a durability'
+
+  # ── THE SIX REFUSALS UNDER `ephemeral` ────────────────────────────────────
+  # Each names the values key at fault, because a guard whose message does not
+  # say which key to edit is a guard the reader has to re-derive.
+
+  # [1] The chart's own claim. This is the shape the posture exists to remove:
+  # a volume that outlives the pod is where a migration that ran once, a cache
+  # warmed by hand, and a file someone copied in at 2am all end up.
+  - it: REFUSES persistence.enabled under the ephemeral posture
+    templates: *probe
+    set:
+      compliance.storage.posture: ephemeral
+      persistence:
+        enabled: true
+        storageClass: standard
+    asserts:
+      - failedTemplate:
+          errorPattern: "persistence.enabled=true cannot combine with compliance.storage.posture=ephemeral"
+
+  # [2] A SEPARATE refusal from [1] on purpose: volumeClaimTemplates is a FIELD
+  # on the StatefulSet, so nothing that looks for a PersistentVolumeClaim
+  # DOCUMENT ever sees it. A guard written only against [1] passes a StatefulSet
+  # carrying one durable claim per replica.
+  - it: REFUSES a non-empty volumeClaimTemplates under the ephemeral posture
+    templates: *probe
+    set:
+      compliance.storage.posture: ephemeral
+      volumeClaimTemplates:
+        - metadata: { name: data }
+          spec: { accessModes: [ReadWriteOnce], resources: { requests: { storage: 1Gi } } }
+    asserts:
+      # The count is inside the message, so a guard that fired on an empty list
+      # (and would therefore also fire on every durable chart) reads differently.
+      - failedTemplate:
+          errorPattern: "volumeClaimTemplates has 1 entry/entries and cannot combine"
+
+  # [3] The third way a claim reaches a pod: by reference to one this chart
+  # never emitted. Same durable state; a document-level check cannot see it.
+  - it: REFUSES a volumes[] entry referencing a PersistentVolumeClaim
+    templates: *probe
+    set:
+      compliance.storage.posture: ephemeral
+      volumes:
+        - name: borrowed
+          persistentVolumeClaim: { claimName: someclaim }
+    asserts:
+      - failedTemplate:
+          errorPattern: "volumes\\[0\\] \\(borrowed\\) references a PersistentVolumeClaim"
+
+  # [4] An emptyDir with no medium is backed by the NODE's disk. It is the
+  # easiest way to reintroduce hidden state under a posture that claims to have
+  # removed it, and the name reads like the opposite.
+  - it: REFUSES an emptyDir that is not memory-backed
+    templates: *probe
+    set:
+      compliance.storage.posture: ephemeral
+      volumes:
+        - name: scratch
+          emptyDir: {}
+    asserts:
+      - failedTemplate:
+          errorPattern: 'volumes\[0\].emptyDir \(scratch\) has medium="" and cannot combine'
+
+  # [5] Unbounded tmpfs inverts the failure SHAPE. A full disk is an ENOSPC at
+  # the write, in the workload's own logs, attributable. A full memory-backed
+  # emptyDir is an OOMKill of the whole pod, attributed to the container, at a
+  # moment unrelated to the write that caused it.
+  #
+  # This is also the refusal that CANNOT be written as a `contains` assertion:
+  # nested subset matching is deep-equality, so no `contains` can express
+  # "every volume carries some sizeLimit". It has to come from `fail()`.
+  - it: REFUSES a memory-backed emptyDir with no sizeLimit
+    templates: *probe
+    set:
+      compliance.storage.posture: ephemeral
+      volumes:
+        - name: scratch
+          emptyDir: { medium: Memory }
+    asserts:
+      - failedTemplate:
+          errorPattern: 'volumes\[0\].emptyDir \(scratch\) is memory-backed with no sizeLimit'
+
+  # [6] Not a misconfigured value — two DECLARATIONS that contradict each other.
+  # A chart whose author has said "this state must outlive the pod" cannot run
+  # on a substrate where no state does. Checked before the value-level refusals
+  # so the reader is sent to the right disagreement rather than to a sizeLimit.
+  - it: REFUSES durability=outlivesPod combined with the ephemeral posture
+    templates: *probe
+    set:
+      compliance.storage.posture: ephemeral
+      compliance.storage.durability: outlivesPod
+    asserts:
+      - failedTemplate:
+          errorPattern: "compliance.storage.durability=outlivesPod cannot combine with compliance.storage.posture=ephemeral"
+
+  - it: REFUSES durability=snapshottable combined with the ephemeral posture
+    templates: *probe
+    set:
+      compliance.storage.posture: ephemeral
+      compliance.storage.durability: snapshottable
+    asserts:
+      - failedTemplate:
+          errorPattern: "compliance.storage.durability=snapshottable cannot combine"
+
+  # The contradiction is reported ahead of the value-level refusals. Both are
+  # present here; only the durability one may surface.
+  - it: reports the declaration contradiction BEFORE the value-level refusals
+    templates: *probe
+    set:
+      compliance.storage.posture: ephemeral
+      compliance.storage.durability: outlivesPod
+      persistence:
+        enabled: true
+    asserts:
+      - failedTemplate:
+          errorPattern: "compliance.storage.durability=outlivesPod cannot combine"
+
+  # ── THE CLEAN EPHEMERAL RENDER, AND ITS ABSENCE ASSERTIONS ────────────────
+  - it: ACCEPTS hand-written memory-backed bounded volumes, and emits no durable claim
+    templates: *probe
+    set:
+      compliance.storage.posture: ephemeral
+      volumes:
+        - name: scratch
+          emptyDir: { medium: Memory, sizeLimit: 64Mi }
+    asserts:
+      # DENOMINATOR. Without it, a probe that stopped rendering entirely would
+      # make both absence assertions below trivially true.
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.annotations["pleme.io/storage-posture"]
+          value: ephemeral
+      # ★ A NEGATED `containsDocument` IS NOT AN ABSENCE CHECK. Measured here on
+      # helm-unittest 1.1.1, and it is the reason this block is a kind assertion
+      # rather than the obvious negation.
+      #
+      # `containsDocument` WITHOUT a `documentIndex` is evaluated per-document
+      # and ANDed — it asserts "EVERY document is a PersistentVolumeClaim". So
+      # its negation is an OR: "at least one document is NOT a PVC". That is
+      # satisfied by the Pod at index 0 no matter what else the template emits.
+      #
+      # Proven, not reasoned: injecting a real `apiVersion: v1 / kind:
+      # PersistentVolumeClaim` document into this very probe left
+      # `containsDocument … not: true` GREEN while `hasDocuments` and the
+      # `notExists` below both went red. The negation could not see the claim it
+      # exists to forbid. (The positive form fails too, at DocumentIndex 0, for
+      # the same AND-ing reason — which is what exposed the semantics.)
+      #
+      # THE NON-VACUOUS FORM, and why it is complete: the denominator above pins
+      # the render at exactly ONE document, and these two pin what that document
+      # IS. Exactly one document, and it is a v1 Pod ⇒ no PersistentVolumeClaim
+      # document anywhere in the render, by construction rather than by a
+      # negation that cannot fail. Both halves are falsifiable — an extra
+      # document breaks `hasDocuments`, a substituted kind breaks `isKind`.
+      #
+      # apiVersion is still asserted, and still for the pair-scoping reason: a
+      # `v1 Pod` and some other group's `Pod` are different documents.
+      - isKind:
+          of: Pod
+      - isAPIVersion:
+          of: v1
+      # And a THIRD, separate check for the same claim: volumeClaimTemplates is a
+      # field on a StatefulSet, so the document-level check above is structurally
+      # blind to it and would pass against three durable per-replica claims.
+      - notExists:
+          path: spec.volumeClaimTemplates
+
+  # ── THE EMITTER ───────────────────────────────────────────────────────────
+  # A chart declares {name, sizeLimit} and gets the volume AND its memory-ceiling
+  # contribution from the SAME list, so the size cannot drift from the ceiling.
+  # That drift is the failure the emitter exists to prevent: a memory-backed
+  # emptyDir is charged to the pod's memory cgroup, so three 2Gi scratch dirs
+  # under a 2Gi memory limit is one full directory away from an OOMKill and
+  # nothing in the manifest says so.
+  - it: emits bounded memory-backed volumes and their summed memory ceiling
+    templates: *probe
+    set:
+      compliance.storage.posture: ephemeral
+      compliance:
+        storage:
+          ephemeral:
+            volumes:
+              - { name: scratch, sizeLimit: 512Mi }
+              - { name: spool, sizeLimit: 2Gi }
+    asserts:
+      # DENOMINATOR for the emitter: a discovery path that found nothing renders
+      # zero volumes and a 0Mi ceiling, so both assertions go red rather than
+      # agreeing with an empty set.
+      - lengthEqual:
+          path: spec.volumes
+          count: 2
+      - equal:
+          path: spec.volumes[0].name
+          value: scratch
+      - equal:
+          path: spec.volumes[0].emptyDir.medium
+          value: Memory
+      - equal:
+          path: spec.volumes[0].emptyDir.sizeLimit
+          value: 512Mi
+      - equal:
+          path: spec.volumes[1].emptyDir.sizeLimit
+          value: 2Gi
+      # 512Mi + 2Gi = 2560Mi. The one number both the volumes and the pod's
+      # memory limit are derived from.
+      - equal:
+          path: metadata.annotations["pleme.io/ephemeral-memory-ceiling"]
+          value: 2560Mi
+
+  # An emitted volume is memory-backed and bounded BY CONSTRUCTION, so it cannot
+  # trip the guard that catches hand-written ones. Making the compliant form the
+  # easy one is the mechanism; the guard is the backstop.
+  - it: emitted volumes satisfy the ephemeral guard by construction
+    templates: *probe
+    set:
+      compliance.storage.posture: ephemeral
+      compliance:
+        storage:
+          ephemeral:
+            volumes:
+              - { name: scratch, sizeLimit: 1Gi }
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: spec.volumes[0].emptyDir.medium
+          value: Memory
+
+  # The ceiling rounds UP to the next whole Mi, never down: a ceiling that
+  # undercounts is worse than no ceiling, because it reads as a guarantee.
+  - it: rounds the memory ceiling UP and handles mixed units
+    templates: *probe
+    set:
+      compliance:
+        storage:
+          ephemeral:
+            volumes:
+              - { name: a, sizeLimit: 1000k }
+    asserts:
+      - equal:
+          path: metadata.annotations["pleme.io/ephemeral-memory-ceiling"]
+          value: 1Mi
+
+  - it: REFUSES a declared ephemeral volume with no sizeLimit
+    templates: *probe
+    set:
+      compliance:
+        storage:
+          ephemeral:
+            volumes:
+              - { name: scratch }
+    asserts:
+      - failedTemplate:
+          errorPattern: "compliance.storage.ephemeral.volumes\\[0\\] \\(name=scratch\\) has no sizeLimit"
+
+  - it: REFUSES a declared ephemeral volume with no name
+    templates: *probe
+    set:
+      compliance:
+        storage:
+          ephemeral:
+            volumes:
+              - { sizeLimit: 1Gi }
+    asserts:
+      - failedTemplate:
+          errorPattern: "compliance.storage.ephemeral.volumes\\[0\\].name is required"
+
+  # A fractional quantity is legal K8s and is refused anyway: the ceiling's whole
+  # claim is that it is the exact sum of the sizes, and a rounded summand makes it
+  # a number nobody can reproduce by adding up the manifest.
+  - it: REFUSES a fractional sizeLimit so the ceiling stays an exact sum
+    templates: *probe
+    set:
+      compliance:
+        storage:
+          ephemeral:
+            volumes:
+              - { name: a, sizeLimit: 1.5Gi }
+    asserts:
+      - failedTemplate:
+          errorPattern: "is not an integer quantity"
+
+  - it: REFUSES an unrecognised sizeLimit unit rather than silently reading it as bytes
+    templates: *probe
+    set:
+      compliance:
+        storage:
+          ephemeral:
+            volumes:
+              - { name: a, sizeLimit: 12Gb }
+    asserts:
+      - failedTemplate:
+          errorPattern: 'carries the unrecognised unit "Gb"'
+
+  # ── THE NEGATIVE CONTROLS ─────────────────────────────────────────────────
+  # Without these two, the kind/apiVersion absence proof and the `notExists`
+  # above are unfalsifiable: both would pass just as green against a suite whose
+  # discovery had broken and rendered nothing at all.
+
+  - it: "CONTROL — the durable-proof fixture really does emit a v1 PersistentVolumeClaim"
+    templates:
+      - templates/ephemeral-storage-durable-proof.yaml
+    set:
+      probe.durableProof: true
+    asserts:
+      - hasDocuments:
+          count: 2
+      # This control's job is to prove the durable-proof FIXTURE is not a no-op:
+      # a claim really is emitted here, so the ephemeral probe's one-v1-Pod proof
+      # above is measured against a suite that can produce a PVC when asked.
+      #
+      # ★ CORRECTED, and the correction matters more than the control. An earlier
+      # revision of this note claimed the AND-ing "is exactly what makes the
+      # negated form a real whole-render absence check". That is BACKWARDS and was
+      # disproved by injecting a real PVC into the ephemeral probe: because
+      # `containsDocument` is ANDed per-document, its NEGATION is an OR — "at
+      # least one document is not a PVC" — which any Pod satisfies. The negation
+      # went green with the claim sitting in the render. Absence is therefore
+      # proved above by pinning the document COUNT and each document's KIND, not
+      # by negating a containsDocument.
+      #
+      # `documentIndex` is an ASSERTION-level key (like `not`), a sibling of the
+      # validator. Nested inside the payload it is silently ignored.
+      - containsDocument:
+          kind: PersistentVolumeClaim
+          apiVersion: v1
+        documentIndex: 0
+
+  - it: "CONTROL — the volumeClaimTemplates absence assertion CAN fail: the path resolves when the field is present"
+    templates:
+      - templates/ephemeral-storage-durable-proof.yaml
+    set:
+      probe.durableProof: true
+    asserts:
+      - hasDocuments:
+          count: 2
+      # documentIndex sits BESIDE the validator, not inside it. Nested, it is
+      # ignored and the assertion silently runs against document 0 (the PVC),
+      # which has no such path — the measured failure that produced this note.
+      - exists:
+          path: spec.volumeClaimTemplates
+        documentIndex: 1
+      - lengthEqual:
+          path: spec.volumeClaimTemplates
+          count: 1
+        documentIndex: 1

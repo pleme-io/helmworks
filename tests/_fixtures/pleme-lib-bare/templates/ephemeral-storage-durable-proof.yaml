@@ -1,0 +1,61 @@
+{{/*
+Bare fixture: the NEGATIVE CONTROL for the absence assertions in
+ephemeral_storage_test.yaml. Renders nothing unless `probe.durableProof` is set,
+so it never contributes a document to the ephemeral cases.
+
+WHY IT EXISTS. helm-unittest's absence checks are the two shapes most likely to
+be green and vacuous:
+
+  * `containsDocument` with `not: true` is scoped to the (kind, apiVersion)
+    PAIR. Omit `apiVersion` and the negation passes with the object sitting
+    right there — no error, no warning. So a suite that asserts "no PVC" has to
+    also prove that the exact pair it is negating CAN match a real document.
+  * `volumeClaimTemplates` is a FIELD on a StatefulSet, not a document, so
+    `containsDocument` is structurally blind to it: "no PersistentVolumeClaim
+    anywhere" goes green against a StatefulSet carrying three durable claims.
+    It needs its own `notExists`, and that `notExists` needs the same proof.
+
+This template renders one of each — a v1 PersistentVolumeClaim and an apps/v1
+StatefulSet with a non-empty volumeClaimTemplates — under the DURABLE posture,
+which is the posture that permits them. Two tests in the suite assert the
+positive form against it. Those two are the controls; without them the four
+absence assertions are unfalsifiable.
+*/}}
+{{- if (.Values.probe | default dict).durableProof }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Release.Name }}-durable-proof
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Release.Name }}-durable-proof
+spec:
+  serviceName: {{ .Release.Name }}-durable-proof
+  replicas: 1
+  selector:
+    matchLabels:
+      app: durable-proof
+  template:
+    metadata:
+      labels:
+        app: durable-proof
+    spec:
+      containers:
+        - name: probe
+          image: example/probe:0.0.0
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests:
+            storage: 1Gi
+{{- end }}

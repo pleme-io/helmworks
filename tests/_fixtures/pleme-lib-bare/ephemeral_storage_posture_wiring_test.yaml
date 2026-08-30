@@ -1,0 +1,86 @@
+suite: pleme-lib bare-fixture — compliance.storage POSTURE is WIRED to the workload entry points
+#
+# A guard nobody calls is not a guard. The posture guard's refusals are proven in
+# ephemeral_storage_posture_test.yaml against a bare probe that includes it
+# directly; this suite proves the SAME guard is reached through the two templates
+# a real chart actually renders, so a refactor that dropped the include from
+# _deployment.tpl or _statefulset.tpl goes red here rather than silently
+# disarming the posture for every consumer at once.
+#
+# The guard is deliberately NOT routed through `compliance.validate` alone: that
+# one is inert unless a compliance overlay is active, which would have left the
+# posture dead for every chart with no baseline selected — which is most of them.
+# It is called ungated, alongside it.
+#
+# A separate suite from the refusal file because a suite-level `templates:` list
+# is rendered IN FULL for every test, and both entry points need an image; listing
+# them beside the value-free probe errors that whole render instead.
+templates:
+  - templates/ephemeral-storage-wire.yaml
+release:
+  name: t
+  namespace: testns
+defaults: &defaults
+  image.repository: ghcr.io/example/probe
+  image.tag: "1.0.0"
+  serviceAccount.create: true
+
+tests:
+  # ── THE DENOMINATOR ───────────────────────────────────────────────────────
+  # Both entry points render clean at the DEFAULT posture. Without these two,
+  # "the guard refused" is indistinguishable from "the probe never rendered",
+  # and they are also the DEFAULT-DURABLE proof at the entry points themselves:
+  # a chart upgrading pleme-lib and not setting a posture changes nothing.
+  - it: Deployment renders clean at the default (durable) posture
+    set:
+      <<: *defaults
+      probe.wire: deployment
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Deployment
+
+  - it: StatefulSet renders clean at the default (durable) posture — including with volumeClaimTemplates
+    set:
+      <<: *defaults
+      probe.wire: statefulset
+      volumeClaimTemplates:
+        - metadata: { name: data }
+          spec: { accessModes: [ReadWriteOnce], resources: { requests: { storage: 1Gi } } }
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: StatefulSet
+      # The durable posture leaves the claims exactly where they were.
+      - lengthEqual:
+          path: spec.volumeClaimTemplates
+          count: 1
+
+  # ── THE WIRE ──────────────────────────────────────────────────────────────
+  - it: the guard fires through pleme-lib.deployment, not only through the bare probe
+    set:
+      <<: *defaults
+      probe.wire: deployment
+      compliance.storage.posture: ephemeral
+      persistence:
+        enabled: true
+    asserts:
+      - failedTemplate:
+          errorPattern: "persistence.enabled=true cannot combine with compliance.storage.posture=ephemeral"
+
+  # The StatefulSet arm matters most: volumeClaimTemplates is a FIELD on this
+  # object and nothing that scans for a PersistentVolumeClaim DOCUMENT can see
+  # it, so this entry point is the only place that refusal can be reached.
+  - it: the guard fires through pleme-lib.statefulset, which is where volumeClaimTemplates live
+    set:
+      <<: *defaults
+      probe.wire: statefulset
+      compliance.storage.posture: ephemeral
+      volumeClaimTemplates:
+        - metadata: { name: data }
+          spec: { accessModes: [ReadWriteOnce], resources: { requests: { storage: 1Gi } } }
+    asserts:
+      - failedTemplate:
+          errorPattern: "volumeClaimTemplates has 1 entry/entries and cannot combine"

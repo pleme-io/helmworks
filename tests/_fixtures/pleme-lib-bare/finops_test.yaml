@@ -1,0 +1,439 @@
+suite: pleme-lib bare-fixture — pleme-lib.finops (cost attribution, one declaration, two planes)
+#
+# ★ WHY THIS PRIMITIVE EXISTS. Ephemeral infrastructure is invisible in a bill
+# unless every resource carries attribution AT CREATION. Two facts make that a
+# deadline rather than a preference:
+#   - tags are NOT retroactive — a cost record keeps whatever tags the resource
+#     carried when the meter ticked, so an untagged window is unattributable
+#     forever;
+#   - a tag key is not a cost DIMENSION until it is activated in the payer
+#     account — until then the tag is visibly present and the report has no
+#     column for it.
+#
+# ★ THE MEASURED DEFECT IT PREVENTS. Attribution came from TWO INDEPENDENT
+# EMITTERS — k8s labels and cloud tags — and NEITHER carried cost, so it broke
+# exactly at the boundary where money is spent. The fixture reproduces that
+# topology (a ConfigMap and a cloud-shaped object) and the golden cases below
+# assert both are projections of ONE catalog.
+#
+# ★ HOW A DROPPED KEY IS CAUGHT. Every golden case pins BOTH planes field by
+# field AND the census — `axes=N labelKeys=N tagKeys=N paired=N`, measured by
+# re-parsing what the two projections actually emitted. Dropping a key from one
+# plane moves that plane's literal AND its count AND `paired`; a discovery path
+# that breaks entirely reports 0 rather than a plausible smaller number.
+#
+# ★ THE CASE LAW. Lower-kebab, keys and values, both planes. Cloud tag keys are
+# case-sensitive, so `CostCentre` and `cost-centre` are DIFFERENT dimensions and
+# activating one does not activate the other — the estate splits into a half
+# that reaches the report and a half that does not, and neither half errors.
+# That is why mixing case is a silent defect and not a style question.
+templates:
+  - templates/finops.yaml
+release:
+  name: t
+  namespace: testns
+defaults: &defaults
+  image.repository: ghcr.io/x/y
+  image.tag: "1.0.0"
+# A complete, valid, EPHEMERAL declaration. Every literal is a generic
+# placeholder — `cc-example`, `svc-a`, `pr-4821` — not an estate fact.
+valid: &valid
+  enabled: true
+  correlationId: "9f8e7d6c"
+  feature: "pr-4821"
+  costCentre: "cc-example"
+  requester: "svc-a"
+  ephemeral: true
+  ttlHours: 24
+
+tests:
+  # ── DEFAULT OFF ──────────────────────────────────────────────────────────
+  - it: renders nothing when finops is unset (default-off — absent is not a request)
+    set:
+      <<: *defaults
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # `enabled: false` with nothing declared is honest silence: a consumer chart
+  # that never heard of finops must not change behaviour by upgrading the lib.
+  #
+  # ★ ABSENCE ASSERTION. Its NEGATIVE CONTROL is the very next case, which
+  # asserts the SAME TWO PATHS exist under the same probe once attribution is
+  # on — so these two `notExists` cannot be passing because the paths are
+  # unreachable.
+  - it: emits both probes but NO attribution when disabled, and the census reads zero
+    set:
+      <<: *defaults
+      finops:
+        enabled: false
+    asserts:
+      - hasDocuments:
+          count: 2
+      - notExists:
+          path: metadata.labels
+        documentIndex: 0
+      - notExists:
+          path: spec.tags
+        documentIndex: 1
+      # The denominator: a broken catalog and a disabled catalog must be
+      # indistinguishable HERE and distinguishable everywhere else.
+      - equal:
+          path: spec.census
+          value: "axes=0 labelKeys=0 tagKeys=0 paired=0"
+        documentIndex: 1
+
+  - it: NEGATIVE CONTROL — both absence paths above DO exist once attribution is on
+    set:
+      <<: *defaults
+      finops: *valid
+    asserts:
+      - exists:
+          path: metadata.labels
+        documentIndex: 0
+      - exists:
+          path: spec.tags
+        documentIndex: 1
+
+  # Silence is fine; a declaration that never ships is not. It reads to its
+  # author as "attribution is configured" and emits none — and per the
+  # not-retroactive rule the gap it opens can never be repaired.
+  - it: REFUSES axes declared while finops.enabled is false
+    set:
+      <<: *defaults
+      finops:
+        enabled: false
+        costCentre: "cc-example"
+    asserts:
+      - failedTemplate:
+          errorPattern: "finops.enabled is false but"
+
+  # ── THE GOLDEN CASES: ONE DECLARATION, TWO PLANES, FIELD BY FIELD ────────
+  - it: GOLDEN (ephemeral) — the k8s plane carries all six axes
+    set:
+      <<: *defaults
+      finops: *valid
+    asserts:
+      - equal:
+          path: metadata.labels
+          value:
+            finops.pleme.io/correlation-id: "9f8e7d6c"
+            finops.pleme.io/feature: "pr-4821"
+            finops.pleme.io/cost-centre: "cc-example"
+            finops.pleme.io/requester: "svc-a"
+            finops.pleme.io/ephemeral: "true"
+            finops.pleme.io/ttl-hours: "24"
+        documentIndex: 0
+
+  - it: GOLDEN (ephemeral) — the cloud plane carries the same six, byte-identical values
+    set:
+      <<: *defaults
+      finops: *valid
+    asserts:
+      - equal:
+          path: spec.tags
+          value:
+            finops-correlation-id: "9f8e7d6c"
+            finops-feature: "pr-4821"
+            finops-cost-centre: "cc-example"
+            finops-requester: "svc-a"
+            finops-ephemeral: "true"
+            finops-ttl-hours: "24"
+        documentIndex: 1
+
+  # ★ THE POINT OF THE WHOLE PATTERN. `paired` counts axes present on BOTH
+  # planes with EQUAL values; the three counts are its denominators. Drop a key
+  # from one projection and this line moves even if someone also updated that
+  # plane's literal above.
+  - it: GOLDEN (ephemeral) — the census pairs all six across both planes
+    set:
+      <<: *defaults
+      finops: *valid
+    asserts:
+      - equal:
+          path: spec.census
+          value: "axes=6 labelKeys=6 tagKeys=6 paired=6"
+        documentIndex: 1
+
+  # The durable shape is a DIFFERENT arity, not the same shape with a blank:
+  # `ttl-hours: 0` on a durable resource is a lie a reaper can act on, so the
+  # axis is absent from both planes and the census says five.
+  - it: GOLDEN (durable) — five axes, ttl-hours absent from BOTH planes
+    set:
+      <<: *defaults
+      finops:
+        enabled: true
+        correlationId: "9f8e7d6c"
+        feature: "pr-4821"
+        costCentre: "cc-example"
+        requester: "svc-a"
+    asserts:
+      - equal:
+          path: metadata.labels
+          value:
+            finops.pleme.io/correlation-id: "9f8e7d6c"
+            finops.pleme.io/feature: "pr-4821"
+            finops.pleme.io/cost-centre: "cc-example"
+            finops.pleme.io/requester: "svc-a"
+            finops.pleme.io/ephemeral: "false"
+        documentIndex: 0
+      - equal:
+          path: spec.tags
+          value:
+            finops-correlation-id: "9f8e7d6c"
+            finops-feature: "pr-4821"
+            finops-cost-centre: "cc-example"
+            finops-requester: "svc-a"
+            finops-ephemeral: "false"
+        documentIndex: 1
+      - equal:
+          path: spec.census
+          value: "axes=5 labelKeys=5 tagKeys=5 paired=5"
+        documentIndex: 1
+      # ★ ABSENCE ASSERTION, with its NEGATIVE CONTROL in the ephemeral golden
+      # cases above — where these exact two keys ARE present on both planes.
+      - notExists:
+          path: metadata.labels["finops.pleme.io/ttl-hours"]
+        documentIndex: 0
+      - notExists:
+          path: spec.tags["finops-ttl-hours"]
+        documentIndex: 1
+
+  # A caller extension rides the SAME catalog, so it reaches both planes or
+  # neither. An `extraTags`-style second map would have been the third
+  # independent emitter — the original defect, re-introduced as a feature.
+  - it: a caller extension lands on BOTH planes and moves the census to seven
+    set:
+      <<: *defaults
+      finops:
+        enabled: true
+        correlationId: "9f8e7d6c"
+        feature: "pr-4821"
+        costCentre: "cc-example"
+        requester: "svc-a"
+        extra:
+          team-tier: "gold"
+    asserts:
+      - equal:
+          path: metadata.labels["finops.pleme.io/team-tier"]
+          value: "gold"
+        documentIndex: 0
+      - equal:
+          path: spec.tags["finops-team-tier"]
+          value: "gold"
+        documentIndex: 1
+      - equal:
+          path: spec.census
+          value: "axes=6 labelKeys=6 tagKeys=6 paired=6"
+        documentIndex: 1
+
+  # ── REQUIRED AXES ────────────────────────────────────────────────────────
+  - it: REFUSES a missing correlation id — nothing joins the two planes without it
+    set:
+      <<: *defaults
+      finops:
+        enabled: true
+        feature: "pr-4821"
+        costCentre: "cc-example"
+        requester: "svc-a"
+    asserts:
+      - failedTemplate:
+          errorPattern: "finops.correlationId is required"
+
+  # The one axis that is NOT derivable from the others: one feature spawns many
+  # environments over time, so no rollup of correlation ids reconstructs "what
+  # did this feature cost" — the question actually asked.
+  - it: REFUSES a missing feature reference
+    set:
+      <<: *defaults
+      finops:
+        enabled: true
+        correlationId: "9f8e7d6c"
+        costCentre: "cc-example"
+        requester: "svc-a"
+    asserts:
+      - failedTemplate:
+          errorPattern: "finops.feature is required"
+
+  - it: REFUSES a missing cost centre
+    set:
+      <<: *defaults
+      finops:
+        enabled: true
+        correlationId: "9f8e7d6c"
+        feature: "pr-4821"
+        requester: "svc-a"
+    asserts:
+      - failedTemplate:
+          errorPattern: "finops.costCentre is required"
+
+  - it: REFUSES a missing requester
+    set:
+      <<: *defaults
+      finops:
+        enabled: true
+        correlationId: "9f8e7d6c"
+        feature: "pr-4821"
+        costCentre: "cc-example"
+    asserts:
+      - failedTemplate:
+          errorPattern: "finops.requester is required"
+
+  # ── THE COST-CENTRE PATTERN IS A DECLARATION, NOT A HARDCODE ─────────────
+  - it: REFUSES a cost centre outside the declared pattern
+    set:
+      <<: *defaults
+      finops:
+        <<: *valid
+        costCentre: "finance-42"
+    asserts:
+      - failedTemplate:
+          errorPattern: "does not match finops.costCentrePattern"
+
+  - it: ACCEPTS a cost centre under a caller-declared pattern override
+    set:
+      <<: *defaults
+      finops:
+        <<: *valid
+        costCentrePattern: "^bu-[0-9]+$"
+        costCentre: "bu-42"
+    asserts:
+      - equal:
+          path: spec.census
+          value: "axes=6 labelKeys=6 tagKeys=6 paired=6"
+        documentIndex: 1
+
+  # The override is a different pattern, not the absence of one — the default
+  # shape must stop matching once the caller declares their own scheme.
+  - it: REFUSES the default-shaped cost centre once the caller declares another pattern
+    set:
+      <<: *defaults
+      finops:
+        <<: *valid
+        costCentrePattern: "^bu-[0-9]+$"
+        costCentre: "cc-example"
+    asserts:
+      - failedTemplate:
+          errorPattern: "does not match finops.costCentrePattern"
+
+  # ── EPHEMERAL <-> TTL, BOTH DIRECTIONS ───────────────────────────────────
+  - it: REFUSES ephemeral=true with no ttl — that is the resource nobody reaps
+    set:
+      <<: *defaults
+      finops:
+        enabled: true
+        correlationId: "9f8e7d6c"
+        feature: "pr-4821"
+        costCentre: "cc-example"
+        requester: "svc-a"
+        ephemeral: true
+    asserts:
+      - failedTemplate:
+          errorPattern: "finops.ephemeral=true requires finops.ttlHours"
+
+  - it: REFUSES a ttl on a durable declaration — a reaper will eventually believe it
+    set:
+      <<: *defaults
+      finops:
+        enabled: true
+        correlationId: "9f8e7d6c"
+        feature: "pr-4821"
+        costCentre: "cc-example"
+        requester: "svc-a"
+        ttlHours: 24
+    asserts:
+      - failedTemplate:
+          errorPattern: "is set while finops.ephemeral is false"
+
+  # ── THE CASE LAW ─────────────────────────────────────────────────────────
+  # Values first: both planes carry the SAME bytes so the join is an equality.
+  # A value only one plane accepts breaks that join exactly where money is.
+  - it: REFUSES a non-lower-kebab axis VALUE
+    set:
+      <<: *defaults
+      finops:
+        <<: *valid
+        requester: "Svc-A"
+    asserts:
+      - failedTemplate:
+          errorPattern: "is not lower-kebab"
+
+  # Keys next. The five core axis key names are literals in the template and
+  # have NO values surface — `extra` is the single place a caller names a key,
+  # so it is the single place the convention needs a refusal.
+  - it: REFUSES a PascalCase extension key — a different case is a different cost dimension
+    set:
+      <<: *defaults
+      finops:
+        <<: *valid
+        extra:
+          TeamTier: "gold"
+    asserts:
+      - failedTemplate:
+          errorPattern: "is not lower-kebab"
+
+  # An extension named after a core axis would `set` over the core projection
+  # with no error at all — the quietest way to lose an axis.
+  - it: REFUSES an extension key that collides with a core axis
+    set:
+      <<: *defaults
+      finops:
+        <<: *valid
+        extra:
+          cost-centre: "cc-other"
+    asserts:
+      - failedTemplate:
+          errorPattern: "collides with core axis"
+
+  # The two prefixes are the remaining caller-supplied path to an uppercase key.
+  - it: REFUSES an uppercase k8s label prefix
+    set:
+      <<: *defaults
+      finops:
+        <<: *valid
+        labelPrefix: "FinOps.pleme.io"
+    asserts:
+      - failedTemplate:
+          errorPattern: "finops.labelPrefix"
+
+  - it: REFUSES an uppercase cloud tag prefix
+    set:
+      <<: *defaults
+      finops:
+        <<: *valid
+        tagPrefix: "FinOps-"
+    asserts:
+      - failedTemplate:
+          errorPattern: "finops.tagPrefix"
+
+  # A >63-char label value is rejected by the API server at admission and takes
+  # the WHOLE object with it — not just the label. Refusing at render turns a
+  # failed apply into a failed template.
+  - it: REFUSES an axis value over the 63-char Kubernetes label ceiling
+    set:
+      <<: *defaults
+      finops:
+        <<: *valid
+        feature: "pr-4821-aaaaaaaaaa-bbbbbbbbbb-cccccccccc-dddddddddd-eeeeeeeeee-ffffffffff"
+    asserts:
+      - failedTemplate:
+          errorPattern: "capped at 63"
+
+  # ── THE GUARDS ARE NOT IN THE EMIT PATH ──────────────────────────────────
+  # `finops.guards` runs unconditionally in the probe, ahead of the `if` that
+  # decides whether anything is emitted. A caller that only COMPUTES
+  # attribution (a lint, a dry run, an annotations-only consumer) therefore
+  # gets the same refusals — the shape `pleme-lib.park` had to lift its two
+  # guards out of after an entry point that emitted nothing skipped them.
+  - it: refuses through the guards even when the axis catalog is otherwise valid but empty-valued
+    set:
+      <<: *defaults
+      finops:
+        enabled: true
+        correlationId: ""
+        feature: "pr-4821"
+        costCentre: "cc-example"
+        requester: "svc-a"
+    asserts:
+      - failedTemplate:
+          errorPattern: "finops.correlationId is required"

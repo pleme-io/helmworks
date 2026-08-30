@@ -1,0 +1,37 @@
+{{/*
+Bare fixture: exercise pleme-lib.finops in isolation.
+
+TWO documents on purpose. The measured defect was TWO INDEPENDENT EMITTERS —
+one k8s, one cloud — neither carrying cost, so attribution broke at the
+boundary. The probe reproduces that topology (a k8s object and a cloud-shaped
+object) and lets the suite assert that both are fed by the ONE catalog.
+
+The guards run FIRST and unconditionally, so a declaration that would be
+refused at apply is refused here even when nothing is emitted.
+*/}}
+{{- include "pleme-lib.finops.guards" . -}}
+{{- if .Values.finops }}
+{{- $labels := include "pleme-lib.finops.labels" . -}}
+{{- $tags := include "pleme-lib.finops.tags" . -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: finops-label-probe
+  namespace: {{ .Release.Namespace }}
+  {{- if $labels }}
+  labels:
+    {{- $labels | nindent 4 }}
+  {{- end }}
+---
+apiVersion: pleme.io/v1
+kind: FinopsTagProbe
+metadata:
+  name: finops-tag-probe
+  namespace: {{ .Release.Namespace }}
+spec:
+  census: {{ include "pleme-lib.finops.census" . | quote }}
+  {{- if $tags }}
+  tags:
+    {{- $tags | nindent 4 }}
+  {{- end }}
+{{- end }}

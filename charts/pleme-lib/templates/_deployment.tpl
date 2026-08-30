@@ -11,6 +11,11 @@ fail with an explicit error.
 
 {{- define "pleme-lib.deployment" -}}
 {{- include "pleme-lib.compliance.validate" . -}}
+{{- /* Storage posture (ephemeral|durable). Separate from compliance.validate
+       on purpose: that one is inert unless a compliance overlay is on, and the
+       posture is an environment-shape decision every chart can make. No-op at
+       the default posture (durable). */ -}}
+{{- include "pleme-lib.compliance.storage.posture.validate" . -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:

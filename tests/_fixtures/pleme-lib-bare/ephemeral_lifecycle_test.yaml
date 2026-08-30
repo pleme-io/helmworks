@@ -1,0 +1,420 @@
+suite: pleme-lib bare-fixture — pleme-lib.ephemeral.* (the ephemeral lifecycle declaration)
+#
+# An ephemeral thing owes three facts AT CREATION, because all three are needed
+# later by something that runs without the chart, without values, and without
+# the person who wrote them: an EXPIRY, a CORRELATION key its whole footprint
+# shares, and a NAMED reader for that key.
+#
+# Every refusal below is a real incident shape, and not one of them reported an
+# error at the time:
+#
+#   - a namespace delete bounded only by naming discipline, issued against an
+#     all-namespaces client with default delete params. 404 reads as success,
+#     so a WRONG NAME SUCCEEDS SILENTLY. (The RBAC half of that bound has its
+#     own suite: rbac_namespace_delete_test.yaml.)
+#   - a correlation tag stamped faithfully for months with ZERO readers, so
+#     "the footprint is empty" was never once checked, only assumed.
+#   - a namespace-absence proxy used as the done signal, firing ~120s before
+#     the last managed resource was actually gone.
+#
+# ★ THE DENOMINATOR. Several assertions here are about ABSENCE (the selector
+# does NOT carry ttl-hours; the probe emits NOTHING when off). An absence
+# assertion that cannot fail is decoration, so each one is paired with a
+# control proving it CAN: `census` carries the counts INSIDE a compared string,
+# so a discovery path that breaks reports axes=0 and the pinned literal fails
+# rather than the assertion quietly passing over an empty set.
+templates:
+  - templates/ephemeral-lifecycle.yaml
+release:
+  name: t
+  namespace: testns
+
+tests:
+  # ── default off, and the control that proves the absence can fail ────────
+  - it: renders nothing when ephemeral is unset (DEFAULT OFF)
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # ★ NEGATIVE CONTROL for the test above. Without this, "count: 0" would also
+  # pass against a probe that was broken, renamed, or never included at all.
+  - it: NEGATIVE CONTROL — the same probe DOES emit once ephemeral is declared
+    set:
+      ephemeral:
+        enabled: true
+        correlationId: cc-example
+        ttlHours: 6
+        kinds: [Namespace]
+        reapedBy: example-reaper
+    asserts:
+      - hasDocuments:
+          count: 2
+
+  # ── the declared-but-unstamped contradiction ─────────────────────────────
+  # Off is silence. Off WITH a lifetime declared reads to its author as
+  # governed and stamps nothing — and once an object exists unstamped there is
+  # no key left to find it by, ever.
+  - it: REFUSES enabled=false while lifecycle keys are declared
+    set:
+      ephemeral:
+        enabled: false
+        ttlHours: 6
+        reapedBy: example-reaper
+    asserts:
+      - failedTemplate:
+          errorPattern: "ephemeral.enabled is false but"
+
+  # ── (b) findable by correlation ──────────────────────────────────────────
+  - it: REFUSES a missing correlationId — the footprint would be unenumerable
+    set:
+      ephemeral:
+        enabled: true
+        ttlHours: 6
+        kinds: [Namespace]
+        reapedBy: example-reaper
+    asserts:
+      - failedTemplate:
+          errorPattern: "ephemeral.correlationId is required"
+
+  # The shape comes from pleme-lib.finops.shapePattern — shared on purpose, so
+  # the same bytes are a k8s label here and a cloud tag there and the two join
+  # on equality with no normalisation step in between.
+  - it: REFUSES a correlationId that is not lower-kebab
+    set:
+      ephemeral:
+        enabled: true
+        correlationId: CC-Example
+        ttlHours: 6
+        kinds: [Namespace]
+        reapedBy: example-reaper
+    asserts:
+      - failedTemplate:
+          errorPattern: "is not lower-kebab"
+
+  # One fact, two spellings: the reaper enumerates one half of the footprint
+  # and the cost report attributes the other.
+  - it: REFUSES a correlationId that disagrees with the cost plane
+    set:
+      finops:
+        enabled: true
+        correlationId: cc-example
+        feature: probe
+        costCentre: cc-example
+        requester: probe
+        ephemeral: true
+        ttlHours: 6
+      ephemeral:
+        enabled: true
+        correlationId: cc-other
+        ttlHours: 6
+        kinds: [Namespace]
+        reapedBy: example-reaper
+    asserts:
+      - failedTemplate:
+          errorPattern: "disagrees with finops.correlationId"
+
+  # ── (a) THE BOUND — the whole invariant ──────────────────────────────────
+  - it: REFUSES an absent ttl — a thing that cannot expire is not ephemeral
+    set:
+      ephemeral:
+        enabled: true
+        correlationId: cc-example
+        kinds: [Namespace]
+        reapedBy: example-reaper
+    asserts:
+      - failedTemplate:
+          errorPattern: "ephemeral.ttlHours is required"
+
+  # ★ An integer is DEMANDED rather than a sentinel list being refused. Every
+  # readable spelling of unbounded casts to 0, and 0 is indistinguishable from
+  # the field being absent — so an unbounded lifetime would otherwise render as
+  # a bounded-looking one.
+  - it: REFUSES a non-integer ttl (the readable spellings of "unbounded")
+    set:
+      ephemeral:
+        enabled: true
+        correlationId: cc-example
+        ttlHours: forever
+        kinds: [Namespace]
+        reapedBy: example-reaper
+    asserts:
+      - failedTemplate:
+          errorPattern: "is not a whole number of hours"
+
+  - it: REFUSES ttlHours=0 — zero is not a longer lifetime, it is no bound
+    set:
+      ephemeral:
+        enabled: true
+        correlationId: cc-example
+        ttlHours: 0
+        kinds: [Namespace]
+        reapedBy: example-reaper
+    asserts:
+      - failedTemplate:
+          errorPattern: "must be a positive number of hours"
+
+  # Bounded means bounded in BOTH directions. A lifetime long enough that
+  # nobody is still watching passes every audit asking "is a ttl declared" and
+  # none that asks how long.
+  - it: REFUSES a ttl above the declared ceiling
+    set:
+      ephemeral:
+        enabled: true
+        correlationId: cc-example
+        ttlHours: 8760
+        kinds: [Namespace]
+        reapedBy: example-reaper
+    asserts:
+      - failedTemplate:
+          errorPattern: "exceeds ephemeral.maxTtlHours"
+
+  - it: REFUSES a non-positive ceiling — that removes the ceiling, not widens it
+    set:
+      ephemeral:
+        enabled: true
+        correlationId: cc-example
+        ttlHours: 6
+        maxTtlHours: 0
+        kinds: [Namespace]
+        reapedBy: example-reaper
+    asserts:
+      - failedTemplate:
+          errorPattern: "ephemeral.maxTtlHours=0 must be positive"
+
+  - it: REFUSES a ttl that disagrees with the cost plane's ttl
+    set:
+      finops:
+        enabled: true
+        correlationId: cc-example
+        feature: probe
+        costCentre: cc-example
+        requester: probe
+        ephemeral: true
+        ttlHours: 6
+      ephemeral:
+        enabled: true
+        correlationId: cc-example
+        ttlHours: 12
+        kinds: [Namespace]
+        reapedBy: example-reaper
+    asserts:
+      - failedTemplate:
+          errorPattern: "disagrees with finops.ttlHours"
+
+  # The same object, two lifetimes: one plane bills it as durable spend while
+  # the other reaps it.
+  - it: REFUSES a lifecycle-ephemeral object the cost plane calls durable
+    set:
+      finops:
+        enabled: true
+        correlationId: cc-example
+        feature: probe
+        costCentre: cc-example
+        requester: probe
+        ephemeral: false
+      ephemeral:
+        enabled: true
+        correlationId: cc-example
+        ttlHours: 6
+        kinds: [Namespace]
+        reapedBy: example-reaper
+    asserts:
+      - failedTemplate:
+          errorPattern: "finops.ephemeral=false"
+
+  # ── (c) a NAMED reader ───────────────────────────────────────────────────
+  # A name is not a reader — the chart cannot show the reaper runs — but a
+  # required name is the difference between an unanswered question and an
+  # unasked one.
+  - it: REFUSES a correlation key with no named reader (the zero-reader defect)
+    set:
+      ephemeral:
+        enabled: true
+        correlationId: cc-example
+        ttlHours: 6
+        kinds: [Namespace]
+    asserts:
+      - failedTemplate:
+          errorPattern: "ephemeral.reapedBy is required"
+
+  - it: REFUSES an empty kind list — a policy that matches nothing, rendered whole
+    set:
+      ephemeral:
+        enabled: true
+        correlationId: cc-example
+        ttlHours: 6
+        reapedBy: example-reaper
+    asserts:
+      - failedTemplate:
+          errorPattern: "ephemeral.kinds is required"
+
+  # ── the done signal ──────────────────────────────────────────────────────
+  # Kept declarable rather than deleted, so the refusal carries its reason to
+  # whoever reaches for it (MODULARIZE, DON'T DELETE).
+  - it: REFUSES doneSignal=namespace-absence — it fires ~120s early, always
+    set:
+      ephemeral:
+        enabled: true
+        correlationId: cc-example
+        ttlHours: 6
+        kinds: [Namespace]
+        reapedBy: example-reaper
+        doneSignal: namespace-absence
+    asserts:
+      - failedTemplate:
+          errorPattern: "fires EARLY"
+
+  - it: REFUSES an unknown doneSignal rather than defaulting past it
+    set:
+      ephemeral:
+        enabled: true
+        correlationId: cc-example
+        ttlHours: 6
+        kinds: [Namespace]
+        reapedBy: example-reaper
+        doneSignal: probably-fine
+    asserts:
+      - failedTemplate:
+          errorPattern: "unknown ephemeral.doneSignal"
+
+  # ── emission: the STAMP ──────────────────────────────────────────────────
+  - it: stamps class, correlation-id and ttl-hours on the object
+    set:
+      ephemeral:
+        enabled: true
+        correlationId: cc-example
+        ttlHours: 6
+        kinds: [Namespace, PersistentVolumeClaim]
+        reapedBy: example-reaper
+    asserts:
+      - documentIndex: 0
+        equal:
+          path: metadata.labels["lifecycle.pleme.io/class"]
+          value: ephemeral
+      - documentIndex: 0
+        equal:
+          path: metadata.labels["lifecycle.pleme.io/correlation-id"]
+          value: cc-example
+      - documentIndex: 0
+        equal:
+          path: metadata.labels["lifecycle.pleme.io/ttl-hours"]
+          value: "6"
+
+  # ── emission: the MATCH, and the ttl deliberately OUTSIDE the selector ───
+  # A label selector has equality and set-membership and NO numeric
+  # comparison, so `ttl-hours` inside matchLabels yields a policy matching only
+  # objects whose ttl is exactly that number: it reads correct and reaps almost
+  # nothing. The bound rides alongside as maxAgeHours instead.
+  - it: match emits kinds + selector + an age bound OUTSIDE the selector
+    set:
+      ephemeral:
+        enabled: true
+        correlationId: cc-example
+        ttlHours: 6
+        kinds: [Namespace, PersistentVolumeClaim]
+        reapedBy: example-reaper
+    asserts:
+      - documentIndex: 1
+        equal:
+          path: spec.kinds
+          value: [Namespace, PersistentVolumeClaim]
+      - documentIndex: 1
+        equal:
+          path: spec.maxAgeHours
+          value: 6
+      - documentIndex: 1
+        equal:
+          path: spec.reapedBy
+          value: example-reaper
+      - documentIndex: 1
+        equal:
+          path: spec.doneSignal
+          value: footprint-empty
+      - documentIndex: 1
+        equal:
+          path: spec.selector.matchLabels["lifecycle.pleme.io/correlation-id"]
+          value: cc-example
+      - documentIndex: 1
+        equal:
+          path: spec.selector.matchLabels["lifecycle.pleme.io/class"]
+          value: ephemeral
+      # ★ the absence, and the census below is what makes it non-vacuous:
+      # selector=2 proves the selector was DISCOVERED and holds exactly two
+      # keys, so "ttl-hours is not among them" is a real finding.
+      - documentIndex: 1
+        notExists:
+          path: spec.selector.matchLabels["lifecycle.pleme.io/ttl-hours"]
+
+  # ── the DENOMINATOR, pinned whole ────────────────────────────────────────
+  # Measured from the RENDERED projections, not counted twice from the
+  # catalog. An axis dropped from either plane moves a count; a discovery path
+  # that breaks entirely reports 0 across the board and this literal fails.
+  - it: census pins the denominator of both projections
+    set:
+      ephemeral:
+        enabled: true
+        correlationId: cc-example
+        ttlHours: 6
+        kinds: [Namespace]
+        reapedBy: example-reaper
+    asserts:
+      - documentIndex: 0
+        equal:
+          path: data.census
+          value: "axes=3 labels=3 selector=2 unstamped=0 ttlSource=ephemeral corrSource=ephemeral"
+      - documentIndex: 0
+        equal:
+          path: data.ttl
+          value: "6"
+
+  # ★ THE ZERO CONTROL. Off must report zero, not a plausible smaller number —
+  # this is what makes the pinned literal above a measurement rather than a
+  # restatement of the catalog.
+  - it: census reports ZERO on every plane when ephemeral is off
+    set:
+      ephemeral:
+        enabled: false
+    asserts:
+      - hasDocuments:
+          count: 1
+      - documentIndex: 0
+        equal:
+          path: data.census
+          value: "axes=0 labels=0 selector=0 unstamped=0 ttlSource=none corrSource=none"
+      - documentIndex: 0
+        equal:
+          path: data.ttl
+          value: ""
+
+  # ── one fact, one place ──────────────────────────────────────────────────
+  # The lifetime and the correlation key are NOT re-derived here when the cost
+  # plane already declares them. `ttlSource`/`corrSource` in the census is how
+  # "where did this number come from" stays answerable from the rendered
+  # output rather than by re-reading values.
+  - it: inherits correlationId and ttl from the cost plane rather than restating them
+    set:
+      finops:
+        enabled: true
+        correlationId: cc-example
+        feature: probe
+        costCentre: cc-example
+        requester: probe
+        ephemeral: true
+        ttlHours: 12
+      ephemeral:
+        enabled: true
+        kinds: [Namespace]
+        reapedBy: example-reaper
+    asserts:
+      - documentIndex: 0
+        equal:
+          path: data.census
+          value: "axes=3 labels=3 selector=2 unstamped=0 ttlSource=finops corrSource=finops"
+      - documentIndex: 0
+        equal:
+          path: metadata.labels["lifecycle.pleme.io/ttl-hours"]
+          value: "12"
+      - documentIndex: 1
+        equal:
+          path: spec.maxAgeHours
+          value: 12

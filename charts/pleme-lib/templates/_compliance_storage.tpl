@@ -24,6 +24,13 @@ allowlist (default: any class name containing "encrypted" or "fips").
 {{- end }}
 
 {{- define "pleme-lib.compliance.storage.validate" -}}
+{{- /* The storage POSTURE (ephemeral|durable) is validated here too, so this
+       stays the single storage validator entry point rather than two that a
+       caller has to remember to call both of. It is baseline-INDEPENDENT and
+       is therefore ALSO called ungated from _deployment.tpl / _statefulset.tpl;
+       it is idempotent (a pure guard, emitting nothing), so calling it twice
+       costs nothing. See _compliance_storage_posture.tpl. */ -}}
+{{- include "pleme-lib.compliance.storage.posture.validate" . -}}
 {{- $atLeastHigh := include "pleme-lib.compliance.atLeast" (list . "fedramp-high") -}}
 {{- if eq $atLeastHigh "true" -}}
   {{- $allowedJson := include "pleme-lib.compliance.storage.encryptedClasses" . -}}

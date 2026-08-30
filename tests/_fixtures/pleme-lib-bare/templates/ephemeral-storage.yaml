@@ -1,0 +1,31 @@
+{{/*
+Bare fixture: drive the STORAGE POSTURE guard and its two emitters in isolation.
+
+The probe renders a Pod rather than going through pleme-lib.deployment because
+the emitters produce a pod-spec FRAGMENT (`volumes:`) and a scalar (the memory
+ceiling), and a Pod is the smallest document that can carry both where a path
+assertion can reach them. Going through the Deployment would also have dragged
+in the whole security/compliance validator chain, so a red here would no longer
+name this guard.
+
+The memory ceiling is rendered as an annotation so the suite can assert it. It
+is also the suite's DENOMINATOR: the ceiling is DERIVED from the declared set,
+so a discovery path that broke and found nothing renders `0Mi` rather than the
+expected total, and the assertion goes red instead of quietly agreeing with an
+empty list.
+*/}}
+{{- include "pleme-lib.compliance.storage.posture.validate" . -}}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ .Release.Name }}-ephemeral-probe
+  annotations:
+    pleme.io/storage-posture: {{ include "pleme-lib.compliance.storage.posture" . | quote }}
+    pleme.io/storage-durability: {{ include "pleme-lib.compliance.storage.durability" . | quote }}
+    pleme.io/ephemeral-memory-ceiling: {{ include "pleme-lib.compliance.storage.ephemeral.memoryCeiling" . | quote }}
+spec:
+  containers:
+    - name: probe
+      image: example/probe:0.0.0
+  volumes:
+    {{- include "pleme-lib.compliance.storage.ephemeral.volumes" . | nindent 4 }}

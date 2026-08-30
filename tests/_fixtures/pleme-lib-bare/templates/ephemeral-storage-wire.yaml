@@ -1,0 +1,19 @@
+{{/*
+Bare fixture: prove the storage-posture guard is REACHED through the real
+workload entry points, not only through the bare probe.
+
+ONE template that renders ONE entry point, selected by `probe.wire`, because
+helm renders every template a suite lists and reports the FIRST one that errors.
+With both entry points rendering at once, a refusal raised by the Deployment is
+attributed to the StatefulSet's file and a `failedTemplate` scoped to the
+Deployment sees "No failed document" — green for the wrong reason, or red for
+one. Rendering exactly one makes the attribution unambiguous.
+
+Renders nothing when `probe.wire` is unset, so it costs the other suites nothing.
+*/}}
+{{- $wire := ((.Values.probe | default dict).wire | default "") | toString -}}
+{{- if eq $wire "deployment" }}
+{{- include "pleme-lib.deployment" . }}
+{{- else if eq $wire "statefulset" }}
+{{- include "pleme-lib.statefulset" . }}
+{{- end }}

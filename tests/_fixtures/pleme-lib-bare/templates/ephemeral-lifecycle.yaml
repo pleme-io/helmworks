@@ -1,0 +1,35 @@
+{{/*
+Bare fixture: exercise the _ephemeral_lifecycle.tpl family in isolation.
+
+Two documents so the STAMP and the MATCH can be asserted separately — they are
+projections of one catalog and the whole point is that neither can drift from
+the other, which is only observable if a test can see both.
+
+Gated on the PRESENCE of `.Values.ephemeral`, not on `.enabled`: the
+enabled=false-with-keys-declared contradiction is itself a refusal, and gating
+on `.enabled` would render nothing and skip the guard that catches it.
+*/}}
+{{- if .Values.ephemeral }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ephemeral-probe
+  {{- $stamp := include "pleme-lib.ephemeral.labels" . | trim }}
+  {{- if $stamp }}
+  labels:
+    {{- $stamp | nindent 4 }}
+  {{- end }}
+data:
+  census: {{ include "pleme-lib.ephemeral.census" . | quote }}
+  ttl: {{ include "pleme-lib.ephemeral.ttl" . | quote }}
+{{- $match := include "pleme-lib.ephemeral.match" . | trim }}
+{{- if $match }}
+---
+apiVersion: lifecycle.pleme.io/v1
+kind: LifecyclePolicyProbe
+metadata:
+  name: ephemeral-probe-policy
+spec:
+  {{- $match | nindent 2 }}
+{{- end }}
+{{- end }}

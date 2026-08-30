@@ -1,0 +1,4 @@
+{{/* Bare fixture: the GUARDS-ONLY entry point — validates, emits nothing.
+     A guard reachable from only the emitting path is a guard that a lint, a
+     dry run, or an annotations-only caller never runs. */}}
+{{- include "pleme-lib.pitr.guards" (dict "root" . "ctx" "fixture") -}}

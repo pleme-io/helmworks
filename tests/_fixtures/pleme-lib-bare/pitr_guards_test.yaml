@@ -1,0 +1,83 @@
+suite: pleme-lib bare-fixture — pleme-lib.pitr.guards (validate without emitting)
+#
+# The guards-only entry point, pinned to its own probe template, so the refusals
+# are proven to fire on a caller that emits NOTHING.
+#
+# Why this suite exists separately from pitr_test.yaml: _park.tpl records the
+# lesson in its own header — two of its guards once lived beside the patch that
+# emitted them, so a lint, a dry run, or an annotations-only caller computed the
+# same values and skipped the checks entirely, then reported a park that would
+# fail at apply. A guard reachable from only one of several entry points is a
+# guard that is sometimes not there. pitr puts every refusal behind ONE block
+# and this suite drives that block through a template whose whole output is the
+# empty string.
+#
+# The "emits nothing" assertion below is an ABSENCE assertion, so it ships with
+# two NEGATIVE CONTROLS: the same entry point still refuses a bad window and
+# still refuses unbounded retention. Without them, "emitted nothing" would read
+# exactly like "ran nothing".
+templates:
+  - templates/pitr-guards.yaml
+release:
+  name: t
+  namespace: testns
+defaults: &defaults
+  image.repository: ghcr.io/x/y
+  image.tag: "1.0.0"
+
+tests:
+  - it: the guards-only entry point emits nothing on a valid declaration
+    set:
+      <<: *defaults
+      pitr:
+        enabled: true
+        restore:
+          enabled: true
+          target: "2026-01-05T12:00:00Z"
+          window: { earliest: "2026-01-01T00:00:00Z", latest: "2026-01-08T00:00:00Z" }
+        snapshot:
+          enabled: true
+          schedule: "0 3 * * *"
+          retention: { days: 30 }
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: "NEGATIVE CONTROL — the guards-only entry point still refuses a bad window"
+    set:
+      <<: *defaults
+      pitr:
+        enabled: true
+        restore:
+          enabled: true
+          target: "2026-01-09T00:00:00Z"
+          window: { earliest: "2026-01-01T00:00:00Z", latest: "2026-01-08T00:00:00Z" }
+    asserts:
+      - failedTemplate:
+          errorPattern: "is ABOVE the window's latest restorable instant"
+
+  - it: "NEGATIVE CONTROL — the guards-only entry point still refuses unbounded retention"
+    set:
+      <<: *defaults
+      pitr:
+        enabled: true
+        snapshot:
+          enabled: true
+          schedule: "0 3 * * *"
+    asserts:
+      - failedTemplate:
+          errorPattern: "retention is unset"
+
+  - it: "NEGATIVE CONTROL — the guards-only entry point still refuses a mint-on-missing key"
+    set:
+      <<: *defaults
+      pitr:
+        enabled: true
+        restore:
+          enabled: true
+          target: "2026-01-05T12:00:00Z"
+          window: { earliest: "2026-01-01T00:00:00Z", latest: "2026-01-08T00:00:00Z" }
+          keyMaterial: { required: true, source: existingSecret, ref: probe-key, generateIfMissing: true }
+    asserts:
+      - failedTemplate:
+          errorPattern: "generateIfMissing/mint is set"

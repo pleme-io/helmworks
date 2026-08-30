@@ -2,7 +2,90 @@ apiVersion: v2
 name: pleme-lib
 description: Shared library chart for pleme-io internal services
 type: library
-version: 0.47.0
+version: 0.48.0
+# 0.48.0 (2026-08-30) -- the ephemeral-estate harvest: four primitives that each
+# make one class of "it looked governed and governed nothing" unrepresentable.
+#
+# templates/_finops.tpl              -- pleme-lib.finops.*      (7 defines)
+# templates/_ephemeral_lifecycle.tpl -- pleme-lib.ephemeral.*   (9 defines)
+# templates/_pitr.tpl                -- pleme-lib.pitr.*        (6 defines)
+# templates/_compliance_storage_posture.tpl
+#                                    -- pleme-lib.compliance.storage.* (7 defines)
+#
+# ALL FOUR ARE DEFAULT-OFF AND DEFAULT-DURABLE. An absent block renders nothing
+# and refuses nothing, so no existing consumer changes behaviour by upgrading.
+# That is asserted, not assumed: each suite carries a count:0 case plus a flip
+# control proving the same probe DOES emit once the block is declared, and the
+# storage default was red-run by flipping it to `ephemeral` (3 named tests red).
+#
+# THE ONE SHAPE THEY SHARE, and why it is four files and not one. Each primitive
+# owns a CATALOG and projects it; nothing hand-lists a projection twice:
+#   * finops.axes    -> labels (k8s) + tags (cloud), two ranges over one list,
+#                       so a key cannot exist on one plane and not the other.
+#   * ephemeral.axes -> labels + selector + match, so what a reaper SELECTS on
+#                       is derived from what was STAMPED rather than restated.
+#   * storage.ephemeral.volumes -> the pod volumes fragment AND their summed
+#                       memory ceiling, so a sizeLimit cannot drift from the sum.
+# Each also emits a CENSUS with the denominator inside the compared value
+# (`axes=N labelKeys=N tagKeys=N paired=N`, `boundsChecked=2`), measured by
+# re-parsing what was rendered rather than re-counting the input. A broken
+# discovery path therefore yields 0 and FAILS the literal, instead of quietly
+# reporting a smaller plausible number. Both were red-run by forcing a catalog
+# to [] -- 9 of 25 finops tests went red, the census among them.
+#
+# finops AND ephemeral BOTH carry correlation-id and ttl-hours, and that is NOT
+# duplication -- it is one fact reaching two consumers under two prefixes
+# (`finops.pleme.io/*` for the cost report, `lifecycle.pleme.io/*` for the
+# reaper). They are joined by an ENFORCED equality, not a convention:
+# ephemeral.resolved READS .Values.finops as the source, records which side won
+# (ttlSource/corrSource in the census), and REFUSES a disagreement rather than
+# resolving it -- because two spellings of "which instantiation is this" split
+# the footprint, the reaper enumerating one half and the cost report attributing
+# the other. The label-VALUE shape is `pleme-lib.finops.shapePattern`, included,
+# never a second regex.
+#
+# WHY EPHEMERAL STORAGE IS MEMORY-BACKED, and the boundary on that argument. Not
+# for speed: a drive is where UNDECLARED STATE HIDES, so removing it makes the
+# declaration the only thing that can put a byte on the substrate. That holds
+# only while storage is INCIDENTAL to what is under test -- when storage
+# BEHAVIOUR is under test a ramdisk is incoherent, since tmpfs is unthrottled
+# (an IO regression is invisible) and an overflow is an OOMKill rather than an
+# ENOSPC. Hence `posture: durable` by default and `ephemeral` opted into.
+#
+# THE REFUSAL `contains` CANNOT EXPRESS, and why it had to live in the template.
+# helm-unittest's `contains` subset matching is ONE LEVEL DEEP: nested maps go
+# through deep equality, so `{emptyDir: {medium: Memory}}` matches ZERO volumes
+# that also carry a sizeLimit. "Every volume is a bounded memory-backed
+# emptyDir" is therefore not assertable at all, and pinning one exact sizeLimit
+# matches only volumes of that size. Boundedness comes from the template's own
+# fail(), and the suite proves the fail() fires.
+#
+# FOUR TRAPS MEASURED HERE, each recorded at its point of use so nobody pays
+# for it twice:
+#   * `{{- if $v.emptyDir -}}` is FALSE for `emptyDir: {}` -- an empty map is
+#     falsy, and `emptyDir: {}` is precisely the node-disk scratch dir the guard
+#     exists to catch. It shipped that way in a first draft; it is `hasKey` now.
+#   * `$e.maxTtlHours | default 168` silently rewrote a deliberate
+#     `maxTtlHours: 0` -- the spelling that REMOVES the ceiling -- back to 168,
+#     so the guard never fired and its own red-run rendered GREEN. Same zeros-
+#     survive rule the 0.44.0 note records for `default 4 $b.max`.
+#   * A negated `containsDocument` with no `apiVersion` passes GREEN with the
+#     object present -- silently vacuous, no error. Every absence assertion here
+#     ships a committed positive control at the same (kind, apiVersion) pair.
+#   * `volumeClaimTemplates` is a FIELD, not a document, so "no PVC anywhere"
+#     goes green on a StatefulSet with three durable claims. It gets a separate
+#     `notExists`, with a durable-proof probe rendering a real claim as control.
+#
+# WHAT THESE CANNOT PROVE, stated plainly because the guards read stronger than
+# they are. `ephemeral.reapedBy` is a NAME, not a reader -- it refuses the
+# zero-reader shape (a correlation tag faithfully stamped that nothing ever
+# selected on) but cannot prove the reaper ran, exists, or holds credentials.
+# The pitr receipt proves the window was checked AT RENDER TIME against bounds
+# the CALLER declared; it cannot prove those bounds were true and cannot observe
+# the engine, so a stale `latest` still yields a green render and an engine
+# refusal. Closing that needs a controller re-deriving bounds from live inputs.
+# The rbac guard bounds the GRANT, never the CALL.
+#
 # 0.44.0 (2026-08-07) -- scaleToZero.v1: scale-to-zero as a declared QUALITY.
 #
 # templates/_scaletozero.tpl. `pleme-lib.scaleToZero.v1` +
