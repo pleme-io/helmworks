@@ -1,0 +1,13 @@
+{{- $out := include "pleme-lib.compose.layer" (dict
+      "base"  (.Values.cmp).base
+      "over"  (.Values.cmp).over
+      "keys"  (.Values.cmp).keys
+      "field" ((.Values.cmp).field | default "values")) | fromYamlArray }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: compose-probe
+data:
+  order: {{ range $e := $out }}{{ $e.name | default (printf "%s/%s" ($e.config | default "-") ($e.section | default "-")) }},{{ end }}
+  json: {{ $out | toJson | quote }}
+  count: {{ len $out | quote }}

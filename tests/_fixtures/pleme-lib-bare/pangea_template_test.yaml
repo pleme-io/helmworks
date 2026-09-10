@@ -1,0 +1,54 @@
+suite: pangea InfrastructureTemplate emission
+templates:
+  - pangea-template.yaml
+tests:
+
+  - it: emits a well-formed CR
+    set:
+      it: { name: r1, namespace: default, pangeaNamespace: roteador, inline: "{}" }
+    asserts:
+      - equal: { path: apiVersion, value: pangea.pleme.io/v1alpha1 }
+      - equal: { path: kind, value: InfrastructureTemplate }
+      - equal: { path: metadata.name, value: r1 }
+      - equal: { path: spec.pangeaNamespace, value: roteador }
+      - equal: { path: spec.executor, value: magma }
+
+  - it: pins the namespace rather than following the release
+    # ★ The operator watches a fixed namespace. A CR that follows the release
+    # lands where nothing reconciles: it applies cleanly, reports nothing, and
+    # does nothing — the most expensive kind of success.
+    release:
+      namespace: somewhere-else
+    set:
+      it: { name: r1, namespace: default, pangeaNamespace: roteador, inline: "{}" }
+    asserts:
+      - equal: { path: metadata.namespace, value: default }
+
+  - it: renders autoApprove as a real boolean, not a string
+    # ★ Quoted, the operator's deserializer sees a string and the field reads
+    # as absent — so a template declared self-healing silently is not.
+    set:
+      it: { name: r1, pangeaNamespace: roteador, autoApprove: true, inline: "{}" }
+    asserts:
+      - equal: { path: spec.autoApprove, value: true }
+
+  - it: carries suspend when asked, and omits it otherwise
+    set:
+      it: { name: r1, pangeaNamespace: roteador, suspend: true, inline: "{}" }
+    asserts:
+      - equal: { path: spec.suspend, value: true }
+
+  - it: refuses a template with no pangeaNamespace
+    # It is the state boundary. Defaulting it would let two unrelated
+    # declarations share one state file and fight over it.
+    set:
+      it: { name: r1, inline: "{}" }
+    asserts:
+      - failedTemplate: { errorPattern: 'pangeaNamespace' }
+
+  - it: refuses a template with no body
+    # An empty template reconciles to an empty plan, which reads as success.
+    set:
+      it: { name: r1, pangeaNamespace: roteador }
+    asserts:
+      - failedTemplate: { errorPattern: 'inline' }

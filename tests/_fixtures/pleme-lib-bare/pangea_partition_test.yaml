@@ -1,0 +1,69 @@
+suite: pangea approval partition — classes and the co-commit refusal
+templates:
+  - pangea-partition.yaml
+tests:
+  # ── Approval partition ────────────────────────────────────────────────────
+  - it: splits resources by their effective approval class
+    set:
+      part:
+        default: true
+        resources:
+          - { name: a, config: p1 }
+          - { name: b, config: p2, autoApprove: false }
+    asserts:
+      - equal: { path: data.auto, value: "1" }
+      - equal: { path: data.gated, value: "1" }
+
+  - it: "treats an explicit autoApprove=false as an override, not as absence"
+    # ★ hasKey, not truthiness. A plain `if` reads an explicit false as unset
+    # and silently inherits the chart default — turning a deliberately gated
+    # resource into a self-healing one, which is the failure that matters.
+    set:
+      part:
+        default: true
+        resources:
+          - { name: a, config: p1, autoApprove: false }
+    asserts:
+      - equal: { path: data.gated, value: "1" }
+      - equal: { path: data.auto, value: "0" }
+
+  - it: refuses a co-commit group straddling two approval classes
+    # ★ THE LOAD-BEARING REFUSAL. The executor commits per group, so the
+    # self-healing CR's commit also publishes the gated CR's un-approved
+    # changes — the gate stays visible and stops meaning anything.
+    set:
+      part:
+        default: true
+        coCommitKey: config
+        kind: UCI package
+        resources:
+          - { name: a, config: firewall }
+          - { name: b, config: firewall, autoApprove: false }
+    asserts:
+      - failedTemplate: { errorPattern: 'UCI package "firewall" is claimed by BOTH approval classes' }
+
+  - it: allows two classes in DIFFERENT co-commit groups
+    set:
+      part:
+        default: true
+        coCommitKey: config
+        resources:
+          - { name: a, config: firewall }
+          - { name: b, config: network, autoApprove: false }
+    asserts:
+      - equal: { path: data.auto, value: "1" }
+      - equal: { path: data.gated, value: "1" }
+
+  - it: skips the straddle check when the executor has no grouping
+    # Not every executor stages per-group; passing "" must disable the check
+    # rather than force a caller to invent a key.
+    set:
+      part:
+        default: true
+        resources:
+          - { name: a, config: firewall }
+          - { name: b, config: firewall, autoApprove: false }
+    asserts:
+      - equal: { path: data.auto, value: "1" }
+      - equal: { path: data.gated, value: "1" }
+

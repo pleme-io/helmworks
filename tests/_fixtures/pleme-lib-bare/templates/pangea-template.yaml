@@ -1,0 +1,10 @@
+{{- include "pleme-lib.pangea.infrastructureTemplate" (dict
+      "name"            (.Values.it).name
+      "namespace"       (.Values.it).namespace
+      "pangeaNamespace" (.Values.it).pangeaNamespace
+      "executor"        (.Values.it).executor
+      "autoApprove"     (.Values.it).autoApprove
+      "suspend"         (.Values.it).suspend
+      "labels"          (.Values.it).labels
+      "inline"          (.Values.it).inline
+      "ctx"             $) }}

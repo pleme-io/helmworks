@@ -1,0 +1,12 @@
+{{- $by := include "pleme-lib.pangea.approvalPartition" (dict
+      "resources"   (.Values.part).resources
+      "default"     ((.Values.part).default | default false)
+      "coCommitKey" ((.Values.part).coCommitKey | default "")
+      "kind"        ((.Values.part).kind | default "group")) | fromYaml }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: partition-probe
+data:
+  auto: {{ len (default (list) (index $by "auto")) | quote }}
+  gated: {{ len (default (list) (index $by "gated")) | quote }}

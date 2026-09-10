@@ -1,0 +1,103 @@
+suite: layering prescribed declarations over observed state
+templates:
+  - compose.yaml
+tests:
+  - it: lets the PRESCRIPTION win where both speak about one field
+    # ★ The direction is the whole point. Observed-wins would make a profile
+    # decorative — silently overridden by whatever the instance already had,
+    # which is exactly the state it exists to correct.
+    set:
+      cmp:
+        keys: [name]
+        base: [{ name: a, values: { role: STALE, owner: keep-me } }]
+        over: [{ name: a, values: { role: gateway } }]
+    asserts:
+      - matchRegex: { path: data.json, pattern: '"role":"gateway"' }
+      - notMatchRegex: { path: data.json, pattern: 'STALE' }
+
+  - it: merges per-FIELD, so untouched keys survive
+    # ★ Whole-entry replace would delete every option the prescription simply
+    # had no opinion on. That is data loss dressed as a merge, and it is
+    # invisible until something downstream needs the deleted key.
+    set:
+      cmp:
+        keys: [name]
+        base: [{ name: a, values: { role: STALE, owner: pleme-io, model: GL-MT6000 } }]
+        over: [{ name: a, values: { role: gateway } }]
+    asserts:
+      - matchRegex: { path: data.json, pattern: '"owner":"pleme-io"' }
+      - matchRegex: { path: data.json, pattern: '"model":"GL-MT6000"' }
+
+  - it: appends a prescribed entry that observed state has no counterpart for
+    set:
+      cmp:
+        keys: [name]
+        base: [{ name: a, values: { x: "1" } }]
+        over: [{ name: b, values: { y: "2" } }]
+    asserts:
+      - equal: { path: data.count, value: "2" }
+      - equal: { path: data.order, value: "a,b," }
+
+  - it: preserves observed order, with appends at the end
+    set:
+      cmp:
+        keys: [name]
+        base: [{ name: c }, { name: a }, { name: b }]
+        over: [{ name: z }, { name: a }]
+    asserts:
+      - equal: { path: data.order, value: "c,a,b,z," }
+
+  - it: keys on a COMPOUND identity, not a single field
+    # config+section is one identity; two entries sharing only `section` are
+    # different things and must not merge.
+    set:
+      cmp:
+        keys: [config, section]
+        field: values
+        base:
+          - { config: network, section: lan, values: { proto: dhcp } }
+          - { config: dhcp, section: lan, values: { start: "100" } }
+        over:
+          - { config: network, section: lan, values: { proto: static } }
+    asserts:
+      - equal: { path: data.count, value: "2" }
+      - matchRegex: { path: data.json, pattern: '"proto":"static"' }
+      - matchRegex: { path: data.json, pattern: '"start":"100"' }
+
+  - it: does not collide identities that differ only by separator placement
+    # ★ A dash joiner would make "a-b"+"c" and "a"+"b-c" the same key — a
+    # silent wrong merge, not an error. The joiner is NUL, which cannot occur
+    # in a YAML scalar.
+    set:
+      cmp:
+        keys: [config, section]
+        base:
+          - { config: "a-b", section: "c", values: { which: first } }
+          - { config: "a", section: "b-c", values: { which: second } }
+        over: []
+    asserts:
+      - equal: { path: data.count, value: "2" }
+      - matchRegex: { path: data.json, pattern: 'first' }
+      - matchRegex: { path: data.json, pattern: 'second' }
+
+  - it: refuses an empty key list
+    # With no identity fields every entry collides with every other, so the
+    # result would be one arbitrary survivor.
+    set:
+      cmp:
+        keys: []
+        base: [{ name: a }]
+        over: []
+    asserts:
+      - failedTemplate: { errorPattern: '`keys` is empty' }
+
+  - it: an empty prescription leaves observed state untouched
+    # The adoption property: declaring no intent must be a no-op, not a wipe.
+    set:
+      cmp:
+        keys: [name]
+        base: [{ name: a, values: { x: "1" } }, { name: b, values: { y: "2" } }]
+        over: []
+    asserts:
+      - equal: { path: data.count, value: "2" }
+      - matchRegex: { path: data.json, pattern: '"x":"1"' }
