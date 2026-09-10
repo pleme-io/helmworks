@@ -37,6 +37,13 @@ spec:
               value: {{ .Values.logging.level | quote }}
             - name: LAVA_OPERATOR_CLUSTER
               value: "rio"
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           ports:
             - name: metrics
               containerPort: {{ .Values.metrics.port }}
