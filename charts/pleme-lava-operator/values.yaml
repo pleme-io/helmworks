@@ -47,6 +47,20 @@ logging:
   format: json
 extraEnv: []
 extraEnvFrom: []
+# Terraform provider binaries the operator's embedded magma engine needs
+# at runtime (spawned via gRPC + PATH lookup). Each entry is a thin OCI
+# image whose entrypoint copies its binary into the shared emptyDir
+# volume mounted at `providerPlugins.mountPath`. Disabled by default so
+# the plain (drift-detection-only) install path stays a no-op — turn it
+# on when act-beat apply support is wanted end-to-end.
+providerPlugins:
+  enabled: false
+  mountPath: /var/lib/lava-operator/plugins
+  images: []
+  # Example (uncomment in the HelmRelease values):
+  #   images:
+  #     - name: discord
+  #       image: ghcr.io/pleme-io/lava-discord-provider:v2.7.0
 nodeSelector: {}
 tolerations: null
 affinity: {}
