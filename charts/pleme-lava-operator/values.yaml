@@ -45,6 +45,8 @@ metrics:
 logging:
   level: info
   format: json
+extraEnv: []
+extraEnvFrom: []
 nodeSelector: {}
 tolerations: null
 affinity: {}
