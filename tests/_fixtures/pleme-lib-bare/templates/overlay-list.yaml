@@ -1,0 +1,8 @@
+{{- $names := include "pleme-lib.overlay.list" . | fromYamlArray }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: overlay-list-probe
+data:
+  resolved: {{ $names | join "," | quote }}
+  count: {{ len $names | quote }}

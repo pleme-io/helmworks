@@ -93,46 +93,31 @@ prefix) that callers parse via `fromYamlArray`.
 {{- if eq (len $declared) 0 -}}
   {{- $declared = include "pleme-lib.overlay.synthesize" . | fromYamlArray -}}
 {{- end -}}
-{{- /* Validate every declared overlay name against the registry up
-       front. Doing this here (rather than in a separate
-       validateRegistry helper called only from compliance.validate)
-       means any consumer of the list — annotations, controls, manifest,
-       dispatch — gets a friendly fail() instead of the raw Go-template
-       "no template" error when the requires-walk hits an unknown name. */ -}}
+{{- /* ── Resolution is DELEGATED to the shared closed-registry primitive ──
+       Validate-then-expand-then-dedupe used to be written out here. It is now
+       `pleme-lib.registry.resolve`, extracted on a CONVERGENCE: the router
+       profile system in helmworks-pleme independently derived the same
+       algorithm — closed registry, fail on unknown, ordered walk — for UCI
+       sections rather than compliance controls. Two systems that never
+       coordinated arriving at one algorithm is evidence it is the problem's
+       shape, not one author's taste.
+
+       What did NOT move is the SURFACE. Overlays emit K8s fragments,
+       annotations and NIST control IDs; router profiles emit merged UCI
+       sections. Forcing those into one type would be a bad abstraction that
+       looks well-motivated, so the primitive owns names only.
+
+       Behaviour is pinned by tests/_fixtures/pleme-lib-bare/overlay_list_test.yaml,
+       written against the previous implementation BEFORE this delegation —
+       this function had no coverage at all until then, despite deciding which
+       compliance a workload receives. */ -}}
 {{- $registry := splitList "," (include "pleme-lib.overlay.registry" .) -}}
-{{- range $name := $declared -}}
-  {{- if not (has $name $registry) -}}
-    {{- fail (printf "compliance: unknown overlay %q (not in pleme-lib.overlay.registry: %v)" $name $registry) -}}
-  {{- end -}}
-{{- end -}}
-{{- /* Closure expansion: walk requires until fixpoint */ -}}
-{{- $resolved := list -}}
-{{- range $i := until 10 -}}
-  {{- $next := list -}}
-  {{- range $name := $declared -}}
-    {{- $req := include (printf "pleme-lib.overlay.%s.requires" $name) $ | trim -}}
-    {{- if $req -}}
-      {{- range $r := splitList "," $req -}}
-        {{- $rt := trim $r -}}
-        {{- if and $rt (not (has $rt $next)) (not (has $rt $declared)) -}}
-          {{- $next = append $next $rt -}}
-        {{- end -}}
-      {{- end -}}
-    {{- end -}}
-  {{- end -}}
-  {{- if eq (len $next) 0 -}}
-    {{- /* fixpoint reached */ -}}
-  {{- else -}}
-    {{- $declared = concat $next $declared -}}
-  {{- end -}}
-{{- end -}}
-{{- /* Dedup, preserve first-seen order */ -}}
-{{- range $n := $declared -}}
-  {{- if not (has $n $resolved) -}}
-    {{- $resolved = append $resolved $n -}}
-  {{- end -}}
-{{- end -}}
-{{- $resolved | toYaml -}}
+{{- include "pleme-lib.registry.resolve" (dict
+      "declared" $declared
+      "registry" $registry
+      "requires" "pleme-lib.overlay"
+      "kind"     "overlay"
+      "ctx"      $) -}}
 {{- end }}
 
 {{/*

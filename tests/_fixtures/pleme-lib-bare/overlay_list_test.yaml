@@ -1,0 +1,94 @@
+suite: overlay resolution — CHARACTERISATION of pleme-lib.overlay.list
+templates:
+  - overlay-list.yaml
+tests:
+  # ★ WHY THIS SUITE EXISTS.
+  #
+  # `pleme-lib.overlay.list` is the surface that decides which compliance
+  # overlays a workload gets — per this repo's own chart-tests.yml header, the
+  # surface "that decides whether Ruby reaches a FedRAMP boundary". It had
+  # ZERO test coverage: nothing in this fixture asserted a single thing about
+  # overlay resolution.
+  #
+  # These tests were written BEFORE refactoring that function to delegate to
+  # `pleme-lib.registry.resolve`, and they pin the behaviour that existed at
+  # that moment. That order is the whole point — a refactor of an untested
+  # load-bearing path is not a refactor, it is a rewrite with no oracle.
+  #
+  # If one of these fails after a change to the resolver, the resolver changed
+  # what compliance a workload receives. That is never a test to "just update".
+
+  - it: an overlay with no dependencies resolves to itself alone
+    set:
+      compliance:
+        overlays: [fips]
+    asserts:
+      - equal: { path: data.resolved, value: "fips" }
+
+  - it: pulls in a single-level dependency
+    # fedramp-high requires fedramp-moderate.
+    set:
+      compliance:
+        overlays: [fedramp-high]
+    asserts:
+      - equal: { path: data.count, value: "2" }
+      - matchRegex: { path: data.resolved, pattern: 'fedramp-high' }
+      - matchRegex: { path: data.resolved, pattern: 'fedramp-moderate' }
+
+  - it: expands a multi-level closure transitively
+    # dod-il5 -> {fedramp-high, airgap-consumer, supplychain, fips}
+    #            fedramp-high -> fedramp-moderate
+    set:
+      compliance:
+        overlays: [dod-il5]
+    asserts:
+      - equal: { path: data.count, value: "6" }
+      - matchRegex: { path: data.resolved, pattern: 'dod-il5' }
+      - matchRegex: { path: data.resolved, pattern: 'fedramp-moderate' }
+      - matchRegex: { path: data.resolved, pattern: 'fips' }
+      - matchRegex: { path: data.resolved, pattern: 'supplychain' }
+      - matchRegex: { path: data.resolved, pattern: 'airgap-consumer' }
+
+  - it: converges when two declared overlays share dependencies
+    # cmmc-l3 -> {fedramp-high, dod-il4, supplychain}; both fedramp-high and
+    # dod-il4 pull fedramp-moderate. It must appear exactly once.
+    set:
+      compliance:
+        overlays: [cmmc-l3]
+    asserts:
+      - equal: { path: data.count, value: "6" }
+      - matchRegex: { path: data.resolved, pattern: 'cmmc-l3' }
+      - matchRegex: { path: data.resolved, pattern: 'dod-il4' }
+
+  - it: does not duplicate an overlay declared twice
+    set:
+      compliance:
+        overlays: [fips, fips]
+    asserts:
+      - equal: { path: data.resolved, value: "fips" }
+
+  - it: does not duplicate an overlay that is also a dependency
+    # fedramp-moderate is declared AND required by fedramp-high.
+    set:
+      compliance:
+        overlays: [fedramp-high, fedramp-moderate]
+    asserts:
+      - equal: { path: data.count, value: "2" }
+
+  - it: refuses an overlay outside the registry
+    # ★ The refusal that keeps a typo from silently meaning "no compliance".
+    set:
+      compliance:
+        overlays: [fedramp-hihg]
+    asserts:
+      - failedTemplate: { errorPattern: 'fedramp-hihg' }
+
+  - it: refuses before attempting dependency expansion
+    # Order matters: the requires-walk includes a template named after the
+    # overlay, so an unknown name reaching it yields Go's raw "no template"
+    # error instead of a sentence naming the typo.
+    set:
+      compliance:
+        overlays: [not-a-real-overlay]
+    asserts:
+      - failedTemplate: { errorPattern: 'unknown overlay|not-a-real-overlay' }

@@ -1,0 +1,116 @@
+suite: the closed-registry resolver — order, closure, and refusal
+templates:
+  - registry.yaml
+tests:
+  # ── Order is a contract ───────────────────────────────────────────────────
+  - it: preserves first-seen declaration order
+    # ★ NOT an implementation detail. Callers LAYER these in sequence — a
+    # compliance overlay's annotations, a router profile's sections — so a
+    # resolver that returned a set would make the result depend on Go's map
+    # iteration order, which is deliberately randomised.
+    set:
+      reg:
+        declared: [gamma, alpha, beta]
+        registry: [alpha, beta, gamma]
+    asserts:
+      - equal: { path: data.resolved, value: "gamma,alpha,beta" }
+
+  - it: dedupes without disturbing the order of first appearance
+    set:
+      reg:
+        declared: [beta, alpha, beta, gamma, alpha]
+        registry: [alpha, beta, gamma]
+    asserts:
+      - equal: { path: data.resolved, value: "beta,alpha,gamma" }
+
+  # ── Refusal ───────────────────────────────────────────────────────────────
+  - it: refuses a name nobody defined
+    # ★ THE REASON THIS PRIMITIVE EXISTS. A typo'd name that resolved to
+    # nothing renders exactly like a unit with no opinions — silently absent,
+    # indistinguishable from correct. Both original systems independently
+    # decided this must be fatal.
+    set:
+      reg:
+        declared: [alpha, typoo]
+        registry: [alpha, beta]
+        kind: router profile
+    asserts:
+      - failedTemplate: { errorPattern: 'unknown router profile "typoo"' }
+
+  - it: names the legal set in the refusal, not just the bad name
+    # Knowing what is wrong without knowing what is allowed sends the reader
+    # to the source. The error carries the registry.
+    set:
+      reg:
+        declared: [nope]
+        registry: [alpha, beta, gamma]
+    asserts:
+      - failedTemplate: { errorPattern: 'alpha beta gamma' }
+
+  - it: refuses an EMPTY registry rather than refusing everything
+    # A registry with no members can only ever reject, which is never what a
+    # caller means — it means the registry template was renamed or misspelled.
+    # Failing loudly here beats a chart where every declaration is "unknown".
+    set:
+      reg:
+        declared: [alpha]
+        registry: []
+    asserts:
+      - failedTemplate: { errorPattern: 'empty registry' }
+
+  # ── Absence is not an error ───────────────────────────────────────────────
+  - it: resolves an empty declaration to empty, without complaint
+    # Declaring nothing is a legitimate posture. Only a WRONG name is fatal.
+    set:
+      reg:
+        declared: []
+        registry: [alpha, beta]
+    asserts:
+      - equal: { path: data.count, value: "0" }
+
+  # ── Closure ───────────────────────────────────────────────────────────────
+  - it: expands requires transitively to a fixpoint
+    # gamma -> beta -> alpha, declared as gamma alone.
+    set:
+      reg:
+        declared: [gamma]
+        registry: [alpha, beta, gamma]
+        requires: probe.unit
+    asserts:
+      - equal: { path: data.count, value: "3" }
+      - matchRegex: { path: data.resolved, pattern: 'alpha' }
+      - matchRegex: { path: data.resolved, pattern: 'beta' }
+
+  - it: terminates on a self-requiring unit instead of looping
+    # The bound is what makes this safe to run in a build. A unit that
+    # requires itself is a misdeclaration, and the resolver must still finish.
+    set:
+      reg:
+        declared: [cycle]
+        registry: [cycle]
+        requires: probe.unit
+    asserts:
+      - equal: { path: data.resolved, value: "cycle" }
+
+  - it: refuses a dependency on a unit nobody defined
+    # ★ MORE likely to go unnoticed than a bad declaration, because no human
+    # typed this name at the call site — it came from another unit's requires.
+    set:
+      reg:
+        declared: [dangling]
+        registry: [dangling]
+        requires: probe.unit
+        kind: overlay
+    asserts:
+      - failedTemplate: { errorPattern: 'requires unknown overlay "nonexistent"' }
+
+  - it: skips expansion entirely when no requires prefix is given
+    # ★ Router profiles have no dependency notion. Omitting the prefix must
+    # not force them to define empty `requires` templates purely to satisfy
+    # the resolver — that would be the abstraction taxing its second consumer.
+    set:
+      reg:
+        declared: [gamma]
+        registry: [alpha, beta, gamma]
+    asserts:
+      - equal: { path: data.resolved, value: "gamma" }

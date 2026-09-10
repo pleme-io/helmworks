@@ -1,0 +1,13 @@
+{{- $names := include "pleme-lib.registry.resolve" (dict
+      "declared" (.Values.reg).declared
+      "registry" (.Values.reg).registry
+      "requires" ((.Values.reg).requires | default "")
+      "kind"     ((.Values.reg).kind | default "unit")
+      "ctx"      $) | fromYamlArray }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: registry-probe
+data:
+  resolved: {{ $names | join "," | quote }}
+  count: {{ len $names | quote }}
