@@ -47,6 +47,11 @@ logging:
   format: json
 extraEnv: []
 extraEnvFrom: []
+# Referenced K8s Secret(s) of type `kubernetes.io/dockerconfigjson`
+# the operator's Deployment should use to pull the container image
+# from a private registry. Empty (default) = image assumed public.
+imagePullSecrets: []
+#  - name: ghcr-pull-secret
 # Terraform provider binaries the operator's embedded magma engine needs
 # at runtime (spawned via gRPC + PATH lookup). Each entry is a thin OCI
 # image whose entrypoint copies its binary into the shared emptyDir
