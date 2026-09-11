@@ -77,11 +77,19 @@ spec:
             - name: provider-plugins
               mountPath: {{ .Values.providerPlugins.mountPath | quote }}
               readOnly: true
+            - name: tmp
+              mountPath: /tmp
+            - name: workspaces
+              mountPath: /var/lib/lava-operator/workspaces
             {{- end }}
       volumes:
         - name: chains
           emptyDir: {}
         {{- if .Values.providerPlugins.enabled }}
         - name: provider-plugins
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+        - name: workspaces
           emptyDir: {}
         {{- end }}
