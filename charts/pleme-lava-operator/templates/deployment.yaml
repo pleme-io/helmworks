@@ -57,6 +57,8 @@ spec:
             {{- if .Values.providerPlugins.enabled }}
             - name: LAVA_OPERATOR_PROVIDER_PLUGIN_DIR
               value: {{ .Values.providerPlugins.mountPath | quote }}
+            - name: MAGMA_PROVIDER_DIR
+              value: {{ .Values.providerPlugins.mountPath | quote }}
             {{- end }}
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
