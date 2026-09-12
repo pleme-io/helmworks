@@ -1,3 +1,19 @@
+{{/*
+Probe for `pleme-lib.pangea.infrastructureTemplate`. Driven by `.Values.it`.
+
+★ GUARDED ON PRESENCE OF `it`, for the reason spelled out in registry.yaml:
+helm-unittest renders every template in the chart for a suite that does not
+scope itself, so an unconditional probe whose helper `required`s a field fails
+every such suite on an error about a template that suite never mentions.
+
+This one was the second of two. `required "name is required"` fired 10 times
+across `authentik_oidc_test.yaml` and `rbac_namespace_delete_test.yaml` — and
+because `release` is `needs: [charts]`, it kept pleme-lib from publishing at
+all. Guarding on `hasKey` rather than on the contents keeps the helper's own
+`required` reachable: a suite that sets `it` WITHOUT a name still renders this
+and still gets the refusal.
+*/}}
+{{- if hasKey .Values "it" }}
 {{- include "pleme-lib.pangea.infrastructureTemplate" (dict
       "name"            (.Values.it).name
       "namespace"       (.Values.it).namespace
@@ -6,5 +22,7 @@
       "autoApprove"     (.Values.it).autoApprove
       "suspend"         (.Values.it).suspend
       "labels"          (.Values.it).labels
+      "importHints"     (.Values.it).importHints
       "inline"          (.Values.it).inline
       "ctx"             $) }}
+{{- end }}

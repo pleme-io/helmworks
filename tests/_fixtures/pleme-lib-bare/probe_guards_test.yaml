@@ -1,0 +1,52 @@
+suite: RED-RUN — the guards must not have deleted the refusals they wrap
+set:
+  image.repository: ghcr.io/x/y
+  image.tag: "1.0.0"
+tests:
+  - it: "[1] it SET, name MISSING -> still refuses"
+    template: pangea-template.yaml
+    set:
+      it: { pangeaNamespace: x, inline: "{}" }
+    asserts:
+      - failedTemplate: { errorPattern: '`name` is required' }
+
+  - it: "[1-control] it SET, name PRESENT -> renders the CR"
+    template: pangea-template.yaml
+    set:
+      it: { name: probe, pangeaNamespace: x, inline: "{}" }
+    asserts:
+      - equal: { path: metadata.name, value: probe }
+
+  - it: "[2] reg SET, registry EMPTY -> still refuses"
+    template: registry.yaml
+    set:
+      reg: { declared: [alpha], registry: [] }
+    asserts:
+      - failedTemplate: { errorPattern: 'empty registry' }
+
+  - it: "[2-control] reg SET, registry POPULATED -> renders"
+    template: registry.yaml
+    set:
+      reg: { declared: [alpha], registry: [alpha, beta] }
+    asserts:
+      - equal: { path: data.resolved, value: "alpha" }
+
+  - it: "[3] cmp SET -> compose probe still renders"
+    template: compose.yaml
+    set:
+      cmp:
+        base: [{ config: a, section: b, values: { x: "1" } }]
+        over: [{ config: a, section: b, values: { y: "2" } }]
+        keys: [config, section]
+    asserts:
+      - equal: { path: data.count, value: "1" }
+
+  - it: "[4] part SET -> partition probe still renders"
+    template: pangea-partition.yaml
+    set:
+      part:
+        resources: [{ config: a }, { config: b, autoApprove: false }]
+        default: true
+    asserts:
+      - equal: { path: data.auto, value: "1" }
+      - equal: { path: data.gated, value: "1" }

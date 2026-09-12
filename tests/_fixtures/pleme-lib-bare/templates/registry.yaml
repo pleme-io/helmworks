@@ -1,3 +1,32 @@
+{{/*
+Probe for `pleme-lib.registry.resolve`. Driven entirely by `.Values.reg`.
+
+★ SELF-GUARDED, AND THAT GUARD IS LOAD-BEARING — NOT TIDINESS.
+
+helm-unittest renders EVERY template in the chart for a suite that declares no
+`templates:` scope. This probe's whole job is to REFUSE bad input, so unguarded
+it refuses for every such suite in the fixture and fails it on an error that has
+nothing to do with what that suite tests.
+
+Measured 2026-09-12: exactly that. `authentik_oidc_test.yaml` and
+`rbac_namespace_delete_test.yaml` are the two of 48 suites with no `templates:`
+scope, and both went red — 15 failed + 10 errored — on
+`registry.yaml:1:14 … empty registry for unit`, a message about a probe neither
+suite mentions. The fixture's other 46 suites scope themselves and never saw it.
+It landed with pleme-lib 0.49.0 and BLOCKED EVERY RELEASE SINCE, because
+`release` is `needs: [charts]` — so an unrelated chart's pin to an unpublished
+version is the symptom a reader meets first.
+
+★ THE GUARD IS ON PRESENCE OF `reg`, NEVER ON ITS CONTENTS. `{{ if .Values.reg.registry }}`
+would have been the reflex and it would silently delete a test: the suite's
+`refuses an EMPTY registry rather than refusing everything` case sets
+`reg: {declared: [alpha], registry: []}` on purpose, and a truthiness guard makes
+that render nothing and the `failedTemplate` assert stop firing. An absent `reg`
+means "this suite is not about the registry"; a present one with an empty
+registry is the misdeclaration the primitive exists to catch. Different
+statements, and only `hasKey` tells them apart.
+*/}}
+{{- if hasKey .Values "reg" }}
 {{- $names := include "pleme-lib.registry.resolve" (dict
       "declared" (.Values.reg).declared
       "registry" (.Values.reg).registry
@@ -11,3 +40,4 @@ metadata:
 data:
   resolved: {{ $names | join "," | quote }}
   count: {{ len $names | quote }}
+{{- end }}

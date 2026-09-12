@@ -1,3 +1,5 @@
+{{/* Guarded on presence of `cmp` — see registry.yaml for the class. */}}
+{{- if hasKey .Values "cmp" }}
 {{- $out := include "pleme-lib.compose.layer" (dict
       "base"  (.Values.cmp).base
       "over"  (.Values.cmp).over
@@ -11,3 +13,4 @@ data:
   order: {{ range $e := $out }}{{ $e.name | default (printf "%s/%s" ($e.config | default "-") ($e.section | default "-")) }},{{ end }}
   json: {{ $out | toJson | quote }}
   count: {{ len $out | quote }}
+{{- end }}
