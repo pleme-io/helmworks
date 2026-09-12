@@ -2,7 +2,31 @@ apiVersion: v2
 name: pleme-lib
 description: Shared library chart for pleme-io internal services
 type: library
-version: 0.50.0
+version: 0.51.0
+# 0.51.0 (2026-09-12) -- pangea.infrastructureTemplate: `importHints`.
+#
+# A map of terraform ADDRESS -> existing resource ID, emitted `with` like every
+# other optional field. It is what lets a template ADOPT infrastructure that
+# already exists rather than propose to create it.
+#
+# WHY IT HAD TO BE A FIELD HERE. A template applied against real infrastructure
+# with EMPTY state plans CREATE for every resource, and a create over something
+# that already exists is the destructive case -- it either errors and wedges the
+# template, or succeeds and overwrites. The adoption ids are typically derived
+# and already committed beside the chart; with no way to DECLARE them they sit
+# in a file nothing reads, and adoption stays a manual out-of-band step whose
+# state is not the operator's. Measured in pleme-io/nix on 2026-09-12: a router
+# template with 90 committed adoption ids, 0 resources in state, and no path
+# from one to the other.
+#
+# EMITTED ONLY `with`, and that is not stylistic. An empty map and "no hints"
+# are different statements to a reconciler that reports what it was asked to do,
+# so a template with nothing to adopt must carry no key at all. Same rule the
+# suspend/approvedPlanHash/variables fields above already follow.
+#
+# Additive: absent `importHints` renders byte-identically to 0.50.0, so no
+# existing consumer changes behaviour by upgrading.
+#
 # 0.48.0 (2026-08-30) -- the ephemeral-estate harvest: four primitives that each
 # make one class of "it looked governed and governed nothing" unrepresentable.
 #

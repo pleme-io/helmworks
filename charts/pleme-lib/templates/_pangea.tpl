@@ -115,6 +115,28 @@ spec:
   variables:
     {{- toYaml . | nindent 4 }}
   {{- end }}
+  {{- /* ── ★★ ADOPTION IDENTITIES, DECLARED ───────────────────────────────
+         `importHints` is a map of terraform ADDRESS -> existing resource ID.
+         It is what lets a template adopt infrastructure that already exists
+         instead of proposing to create it.
+
+         Why it earns a field here rather than living beside the chart: a
+         template applied against real infrastructure with EMPTY state plans
+         CREATE for every resource, and a create over an existing resource is
+         the destructive case — it either errors and wedges the template, or
+         succeeds and overwrites something nobody meant to touch. The adoption
+         ids are usually derived and committed already; without a way to
+         DECLARE them they sit in a file nothing reads, and the adoption stays
+         a manual out-of-band step whose state is not the operator's.
+
+         Emitted only `with`, like every optional field above: a template that
+         has nothing to adopt must not carry an empty map, because an empty map
+         and "no hints" are different statements to a reconciler that reports
+         what it was asked to do. */}}
+  {{- with .importHints }}
+  importHints:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   source:
     inline: |
       {{- .inline | required "pleme-lib.pangea.infrastructureTemplate: `inline` is required — a template with no body reconciles to an empty plan, which reads as success" | nindent 6 }}
