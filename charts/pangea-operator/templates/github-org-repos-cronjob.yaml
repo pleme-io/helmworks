@@ -24,16 +24,16 @@ metadata:
     app.kubernetes.io/managed-by: {{ .Release.Service | quote }}
     pangea.pleme.io/owner: pleme-io
 spec:
-  schedule: {{ $cj.schedule | default "*/30 * * * *" | quote }}
+  schedule: {{ $cj.schedule | quote }}
   # A resolve that is still running when the next tick fires is a resolve
   # against a cluster still mid-write from the last one — never overlap.
   concurrencyPolicy: Forbid
-  successfulJobsHistoryLimit: {{ $cj.successfulJobsHistoryLimit | default 3 }}
-  failedJobsHistoryLimit: {{ $cj.failedJobsHistoryLimit | default 3 }}
+  successfulJobsHistoryLimit: {{ $cj.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ $cj.failedJobsHistoryLimit }}
   jobTemplate:
     spec:
-      backoffLimit: {{ $cj.backoffLimit | default 3 }}
-      activeDeadlineSeconds: {{ $cj.activeDeadlineSeconds | default 600 }}
+      backoffLimit: {{ $cj.backoffLimit }}
+      activeDeadlineSeconds: {{ $cj.activeDeadlineSeconds }}
       template:
         metadata:
           labels:
@@ -41,7 +41,17 @@ spec:
             pangea.pleme.io/owner: pleme-io
         spec:
           restartPolicy: Never
-          automountServiceAccountToken: {{ $cj.automountServiceAccountToken | default true }}
+          # ★ NO `| default true` HERE — Sprig's `default` treats the
+          # BOOLEAN `false` as empty and silently substitutes the default,
+          # which is exactly backwards for a field whose whole point is to
+          # be turned OFF. values.yaml already supplies the chart-level
+          # default (true), so $cj.automountServiceAccountToken is never
+          # unset by the time this renders — measured 2026-09-22: with the
+          # `| default true` pipe, ryn's explicit `false` override rendered
+          # as `true` anyway, silently exposing the ServiceAccount token to
+          # a pod on a runtime (engenho native) that specifically cannot
+          # authenticate with it.
+          automountServiceAccountToken: {{ $cj.automountServiceAccountToken }}
           containers:
             - name: resolve
               image: {{ required "githubOrgReconciliation.cronJob.image is required when githubOrgReconciliation.enable is true" $cj.image }}
