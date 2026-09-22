@@ -15,6 +15,34 @@ sanctioned apply path, matching the operator's own bring-up in this chart's
 README.
 */}}
 {{- if .Values.githubOrgReconciliation.enable }}
+{{/*
+The PangeaNamespace this CR's spec.pangeaNamespace names — a state
+boundary in the operator's own backend (one postgres schema per
+namespace), REQUIRED to exist before the CR can reconcile at all.
+Cluster-scoped (no `namespace:` under metadata — matches every existing
+PangeaNamespace, e.g. the operator's own "local-smoke" smoke workspace).
+Missing this renders "PangeaNamespace not found: <name>" — measured
+2026-09-22 applying this chart's own CR before this object existed.
+*/}}
+apiVersion: pangea.pleme.io/v1alpha1
+kind: PangeaNamespace
+metadata:
+  name: {{ .Values.githubOrgReconciliation.pangeaNamespace | default "pleme-io-github" }}
+  labels:
+    app.kubernetes.io/managed-by: {{ .Release.Service | quote }}
+    pangea.pleme.io/owner: pleme-io
+spec:
+  backend:
+    type: pg
+    pg:
+      host: {{ .Values.githubOrgReconciliation.pgBackend.host | default "127.0.0.1" }}
+      port: {{ .Values.githubOrgReconciliation.pgBackend.port | default 5432 }}
+      database: {{ .Values.githubOrgReconciliation.pgBackend.database | default "pangea_state" }}
+      sslMode: {{ .Values.githubOrgReconciliation.pgBackend.sslMode | default "disable" }}
+      secretRef:
+        name: {{ .Values.githubOrgReconciliation.pgBackend.secretRef.name | default "pangea-postgres" }}
+        namespace: {{ .Values.githubOrgReconciliation.pgBackend.secretRef.namespace | default .Release.Namespace }}
+---
 apiVersion: pangea.pleme.io/v1alpha1
 kind: InfrastructureTemplate
 metadata:

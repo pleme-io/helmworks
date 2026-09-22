@@ -1162,6 +1162,18 @@ githubOrgReconciliation:
   credentialSecret:
     name: github-api-token
     namespace: pleme-io-opensource
+  # The PangeaNamespace this CR's pangeaNamespace names (a postgres schema
+  # in the operator's OWN state backend) — defaults match the operator's
+  # own smoke-workspace backend (values.yaml's executor.magma.postgres),
+  # since it's the same postgres instance on a single-node engenho.
+  pgBackend:
+    host: 127.0.0.1
+    port: 5432
+    database: pangea_state
+    sslMode: disable
+    secretRef:
+      name: pangea-postgres
+      # namespace: defaults to .Release.Namespace at render time
   cronJob:
     schedule: "*/30 * * * *"
     backoffLimit: 3
