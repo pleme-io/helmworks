@@ -1,0 +1,58 @@
+{{/*
+The pleme-io GitHub-org InfrastructureTemplate CR — the STABLE half only
+(identity, dialect, credentials, policy). `spec.variables` is deliberately
+absent here: it is DERIVED from org.yaml against live GitHub and belongs to
+whichever mechanism runs githubOrgReconciliation.cronJob below, never to a
+committed values file. A committed snapshot of a resolution would actively
+revert a real org.yaml edit on the next reconcile — see
+nodes/plo/pangea-org-catalogue.nix's header for the incident this shape
+avoids repeating.
+
+Read as a template, not applied by any Flux/Helm-release loop on a node
+whose engenho has none of its own (see docs/github-org-reconciliation-ryn.md)
+— `helm template ... | kubectl apply --server-side --force-conflicts` is the
+sanctioned apply path, matching the operator's own bring-up in this chart's
+README.
+*/}}
+{{- if .Values.githubOrgReconciliation.enable }}
+apiVersion: pangea.pleme.io/v1alpha1
+kind: InfrastructureTemplate
+metadata:
+  name: {{ .Values.githubOrgReconciliation.name | default "pleme-io-github-repos" }}
+  namespace: {{ .Values.githubOrgReconciliation.namespace | default "default" }}
+  labels:
+    app.kubernetes.io/managed-by: {{ .Release.Service | quote }}
+    pangea.pleme.io/owner: pleme-io
+spec:
+  templateName: github-org-repos
+  # lava (tatara-lisp), stated rather than sniffed — see
+  # nodes/plo/pangea-org-catalogue.nix's header on why `Dialect::Auto` would
+  # be wrong here.
+  dialect: lava
+  # Empty on purpose: with templateName + lava dialect the architecture is
+  # resolved from LAVA_ARCHITECTURE_CATALOG, so there is no per-CR body.
+  source: {}
+  pangeaNamespace: {{ .Values.githubOrgReconciliation.pangeaNamespace | default "pleme-io-github" }}
+  providerCredentials:
+    github:
+      secretRef:
+        name: {{ .Values.githubOrgReconciliation.credentialSecret.name | default "github-api-token" }}
+        namespace: {{ .Values.githubOrgReconciliation.credentialSecret.namespace | default "pleme-io-opensource" }}
+  # ★ autoApprove does NOT gate applies — it decides only whether DRIFT
+  # correction re-enters the plan/apply cycle by itself
+  # (executor/policy.rs's own header). What permits ordinary applies is the
+  # policy engine's default AutoApply fallthrough; what protects the
+  # estate is destroyProtection below. See nodes/plo/pangea-org-catalogue
+  # .nix's header for the full, corrected reasoning — do not re-derive it
+  # from the field name.
+  autoApprove: true
+  # The one setting that actually protects the estate from a bad plan.
+  destroyProtection: true
+  refreshInterval: {{ .Values.githubOrgReconciliation.refreshInterval | default "60m" | quote }}
+  {{- if hasKey .Values.githubOrgReconciliation "suspend" }}
+  # Set only when a human is deliberately suspending reconciliation —
+  # omitted (not `false`) is the safety property that lets a hand-set
+  # suspension survive every re-render. See plo's file for the asymmetry.
+  suspend: {{ .Values.githubOrgReconciliation.suspend }}
+  {{- end }}
+{{- end }}

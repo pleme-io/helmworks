@@ -1,0 +1,76 @@
+{{/*
+The derived half of github-org-repos.yaml's CR: a CronJob that resolves
+org.yaml against live GitHub and patches the result into the
+InfrastructureTemplate's spec.variables. Deliberately a plain Kubernetes
+CronJob rather than a host-level launchd/systemd unit — see
+docs/github-org-reconciliation-ryn.md for why: this is a periodic,
+cluster-native concern, and Kubernetes' own CronJob controller already
+gives concurrency control, a backoff bound and job history for free,
+instead of a hand-rolled retry loop translated per host OS.
+
+Everything about HOW the resolve+patch command runs (image, command, volumes)
+is caller-supplied — this template does not assume an OCI-image cluster or a
+native-closure one. See helmworks/charts/pangea-operator/README.md's ryn
+example for the native-closure values shape.
+*/}}
+{{- if .Values.githubOrgReconciliation.enable }}
+{{- $cj := .Values.githubOrgReconciliation.cronJob -}}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ .Values.githubOrgReconciliation.name | default "pleme-io-github-repos" }}-variables
+  namespace: {{ .Values.githubOrgReconciliation.namespace | default "default" }}
+  labels:
+    app.kubernetes.io/managed-by: {{ .Release.Service | quote }}
+    pangea.pleme.io/owner: pleme-io
+spec:
+  schedule: {{ $cj.schedule | default "*/30 * * * *" | quote }}
+  # A resolve that is still running when the next tick fires is a resolve
+  # against a cluster still mid-write from the last one — never overlap.
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: {{ $cj.successfulJobsHistoryLimit | default 3 }}
+  failedJobsHistoryLimit: {{ $cj.failedJobsHistoryLimit | default 3 }}
+  jobTemplate:
+    spec:
+      backoffLimit: {{ $cj.backoffLimit | default 3 }}
+      activeDeadlineSeconds: {{ $cj.activeDeadlineSeconds | default 600 }}
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/managed-by: {{ .Release.Service | quote }}
+            pangea.pleme.io/owner: pleme-io
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: {{ $cj.automountServiceAccountToken | default true }}
+          containers:
+            - name: resolve
+              image: {{ required "githubOrgReconciliation.cronJob.image is required when githubOrgReconciliation.enable is true" $cj.image }}
+              {{- with $cj.command }}
+              command:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              {{- with $cj.args }}
+              args:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              {{- with $cj.env }}
+              env:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              {{- with $cj.volumeMounts }}
+              volumeMounts:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              {{- with $cj.securityContext }}
+              securityContext:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              {{- with $cj.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+          {{- with $cj.volumes }}
+          volumes:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}

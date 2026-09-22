@@ -1138,6 +1138,46 @@ prometheusRules:
 #   * globalSuspend=true             → every controller skips
 #   * controllerSuspend.<kind>=true  → only that controller skips
 #   * spec.suspend=true on a CR      → only that CR is skipped
+# ── see templates/github-org-repos{,-cronjob}.yaml ──────────────────────
+#
+# The pleme-io GitHub-org InfrastructureTemplate CR (stable half) plus the
+# CronJob that derives its spec.variables from org.yaml against live
+# GitHub. Off by default — every OTHER consumer of this chart (camelot,
+# rio, …) does not want a second org-wide reconciler racing plo's or ryn's.
+# Enable on exactly ONE reconciling node per cluster.
+#
+# `cronJob.image`/`command` are deliberately unopinionated about OCI vs.
+# native-closure — see this chart's README for a worked native-closure
+# example (an engenho "native" kubelet backend node, which refuses OCI
+# images outright and needs `image: nix:<store-path>`).
+githubOrgReconciliation:
+  enable: false
+  name: pleme-io-github-repos
+  namespace: default
+  pangeaNamespace: pleme-io-github
+  refreshInterval: 60m
+  # suspend: intentionally absent by default — see
+  # templates/github-org-repos.yaml's comment on the omitted-not-false
+  # asymmetry. Set explicitly only to deliberately suspend.
+  credentialSecret:
+    name: github-api-token
+    namespace: pleme-io-opensource
+  cronJob:
+    schedule: "*/30 * * * *"
+    backoffLimit: 3
+    activeDeadlineSeconds: 600
+    successfulJobsHistoryLimit: 3
+    failedJobsHistoryLimit: 3
+    automountServiceAccountToken: true
+    # image: (required when enable: true)
+    # command: []
+    # args: []
+    # env: []
+    # volumeMounts: []
+    # volumes: []
+    # securityContext: {}
+    # resources: {}
+
 operatorPolicy:
   # Whether to ship the singleton `OperatorPolicy/default` CR. Set to
   # false if managing the policy externally (e.g., via Flux + a
