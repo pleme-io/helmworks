@@ -77,6 +77,22 @@ spec:
   # The one setting that actually protects the estate from a bad plan.
   destroyProtection: true
   refreshInterval: {{ .Values.githubOrgReconciliation.refreshInterval | default "60m" | quote }}
+  {{/*
+  Chart defaults here are 10m/30m -- sized for a small workspace. This one
+  is ~2000 resources; measured 2026-09-22 on ryn's first real apply, the
+  plan phase alone ran past 600s (the operator's separate per-command
+  PANGEA_TIMEOUT, raised alongside this in engenho-pangea-stack.nix) and the
+  CR self-healed to Failed mid-cycle -- the exact "workspace has outgrown
+  its reconcile envelope" shape the pleme-io-github-posture skill documents
+  for this same workspace on plo (M1), fixed there with these same values
+  (15m/45m). Both bounds are static and will go stale again as the org
+  grows; see that skill section for the real, unbuilt fix (derive from
+  measured phase duration).
+  */}}
+  reactivePolicy:
+    phaseTimeout:
+      planning: {{ .Values.githubOrgReconciliation.phaseTimeout.planning | default "15m" | quote }}
+      applying: {{ .Values.githubOrgReconciliation.phaseTimeout.applying | default "45m" | quote }}
   {{- if hasKey .Values.githubOrgReconciliation "suspend" }}
   # Set only when a human is deliberately suspending reconciliation —
   # omitted (not `false`) is the safety property that lets a hand-set

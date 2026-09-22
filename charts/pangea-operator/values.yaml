@@ -1156,6 +1156,12 @@ githubOrgReconciliation:
   namespace: default
   pangeaNamespace: pleme-io-github
   refreshInterval: 60m
+  # Chart defaults would be 10m/30m -- raised for this workspace's actual
+  # scale (~2000 resources). See templates/github-org-repos.yaml's comment
+  # on the 2026-09-22 PhaseTimeout incident these values fix.
+  phaseTimeout:
+    planning: 15m
+    applying: 45m
   # suspend: intentionally absent by default — see
   # templates/github-org-repos.yaml's comment on the omitted-not-false
   # asymmetry. Set explicitly only to deliberately suspend.
