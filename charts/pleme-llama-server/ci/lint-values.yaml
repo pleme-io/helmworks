@@ -1,0 +1,10 @@
+# Values used ONLY for `helm lint` / `helm template` validation in CI: forge's
+# release lint and substrate's helm-unittest gate both read ci/lint-values.yaml.
+# values.schema.json REQUIRES a non-empty image.repository and a .gguf
+# model.path, and the defaults leave both empty on purpose, so a deployment that
+# forgets either is refused at install. These placeholders let the chart lint
+# without weakening that refusal.
+image:
+  repository: nix:/nix/store/00000000000000000000000000000000-llama-cpp-lint
+model:
+  path: /nix/store/00000000000000000000000000000000-model-lint/model.gguf
