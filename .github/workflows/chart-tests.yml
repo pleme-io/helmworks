@@ -49,3 +49,6 @@ jobs:
       # require editing this file, while a repo that silently loses most of
       # them still fails.
       chartsWithTestsFloor: 7
+      # The external suite tree (tests/<chart>/*_test.yaml), in lockstep with
+      # auto-release.yml's `charts:` job; see its comment.
+      externalTestsDir: tests
