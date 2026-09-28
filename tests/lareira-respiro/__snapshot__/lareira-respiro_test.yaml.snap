@@ -10,7 +10,7 @@ full-on spine renders the complete document set (snapshot):
         app.kubernetes.io/name: lareira-respiro
         app.kubernetes.io/part-of: nexus-platform
         app.kubernetes.io/version: 0.1.0
-        helm.sh/chart: lareira-respiro-0.1.0
+        helm.sh/chart: lareira-respiro-0.1.9
       name: respiro-lareira-respiro-consumer-memory
       namespace: respiro
     spec:
@@ -22,6 +22,7 @@ full-on spine renders the complete document set (snapshot):
       growAbove: 0.85
       growFactor: 1.25
       maxStalenessSeconds: 120
+      mode: shadow
       setpoint: 0.8
       shrinkBelow: 0.7
       shrinkFactor: 0.9
@@ -30,6 +31,53 @@ full-on spine renders the complete document set (snapshot):
         kind: Deployment
         name: respiro-lareira-respiro-consumer
   2: |
+    apiVersion: v1
+    data:
+      connect.yaml: |
+        http:
+          address: 0.0.0.0:4195
+          enabled: true
+        input:
+          nats_jetstream:
+            urls: ["nats://pleme-nats.nats.svc:4222"]
+            subject: "audit.>"
+            stream: "AUDIT"
+            durable: "respiro"
+            bind: true
+            deliver: all
+            ack_wait: "60s"
+            max_ack_pending: 1
+        output:
+          http_client:
+            url: "http://victoria-logs.monitoring.svc:9428/insert/jsonline"
+            verb: POST
+            headers:
+              Content-Type: application/stream+json
+            batching:
+              count: 200
+              period: 1s
+              processors:
+                - archive:
+                    format: lines
+        metrics:
+          prometheus: {}
+        logger:
+          level: INFO
+          format: json
+    kind: ConfigMap
+    metadata:
+      labels:
+        app: respiro-lareira-respiro
+        app.kubernetes.io/component: respiro-consumer
+        app.kubernetes.io/instance: respiro
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: lareira-respiro
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.1.0
+        helm.sh/chart: lareira-respiro-0.1.9
+      name: respiro-lareira-respiro-consumer-connect
+      namespace: respiro
+  3: |
     apiVersion: apps/v1
     kind: Deployment
     metadata:
@@ -41,7 +89,7 @@ full-on spine renders the complete document set (snapshot):
         app.kubernetes.io/name: lareira-respiro
         app.kubernetes.io/part-of: nexus-platform
         app.kubernetes.io/version: 0.1.0
-        helm.sh/chart: lareira-respiro-0.1.0
+        helm.sh/chart: lareira-respiro-0.1.9
       name: respiro-lareira-respiro-consumer
       namespace: respiro
     spec:
@@ -53,6 +101,8 @@ full-on spine renders the complete document set (snapshot):
           app.kubernetes.io/name: lareira-respiro
       template:
         metadata:
+          annotations:
+            checksum/config: 0e08a1ff1514835f416020985ed558efc437a298f244a90316ae8289b2856724
           labels:
             app: respiro-lareira-respiro-consumer
             app.kubernetes.io/component: respiro-consumer
@@ -60,18 +110,14 @@ full-on spine renders the complete document set (snapshot):
             app.kubernetes.io/name: lareira-respiro
         spec:
           containers:
-            - env:
-                - name: NATS_URL
-                  value: nats://pleme-nats.nats.svc:4222
-                - name: RESPIRO_STREAM
-                  value: AUDIT
-                - name: RESPIRO_CONSUMER
-                  value: respiro
-              image: ghcr.io/pleme-io/respiro-consumer:latest
+            - args:
+                - run
+                - /etc/connect/connect.yaml
+              image: docker.io/redpandadata/connect:4.40.0
               imagePullPolicy: IfNotPresent
               name: consumer
               ports:
-                - containerPort: 9090
+                - containerPort: 4195
                   name: metrics
                   protocol: TCP
               resources:
@@ -80,18 +126,26 @@ full-on spine renders the complete document set (snapshot):
                   memory: 2Gi
                 requests:
                   cpu: 100m
-                  memory: 256Mi
+                  memory: 128Mi
               securityContext:
                 allowPrivilegeEscalation: false
                 capabilities:
                   drop:
                     - ALL
-                readOnlyRootFilesystem: true
+                readOnlyRootFilesystem: false
+              volumeMounts:
+                - mountPath: /etc/connect
+                  name: connect-config
+                  readOnly: true
           securityContext:
             runAsNonRoot: true
             runAsUser: 1000
           serviceAccountName: default
-  3: |
+          volumes:
+            - configMap:
+                name: respiro-lareira-respiro-consumer-connect
+              name: connect-config
+  4: |
     apiVersion: v1
     kind: Service
     metadata:
@@ -103,7 +157,7 @@ full-on spine renders the complete document set (snapshot):
         app.kubernetes.io/name: lareira-respiro
         app.kubernetes.io/part-of: nexus-platform
         app.kubernetes.io/version: 0.1.0
-        helm.sh/chart: lareira-respiro-0.1.0
+        helm.sh/chart: lareira-respiro-0.1.9
       name: respiro-lareira-respiro-consumer
       namespace: respiro
     spec:
@@ -116,7 +170,7 @@ full-on spine renders the complete document set (snapshot):
         app.kubernetes.io/component: respiro-consumer
         app.kubernetes.io/instance: respiro
         app.kubernetes.io/name: lareira-respiro
-  4: |
+  5: |
     apiVersion: keda.sh/v1alpha1
     kind: ScaledObject
     metadata:
@@ -127,7 +181,7 @@ full-on spine renders the complete document set (snapshot):
         app.kubernetes.io/name: lareira-respiro
         app.kubernetes.io/part-of: nexus-platform
         app.kubernetes.io/version: 0.1.0
-        helm.sh/chart: lareira-respiro-0.1.0
+        helm.sh/chart: lareira-respiro-0.1.9
       name: respiro-lareira-respiro
     spec:
       cooldownPeriod: 300
@@ -139,13 +193,14 @@ full-on spine renders the complete document set (snapshot):
         name: respiro-lareira-respiro-consumer
       triggers:
         - metadata:
+            account: $G
             activationLagThreshold: "0"
             consumer: respiro
             lagThreshold: "100"
             natsServerMonitoringEndpoint: pleme-nats.nats.svc:8222
             stream: AUDIT
           type: nats-jetstream
-  5: |
+  6: |
     apiVersion: v1
     kind: ServiceAccount
     metadata:
@@ -157,10 +212,10 @@ full-on spine renders the complete document set (snapshot):
         app.kubernetes.io/name: lareira-respiro
         app.kubernetes.io/part-of: nexus-platform
         app.kubernetes.io/version: 0.1.0
-        helm.sh/chart: lareira-respiro-0.1.0
+        helm.sh/chart: lareira-respiro-0.1.9
       name: respiro-lareira-respiro-vector
       namespace: respiro
-  6: |
+  7: |
     apiVersion: v1
     data:
       vector.yaml: |
@@ -190,10 +245,10 @@ full-on spine renders the complete document set (snapshot):
         app.kubernetes.io/name: lareira-respiro
         app.kubernetes.io/part-of: nexus-platform
         app.kubernetes.io/version: 0.1.0
-        helm.sh/chart: lareira-respiro-0.1.0
+        helm.sh/chart: lareira-respiro-0.1.9
       name: respiro-lareira-respiro-vector-config
       namespace: respiro
-  7: |
+  8: |
     apiVersion: apps/v1
     kind: Deployment
     metadata:
@@ -205,7 +260,7 @@ full-on spine renders the complete document set (snapshot):
         app.kubernetes.io/name: lareira-respiro
         app.kubernetes.io/part-of: nexus-platform
         app.kubernetes.io/version: 0.1.0
-        helm.sh/chart: lareira-respiro-0.1.0
+        helm.sh/chart: lareira-respiro-0.1.9
       name: respiro-lareira-respiro-vector
       namespace: respiro
     spec:
@@ -266,7 +321,7 @@ full-on spine renders the complete document set (snapshot):
             - emptyDir:
                 sizeLimit: 1Gi
               name: data
-  8: |
+  9: |
     apiVersion: v1
     kind: Service
     metadata:
@@ -278,7 +333,7 @@ full-on spine renders the complete document set (snapshot):
         app.kubernetes.io/name: lareira-respiro
         app.kubernetes.io/part-of: nexus-platform
         app.kubernetes.io/version: 0.1.0
-        helm.sh/chart: lareira-respiro-0.1.0
+        helm.sh/chart: lareira-respiro-0.1.9
       name: respiro-lareira-respiro-vector
       namespace: respiro
     spec:
@@ -291,7 +346,8 @@ full-on spine renders the complete document set (snapshot):
         app.kubernetes.io/component: respiro-ingest
         app.kubernetes.io/instance: respiro
         app.kubernetes.io/name: lareira-respiro
-  9: |
+      type: ClusterIP
+  10: |
     apiVersion: monitoring.coreos.com/v1
     kind: ServiceMonitor
     metadata:
@@ -302,7 +358,7 @@ full-on spine renders the complete document set (snapshot):
         app.kubernetes.io/name: lareira-respiro
         app.kubernetes.io/part-of: nexus-platform
         app.kubernetes.io/version: 0.1.0
-        helm.sh/chart: lareira-respiro-0.1.0
+        helm.sh/chart: lareira-respiro-0.1.9
         release: victoria-metrics-k8s-stack
       name: respiro-lareira-respiro-consumer
       namespace: respiro
@@ -318,7 +374,7 @@ full-on spine renders the complete document set (snapshot):
         matchLabels:
           app.kubernetes.io/component: respiro-consumer
           app.kubernetes.io/name: lareira-respiro
-  10: |
+  11: |
     apiVersion: v1
     data:
       sink.yaml: |
@@ -334,11 +390,11 @@ full-on spine renders the complete document set (snapshot):
         app.kubernetes.io/name: lareira-respiro
         app.kubernetes.io/part-of: nexus-platform
         app.kubernetes.io/version: 0.1.0
-        helm.sh/chart: lareira-respiro-0.1.0
+        helm.sh/chart: lareira-respiro-0.1.9
         respiro.pleme.io/sink-kind: vlogs
       name: respiro-lareira-respiro-sink
       namespace: respiro
-  11: |
+  12: |
     apiVersion: v1
     data:
       delivery.yaml: |
@@ -365,10 +421,10 @@ full-on spine renders the complete document set (snapshot):
         app.kubernetes.io/name: lareira-respiro
         app.kubernetes.io/part-of: nexus-platform
         app.kubernetes.io/version: 0.1.0
-        helm.sh/chart: lareira-respiro-0.1.0
+        helm.sh/chart: lareira-respiro-0.1.9
         pleme.io/delivery-tier: durable
       name: respiro-lareira-respiro-delivery
-  12: |
+  13: |
     apiVersion: v1
     data:
       consumer-AUDIT-respiro.json: |
@@ -403,7 +459,7 @@ full-on spine renders the complete document set (snapshot):
     kind: ConfigMap
     metadata:
       annotations:
-        helm.sh/hook: post-install,post-upgrade
+        helm.sh/hook: pre-install,pre-upgrade
         helm.sh/hook-delete-policy: before-hook-creation
         helm.sh/hook-weight: "-5"
       labels:
@@ -413,16 +469,16 @@ full-on spine renders the complete document set (snapshot):
         app.kubernetes.io/name: lareira-respiro
         app.kubernetes.io/part-of: nexus-platform
         app.kubernetes.io/version: 0.1.0
-        helm.sh/chart: lareira-respiro-0.1.0
+        helm.sh/chart: lareira-respiro-0.1.9
         pleme.io/jetstream-config: "true"
       name: respiro-lareira-respiro-jetstream
       namespace: respiro
-  13: |
+  14: |
     apiVersion: batch/v1
     kind: Job
     metadata:
       annotations:
-        helm.sh/hook: post-install,post-upgrade
+        helm.sh/hook: pre-install,pre-upgrade
         helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
         helm.sh/hook-weight: "5"
       labels:
@@ -432,7 +488,7 @@ full-on spine renders the complete document set (snapshot):
         app.kubernetes.io/name: lareira-respiro
         app.kubernetes.io/part-of: nexus-platform
         app.kubernetes.io/version: 0.1.0
-        helm.sh/chart: lareira-respiro-0.1.0
+        helm.sh/chart: lareira-respiro-0.1.9
         pleme.io/jetstream-init: "true"
       name: respiro-lareira-respiro-jetstream-init
       namespace: respiro

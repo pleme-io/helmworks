@@ -79,5 +79,5 @@ tests:
   - it: should set nodeSelector
     asserts:
       - equal:
-          path: spec.template.spec.nodeSelector.kubernetes\.io/hostname
+          path: spec.template.spec.nodeSelector["kubernetes.io/hostname"]
           value: plo

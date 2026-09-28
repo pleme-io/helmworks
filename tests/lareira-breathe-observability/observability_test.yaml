@@ -35,10 +35,12 @@ tests:
           path: spec.groups[0].rules[5].expr
           pattern: "breathe_band_dry_run == 0"
 
+  # Two dashboard ConfigMaps since 0.1.4 (the singular `dashboard:` breathe view
+  # plus the plural `dashboards:` ci-runner view), so each is selected by NAME.
   - it: "renders the dashboard ConfigMap (grafana sidecar label) from the generated breathe JSON"
     documentSelector:
-      path: kind
-      value: ConfigMap
+      path: metadata.name
+      value: breathe-obs-lareira-breathe-observability-dashboard
     asserts:
       - equal:
           path: metadata.labels["grafana_dashboard"]
@@ -47,7 +49,21 @@ tests:
           path: data["breathe.json"]
           pattern: "breathe_band_util_ratio"
 
+  - it: "renders the ci-runner dashboard ConfigMap from the plural dashboards list"
+    documentSelector:
+      path: metadata.name
+      value: breathe-obs-lareira-breathe-observability-ci-runner
+    asserts:
+      - equal:
+          path: metadata.labels["grafana_dashboard"]
+          value: "1"
+      - matchRegex:
+          path: data["ci-runner.json"]
+          pattern: "breathe_band_util_ratio"
+
+  # VMRule + two dashboard ConfigMaps and nothing else: turning scrape on adds a
+  # VMServiceScrape and makes this 4 (checked red with scrape.enabled=true).
   - it: "does NOT re-declare a scrape (breathe chart owns the VMServiceScrape)"
     asserts:
       - hasDocuments:
-          count: 2
+          count: 3

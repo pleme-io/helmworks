@@ -102,28 +102,33 @@ tests:
         isKind:
           of: Job
 
-  # WAKE toggle (consumer Deployment + Service + KEDA ScaledObject)
-  - it: WAKE emits the consumer Deployment + Service + a KEDA ScaledObject scaling 0→N on lag
+  # WAKE toggle (connect pipeline ConfigMap + consumer Deployment + Service +
+  # KEDA ScaledObject). The default consumers.mode is `connect`, whose pipeline
+  # ConfigMap renders first; mode=binary has no ConfigMap.
+  - it: WAKE emits the connect ConfigMap + consumer Deployment + Service + a KEDA ScaledObject scaling 0→N on lag
     template: templates/consumers.yaml
     set:
       respiro:
         enabled: true
     asserts:
       - hasDocuments:
-          count: 3
+          count: 4
       - documentIndex: 0
         isKind:
-          of: Deployment
+          of: ConfigMap
       - documentIndex: 1
         isKind:
-          of: Service
+          of: Deployment
       - documentIndex: 2
+        isKind:
+          of: Service
+      - documentIndex: 3
         isKind:
           of: ScaledObject
 
   - it: WAKE ScaledObject targets the consumer Deployment with the nats-jetstream trigger
     template: templates/consumers.yaml
-    documentIndex: 2
+    documentIndex: 3
     set:
       respiro:
         enabled: true

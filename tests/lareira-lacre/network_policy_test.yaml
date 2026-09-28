@@ -56,9 +56,14 @@ tests:
       path: metadata.name
       value: openclaw-gate-lacre-allow-to-backend-registry
     asserts:
+      # matchExpressions, not matchLabels: the chart admits both the standalone
+      # pleme-zot name and the openclaw-stack alias (see values.yaml).
       - equal:
-          path: spec.egress[0].to[0].podSelector.matchLabels["app.kubernetes.io/name"]
-          value: zot
+          path: spec.egress[0].to[0].podSelector.matchExpressions[0]
+          value:
+            key: app.kubernetes.io/name
+            operator: In
+            values: [zot, backing-registry]
       - equal:
           path: spec.egress[0].ports[0].port
           value: 5000

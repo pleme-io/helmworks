@@ -87,7 +87,9 @@ tests:
           path: data["vector.yaml"]
           pattern: "type: nats"
 
-  - it: full-on tap renders the WAKE consumer Deployment + Service + KEDA ScaledObject
+  # respiro's default consumers.mode is `connect`, which puts the Redpanda
+  # Connect pipeline ConfigMap first in consumers.yaml.
+  - it: full-on tap renders the WAKE connect ConfigMap + consumer Deployment + Service + KEDA ScaledObject
     template: charts/lareira-respiro/templates/consumers.yaml
     set:
       tap:
@@ -97,14 +99,17 @@ tests:
           enabled: true
     asserts:
       - hasDocuments:
-          count: 3
+          count: 4
       - documentIndex: 0
         isKind:
+          of: ConfigMap
+      - documentIndex: 1
+        isKind:
           of: Deployment
-      - documentIndex: 2
+      - documentIndex: 3
         isKind:
           of: ScaledObject
-      - documentIndex: 2
+      - documentIndex: 3
         equal:
           path: spec.minReplicaCount
           value: 0
