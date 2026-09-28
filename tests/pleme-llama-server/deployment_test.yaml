@@ -92,6 +92,27 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].livenessProbe.httpGet.port
           value: 9191
+  - it: probes dial the address the server binds (cid binds its tailnet address)
+    set:
+      server.host: 100.104.30.81
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.host
+          value: 100.104.30.81
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.host
+          value: 100.104.30.81
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.host
+          value: 100.104.30.81
+  - it: a wildcard bind leaves probes on the pod IP
+    set:
+      server.host: 0.0.0.0
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.host
+      - notExists:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.host
   - it: allows a cold model load before liveness applies
     asserts:
       - equal:

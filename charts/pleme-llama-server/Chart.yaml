@@ -2,13 +2,14 @@ apiVersion: v2
 name: pleme-llama-server
 description: llama.cpp's llama-server as one workload - an OpenAI- and Anthropic-compatible model endpoint, built for engenho's native backend (the image and the model are Nix store paths)
 type: application
-version: 0.1.1
+version: 0.1.2
 appVersion: "0.5.0"
 dependencies:
   - name: pleme-lib
     # 0.51.1: the pod template omits an empty `annotations:` key, which this
     # chart's Deployment rendered as YAML null.
-    version: ">=0.51.1"
+    # 0.52.0: probes take a `host`, which this chart sets from server.host.
+    version: ">=0.52.0"
     repository: "file://../pleme-lib"
 annotations:
   org.opencontainers.image.source: https://github.com/pleme-io/helmworks

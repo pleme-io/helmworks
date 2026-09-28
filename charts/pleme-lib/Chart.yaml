@@ -2,7 +2,7 @@ apiVersion: v2
 name: pleme-lib
 description: Shared library chart for pleme-io internal services
 type: library
-version: 0.51.1
+version: 0.52.0
 # 0.51.1 (2026-09-28) -- three rendered values a typed decoder refuses.
 #
 #   - deployment: the pod template's `annotations:` key is emitted only when it

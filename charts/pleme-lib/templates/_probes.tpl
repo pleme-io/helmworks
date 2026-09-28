@@ -18,6 +18,13 @@ The `type` field selects the probe action; remaining timing knobs
 livenessTimeout, readinessInitialDelay, readinessPeriod,
 readinessFailureThreshold, readinessTimeout) apply to every type.
 
+health.host (and startupProbe.host, defaulting to health.host) set the
+address an httpGet/tcpSocket probe dials instead of the pod IP -- ADDED
+2026-09-28 for a server that binds one address: on engenho's native
+backend the pod IP is 127.0.0.1, and cid's llama-server binds its tailnet
+address only, so every probe was refused and the startup probe killed a
+healthy server every 15 minutes (47 restarts). Unset = the pod IP, as before.
+
 livenessTimeout/readinessTimeout default to 1 (Kubernetes' own
 probe.timeoutSeconds default when the field is omitted) -- ADDED
 2026-07-24, this chart previously never rendered timeoutSeconds at
@@ -39,6 +46,9 @@ Liveness probe
 {{- if eq $type "TCPSocket" }}
 tcpSocket:
   port: {{ (.Values.health).port | default "http" }}
+  {{- with (.Values.health).host }}
+  host: {{ . | quote }}
+  {{- end }}
 {{- else if eq $type "Exec" }}
 exec:
   command:
@@ -49,6 +59,9 @@ exec:
 httpGet:
   path: {{ (.Values.health).path | default "/healthz" }}
   port: {{ (.Values.health).port | default "http" }}
+  {{- with (.Values.health).host }}
+  host: {{ . | quote }}
+  {{- end }}
 {{- end }}
 initialDelaySeconds: {{ (.Values.health).livenessInitialDelay | default 5 }}
 periodSeconds: {{ (.Values.health).livenessPeriod | default 10 }}
@@ -64,6 +77,9 @@ Readiness probe
 {{- if eq $type "TCPSocket" }}
 tcpSocket:
   port: {{ (.Values.health).port | default "http" }}
+  {{- with (.Values.health).host }}
+  host: {{ . | quote }}
+  {{- end }}
 {{- else if eq $type "Exec" }}
 exec:
   command:
@@ -74,6 +90,9 @@ exec:
 httpGet:
   path: {{ (.Values.health).readyPath | default "/readyz" }}
   port: {{ (.Values.health).port | default "http" }}
+  {{- with (.Values.health).host }}
+  host: {{ . | quote }}
+  {{- end }}
 {{- end }}
 initialDelaySeconds: {{ (.Values.health).readinessInitialDelay | default 5 }}
 periodSeconds: {{ (.Values.health).readinessPeriod | default 5 }}
@@ -89,6 +108,9 @@ Startup probe (disabled by default)
 httpGet:
   path: {{ (.Values.startupProbe).path | default "/healthz" }}
   port: {{ (.Values.startupProbe).port | default "http" }}
+  {{- with ((.Values.startupProbe).host | default (.Values.health).host) }}
+  host: {{ . | quote }}
+  {{- end }}
 initialDelaySeconds: {{ (.Values.startupProbe).initialDelaySeconds | default 0 }}
 periodSeconds: {{ (.Values.startupProbe).periodSeconds | default 5 }}
 failureThreshold: {{ (.Values.startupProbe).failureThreshold | default 30 }}

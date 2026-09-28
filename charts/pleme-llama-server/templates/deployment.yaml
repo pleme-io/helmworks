@@ -7,4 +7,12 @@
 {{- $_ := set .Values "ports" (list (dict "name" "http" "containerPort" $port "protocol" "TCP")) -}}
 {{- $_ := set .Values.health "port" $port -}}
 {{- $_ := set .Values.startupProbe "port" $port -}}
+{{- /* ...and the address it listens on. A server bound to one address (the
+       tailnet one, on cid) answers nowhere else, and on engenho's native
+       backend the pod IP is 127.0.0.1: probes dialled there were refused,
+       and the startup probe killed a healthy server every 15 minutes. A
+       wildcard bind answers on the pod IP, so it needs no host. */ -}}
+{{- if not (has .Values.server.host (list "" "0.0.0.0" "::")) -}}
+{{- $_ := set .Values.health "host" .Values.server.host -}}
+{{- end -}}
 {{- include "pleme-lib.deployment" . }}
