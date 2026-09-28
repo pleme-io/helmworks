@@ -1,0 +1,4 @@
+{{- if .Values.service.enabled }}
+{{- $_ := set .Values.service "ports" (list (dict "name" "http" "port" (int .Values.server.port) "targetPort" "http" "protocol" "TCP")) -}}
+{{- include "pleme-lib.service" . }}
+{{- end }}

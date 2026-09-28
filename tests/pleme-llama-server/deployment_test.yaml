@@ -1,0 +1,132 @@
+suite: pleme-llama-server deployment
+templates:
+  - templates/deployment.yaml
+set:
+  image.repository: nix:/nix/store/aaaa-llama-cpp-0.5.0
+  model.path: /nix/store/bbbb-gpt-oss-20b-MXFP4.gguf
+tests:
+  - it: runs llama-server from the nix closure
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: spec.template.spec.containers[0].command
+          value: [llama-server]
+      - matchRegex:
+          path: spec.template.spec.containers[0].image
+          pattern: ^nix:/nix/store/aaaa-llama-cpp-0\.5\.0
+  - it: derives the server's flags from the typed values
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].args
+          value:
+            - -m
+            - /nix/store/bbbb-gpt-oss-20b-MXFP4.gguf
+            - --alias
+            - local
+            - --host
+            - 127.0.0.1
+            - --port
+            - "8080"
+            - -c
+            - "32768"
+            - -ngl
+            - "999"
+            - --flash-attn
+            - "on"
+            - --cache-type-k
+            - q8_0
+            - --cache-type-v
+            - q8_0
+            - --parallel
+            - "1"
+            - --cache-reuse
+            - "256"
+            - --jinja
+            - --metrics
+  - it: adds a draft model and extra args, in that order, after the derived flags
+    set:
+      draft.path: /nix/store/cccc-eagle3-gpt-oss-20b-Q8_0.gguf
+      extraArgs: [--threads, "8"]
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].args[24]
+          value: --model-draft
+      - equal:
+          path: spec.template.spec.containers[0].args[25]
+          value: /nix/store/cccc-eagle3-gpt-oss-20b-Q8_0.gguf
+      - equal:
+          path: spec.template.spec.containers[0].args[26]
+          value: --threads
+  - it: leaves out --jinja when the model's template is off (control for the derivation)
+    set:
+      server.jinja: false
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --jinja
+  - it: is safe on engenho's native backend
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+      - equal:
+          path: spec.replicas
+          value: 1
+  - it: probes /health on the server's own port, as a number
+    set:
+      server.port: 9191
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 9191
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.port
+          value: 9191
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /health
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.port
+          value: 9191
+  - it: allows a cold model load before liveness applies
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.failureThreshold
+          value: 180
+  - it: sets HOME only when given (the native backend clears the environment)
+    set:
+      home: /var/lib/llama-server
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HOME
+            value: /var/lib/llama-server
+  - it: pins to one node by hostname
+    set:
+      nodeSelector:
+        kubernetes.io/hostname: node-a
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector
+          value:
+            kubernetes.io/hostname: node-a
+  - it: refuses a missing model
+    set:
+      model.path: ""
+    asserts:
+      - failedTemplate: {}
+  - it: refuses a model that is not a GGUF
+    set:
+      model.path: /nix/store/dddd-weights.safetensors
+    asserts:
+      - failedTemplate: {}
+  - it: refuses a missing image
+    set:
+      image.repository: ""
+    asserts:
+      - failedTemplate: {}

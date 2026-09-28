@@ -1,0 +1,106 @@
+# pleme-llama-server — llama.cpp's llama-server as one workload.
+#
+# It serves /v1/chat/completions (OpenAI), /v1/messages (Anthropic) and /health,
+# so any client of either API falls back to it by changing only its endpoint.
+#
+# Built for engenho's native backend, where a container is a host process:
+# `image.repository` is `nix:<llama-cpp store path>` and `model.path` is a store
+# path too (a fixed-output derivation of the GGUF). It still renders an ordinary
+# Deployment, so any cluster with an image carrying llama-server can run it.
+#
+# The server's flags are DERIVED from `server`, `model` and `draft` below
+# (templates/_args.tpl); `extraArgs` is the escape hatch for anything else.
+
+image:
+  # nix:/nix/store/…-llama-cpp-<version> on engenho native. Required.
+  repository: ""
+  tag: ""
+  pullPolicy: IfNotPresent
+
+command:
+  - llama-server
+
+model:
+  # The .gguf file to serve. Required.
+  path: ""
+  # The model name clients request (`"model": "local"`).
+  alias: local
+
+draft:
+  # Optional speculative-decoding draft model (e.g. gpt-oss-20b's EAGLE3 GGUF).
+  path: ""
+
+server:
+  # 127.0.0.1 keeps it on the node; a tailnet address serves the fleet.
+  host: 127.0.0.1
+  port: 8080
+  contextSize: 32768
+  # Layers offloaded to the GPU; 999 means all of them.
+  gpuLayers: 999
+  flashAttn: "on"
+  # 8-bit KV cache: half the memory of f16 per token of context.
+  cacheTypeK: q8_0
+  cacheTypeV: q8_0
+  # One slot per client keeps each conversation's cache warm (cacheReuse).
+  parallel: 1
+  cacheReuse: 256
+  # Use the model's own chat template; required for tool calling.
+  jinja: true
+  metrics: true
+
+extraArgs: []
+
+# HOME for the process. engenho's native backend clears the environment, and
+# Metal writes a shader cache under HOME.
+home: ""
+
+env: []
+
+replicaCount: 1
+# One copy at a time: two would each load the whole model.
+strategy:
+  type: Recreate
+
+serviceAccount:
+  create: true
+  automountServiceAccountToken: false
+# engenho's native backend refuses the ServiceAccount token volume.
+automountServiceAccountToken: false
+
+service:
+  enabled: false
+  type: ClusterIP
+
+# Probe ports are set from server.port by the template.
+health:
+  path: /health
+  readyPath: /health
+  livenessInitialDelay: 10
+  livenessPeriod: 15
+  livenessTimeout: 5
+  livenessFailureThreshold: 3
+  readinessInitialDelay: 5
+  readinessPeriod: 10
+  readinessTimeout: 5
+  readinessFailureThreshold: 2
+
+# /health answers 503 while the model loads; allow 15 minutes for a cold load.
+startupProbe:
+  enabled: true
+  path: /health
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  failureThreshold: 180
+
+podSecurityContext: {}
+securityContext: {}
+resources: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+podAnnotations: {}
+
+monitoring:
+  enabled: false
+networkPolicy:
+  enabled: false

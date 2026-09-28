@@ -1,0 +1,10 @@
+{{- /* Derive what pleme-lib.deployment reads from the llama-server surface.
+       Probe ports are the server's port as a NUMBER, so the probe and the
+       server cannot disagree, and a backend need not resolve port names. */ -}}
+{{- $port := int .Values.server.port -}}
+{{- $_ := set .Values "args" (include "pleme-llama-server.args" . | fromYamlArray) -}}
+{{- $_ := set .Values "env" (include "pleme-llama-server.env" . | fromYamlArray) -}}
+{{- $_ := set .Values "ports" (list (dict "name" "http" "containerPort" $port "protocol" "TCP")) -}}
+{{- $_ := set .Values.health "port" $port -}}
+{{- $_ := set .Values.startupProbe "port" $port -}}
+{{- include "pleme-lib.deployment" . }}
