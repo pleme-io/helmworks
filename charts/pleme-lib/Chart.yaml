@@ -2,7 +2,19 @@ apiVersion: v2
 name: pleme-lib
 description: Shared library chart for pleme-io internal services
 type: library
-version: 0.51.0
+version: 0.51.1
+# 0.51.1 (2026-09-28) -- three rendered values a typed decoder refuses.
+#
+#   - deployment: the pod template's `annotations:` key is emitted only when it
+#     has entries. Every helper feeding it can render empty, and an empty key is
+#     YAML null, which a typed decoder refuses for the whole Deployment.
+#   - prometheusAnnotations: `prometheus.io/port` resolves a port NAME to its
+#     containerPort. It used to copy `monitoring.port` verbatim, so the default
+#     `http` produced an annotation the kubernetes-pods relabel (`;(\d+)`) never
+#     matches. An undeclared name omits only that one annotation.
+#   - priorityclasses: `value` renders as an integer. 10000000 arrived as
+#     float64 and printed `1e+07`, which the API server refuses for an int32.
+#
 # 0.51.0 (2026-09-12) -- pangea.infrastructureTemplate: `importHints`.
 #
 # A map of terraform ADDRESS -> existing resource ID, emitted `with` like every

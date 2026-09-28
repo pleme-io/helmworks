@@ -55,6 +55,17 @@ spec:
         {{- if $cl }}
         {{- $cl | nindent 8 }}
         {{- end }}
+      {{- /* Emitted only when something is in it. Every helper can render
+             empty, and an `annotations:` key with no entries is YAML null:
+             a typed decoder refuses the whole Deployment for it (engenho's
+             typed_decode gate flagged pleme-llama-server, 2026-09-28). */ -}}
+      {{- $podAnnotations := trim (printf "%s\n%s\n%s\n%s\n%s"
+            (include "pleme-lib.prometheusAnnotations" .)
+            (include "pleme-lib.istioAnnotations" .)
+            (include "pleme-lib.compliance.annotations" .)
+            (include "pleme-lib.compliance.audit.annotations" .)
+            (.Values.podAnnotations | default dict | toYaml | trimAll "{}" )) }}
+      {{- if $podAnnotations }}
       annotations:
         {{- include "pleme-lib.prometheusAnnotations" . | nindent 8 }}
         {{- include "pleme-lib.istioAnnotations" . | nindent 8 }}
@@ -63,6 +74,7 @@ spec:
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
+      {{- end }}
     spec:
       serviceAccountName: {{ include "pleme-lib.serviceAccountName" . }}
       automountServiceAccountToken: {{ include "pleme-lib.compliance.automountServiceAccountToken" . }}

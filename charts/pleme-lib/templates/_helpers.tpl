@@ -101,11 +101,31 @@ Namespace
 
 {{/*
 Prometheus scrape annotations
+
+`monitoring.port` is shared with the ServiceMonitor, where it is a port NAME
+(`http`). The `prometheus.io/port` annotation must be a NUMBER: the standard
+kubernetes-pods relabel rewrites __address__ with `regex: ...;(\d+)`, so a
+name never matches and the pod is scraped on whatever port it was discovered
+on. A name is therefore resolved to its containerPort from `.Values.ports`;
+a name that is not declared there omits only the port annotation (Prometheus
+keeps its discovered port) rather than emitting one that cannot work.
 */}}
 {{- define "pleme-lib.prometheusAnnotations" -}}
 {{- if (.Values.monitoring).enabled }}
+{{- $port := (.Values.monitoring).port | default "8080" | toString }}
+{{- if not (regexMatch "^[0-9]+$" $port) }}
+{{- $name := $port }}
+{{- $port = "" }}
+{{- range (.Values.ports | default list) }}
+{{- if eq (toString .name) $name }}
+{{- $port = toString .containerPort }}
+{{- end }}
+{{- end }}
+{{- end }}
 prometheus.io/scrape: "true"
-prometheus.io/port: {{ (.Values.monitoring).port | default "8080" | quote }}
+{{- with $port }}
+prometheus.io/port: {{ . | quote }}
+{{- end }}
 prometheus.io/path: {{ (.Values.monitoring).path | default "/metrics" | quote }}
 {{- end }}
 {{- end }}
