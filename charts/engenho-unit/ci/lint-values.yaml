@@ -1,0 +1,6 @@
+# Values used ONLY for `helm lint` / `helm template` in CI. The schema requires
+# a store-path unit and engenho package and the defaults leave both empty on
+# purpose, so a release that forgets either is refused at install.
+unit: /nix/store/00000000000000000000000000000000-unit-lint.service/lint.service
+engenho:
+  package: /nix/store/00000000000000000000000000000000-engenho-lint

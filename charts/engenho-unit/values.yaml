@@ -1,0 +1,34 @@
+# engenho-unit — one rendered systemd unit, run as an engenho workload.
+#
+# engenho's native backend runs a pod as a host process from a realised Nix
+# closure. `engenho unit-run` reads a rendered `.service` file and does what
+# systemd would have done (state directories, credentials, environment files,
+# every ExecStartPre=, the privilege drop) before it execs ExecStart=. So the
+# chart's whole interface is the unit file: nothing about the service is
+# restated here, and a new unit file is a new workload.
+#
+# Built to render the same DaemonSet a node declares by hand, field for field,
+# so a workload can move between the two with no change on the cluster.
+#
+# A DaemonSet, not a Deployment: the DaemonSet controller sets spec.nodeName on
+# the pod it creates, so a node-declared workload lands on its node without a
+# scheduler.
+
+# The workload's name (DaemonSet, container and selector label). Empty: the
+# release name.
+name: ""
+
+# The rendered unit file to run, a store path ending in `.service`. Required.
+unit: ""
+
+engenho:
+  # The engenho closure, /nix/store/…-engenho. The image is `nix:<package>` and
+  # the command is its bin/engenho. Required.
+  package: ""
+
+# Run as this account and group instead of the unit's own User=/Group=.
+# REQUIRED for a DynamicUser=yes unit: engenho's runner allocates no accounts
+# and refuses such a unit rather than run it as root. `group` defaults to
+# `user`.
+user: ""
+group: ""

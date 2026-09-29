@@ -1,0 +1,37 @@
+{{- $name := include "engenho-unit.name" . -}}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ $name }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ $name }}
+    spec:
+      restartPolicy: Always
+      # engenho's native backend refuses the service-account token volume: a
+      # host process has no mount namespace, so a volume is honoured only when
+      # its host path and mountPath are the same. A unit never calls the
+      # apiserver anyway.
+      automountServiceAccountToken: false
+      containers:
+        - name: {{ $name }}
+          image: nix:{{ .Values.engenho.package }}
+          command:
+            - {{ .Values.engenho.package }}/bin/engenho
+            - unit-run
+            - --unit
+            - {{ .Values.unit }}
+            {{- with .Values.user }}
+            - --user
+            - {{ . }}
+            - --group
+            - {{ default . $.Values.group }}
+            {{- end }}

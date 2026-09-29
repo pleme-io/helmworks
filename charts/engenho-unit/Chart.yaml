@@ -1,0 +1,12 @@
+apiVersion: v2
+name: engenho-unit
+description: One rendered systemd unit run as an engenho workload - a DaemonSet whose container is `engenho unit-run --unit <unit file>`, for engenho's native backend (the image and the unit are Nix store paths)
+type: application
+version: 0.1.0
+appVersion: "0.53.0"
+keywords:
+  - pleme-io
+  - engenho
+  - systemd
+annotations:
+  org.opencontainers.image.source: https://github.com/pleme-io/helmworks

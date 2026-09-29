@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["unit", "engenho"],
+  "properties": {
+    "name": { "type": "string", "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$", "maxLength": 63 },
+    "unit": { "type": "string", "pattern": "^/nix/store/[^/]+/.+\\.service$" },
+    "engenho": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["package"],
+      "properties": {
+        "package": { "type": "string", "pattern": "^/nix/store/[^/]+$" }
+      }
+    },
+    "user": { "type": ["string", "null"] },
+    "group": { "type": ["string", "null"] },
+    "global": { "type": "object" }
+  }
+}
