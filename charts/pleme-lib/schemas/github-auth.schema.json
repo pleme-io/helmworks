@@ -1,0 +1,124 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/pleme-io/helmworks/charts/pleme-lib/schemas/github-auth.schema.json",
+  "title": "githubAuth",
+  "description": "pleme-lib.githubAuth: the serde shape of shikumi's Rust GithubAuth plus the two Kubernetes bindings (secretRef, externalSecret). Canonical fragment; copy `definitions` into a chart's values.schema.json and point `properties.githubAuth` at `#/definitions/GithubAuth`. The render-time validator in templates/_github_auth.tpl is the binding gate; this schema rejects the same shapes earlier, at `helm install` / IDE time. gh_cli is absent on purpose: a pod cannot use it.",
+  "definitions": {
+    "GithubAuth": {
+      "description": "Exactly one of token | app | chain. An empty object means unset.",
+      "type": "object",
+      "oneOf": [
+        { "maxProperties": 0 },
+        { "$ref": "#/definitions/GithubAuthEntry" },
+        {
+          "additionalProperties": false,
+          "required": ["chain"],
+          "properties": {
+            "chain": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "$ref": "#/definitions/GithubAuthEntry" }
+            }
+          }
+        }
+      ]
+    },
+    "GithubAuthEntry": {
+      "type": "object",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "required": ["token"],
+          "properties": { "token": { "$ref": "#/definitions/SecretSource" } }
+        },
+        {
+          "additionalProperties": false,
+          "required": ["app"],
+          "properties": { "app": { "$ref": "#/definitions/GithubApp" } }
+        }
+      ]
+    },
+    "GithubApp": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["app_id", "private_key"],
+      "properties": {
+        "app_id": { "type": "integer", "minimum": 1 },
+        "owner": { "type": "string", "minLength": 1 },
+        "installation_id": { "type": "integer", "minimum": 1 },
+        "private_key": { "$ref": "#/definitions/SecretSource" }
+      }
+    },
+    "EnvName": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
+    "SecretSource": {
+      "description": "Single-key map. secretRef / externalSecret are Kubernetes bindings the chart resolves; env / file / akeyless / vault / aws_secret / gcp_secret pass through. literal, a bare string, command, op and sops are refused.",
+      "type": "object",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "required": ["secretRef"],
+          "properties": {
+            "secretRef": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["name", "key"],
+              "properties": {
+                "name": { "type": "string", "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$" },
+                "key": { "type": "string", "pattern": "^[-._a-zA-Z0-9]+$" },
+                "env": { "$ref": "#/definitions/EnvName" }
+              }
+            }
+          }
+        },
+        {
+          "additionalProperties": false,
+          "required": ["externalSecret"],
+          "properties": {
+            "externalSecret": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["key"],
+              "properties": {
+                "key": { "type": "string", "minLength": 1 },
+                "property": { "type": "string" },
+                "clusterSecretStoreName": { "type": "string" },
+                "refreshInterval": { "type": "string" },
+                "env": { "$ref": "#/definitions/EnvName" }
+              }
+            }
+          }
+        },
+        {
+          "additionalProperties": false,
+          "required": ["env"],
+          "properties": { "env": { "$ref": "#/definitions/EnvName" } }
+        },
+        {
+          "additionalProperties": false,
+          "required": ["file"],
+          "properties": { "file": { "type": "string", "pattern": "^/" } }
+        },
+        {
+          "additionalProperties": false,
+          "required": ["akeyless"],
+          "properties": { "akeyless": { "type": "string" } }
+        },
+        {
+          "additionalProperties": false,
+          "required": ["vault"],
+          "properties": { "vault": {} }
+        },
+        {
+          "additionalProperties": false,
+          "required": ["aws_secret"],
+          "properties": { "aws_secret": { "type": "string" } }
+        },
+        {
+          "additionalProperties": false,
+          "required": ["gcp_secret"],
+          "properties": { "gcp_secret": { "type": "string" } }
+        }
+      ]
+    }
+  }
+}

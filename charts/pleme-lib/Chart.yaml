@@ -2,7 +2,23 @@ apiVersion: v2
 name: pleme-lib
 description: Shared library chart for pleme-io internal services
 type: library
-version: 0.52.0
+version: 0.53.0
+# 0.53.0 (2026-10-09) -- githubAuth: ONE typed GitHub-auth surface.
+#
+# templates/_github_auth.tpl, `pleme-lib.githubAuth.*`. `.Values.githubAuth`
+# is the serde shape of shikumi's Rust `GithubAuth` (token | app | chain,
+# snake_case, externally tagged), so Nix, Helm and Rust read one shape. Two
+# K8s-only bindings -- `secretRef` and `externalSecret` (rendered through
+# pleme-lib.externalSecret, not a second template) -- are rewritten by
+# `.config` to the `{file: ...}` / `{env: ...}` the pod actually sees, so the
+# app's shikumi config reads the same shape in a pod as on a laptop.
+# `.arcSecret` projects the same value onto Actions Runner Controller's Secret
+# contract; pleme-arc-runner-pool 0.3.0 and pleme-arc-controller 0.2.0 consume
+# it. Refused at render: gh_cli, two keys in one tagged entry, an app without
+# private_key, unknown keys, plaintext literals and laptop-only backends.
+# Additive: absent `githubAuth` renders nothing. Doc: docs/GITHUB-AUTH.md;
+# values-schema fragment: schemas/github-auth.schema.json.
+#
 # 0.51.1 (2026-09-28) -- three rendered values a typed decoder refuses.
 #
 #   - deployment: the pod template's `annotations:` key is emitted only when it

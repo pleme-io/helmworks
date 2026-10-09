@@ -13,5 +13,15 @@ externalSecret:
             # Must contain keys: github_app_id, github_app_installation_id, github_app_private_key.
             key: /example/secrets/arc-github-app-secret
 
+# Typed alternative to the hand-written entry above: drop it and set
+#   githubConfigSecret: arc-github-app-secret
+#   githubAuth:
+#     app:
+#       app_id: 123456
+#       installation_id: 7891011
+#       private_key:
+#         externalSecret: { key: /example/secrets/arc/github-app, property: private_key }
+# (pleme-lib.githubAuth; declaring both for the same Secret fails.)
+
 gha-runner-scale-set-controller:
   replicaCount: 3

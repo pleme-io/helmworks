@@ -105,6 +105,23 @@ karpenter:
   # nodeClassRef and leave this empty.
   ec2NodeClasses: {}
 
+# ---------- Typed GitHub credentials (pleme-lib.githubAuth) ----------
+# The shape of shikumi's Rust `GithubAuth`, projected onto ARC's Secret
+# contract (app -> github_app_id / github_app_installation_id /
+# github_app_private_key; token -> github_token) by an ExternalSecret named
+# `gha-runner-scale-set.githubConfigSecret`. Empty (the default) renders
+# nothing: the Secret is provisioned out of band, as before. The secret half
+# must be an `externalSecret` binding (Helm cannot copy bytes out of another
+# Secret); chain / gh_cli / secretRef / env / file are refused at render.
+# Shape + refusals: charts/pleme-lib/docs/GITHUB-AUTH.md.
+githubAuth: {}
+  # Example:
+  # app:
+  #   app_id: 123
+  #   installation_id: 456
+  #   private_key:
+  #     externalSecret: { key: /path/in/backend/github-app, property: private_key }
+
 # ---------- Attestation framework (sekiban) ----------
 attestation:
   enabled: false
@@ -132,7 +149,8 @@ gha-runner-scale-set:
 
   # -- Name of the K8s Secret holding GitHub App credentials. Provisioned out
   # of band (typically via External Secrets Operator + a chart like
-  # pleme-arc-controller).
+  # pleme-arc-controller) — OR materialized by this chart from the typed
+  # `githubAuth` value above, under this same name.
   githubConfigSecret: arc-github-app-secret
 
   # -- Runner scale set name (workflows target via `runs-on: <name>`).

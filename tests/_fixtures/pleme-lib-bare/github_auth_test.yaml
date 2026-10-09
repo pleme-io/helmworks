@@ -1,0 +1,495 @@
+suite: pleme-lib bare-fixture — pleme-lib.githubAuth (the typed GitHub-auth surface)
+#
+# `githubAuth` is the serde shape of shikumi's Rust GithubAuth. Each variant is
+# driven through the SAME fragments a consumer wires (env / volumes /
+# volumeMounts / config / externalSecrets), and each refused shape is driven
+# through the validate-only probe, which emits nothing on a valid value — so a
+# refusal is proven to fire on a caller that renders no pod at all.
+#
+# Absence assertions (no env, no volumes, no ExternalSecret) each sit beside a
+# positive control in the same suite that renders the thing being absent.
+release:
+  name: t
+  namespace: testns
+templates:
+  - templates/github-auth.yaml
+  - templates/github-auth-externalsecrets.yaml
+  - templates/github-auth-arc.yaml
+  - templates/github-auth-validate.yaml
+# Every fixture template renders on each test; the unrelated workload probes
+# need an image.
+set:
+  image.repository: ghcr.io/x/y
+  image.tag: "1.0.0"
+
+tests:
+  # ── variants: what the pod sees ─────────────────────────────────────────
+  - it: "token.secretRef mounts the Secret key as a file and rewrites config to {file}"
+    template: templates/github-auth.yaml
+    set:
+      githubAuthPod: true
+      githubAuth:
+        token: { secretRef: { name: gh-token, key: token } }
+    asserts:
+      - equal:
+          path: spec.volumes
+          value:
+            - name: github-auth-0
+              secret:
+                secretName: gh-token
+                items: [{ key: token, path: token }]
+        documentSelector: { path: kind, value: Pod }
+      - equal:
+          path: spec.containers[0].volumeMounts
+          value:
+            - { name: github-auth-0, mountPath: /var/run/secrets/github-auth/0, readOnly: true }
+        documentSelector: { path: kind, value: Pod }
+      - notExists:
+          path: spec.containers[0].env
+        documentSelector: { path: kind, value: Pod }
+      - equal:
+          path: data["app.yaml"]
+          value: |
+            github_auth:
+              token:
+                file: /var/run/secrets/github-auth/0/token
+        documentSelector: { path: kind, value: ConfigMap }
+
+  - it: "token.secretRef with env projects a secretKeyRef and rewrites config to {env}"
+    template: templates/github-auth.yaml
+    set:
+      githubAuthPod: true
+      githubAuth:
+        token: { secretRef: { name: gh-token, key: token, env: TEND_GITHUB_TOKEN } }
+    asserts:
+      - equal:
+          path: spec.containers[0].env
+          value:
+            - name: TEND_GITHUB_TOKEN
+              valueFrom: { secretKeyRef: { name: gh-token, key: token } }
+        documentSelector: { path: kind, value: Pod }
+      - notExists:
+          path: spec.volumes
+        documentSelector: { path: kind, value: Pod }
+      - equal:
+          path: data["app.yaml"]
+          value: |
+            github_auth:
+              token:
+                env: TEND_GITHUB_TOKEN
+        documentSelector: { path: kind, value: ConfigMap }
+
+  - it: "token env/file passthroughs bind nothing and pass through unchanged"
+    template: templates/github-auth.yaml
+    set:
+      githubAuthPod: true
+      githubAuth:
+        chain:
+          - token: { env: TEND_GITHUB_TOKEN }
+          - token: { file: /var/run/secrets/github/token }
+    asserts:
+      - notExists:
+          path: spec.volumes
+        documentSelector: { path: kind, value: Pod }
+      - notExists:
+          path: spec.containers[0].env
+        documentSelector: { path: kind, value: Pod }
+      - equal:
+          path: data["app.yaml"]
+          value: |
+            github_auth:
+              chain:
+              - token:
+                  env: TEND_GITHUB_TOKEN
+              - token:
+                  file: /var/run/secrets/github/token
+        documentSelector: { path: kind, value: ConfigMap }
+
+  - it: "app with private_key.secretRef: ids stay integers, key mounted, config rewritten"
+    template: templates/github-auth.yaml
+    set:
+      githubAuthPod: true
+      githubAuth:
+        app:
+          app_id: 123
+          owner: pleme-io
+          installation_id: 12345678901
+          private_key: { secretRef: { name: gh-app, key: private-key.pem } }
+    asserts:
+      - equal:
+          path: spec.volumes[0].secret
+          value: { secretName: gh-app, items: [{ key: private-key.pem, path: private-key.pem }] }
+        documentSelector: { path: kind, value: Pod }
+      - equal:
+          path: data["app.yaml"]
+          value: |
+            github_auth:
+              app:
+                app_id: 123
+                installation_id: 12345678901
+                owner: pleme-io
+                private_key:
+                  file: /var/run/secrets/github-auth/0/private-key.pem
+        documentSelector: { path: kind, value: ConfigMap }
+
+  - it: "chain: slots follow entry order; only bound entries get volumes/env"
+    template: templates/github-auth.yaml
+    set:
+      githubAuthPod: true
+      githubAuth:
+        chain:
+          - token: { env: TEND_GITHUB_TOKEN }
+          - token: { secretRef: { name: gh-token, key: token } }
+          - app:
+              app_id: 123
+              installation_id: 456
+              private_key: { externalSecret: { key: /gh/app, property: pem } }
+    asserts:
+      - equal:
+          path: spec.volumes
+          value:
+            - name: github-auth-1
+              secret: { secretName: gh-token, items: [{ key: token, path: token }] }
+            - name: github-auth-2
+              secret: { secretName: t-pleme-lib-bare-github-auth-2, items: [{ key: private-key.pem, path: private-key.pem }] }
+        documentSelector: { path: kind, value: Pod }
+      - equal:
+          path: spec.containers[0].volumeMounts
+          value:
+            - { name: github-auth-1, mountPath: /var/run/secrets/github-auth/1, readOnly: true }
+            - { name: github-auth-2, mountPath: /var/run/secrets/github-auth/2, readOnly: true }
+        documentSelector: { path: kind, value: Pod }
+      - equal:
+          path: data["app.yaml"]
+          value: |
+            github_auth:
+              chain:
+              - token:
+                  env: TEND_GITHUB_TOKEN
+              - token:
+                  file: /var/run/secrets/github-auth/1/token
+              - app:
+                  app_id: 123
+                  installation_id: 456
+                  private_key:
+                    file: /var/run/secrets/github-auth/2/private-key.pem
+        documentSelector: { path: kind, value: ConfigMap }
+
+  - it: "externalSecret binding renders one ExternalSecret through pleme-lib.externalSecret"
+    template: templates/github-auth-externalsecrets.yaml
+    set:
+      githubAuthPod: true
+      externalSecret: { clusterSecretStoreName: chart-store }
+      githubAuth:
+        chain:
+          - token: { secretRef: { name: gh-token, key: token } }
+          - app:
+              app_id: 123
+              private_key: { externalSecret: { key: /gh/app, property: pem, refreshInterval: 5m } }
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ExternalSecret
+      - equal:
+          path: metadata.name
+          value: t-pleme-lib-bare-github-auth-1
+      - equal:
+          path: spec.secretStoreRef.name
+          value: chart-store
+      - equal:
+          path: spec.refreshInterval
+          value: 5m
+      - equal:
+          path: spec.target
+          value: { name: t-pleme-lib-bare-github-auth-1, creationPolicy: Owner }
+      - equal:
+          path: spec.data
+          value: [{ secretKey: private-key.pem, remoteRef: { key: /gh/app, property: pem } }]
+
+  - it: "no externalSecret binding renders no ExternalSecret (control: the case above renders one)"
+    template: templates/github-auth-externalsecrets.yaml
+    set:
+      githubAuthPod: true
+      githubAuth:
+        token: { secretRef: { name: gh-token, key: token } }
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: "absent githubAuth renders nothing from any fragment"
+    set:
+      githubAuthPod: true
+      arcSecretName: arc
+    templates:
+      - templates/github-auth.yaml
+      - templates/github-auth-externalsecrets.yaml
+      - templates/github-auth-arc.yaml
+      - templates/github-auth-validate.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # ── ARC projection: exactly ARC's Secret keys ──────────────────────────
+  - it: "arcSecret app → github_app_id + github_app_installation_id (template, Merge) + github_app_private_key"
+    template: templates/github-auth-arc.yaml
+    set:
+      arcSecretName: arc-github-app-secret
+      githubAuth:
+        app:
+          app_id: 123
+          installation_id: 12345678
+          private_key: { externalSecret: { key: /gh/app, property: private_key } }
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ExternalSecret
+      - equal:
+          path: spec.target
+          value:
+            name: arc-github-app-secret
+            creationPolicy: Owner
+            template:
+              mergePolicy: Merge
+              data:
+                github_app_id: "123"
+                github_app_installation_id: "12345678"
+      - equal:
+          path: spec.data
+          value: [{ secretKey: github_app_private_key, remoteRef: { key: /gh/app, property: private_key } }]
+
+  - it: "arcSecret token → github_token only, no template"
+    template: templates/github-auth-arc.yaml
+    set:
+      arcSecretName: arc-github-app-secret
+      githubAuth:
+        token: { externalSecret: { key: /gh/token } }
+    asserts:
+      - equal:
+          path: spec.target
+          value: { name: arc-github-app-secret, creationPolicy: Owner }
+      - equal:
+          path: spec.data
+          value: [{ secretKey: github_token, remoteRef: { key: /gh/token } }]
+
+  # ── refusals (validate-only probe: emits nothing when valid) ───────────
+  - it: "a valid value passes the validate-only probe and emits nothing"
+    template: templates/github-auth-validate.yaml
+    set:
+      githubAuth:
+        token: { secretRef: { name: gh-token, key: token } }
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: "gh_cli is refused"
+    template: templates/github-auth-validate.yaml
+    set:
+      githubAuth:
+        gh_cli: { host: github.com }
+    asserts:
+      - failedTemplate:
+          errorPattern: "githubAuth.gh_cli is meaningless in a pod"
+
+  - it: "gh_cli inside a chain is refused"
+    template: templates/github-auth-validate.yaml
+    set:
+      githubAuth:
+        chain:
+          - token: { env: TEND_GITHUB_TOKEN }
+          - gh_cli: { host: github.com }
+    asserts:
+      - failedTemplate:
+          errorPattern: "githubAuth.chain\\[1\\].gh_cli is meaningless in a pod"
+
+  - it: "two keys in one tagged entry are refused"
+    template: templates/github-auth-validate.yaml
+    set:
+      githubAuth:
+        token: { env: A }
+        app: { app_id: 1, private_key: { env: B } }
+    asserts:
+      - failedTemplate:
+          errorPattern: "githubAuth must carry exactly one key .*got 2: \\[app, token\\]"
+
+  - it: "two keys in one chain entry are refused"
+    template: templates/github-auth-validate.yaml
+    set:
+      githubAuth:
+        chain:
+          - token: { env: A }
+            app: { app_id: 1, private_key: { env: B } }
+    asserts:
+      - failedTemplate:
+          errorPattern: "githubAuth.chain\\[0\\] must carry exactly one key"
+
+  - it: "two keys in one secret source are refused"
+    template: templates/github-auth-validate.yaml
+    set:
+      githubAuth:
+        token: { env: A, file: /b }
+    asserts:
+      - failedTemplate:
+          errorPattern: "githubAuth.token must carry exactly one key .*got 2: \\[env, file\\]"
+
+  - it: "an app without private_key is refused"
+    template: templates/github-auth-validate.yaml
+    set:
+      githubAuth:
+        app: { app_id: 123, installation_id: 456 }
+    asserts:
+      - failedTemplate:
+          errorPattern: "githubAuth.app has no private_key"
+
+  - it: "an unknown app key is refused"
+    template: templates/github-auth-validate.yaml
+    set:
+      githubAuth:
+        app: { app_id: 123, private_key: { env: K }, appId: 123 }
+    asserts:
+      - failedTemplate:
+          errorPattern: "githubAuth.app has unknown key \"appId\""
+
+  - it: "an unknown variant is refused"
+    template: templates/github-auth-validate.yaml
+    set:
+      githubAuth:
+        oauth: { client_id: x }
+    asserts:
+      - failedTemplate:
+          errorPattern: "githubAuth has unknown variant \"oauth\""
+
+  - it: "an unknown secret source is refused"
+    template: templates/github-auth-validate.yaml
+    set:
+      githubAuth:
+        token: { secret: { name: a } }
+    asserts:
+      - failedTemplate:
+          errorPattern: "githubAuth.token has unknown secret source \"secret\""
+
+  - it: "an unknown secretRef key is refused"
+    template: templates/github-auth-validate.yaml
+    set:
+      githubAuth:
+        token: { secretRef: { name: a, key: b, namespace: x } }
+    asserts:
+      - failedTemplate:
+          errorPattern: "githubAuth.token.secretRef has unknown key \"namespace\""
+
+  - it: "a bare-string token (plaintext literal) is refused"
+    template: templates/github-auth-validate.yaml
+    set:
+      githubAuth:
+        token: ghp_not_a_real_token
+    asserts:
+      - failedTemplate:
+          errorPattern: "githubAuth.token is a bare string"
+
+  - it: "an explicit literal is refused"
+    template: templates/github-auth-validate.yaml
+    set:
+      githubAuth:
+        token: { literal: ghp_not_a_real_token }
+    asserts:
+      - failedTemplate:
+          errorPattern: "githubAuth.token.literal puts secret material in chart values"
+
+  - it: "laptop-only backends are refused"
+    template: templates/github-auth-validate.yaml
+    set:
+      githubAuth:
+        app: { app_id: 1, private_key: { op: "op://vault/item/field" } }
+    asserts:
+      - failedTemplate:
+          errorPattern: "githubAuth.app.private_key.op resolves through laptop tooling"
+
+  - it: "a string app_id is refused (Rust u64)"
+    template: templates/github-auth-validate.yaml
+    set:
+      githubAuth:
+        app: { app_id: "123", private_key: { env: K } }
+    asserts:
+      - failedTemplate:
+          errorPattern: "githubAuth.app.app_id must be a positive integer"
+
+  - it: "a nested chain is refused"
+    template: templates/github-auth-validate.yaml
+    set:
+      githubAuth:
+        chain:
+          - chain: [{ token: { env: A } }]
+    asserts:
+      - failedTemplate:
+          errorPattern: "githubAuth.chain\\[0\\].chain is nested inside a chain"
+
+  - it: "an empty chain is refused"
+    template: templates/github-auth-validate.yaml
+    set:
+      githubAuth:
+        chain: []
+    asserts:
+      - failedTemplate:
+          errorPattern: "githubAuth.chain must be a non-empty list"
+
+  - it: "one env var named by two sources is refused"
+    template: templates/github-auth-validate.yaml
+    set:
+      githubAuth:
+        chain:
+          - token: { env: GH_TOKEN }
+          - token: { secretRef: { name: a, key: b, env: GH_TOKEN } }
+    asserts:
+      - failedTemplate:
+          errorPattern: "env GH_TOKEN is named by two sources"
+
+  - it: "a relative file path is refused"
+    template: templates/github-auth-validate.yaml
+    set:
+      githubAuth:
+        token: { file: secrets/token }
+    asserts:
+      - failedTemplate:
+          errorPattern: "githubAuth.token.file must be an absolute path"
+
+  # ── ARC refusals ───────────────────────────────────────────────────────
+  - it: "arcSecret refuses a chain"
+    template: templates/github-auth-arc.yaml
+    set:
+      arcSecretName: arc
+      githubAuth:
+        chain: [{ token: { externalSecret: { key: /a } } }]
+    asserts:
+      - failedTemplate:
+          errorPattern: "githubAuth.chain cannot project into it"
+
+  - it: "arcSecret refuses gh_cli"
+    template: templates/github-auth-arc.yaml
+    set:
+      arcSecretName: arc
+      githubAuth:
+        gh_cli: { host: github.com }
+    asserts:
+      - failedTemplate:
+          errorPattern: "githubAuth.gh_cli is meaningless in a pod"
+
+  - it: "arcSecret refuses a secretRef (Helm cannot copy Secret bytes)"
+    template: templates/github-auth-arc.yaml
+    set:
+      arcSecretName: arc
+      githubAuth:
+        token: { secretRef: { name: gh, key: token } }
+    asserts:
+      - failedTemplate:
+          errorPattern: "githubAuth.token.secretRef cannot project into ARC's Secret"
+
+  - it: "arcSecret refuses an app without installation_id"
+    template: templates/github-auth-arc.yaml
+    set:
+      arcSecretName: arc
+      githubAuth:
+        app: { app_id: 1, private_key: { externalSecret: { key: /a } } }
+    asserts:
+      - failedTemplate:
+          errorPattern: "githubAuth.app.installation_id is required for ARC"

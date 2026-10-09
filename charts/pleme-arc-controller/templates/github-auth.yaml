@@ -1,0 +1,17 @@
+{{- /*
+Typed GitHub credentials (pleme-lib.githubAuth, the shape of shikumi's Rust
+GithubAuth), projected onto ARC's Secret contract under `githubConfigSecret`.
+
+  githubAuth empty (default) → nothing renders; `externalSecret.secrets` keeps
+                               seeding the Secret as before (back-compat).
+  githubAuth set             → one ExternalSecret named githubConfigSecret with
+                               exactly ARC's keys.
+  both name the same Secret  → fail: two declarations of one Secret.
+*/ -}}
+{{- if .Values.githubAuth }}
+{{- $name := .Values.githubConfigSecret }}
+{{- if hasKey ((.Values.externalSecret).secrets | default dict) $name }}
+{{- fail (printf "pleme-arc-controller: githubAuth and externalSecret.secrets.%s both declare the Secret %q; keep githubAuth and drop the externalSecret entry" $name $name) }}
+{{- end }}
+{{- include "pleme-lib.githubAuth.arcSecret" (dict "root" . "name" $name) }}
+{{- end }}

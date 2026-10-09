@@ -2,11 +2,11 @@ apiVersion: v2
 name: pleme-arc-runner-pool
 description: GitHub Actions Runner Controller (ARC) runner pool — namespace-scoped IRSA SA + RBAC + dedicated Karpenter NodePool + AutoscalingRunnerSet
 type: application
-version: 0.2.0
+version: 0.3.0
 appVersion: "0.12.1"
 dependencies:
   - name: pleme-lib
-    version: ">=0.18.0"
+    version: ">=0.53.0"
     repository: "file://../pleme-lib"
   - name: gha-runner-scale-set
     version: 0.12.1

@@ -1,0 +1,6 @@
+{{- /* Validate-only probe: the guard reachable from a caller that emits
+       NOTHING. Off while another probe is under test, so each refusal is
+       reported by exactly one template. */ -}}
+{{- if not (or .Values.githubAuthPod .Values.arcSecretName) }}
+{{- include "pleme-lib.githubAuth.validate" . -}}
+{{- end }}

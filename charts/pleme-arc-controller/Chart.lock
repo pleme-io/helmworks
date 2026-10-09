@@ -1,9 +1,9 @@
 dependencies:
 - name: pleme-lib
   repository: file://../pleme-lib
-  version: 0.15.0
+  version: 0.53.0
 - name: gha-runner-scale-set-controller
   repository: oci://ghcr.io/actions/actions-runner-controller-charts
   version: 0.12.1
-digest: sha256:5997cb667acb7241ead6e25858f7e7ddfd36499b859d41e609c993b011cbe13b
-generated: "2026-05-25T23:31:24.595781-04:00"
+digest: sha256:e6bc36f13c23d7d8d011738b35ef204fe20c9b1b2bac82386fb674dc467f6ee7
+generated: "2026-10-09T08:31:15.911706523-03:00"

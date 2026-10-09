@@ -1,0 +1,74 @@
+suite: pleme-arc-controller githubAuth — typed GitHub credentials projected onto ARC's Secret
+#
+# githubAuth is the typed alternative to hand-writing ARC's ExternalSecret under
+# externalSecret.secrets. The two may coexist only for DIFFERENT Secrets.
+templates:
+  - templates/github-auth.yaml
+  - templates/externalsecret.yaml
+release:
+  name: ctrl
+  namespace: arc-systems
+values:
+  - ../../examples/example-arc-controller.yaml
+tests:
+  - it: "back-compat: githubAuth unset renders no github-auth document"
+    template: templates/github-auth.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: "back-compat: the hand-written ExternalSecret still renders (control for the absence above)"
+    template: templates/externalsecret.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.name
+          value: arc-github-app-secret
+
+  - it: "app → ExternalSecret githubConfigSecret with ARC's three keys, store inherited from the chart"
+    template: templates/github-auth.yaml
+    set:
+      githubConfigSecret: arc-typed-secret
+      githubAuth:
+        app:
+          app_id: 123
+          installation_id: 456
+          private_key: { externalSecret: { key: /arc/github-app, property: private_key } }
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.name
+          value: arc-typed-secret
+      - equal:
+          path: spec.secretStoreRef.name
+          value: cluster-secret-store
+      - equal:
+          path: spec.target.template.data
+          value: { github_app_id: "123", github_app_installation_id: "456" }
+      - equal:
+          path: spec.data
+          value: [{ secretKey: github_app_private_key, remoteRef: { key: /arc/github-app, property: private_key } }]
+
+  - it: "the typed path does not re-render the chart's own ExternalSecrets"
+    template: templates/externalsecret.yaml
+    set:
+      githubConfigSecret: arc-typed-secret
+      githubAuth:
+        token: { externalSecret: { key: /arc/github-token } }
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.name
+          value: arc-github-app-secret
+
+  - it: "githubAuth and externalSecret.secrets declaring the same Secret fails"
+    template: templates/github-auth.yaml
+    set:
+      githubAuth:
+        token: { externalSecret: { key: /arc/github-token } }
+    asserts:
+      - failedTemplate:
+          errorPattern: "githubAuth and externalSecret.secrets.arc-github-app-secret both declare the Secret"

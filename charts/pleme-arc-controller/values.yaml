@@ -38,6 +38,23 @@ externalSecret:
   refreshInterval: 30m
   secrets: {}
 
+# ---------- Typed GitHub credentials (pleme-lib.githubAuth) ----------
+# The shape of shikumi's Rust `GithubAuth`, projected onto ARC's Secret
+# contract by ONE ExternalSecret named `githubConfigSecret` (app ->
+# github_app_id / github_app_installation_id / github_app_private_key; token ->
+# github_token). The typed alternative to hand-writing that ExternalSecret under
+# `externalSecret.secrets`; declaring both for the same name fails. Empty (the
+# default) renders nothing. Shape + refusals:
+# charts/pleme-lib/docs/GITHUB-AUTH.md.
+githubConfigSecret: arc-github-app-secret
+githubAuth: {}
+  # Example:
+  # app:
+  #   app_id: 123
+  #   installation_id: 456
+  #   private_key:
+  #     externalSecret: { key: /path/in/backend/github-app, property: private_key }
+
 # ---------- Attestation framework (sekiban) ----------
 attestation:
   enabled: false

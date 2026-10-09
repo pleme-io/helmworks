@@ -1,0 +1,4 @@
+{{- /* ARC projection probe: only when a test names the target Secret. */ -}}
+{{- with .Values.arcSecretName }}
+{{- include "pleme-lib.githubAuth.arcSecret" (dict "root" $ "name" .) }}
+{{- end }}

@@ -66,6 +66,9 @@ karpenter:
 gha-runner-scale-set:
   githubConfigUrl: https://github.com/example-org/example-repo
   githubConfigSecret: arc-github-app-secret
+  # Typed alternative: set top-level `githubAuth` (pleme-lib.githubAuth) and
+  # this chart materializes the Secret above through ESO with exactly ARC's
+  # keys — see example-arc-runner-pool-github-auth.yaml.
   runnerScaleSetName: example-runner-pool
   runnerGroup: default
   minRunners: 0

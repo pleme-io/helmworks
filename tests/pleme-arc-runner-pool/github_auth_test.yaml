@@ -1,0 +1,133 @@
+suite: pleme-arc-runner-pool githubAuth — typed GitHub credentials projected onto ARC's Secret
+#
+# The projection is pleme-lib.githubAuth.arcSecret; this suite pins the chart's
+# half of the contract: the Secret it materializes is the one the upstream
+# scale set reads (gha-runner-scale-set.githubConfigSecret), the back-compat
+# path renders nothing new, and the two credential declarations cannot coexist.
+templates:
+  - templates/github-auth.yaml
+release:
+  name: pool
+  namespace: arc-runners
+values:
+  - ../../examples/example-arc-runner-pool.yaml
+tests:
+  - it: "back-compat: githubAuth unset renders nothing (the Secret stays out of band)"
+    template: templates/github-auth.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: "app → one ExternalSecret named githubConfigSecret with exactly ARC's three keys"
+    template: templates/github-auth.yaml
+    set:
+      githubAuth:
+        app:
+          app_id: 123
+          installation_id: 456
+          private_key: { externalSecret: { key: /arc/github-app, property: private_key } }
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ExternalSecret
+      - equal:
+          path: metadata.name
+          value: arc-github-app-secret
+      - equal:
+          path: metadata.namespace
+          value: arc-runners
+      - equal:
+          path: spec.target
+          value:
+            name: arc-github-app-secret
+            creationPolicy: Owner
+            template:
+              mergePolicy: Merge
+              data:
+                github_app_id: "123"
+                github_app_installation_id: "456"
+      - equal:
+          path: spec.data
+          value: [{ secretKey: github_app_private_key, remoteRef: { key: /arc/github-app, property: private_key } }]
+
+  - it: "the materialized Secret follows githubConfigSecret"
+    template: templates/github-auth.yaml
+    set:
+      gha-runner-scale-set:
+        githubConfigSecret: pool-github
+      githubAuth:
+        token: { externalSecret: { key: /arc/github-token } }
+    asserts:
+      - equal:
+          path: metadata.name
+          value: pool-github
+      - equal:
+          path: spec.target.name
+          value: pool-github
+
+  - it: "token → github_token only"
+    template: templates/github-auth.yaml
+    set:
+      githubAuth:
+        token: { externalSecret: { key: /arc/github-token, clusterSecretStoreName: vault-store } }
+    asserts:
+      - equal:
+          path: spec.target
+          value: { name: arc-github-app-secret, creationPolicy: Owner }
+      - equal:
+          path: spec.secretStoreRef.name
+          value: vault-store
+      - equal:
+          path: spec.data
+          value: [{ secretKey: github_token, remoteRef: { key: /arc/github-token } }]
+
+  - it: "githubAuth + an inline githubConfigSecret map fails (two credential declarations)"
+    template: templates/github-auth.yaml
+    set:
+      gha-runner-scale-set:
+        githubConfigSecret:
+          github_token: not-a-real-token
+      githubAuth:
+        token: { externalSecret: { key: /arc/github-token } }
+    asserts:
+      - failedTemplate:
+          errorPattern: "githubAuth and an inline gha-runner-scale-set.githubConfigSecret map are two credential declarations"
+
+  - it: "githubAuth with an empty githubConfigSecret fails"
+    template: templates/github-auth.yaml
+    set:
+      gha-runner-scale-set:
+        githubConfigSecret: ""
+      githubAuth:
+        token: { externalSecret: { key: /arc/github-token } }
+    asserts:
+      - failedTemplate:
+          errorPattern: "projects into the Secret named by gha-runner-scale-set.githubConfigSecret, which is empty"
+
+  - it: "chain fails (ARC reads one credential)"
+    template: templates/github-auth.yaml
+    set:
+      githubAuth:
+        chain: [{ token: { externalSecret: { key: /a } } }]
+    asserts:
+      - failedTemplate:
+          errorPattern: "githubAuth.chain cannot project into it"
+
+  - it: "gh_cli fails"
+    template: templates/github-auth.yaml
+    set:
+      githubAuth:
+        gh_cli: { host: github.com }
+    asserts:
+      - failedTemplate:
+          errorPattern: "githubAuth.gh_cli is meaningless in a pod"
+
+  - it: "a secretRef private key fails (Helm cannot copy Secret bytes)"
+    template: templates/github-auth.yaml
+    set:
+      githubAuth:
+        app: { app_id: 1, installation_id: 2, private_key: { secretRef: { name: gh-app, key: pk } } }
+    asserts:
+      - failedTemplate:
+          errorPattern: "githubAuth.app.private_key.secretRef cannot project into ARC's Secret"

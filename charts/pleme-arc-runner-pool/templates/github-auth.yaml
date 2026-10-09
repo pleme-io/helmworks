@@ -1,0 +1,29 @@
+{{- /*
+Typed GitHub credentials for this pool (pleme-lib.githubAuth, the shape of
+shikumi's Rust GithubAuth), projected onto ARC's Secret contract.
+
+The Secret's NAME is `gha-runner-scale-set.githubConfigSecret`: a parent chart
+cannot rewrite its subchart's values at render time, so the name the upstream
+scale set reads is the one name both sides agree on (the same typed-contract
+move as the pause toggle).
+
+  githubAuth empty (default)       → nothing renders; the Secret named by
+                                     githubConfigSecret is provisioned out of
+                                     band, exactly as before (back-compat).
+  githubAuth set                   → an ExternalSecret materializes that Secret
+                                     with exactly ARC's keys.
+  githubAuth + githubConfigSecret  → fail: two credential declarations. The
+  as upstream's inline map           map form puts the credentials in values;
+                                     githubAuth is the typed replacement.
+*/ -}}
+{{- if .Values.githubAuth }}
+{{- $upstream := index .Values "gha-runner-scale-set" | default dict }}
+{{- $name := get $upstream "githubConfigSecret" }}
+{{- if kindIs "map" $name }}
+{{- fail "pleme-arc-runner-pool: githubAuth and an inline gha-runner-scale-set.githubConfigSecret map are two credential declarations; keep githubAuth and set githubConfigSecret back to the Secret NAME it should materialize" }}
+{{- end }}
+{{- if not $name }}
+{{- fail "pleme-arc-runner-pool: githubAuth projects into the Secret named by gha-runner-scale-set.githubConfigSecret, which is empty" }}
+{{- end }}
+{{- include "pleme-lib.githubAuth.arcSecret" (dict "root" . "name" $name) }}
+{{- end }}

@@ -1,0 +1,34 @@
+suite: pleme-arc-runner-pool githubAuth — the upstream scale set reads the Secret githubAuth materializes
+#
+# Separate from github_auth_test.yaml on purpose: rendering the upstream
+# subchart runs ITS required() on githubConfigSecret, which would pre-empt the
+# chart's own refusal messages pinned in that suite.
+templates:
+  - charts/gha-runner-scale-set/templates/autoscalingrunnerset.yaml
+release:
+  name: pool
+  namespace: arc-runners
+values:
+  - ../../examples/example-arc-runner-pool.yaml
+tests:
+  - it: "back-compat: the scale set still reads the Secret NAMED by githubConfigSecret"
+    template: charts/gha-runner-scale-set/templates/autoscalingrunnerset.yaml
+    asserts:
+      - equal:
+          path: spec.githubConfigSecret
+          value: arc-github-app-secret
+
+  - it: "app → the scale set reads the very Secret the ExternalSecret targets"
+    template: charts/gha-runner-scale-set/templates/autoscalingrunnerset.yaml
+    set:
+      gha-runner-scale-set:
+        githubConfigSecret: pool-github
+      githubAuth:
+        app:
+          app_id: 123
+          installation_id: 456
+          private_key: { externalSecret: { key: /arc/github-app } }
+    asserts:
+      - equal:
+          path: spec.githubConfigSecret
+          value: pool-github

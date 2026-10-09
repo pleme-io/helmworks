@@ -1,0 +1,25 @@
+# Example values for pleme-arc-runner-pool with TYPED GitHub credentials
+# (pleme-lib.githubAuth — the serde shape of shikumi's Rust GithubAuth).
+# The chart renders ONE ExternalSecret named by
+# gha-runner-scale-set.githubConfigSecret carrying exactly ARC's keys
+# (github_app_id, github_app_installation_id, github_app_private_key).
+fullnameOverride: example-runner-pool
+
+serviceAccount:
+  create: true
+  name: example-runner-sa
+
+githubAuth:
+  app:
+    app_id: 123456
+    installation_id: 7891011
+    private_key:
+      externalSecret:
+        key: /example/secrets/arc/github-app
+        property: private_key
+
+gha-runner-scale-set:
+  githubConfigUrl: "https://github.com/example-org"
+  githubConfigSecret: example-runner-pool-github
+  minRunners: 0
+  maxRunners: 3

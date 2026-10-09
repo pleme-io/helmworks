@@ -1,0 +1,36 @@
+{{- /* Bare fixture: a pod and its config, wired ONLY through the
+       pleme-lib.githubAuth fragments — the way a consumer chart wires them.
+       Gated on githubAuthPod (see github-auth-validate.yaml). */ -}}
+{{- if and .Values.githubAuthPod .Values.githubAuth }}
+{{- $env := include "pleme-lib.githubAuth.env" . }}
+{{- $vols := include "pleme-lib.githubAuth.volumes" . }}
+{{- $mounts := include "pleme-lib.githubAuth.volumeMounts" . }}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gha-probe
+spec:
+  containers:
+    - name: app
+      image: example.invalid/app:1
+      {{- with $env }}
+      env:
+        {{- . | trim | nindent 8 }}
+      {{- end }}
+      {{- with $mounts }}
+      volumeMounts:
+        {{- . | trim | nindent 8 }}
+      {{- end }}
+  {{- with $vols }}
+  volumes:
+    {{- . | trim | nindent 4 }}
+  {{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gha-config
+data:
+  app.yaml: |
+    {{- include "pleme-lib.githubAuth.config" . | nindent 4 }}
+{{- end }}
