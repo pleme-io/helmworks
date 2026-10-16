@@ -1,0 +1,85 @@
+suite: pangea-operator — compiler backend selection and postgres auth
+templates:
+  - templates/deployment.yaml
+release:
+  name: pangea-operator
+  namespace: pangea-system
+tests:
+  - it: "selects lava when nothing names a backend"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PANGEA_COMPILER_BACKEND
+            value: lava
+      - lengthEqual:
+          path: spec.template.spec.containers
+          count: 1
+
+  - it: "keeps useEmbeddedRuby true on the embedded backend"
+    set:
+      useEmbeddedRuby: true
+      gemAuth.tokenSecret.name: gem-auth
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PANGEA_COMPILER_BACKEND
+            value: embedded
+
+  - it: "keeps http reachable when named"
+    set:
+      compilerBackend: http
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PANGEA_COMPILER_BACKEND
+            value: http
+
+  - it: "refuses an unknown backend"
+    set:
+      compilerBackend: cobol
+    asserts:
+      - failedTemplate: {}
+
+  - it: "renders postgres credentials from the secret by default"
+    set:
+      executor.magma.enabled: true
+      executor.magma.postgres.host: 127.0.0.1
+      executor.magma.postgres.passwordSecretName: pg
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PGPASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: pg
+                key: password
+
+  - it: "renders a literal user and no password under trust"
+    set:
+      executor.magma.enabled: true
+      executor.magma.postgres.host: 127.0.0.1
+      executor.magma.postgres.auth: trust
+      executor.magma.postgres.user: pangea
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PGUSER
+            value: pangea
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PGPASSWORD
+          any: true
+
+  - it: "refuses an unknown postgres auth"
+    set:
+      executor.magma.enabled: true
+      executor.magma.postgres.host: 127.0.0.1
+      executor.magma.postgres.auth: kerberos
+    asserts:
+      - failedTemplate: {}

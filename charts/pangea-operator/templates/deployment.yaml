@@ -29,13 +29,14 @@ embedded mode and drop the compiler sidecar from the pod spec.
 
   ★ BACK-COMPAT IS EXACT, not approximate. When `compilerBackend` is unset the
   legacy pair still decides, and both legacy settings render byte-identically to
-  what they rendered before: `true` → embedded/process, `false` → http. Existing
-  consumers need no edit. (★★ MODULARIZE, DON'T DELETE — the Ruby backends stay
+  what they rendered before for `true` → embedded/process. Saying nothing
+  (`useEmbeddedRuby: false`, the default) selects `lava` since 0.9.11; `http`
+  stays reachable as an explicit `compilerBackend: http`. (★★ MODULARIZE, DON'T DELETE — the Ruby backends stay
   fully expressible; retirement here is a selection, never a deletion.)
 */}}
 {{- $backend := .Values.compilerBackend | default "" -}}
 {{- if eq $backend "" -}}
-{{-   $backend = ternary (ternary "process" "embedded" (eq $rubyIsolation "process")) "http" $useEmbedded -}}
+{{-   $backend = ternary (ternary "process" "embedded" (eq $rubyIsolation "process")) "lava" $useEmbedded -}}
 {{- end -}}
 {{/* An unknown backend is rejected AT RENDER TIME rather than becoming a pod
      that crash-loops on startup with a typed error nobody is watching for.
@@ -108,8 +109,16 @@ embedded mode and drop the compiler sidecar from the pod spec.
 {{- $executorEnv = append $executorEnv (dict "name" "PGHOST" "value" $magmaPgHost) }}
 {{- $executorEnv = append $executorEnv (dict "name" "PGPORT" "value" (printf "%v" ($magmaPg.port | default 5432))) }}
 {{- $executorEnv = append $executorEnv (dict "name" "PGDATABASE" "value" ($magmaPg.database | default "pangea_state")) }}
+{{- $magmaPgAuth := $magmaPg.auth | default "secretRef" }}
+{{- if not (has $magmaPgAuth (list "secretRef" "trust")) }}
+{{- fail (printf "pangea-operator: executor.magma.postgres.auth=%q is not one of secretRef|trust" $magmaPgAuth) }}
+{{- end }}
+{{- if eq $magmaPgAuth "trust" }}
+{{- $executorEnv = append $executorEnv (dict "name" "PGUSER" "value" ($magmaPg.user | default "pangea")) }}
+{{- else }}
 {{- $executorEnv = append $executorEnv (dict "name" "PGUSER" "valueFrom" (dict "secretKeyRef" (dict "name" $magmaPg.passwordSecretName "key" ($magmaPg.userSecretKey | default "username")))) }}
 {{- $executorEnv = append $executorEnv (dict "name" "PGPASSWORD" "valueFrom" (dict "secretKeyRef" (dict "name" $magmaPg.passwordSecretName "key" ($magmaPg.passwordSecretKey | default "password")))) }}
+{{- end }}
 {{- end }}
 {{- end }}
 {{- if and $needsRuby (ne $gemAuthSecretName "") }}

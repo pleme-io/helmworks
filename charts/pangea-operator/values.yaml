@@ -194,8 +194,8 @@ service:
 # one value, so a backend cannot be half-wired. An unknown value fails the helm
 # render rather than producing a pod that crash-loops on a startup error.
 #
-# Leave unset to keep the legacy `useEmbeddedRuby` x `rubyIsolation` encoding,
-# which renders byte-identically to what it always has.
+# Unset: `useEmbeddedRuby: true` keeps its legacy embedded/process meaning;
+# otherwise the backend is `lava`. `http` is reached only by naming it.
 compilerBackend: ""
 
 # -- Executor configuration for external tool invocation
@@ -284,6 +284,7 @@ executor:
       # -- Secret holding the owner role's credentials (basic-auth
       # shape: `username`/`password` keys by default). Required when
       # `host` is set.
+      auth: secretRef
       passwordSecretName: ""
       passwordSecretKey: password
       userSecretKey: username
