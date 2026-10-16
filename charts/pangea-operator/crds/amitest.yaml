@@ -18,16 +18,16 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: ".status.phase"
+    - jsonPath: .status.phase
       name: Phase
       type: string
-    - jsonPath: ".status.amiId"
+    - jsonPath: .status.amiId
       name: AMI
       type: string
-    - jsonPath: ".status.suiteSummary"
+    - jsonPath: .status.suiteSummary
       name: Suites
       type: string
-    - jsonPath: ".metadata.creationTimestamp"
+    - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
     name: v1alpha1
@@ -39,8 +39,7 @@ spec:
             description: AmiTest validates an AMI through a DAG of test suites.
             properties:
               amiSource:
-                description: Source of the AMI to test — reference a PackerBuild CR
-                  or specify inline.
+                description: Source of the AMI to test — reference a PackerBuild CR or specify inline.
                 oneOf:
                 - required:
                   - packerBuildRef
@@ -90,31 +89,17 @@ spec:
                 nullable: true
                 properties:
                   akeyless:
-                    description: 'Akeyless credentials configuration. Used by templates
-                      whose Ruby workspace declares an inline `provider
-                      :akeyless do api_key_login( access_id:, access_key:) end`
-                      block (e.g. a workspace built on a
-                      `Pangea::Architectures::*` composition that provisions
-                      Akeyless auth methods and secrets). Ruby-side authority
-                      model, same as GitHub: the referenced Secret''s data keys
-                      (typically `AKEYLESS_ACCESS_ID` / `AKEYLESS_ACCESS_KEY` /
-                      optionally `AKEYLESS_API_GATEWAY`) are installed verbatim
-                      as env vars by the generic `iter_secret_refs` injection
-                      loop; the Ruby workspace reads them via `ENV.fetch(...)`.
-                      The operator never renders its own `provider "akeyless" {
-                      ... }` block.'
+                    description: 'Akeyless credentials configuration. Used by templates whose Ruby workspace declares an inline `provider :akeyless do api_key_login( access_id:, access_key:) end` block (e.g. a workspace built on a `Pangea::Architectures::*` composition that provisions Akeyless auth methods and secrets). Ruby-side authority model, same as GitHub: the referenced Secret''s data keys (typically `AKEYLESS_ACCESS_ID` / `AKEYLESS_ACCESS_KEY` / optionally `AKEYLESS_API_GATEWAY`) are installed verbatim as env vars by the generic `iter_secret_refs` injection loop; the Ruby workspace reads them via `ENV.fetch(...)`. The operator never renders its own `provider "akeyless" { ... }` block.'
                     nullable: true
                     properties:
                       secretRef:
-                        description: Secret containing the Akeyless access-id/access-key
-                          pair.
+                        description: Secret containing the Akeyless access-id/access-key pair.
                         properties:
                           name:
                             description: Name of the Secret.
                             type: string
                           namespace:
-                            description: Namespace of the Secret (defaults to same
-                              namespace as the resource).
+                            description: Namespace of the Secret (defaults to same namespace as the resource).
                             nullable: true
                             type: string
                         required:
@@ -135,23 +120,62 @@ spec:
                         description: Optional role ARN to assume.
                         nullable: true
                         type: string
+                      rolesAnywhere:
+                        description: IAM Roles Anywhere session source. Mutually exclusive with `secretRef`.
+                        nullable: true
+                        properties:
+                          certSecretRef:
+                            description: 'Secret of type kubernetes.io/tls: `tls.crt` holds the leaf certificate followed by any intermediates, `tls.key` an RSA key (PKCS#1 or PKCS#8) or an ECDSA P-256 key in PKCS#8.'
+                            properties:
+                              name:
+                                description: Name of the Secret.
+                                type: string
+                              namespace:
+                                description: Namespace of the Secret (defaults to same namespace as the resource).
+                                nullable: true
+                                type: string
+                            required:
+                            - name
+                            type: object
+                          profileArn:
+                            description: Roles Anywhere profile ARN.
+                            type: string
+                          roleArn:
+                            description: IAM role ARN the session assumes.
+                            type: string
+                          sessionDurationSeconds:
+                            description: Requested session lifetime in seconds (900 to 43200, capped by the profile). Defaults to 3600.
+                            format: uint32
+                            minimum: 0.0
+                            nullable: true
+                            type: integer
+                          trustAnchorArn:
+                            description: Trust anchor ARN, `arn:aws:rolesanywhere:<region>:<account>:trust-anchor/<id>`. Its region selects the Roles Anywhere endpoint.
+                            type: string
+                        required:
+                        - certSecretRef
+                        - profileArn
+                        - roleArn
+                        - trustAnchorArn
+                        type: object
                       secretRef:
-                        description: Secret containing AWS credentials.
+                        description: Secret containing static AWS credentials. Mutually exclusive with `rolesAnywhere`.
+                        nullable: true
                         properties:
                           name:
                             description: Name of the Secret.
                             type: string
                           namespace:
-                            description: Namespace of the Secret (defaults to same
-                              namespace as the resource).
+                            description: Namespace of the Secret (defaults to same namespace as the resource).
                             nullable: true
                             type: string
                         required:
                         - name
                         type: object
-                    required:
-                    - secretRef
                     type: object
+                    x-kubernetes-validations:
+                    - message: exactly one of secretRef or rolesAnywhere must be set
+                      rule: has(self.secretRef) != has(self.rolesAnywhere)
                   cloudflare:
                     description: Cloudflare credentials configuration.
                     nullable: true
@@ -163,8 +187,7 @@ spec:
                             description: Name of the Secret.
                             type: string
                           namespace:
-                            description: Namespace of the Secret (defaults to same
-                              namespace as the resource).
+                            description: Namespace of the Secret (defaults to same namespace as the resource).
                             nullable: true
                             type: string
                         required:
@@ -174,24 +197,17 @@ spec:
                     - secretRef
                     type: object
                   datadog:
-                    description: Datadog credentials configuration. Used by the absorbed
-                      Datadog estate workspace (workspaces/example-datadog), whose
-                      shard entry points declare `provider :datadog` with `ENV.fetch`.
-                      Without this field the chart's `providerCredentials.datadog`
-                      was silently DROPPED by serde -- no error, no condition -- and
-                      every RPC fell back to the pod's ambient credential chain.
+                    description: Datadog credentials configuration. Used by an absorbed Datadog estate workspace (e.g. workspaces/example-datadog), whose shard entry points declare `provider :datadog` with `ENV.fetch`. Without this field the chart's `providerCredentials.datadog` was silently DROPPED by serde -- no error, no condition -- and every RPC fell back to the pod's ambient credential chain.
                     nullable: true
                     properties:
                       secretRef:
-                        description: Secret containing the Datadog API and application
-                          keys.
+                        description: Secret containing the Datadog API and application keys.
                         properties:
                           name:
                             description: Name of the Secret.
                             type: string
                           namespace:
-                            description: Namespace of the Secret (defaults to same
-                              namespace as the resource).
+                            description: Namespace of the Secret (defaults to same namespace as the resource).
                             nullable: true
                             type: string
                         required:
@@ -201,11 +217,7 @@ spec:
                     - secretRef
                     type: object
                   github:
-                    description: 'GitHub credentials configuration. Used by templates
-                      that declare github_* providers (e.g. pangea-github''s `cloudflare_zero_trust_*`
-                      adjacent shapes — repos, runner groups, branch protection).
-                      Same shape as the cloudflare credentials block: a secretRef
-                      to a Secret containing a PAT.'
+                    description: 'GitHub credentials configuration. Used by templates that declare github_* providers (e.g. pangea-github''s `cloudflare_zero_trust_*` adjacent shapes — repos, runner groups, branch protection). Same shape as the cloudflare credentials block: a secretRef to a Secret containing a PAT.'
                     nullable: true
                     properties:
                       secretRef:
@@ -215,8 +227,7 @@ spec:
                             description: Name of the Secret.
                             type: string
                           namespace:
-                            description: Namespace of the Secret (defaults to same
-                              namespace as the resource).
+                            description: Namespace of the Secret (defaults to same namespace as the resource).
                             nullable: true
                             type: string
                         required:
@@ -226,26 +237,17 @@ spec:
                     - secretRef
                     type: object
                   porkbun:
-                    description: 'Porkbun credentials configuration. Used by templates
-                      that declare `porkbun_*` resources (e.g. `platform-dns`''s registrar
-                      delegation) via the `marcfrederick/porkbun` terraform provider.
-                      Same operator-side authority model as AWS/Cloudflare: the referenced
-                      Secret holds the two-part `api_key` + `secret_api_key` credential
-                      pair, resolved by the operator and rendered into its own ephemeral
-                      `providers.tf.json` — never baked into the workspace''s own
-                      compiled/git-committed output.'
+                    description: 'Porkbun credentials configuration. Used by templates that declare `porkbun_*` resources (e.g. `platform-dns`''s registrar delegation) via the `marcfrederick/porkbun` terraform provider. Same operator-side authority model as AWS/Cloudflare: the referenced Secret holds the two-part `api_key` + `secret_api_key` credential pair, resolved by the operator and rendered into its own ephemeral `providers.tf.json` — never baked into the workspace''s own compiled/git-committed output.'
                     nullable: true
                     properties:
                       secretRef:
-                        description: Secret containing the Porkbun `api_key` + `secret_api_key`
-                          pair.
+                        description: Secret containing the Porkbun `api_key` + `secret_api_key` pair.
                         properties:
                           name:
                             description: Name of the Secret.
                             type: string
                           namespace:
-                            description: Namespace of the Secret (defaults to same
-                              namespace as the resource).
+                            description: Namespace of the Secret (defaults to same namespace as the resource).
                             nullable: true
                             type: string
                         required:
@@ -261,13 +263,11 @@ spec:
                   description: A single test suite within the DAG.
                   properties:
                     config:
-                      description: Type-specific configuration (JSON value interpreted
-                        per suite_type).
+                      description: Type-specific configuration (JSON value interpreted per suite_type).
                       type: object
                       x-kubernetes-preserve-unknown-fields: true
                     dependsOn:
-                      description: Suite names that must complete successfully before
-                        this suite runs.
+                      description: Suite names that must complete successfully before this suite runs.
                       items:
                         type: string
                       type: array
