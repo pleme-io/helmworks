@@ -8,7 +8,12 @@ name: auto-release
 on:
   push:
     branches: [main]
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      publish-oci:
+        description: 'Publish bumped charts to ghcr.io/pleme-io/charts'
+        type: boolean
+        default: false
 
 jobs:
   # ── THE GATE: publication is now a FUNCTION of the tests ──────────────────
@@ -67,6 +72,7 @@ jobs:
 
   release:
     needs: [charts]
+    if: github.event_name == 'workflow_dispatch' && inputs.publish-oci
     uses: pleme-io/substrate/.github/workflows/helm-monorepo-auto-release.yml@main
     secrets: inherit
 
