@@ -51,7 +51,13 @@ image-baked into the compiler at build time. **Adding a new
 architecture gem requires rebuilding + republishing the compiler
 image.**
 
-### `useEmbeddedRuby: true` (M8.4+ — embedded magnus)
+### `useEmbeddedRuby: true` (legacy; no image serves it)
+
+No CRuby image is published any more (2026-10-17): Ruby templates compile in
+the lava backend, through lava-ruby and the public gem closure the image bakes
+at `/usr/share/lava/ruby` (`lavaRuby.enabled`, `lavaRuby.loadPath`). The
+section below is kept as the record of the embedded path, which still compiles
+behind the `embedded_ruby` cargo feature but has no released image.
 
 The operator pod is single-container. The operator binary embeds
 CRuby via `magnus` and evaluates Pangea DSL in-process. Architecture
