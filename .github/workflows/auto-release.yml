@@ -68,6 +68,9 @@ jobs:
   release:
     needs: [charts]
     uses: pleme-io/substrate/.github/workflows/helm-monorepo-auto-release.yml@main
+    with:
+      runner: pleme-private
+      token-source: app
     secrets: inherit
 
   # ── BUMP DRIFT: a chart edited without its version bumped ships NOWHERE ────
