@@ -120,6 +120,20 @@
       },
       "type": "object"
     },
+    "LavaRubyValues": {
+      "properties": {
+        "enabled": {
+          "default": true,
+          "type": "boolean"
+        },
+        "loadPath": {
+          "default": "",
+          "description": "PANGEA_LAVA_RUBY_LOAD_PATH: colon-separated gem lib dirs. Empty uses every <gem>/lib under /usr/share/lava/ruby, the closure the operator image bakes in.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
     "OperatorPolicyValues": {
       "properties": {
         "controllerSuspend": {
@@ -277,11 +291,12 @@
     "lavaRuby": {
       "allOf": [
         {
-          "$ref": "#/definitions/ToggleSection"
+          "$ref": "#/definitions/LavaRubyValues"
         }
       ],
       "default": {
-        "enabled": true
+        "enabled": true,
+        "loadPath": ""
       },
       "description": "Ruby templates compiled by the lava backend's contained interpreter (PANGEA_LAVA_RUBY). On by default; enabled: false refuses them with a typed error."
     },

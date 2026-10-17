@@ -73,6 +73,9 @@ embedded mode and drop the compiler sidecar from the pod spec.
   (dict "name" "PANGEA_GEM_CACHE_DIR" "value" (.Values.gemCacheDir | default "/var/pangea/gems"))
   (dict "name" "PANGEA_RUBY_WORKERS" "value" (printf "%v" (.Values.executor.rubyWorkers | default 1)))
 -}}
+{{- with ((.Values.lavaRuby).loadPath) }}
+{{- $executorEnv = append $executorEnv (dict "name" "PANGEA_LAVA_RUBY_LOAD_PATH" "value" .) }}
+{{- end }}
 {{/* X1: OTLP exporter env. Operator boots with no exporter when
      endpoint is empty; logs are unchanged. */}}
 {{- $otelEndpoint := (((.Values.observability).otel).endpoint | default "") -}}

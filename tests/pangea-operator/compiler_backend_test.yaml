@@ -34,6 +34,24 @@ tests:
             name: PANGEA_LAVA_RUBY
             value: "off"
 
+  - it: "renders no lava-ruby load path by default, so the image gem root applies"
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PANGEA_LAVA_RUBY_LOAD_PATH
+          any: true
+
+  - it: "renders an explicit lava-ruby load path"
+    set:
+      lavaRuby.loadPath: /gems/a/lib:/gems/b/lib
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PANGEA_LAVA_RUBY_LOAD_PATH
+            value: /gems/a/lib:/gems/b/lib
+
   - it: "keeps useEmbeddedRuby true on the embedded backend"
     set:
       useEmbeddedRuby: true

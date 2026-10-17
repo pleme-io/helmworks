@@ -206,6 +206,10 @@ compilerBackend: ""
 # error naming the switch. Ignored by the embedded, process and http backends.
 lavaRuby:
   enabled: true
+  # PANGEA_LAVA_RUBY_LOAD_PATH, colon-separated gem lib dirs. Empty uses every
+  # <gem>/lib under /usr/share/lava/ruby, the public gem closure the operator
+  # image bakes; a native (non-image) operator names its own closure here.
+  loadPath: ""
 
 # -- Executor configuration for external tool invocation
 executor:
