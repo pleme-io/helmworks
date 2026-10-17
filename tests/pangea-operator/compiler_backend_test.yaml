@@ -16,6 +16,24 @@ tests:
           path: spec.template.spec.containers
           count: 1
 
+  - it: "compiles Ruby templates in lava unless configured off"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PANGEA_LAVA_RUBY
+            value: "on"
+
+  - it: "renders lava-ruby off when disabled"
+    set:
+      lavaRuby.enabled: false
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PANGEA_LAVA_RUBY
+            value: "off"
+
   - it: "keeps useEmbeddedRuby true on the embedded backend"
     set:
       useEmbeddedRuby: true

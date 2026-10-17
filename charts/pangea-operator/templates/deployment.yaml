@@ -49,6 +49,7 @@ embedded mode and drop the compiler sidecar from the pod spec.
 {{- $needsRuby := has $backend (list "embedded" "process") -}}
 {{- $needsSidecar := eq $backend "http" -}}
 {{- $compilerBackend := $backend -}}
+{{- $lavaRuby := ternary "on" "off" (ne (toString ((.Values.lavaRuby).enabled)) "false") -}}
 {{- $gemAuthSecretName := (((.Values.gemAuth).tokenSecret).name | default "") -}}
 {{- $gemAuthSecretKey := (((.Values.gemAuth).tokenSecret).key | default "token") -}}
 {{- $magmaPg := ((.Values.executor.magma).postgres) | default dict -}}
@@ -68,6 +69,7 @@ embedded mode and drop the compiler sidecar from the pod spec.
   (dict "name" "PANGEA_WORKSPACE_BASE" "value" (.Values.executor.workspaceBase | default "/var/pangea/workspaces"))
   (dict "name" "COMPILER_ENDPOINT" "value" (.Values.compilerEndpoint | default "http://localhost:8082"))
   (dict "name" "PANGEA_COMPILER_BACKEND" "value" $compilerBackend)
+  (dict "name" "PANGEA_LAVA_RUBY" "value" $lavaRuby)
   (dict "name" "PANGEA_GEM_CACHE_DIR" "value" (.Values.gemCacheDir | default "/var/pangea/gems"))
   (dict "name" "PANGEA_RUBY_WORKERS" "value" (printf "%v" (.Values.executor.rubyWorkers | default 1)))
 -}}

@@ -198,6 +198,15 @@ service:
 # otherwise the backend is `lava`. `http` is reached only by naming it.
 compilerBackend: ""
 
+# ── lavaRuby — Ruby templates compiled inside the lava backend ──
+# On by default: a Ruby Pangea template that reaches the lava backend is
+# evaluated by lava-ruby (lib-ruby-parser + a contained interpreter, no CRuby,
+# no subprocess; backticks, system and Open3 raise). `enabled: false` renders
+# PANGEA_LAVA_RUBY=off, and the backend refuses Ruby templates with a typed
+# error naming the switch. Ignored by the embedded, process and http backends.
+lavaRuby:
+  enabled: true
+
 # -- Executor configuration for external tool invocation
 executor:
   tofu:

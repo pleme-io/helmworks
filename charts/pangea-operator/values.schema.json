@@ -41,6 +41,16 @@
     }
   ],
   "definitions": {
+    "CompilerBackendChoice": {
+      "enum": [
+        "",
+        "lava",
+        "embedded",
+        "process",
+        "http"
+      ],
+      "type": "string"
+    },
     "ControllerSuspendValues": {
       "description": "Per-controller suspend flags. Each maps to a ControllerKind variant.",
       "properties": {
@@ -244,6 +254,15 @@
   },
   "description": "Top-level pangea-operator chart values.",
   "properties": {
+    "compilerBackend": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/CompilerBackendChoice"
+        }
+      ],
+      "default": "",
+      "description": "Compiler backend: lava (default when unset and useEmbeddedRuby is false), embedded, process or http. Empty derives it from useEmbeddedRuby/rubyIsolation."
+    },
     "gemAuth": {
       "allOf": [
         {
@@ -254,6 +273,17 @@
         "tokenSecret": null
       },
       "description": "Authentication for fetching operator-runtime gems (only consulted when use_embedded_ruby=true)."
+    },
+    "lavaRuby": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/ToggleSection"
+        }
+      ],
+      "default": {
+        "enabled": true
+      },
+      "description": "Ruby templates compiled by the lava backend's contained interpreter (PANGEA_LAVA_RUBY). On by default; enabled: false refuses them with a typed error."
     },
     "logLevel": {
       "default": "pangea_operator=info",
