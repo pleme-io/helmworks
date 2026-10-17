@@ -2,12 +2,17 @@ apiVersion: v2
 name: lareira-external-secrets
 description: External Secrets Operator for pleme-io clusters. Wraps external-secrets/external-secrets with bounded resources + alerts.
 type: application
-version: 0.1.0
+version: 0.1.1
 appVersion: "0.10.7"
 keywords: [external-secrets, vault, sops, lareira]
 maintainers: [{name: drzzln, email: drzzln@protonmail.com}]
 dependencies:
-  - {name: pleme-lib, version: ">=0.18.0", repository: "file://../pleme-lib"}
-  - {name: external-secrets, version: "0.10.7", repository: "https://charts.external-secrets.io", condition: externalSecrets.enabled}
+  - name: pleme-lib
+    version: ">=0.18.0"
+    repository: "file://../pleme-lib"
+  - name: external-secrets
+    version: "0.10.7"
+    repository: "https://charts.external-secrets.io"
+    condition: externalSecrets.enabled
 annotations:
   org.opencontainers.image.source: https://github.com/pleme-io/helmworks

@@ -2,12 +2,17 @@ apiVersion: v2
 name: lareira-trivy-operator
 description: Trivy Operator for pleme-io clusters. Wraps aquasecurity/trivy-operator with HIGH+CRITICAL severity defaults.
 type: application
-version: 0.1.0
+version: 0.1.1
 appVersion: "0.32.1"
 keywords: [trivy, security, vulnerabilities, lareira]
 maintainers: [{name: drzzln, email: drzzln@protonmail.com}]
 dependencies:
-  - {name: pleme-lib, version: ">=0.18.0", repository: "file://../pleme-lib"}
-  - {name: trivy-operator, version: "0.32.1", repository: "https://aquasecurity.github.io/helm-charts/", condition: trivyOperator.enabled}
+  - name: pleme-lib
+    version: ">=0.18.0"
+    repository: "file://../pleme-lib"
+  - name: trivy-operator
+    version: "0.32.1"
+    repository: "https://aquasecurity.github.io/helm-charts/"
+    condition: trivyOperator.enabled
 annotations:
   org.opencontainers.image.source: https://github.com/pleme-io/helmworks

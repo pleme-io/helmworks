@@ -2,12 +2,17 @@ apiVersion: v2
 name: lareira-policy-controller
 description: sigstore policy-controller for pleme-io clusters. Wraps sigstore/policy-controller with permissive defaults (no-match-policy=allow).
 type: application
-version: 0.1.0
+version: 0.1.1
 appVersion: "0.10.0"
 keywords: [sigstore, cosign, image-signing, lareira]
 maintainers: [{name: drzzln, email: drzzln@protonmail.com}]
 dependencies:
-  - {name: pleme-lib, version: ">=0.18.0", repository: "file://../pleme-lib"}
-  - {name: policy-controller, version: "0.10.0", repository: "https://sigstore.github.io/helm-charts", condition: policyController.enabled}
+  - name: pleme-lib
+    version: ">=0.18.0"
+    repository: "file://../pleme-lib"
+  - name: policy-controller
+    version: "0.10.0"
+    repository: "https://sigstore.github.io/helm-charts"
+    condition: policyController.enabled
 annotations:
   org.opencontainers.image.source: https://github.com/pleme-io/helmworks

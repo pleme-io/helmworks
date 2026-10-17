@@ -2,12 +2,17 @@ apiVersion: v2
 name: lareira-kyverno
 description: Kyverno admission controller for pleme-io clusters. Wraps kyverno/kyverno with single-replica defaults.
 type: application
-version: 0.1.0
+version: 0.1.1
 appVersion: "3.3.4"
 keywords: [kyverno, admission, policy, lareira]
 maintainers: [{name: drzzln, email: drzzln@protonmail.com}]
 dependencies:
-  - {name: pleme-lib, version: ">=0.18.0", repository: "file://../pleme-lib"}
-  - {name: kyverno, version: "3.3.4", repository: "https://kyverno.github.io/kyverno/", condition: kyverno.enabled}
+  - name: pleme-lib
+    version: ">=0.18.0"
+    repository: "file://../pleme-lib"
+  - name: kyverno
+    version: "3.3.4"
+    repository: "https://kyverno.github.io/kyverno/"
+    condition: kyverno.enabled
 annotations:
   org.opencontainers.image.source: https://github.com/pleme-io/helmworks
