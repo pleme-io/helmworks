@@ -146,6 +146,12 @@ rbac:
       resources: ["leases"]
       verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
     # ── Batch Jobs (AmiTest + ComplianceSchedule create Jobs) ──
+    - apiGroups: [""]
+      resources: ["pods"]
+      verbs: ["get", "list", "watch"]
+    - apiGroups: ["batch"]
+      resources: ["cronjobs"]
+      verbs: ["get", "list", "watch"]
     - apiGroups: ["batch"]
       resources: ["jobs"]
       verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
@@ -655,6 +661,8 @@ observability:
     scrapeTimeout: 10s
   rules:
     enabled: true
+    files:
+      - rules/pangea-operator-reactive.rules.yaml
     groups:
       - name: pangea-operator
         interval: 30s

@@ -1,0 +1,88 @@
+suite: reactive observability rules and the projection's RBAC
+templates:
+  - templates/observability.yaml
+  - templates/rbac.yaml
+release:
+  name: pangea
+  namespace: pangea-system
+tests:
+  - it: renders the rule files' groups after the values groups in one VMRule
+    template: templates/observability.yaml
+    documentSelector:
+      path: kind
+      value: VMRule
+    asserts:
+      - equal:
+          path: spec.groups[0].name
+          value: pangea-operator
+      - equal:
+          path: spec.groups[1].name
+          value: pangea-operator-truth
+      - equal:
+          path: spec.groups[4].name
+          value: pangea-operator-stack
+      - contains:
+          path: spec.groups[1].rules
+          content:
+            alert: PangeaGenerationLagUnremedied
+          any: true
+      - contains:
+          path: spec.groups[4].rules
+          content:
+            alert: PangeaPostgresRestartStorm
+          any: true
+      - notExists:
+          path: spec.files
+
+  - it: every file rule names its remedy and how it runs
+    template: templates/observability.yaml
+    documentSelector:
+      path: kind
+      value: VMRule
+    asserts:
+      - matchRegex:
+          path: spec.groups[2].rules[0].labels.remedy_mode
+          pattern: ^(auto|page)$
+      - matchRegex:
+          path: spec.groups[2].rules[0].annotations.remedy
+          pattern: "^(auto|page)"
+      - equal:
+          path: spec.groups[4].rules[2].labels.remedy_mode
+          value: page
+
+  - it: a rule file that holds no groups fails the render
+    template: templates/observability.yaml
+    set:
+      observability.rules.files:
+        - values.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: "observability.rules.files: values.yaml holds no rule groups"
+
+  - it: rules off renders no VMRule even with files declared
+    template: templates/observability.yaml
+    set:
+      observability.rules.enabled: false
+    asserts:
+      - notEqual:
+          path: kind
+          value: VMRule
+
+  - it: the operator may read pods and cronjobs for the status projection
+    template: templates/rbac.yaml
+    documentSelector:
+      path: kind
+      value: ClusterRole
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: ["pods"]
+            verbs: ["get", "list", "watch"]
+      - contains:
+          path: rules
+          content:
+            apiGroups: ["batch"]
+            resources: ["cronjobs"]
+            verbs: ["get", "list", "watch"]

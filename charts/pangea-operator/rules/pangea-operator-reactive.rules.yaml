@@ -1,0 +1,157 @@
+groups:
+  - name: pangea-operator-truth
+    interval: 30s
+    rules:
+      - alert: PangeaConditionBehindGeneration
+        expr: pangea_template_condition_generations_behind{type=~"Ready|Settled"} > 0 and on (template, namespace, type) pangea_template_condition{status="True"} == 1
+        for: 10m
+        labels:
+          severity: warning
+          remedy_mode: auto
+        annotations:
+          summary: "{{ $labels.namespace }}/{{ $labels.template }} reports {{ $labels.type }}=True for a generation {{ $value }} behind spec"
+          remedy: "auto: the pass watchdog re-dispatches a generation not started within its deadline (stall pendingNotStarted); PangeaGenerationLagUnremedied pages if it does not converge"
+      - alert: PangeaGenerationLagUnremedied
+        expr: pangea_template_generations_behind > 0
+        for: 30m
+        labels:
+          severity: critical
+          remedy_mode: page
+        annotations:
+          summary: "{{ $labels.namespace }}/{{ $labels.template }} has trailed its spec by {{ $value }} generation(s) for 30m"
+          remedy: "page: the automatic re-dispatch did not converge; read status.pass and status.reactions, then the operator log for the template"
+  - name: pangea-operator-progress
+    interval: 30s
+    rules:
+      - alert: PangeaPassStalled
+        expr: pangea_template_stall{state!="unnamed"} == 1
+        for: 5m
+        labels:
+          severity: warning
+          remedy_mode: auto
+        annotations:
+          summary: "{{ $labels.namespace }}/{{ $labels.template }} pass stalled ({{ $labels.state }})"
+          remedy: "auto: queuedBehind waits on the blocking pass; pendingNotStarted, heartbeatLost and noProgress re-dispatch the reconcile; orphanedPhase resumes under this incarnation"
+      - alert: PangeaPassStallUnremedied
+        expr: pangea_template_stall{state!="unnamed"} == 1
+        for: 30m
+        labels:
+          severity: critical
+          remedy_mode: page
+        annotations:
+          summary: "{{ $labels.namespace }}/{{ $labels.template }} pass stalled ({{ $labels.state }}) for 30m despite its remedy"
+          remedy: "page: the re-dispatch did not move the pass; check pangea_template_reactions and the in-flight provider RPC"
+      - alert: PangeaPassStallUnnamed
+        expr: pangea_template_stall{state="unnamed"} == 1
+        for: 1m
+        labels:
+          severity: critical
+          remedy_mode: page
+        annotations:
+          summary: "{{ $labels.namespace }}/{{ $labels.template }} pass is in a stall state the operator cannot name"
+          remedy: "page: name the state in StallState and give it a remedy"
+      - alert: PangeaProviderRpcHung
+        expr: pangea_template_in_flight_rpc_age_seconds > 900
+        for: 2m
+        labels:
+          severity: warning
+          remedy_mode: auto
+        annotations:
+          summary: "{{ $labels.namespace }}/{{ $labels.template }} provider RPC {{ $labels.rpc }} outstanding for {{ $value }}s"
+          remedy: "auto: no progress past the phase deadline names the stall noProgress and re-dispatches, which restarts the provider process"
+      - alert: PangeaPhaseTooLong
+        expr: pangea_template_phase_age_seconds > 3600 and on (template, namespace) pangea_template_phase{phase=~"Compiling|Planning|Applying"} == 1
+        for: 5m
+        labels:
+          severity: warning
+          remedy_mode: auto
+        annotations:
+          summary: "{{ $labels.namespace }}/{{ $labels.template }} has been in one expensive phase for over an hour"
+          remedy: "auto: the reactive policy escalates a phase past its bound; PangeaPassStallUnremedied pages if the pass is also stalled"
+      - alert: PangeaOperatorWedged
+        expr: pangea_operator_progress{reading="wedged"} == 1
+        for: 1m
+        labels:
+          severity: critical
+          remedy_mode: auto
+        annotations:
+          summary: pangea-operator has pending work and no template reconcile finished inside the wedge window
+          remedy: "auto: /healthz fails on the same gate, so the kubelet restarts the operator; PangeaOperatorRestarting pages if restarts repeat"
+      - alert: PangeaProjectionStale
+        expr: time() - pangea_operator_progress{reading="projection_timestamp_seconds"} > 300
+        for: 5m
+        labels:
+          severity: warning
+          remedy_mode: page
+        annotations:
+          summary: pangea-operator's status projection has not ticked for over 5m
+          remedy: "page: every projected alert is blind until it ticks; read the operator log for 'status projection'"
+      - alert: PangeaAdmissionDeferring
+        expr: sum by (scope, phase) (rate(pangea_admission_deferred_total[15m])) > 0
+        for: 1h
+        labels:
+          severity: info
+          remedy_mode: page
+        annotations:
+          summary: "workspace {{ $labels.scope }} has deferred {{ $labels.phase }} for an hour"
+          remedy: "page: real contention; raise the workspace concurrency budget or spread the work"
+  - name: pangea-operator-imports
+    interval: 30s
+    rules:
+      - alert: PangeaImportLooping
+        expr: sum by (template, namespace) (increase(pangea_template_events_total{reason="ImportFailed"}[1h])) >= 3
+        for: 5m
+        labels:
+          severity: warning
+          remedy_mode: page
+        annotations:
+          summary: "{{ $labels.namespace }}/{{ $labels.template }} failed {{ $value }} imports in an hour"
+          remedy: "page: a retry cannot import an object that does not exist; fix importHints or the declared resource"
+  - name: pangea-operator-stack
+    interval: 30s
+    rules:
+      - alert: PangeaCronJobFailing
+        expr: pangea_cronjob_consecutive_failures >= 2
+        for: 1m
+        labels:
+          severity: warning
+          remedy_mode: page
+        annotations:
+          summary: "CronJob {{ $labels.namespace }}/{{ $labels.cronjob }} failed {{ $value }} runs in a row"
+          remedy: "page: the job's program is red (read the newest failed pod's log); the CronJob retries on its schedule"
+      - alert: PangeaCronJobNoSuccess
+        expr: time() - pangea_cronjob_last_success_timestamp_seconds > 7200
+        for: 5m
+        labels:
+          severity: critical
+          remedy_mode: page
+        annotations:
+          summary: "CronJob {{ $labels.namespace }}/{{ $labels.cronjob }} has not succeeded for over 2h"
+          remedy: "page: fix the program the job runs; nothing downstream of it is current"
+      - alert: PangeaPostgresRestartStorm
+        expr: increase(pangea_stack_container_restarts{app="pangea-postgres"}[1h]) >= 3
+        for: 1m
+        labels:
+          severity: critical
+          remedy_mode: page
+        annotations:
+          summary: "pangea-postgres restarted {{ $value }} times in an hour"
+          remedy: "page, never auto: each restart is a crash recovery of the state store; read its log for the shutdown cause before anything restarts it again"
+      - alert: PangeaPostgresNotReady
+        expr: pangea_stack_container_ready{app="pangea-postgres"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          remedy_mode: page
+        annotations:
+          summary: pangea-postgres is not ready
+          remedy: "page: every magma pass blocks on the state store"
+      - alert: PangeaOperatorRestarting
+        expr: increase(pangea_stack_container_restarts{app="pangea-operator"}[1h]) >= 3
+        for: 1m
+        labels:
+          severity: warning
+          remedy_mode: page
+        annotations:
+          summary: "pangea-operator restarted {{ $value }} times in an hour"
+          remedy: "page: repeated restarts mean the liveness remedy is not curing the cause; read the previous container's log"

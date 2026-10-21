@@ -1,0 +1,347 @@
+rule_files:
+  - ../pangea-operator-reactive.rules.yaml
+evaluation_interval: 1m
+tests:
+  - name: PangeaConditionBehindGeneration
+    interval: 1m
+    input_series:
+      - series: pangea_template_condition_generations_behind{template="t",namespace="ns",type="Ready"}
+        values: 1x30
+      - series: pangea_template_condition{template="t",namespace="ns",type="Ready",status="True"}
+        values: 1x30
+    alert_rule_test:
+      - eval_time: 15m
+        groupname: pangea-operator-truth
+        alertname: PangeaConditionBehindGeneration
+        exp_alerts:
+          - exp_labels:
+              template: t
+              namespace: ns
+              type: Ready
+              severity: warning
+              remedy_mode: auto
+            exp_annotations:
+              summary: ns/t reports Ready=True for a generation 1 behind spec
+              remedy: 'auto: the pass watchdog re-dispatches a generation not started within its deadline (stall pendingNotStarted); PangeaGenerationLagUnremedied pages if it does not converge'
+  - name: PangeaGenerationLagUnremedied
+    interval: 1m
+    input_series:
+      - series: pangea_template_generations_behind{template="t",namespace="ns"}
+        values: 1x45
+    alert_rule_test:
+      - eval_time: 35m
+        groupname: pangea-operator-truth
+        alertname: PangeaGenerationLagUnremedied
+        exp_alerts:
+          - exp_labels:
+              template: t
+              namespace: ns
+              severity: critical
+              remedy_mode: page
+            exp_annotations:
+              summary: ns/t has trailed its spec by 1 generation(s) for 30m
+              remedy: 'page: the automatic re-dispatch did not converge; read status.pass and status.reactions, then the operator log for the template'
+  - name: PangeaPassStalled
+    interval: 1m
+    input_series:
+      - series: pangea_template_stall{template="t",namespace="ns",state="noProgress"}
+        values: 1x20
+    alert_rule_test:
+      - eval_time: 8m
+        groupname: pangea-operator-progress
+        alertname: PangeaPassStalled
+        exp_alerts:
+          - exp_labels:
+              template: t
+              namespace: ns
+              state: noProgress
+              severity: warning
+              remedy_mode: auto
+            exp_annotations:
+              summary: ns/t pass stalled (noProgress)
+              remedy: 'auto: queuedBehind waits on the blocking pass; pendingNotStarted, heartbeatLost and noProgress re-dispatch the reconcile; orphanedPhase resumes under this incarnation'
+  - name: PangeaPassStallUnremedied
+    interval: 1m
+    input_series:
+      - series: pangea_template_stall{template="t",namespace="ns",state="heartbeatLost"}
+        values: 1x45
+    alert_rule_test:
+      - eval_time: 35m
+        groupname: pangea-operator-progress
+        alertname: PangeaPassStallUnremedied
+        exp_alerts:
+          - exp_labels:
+              template: t
+              namespace: ns
+              state: heartbeatLost
+              severity: critical
+              remedy_mode: page
+            exp_annotations:
+              summary: ns/t pass stalled (heartbeatLost) for 30m despite its remedy
+              remedy: 'page: the re-dispatch did not move the pass; check pangea_template_reactions and the in-flight provider RPC'
+  - name: PangeaPassStallUnnamed
+    interval: 1m
+    input_series:
+      - series: pangea_template_stall{template="t",namespace="ns",state="unnamed"}
+        values: 1x10
+    alert_rule_test:
+      - eval_time: 3m
+        groupname: pangea-operator-progress
+        alertname: PangeaPassStallUnnamed
+        exp_alerts:
+          - exp_labels:
+              template: t
+              namespace: ns
+              state: unnamed
+              severity: critical
+              remedy_mode: page
+            exp_annotations:
+              summary: ns/t pass is in a stall state the operator cannot name
+              remedy: 'page: name the state in StallState and give it a remedy'
+  - name: PangeaProviderRpcHung
+    interval: 1m
+    input_series:
+      - series: pangea_template_in_flight_rpc_age_seconds{template="t",namespace="ns",rpc="ApplyResourceChange"}
+        values: 960+60x20
+    alert_rule_test:
+      - eval_time: 5m
+        groupname: pangea-operator-progress
+        alertname: PangeaProviderRpcHung
+        exp_alerts:
+          - exp_labels:
+              template: t
+              namespace: ns
+              rpc: ApplyResourceChange
+              severity: warning
+              remedy_mode: auto
+            exp_annotations:
+              summary: ns/t provider RPC ApplyResourceChange outstanding for 1260s
+              remedy: 'auto: no progress past the phase deadline names the stall noProgress and re-dispatches, which restarts the provider process'
+  - name: PangeaPhaseTooLong
+    interval: 1m
+    input_series:
+      - series: pangea_template_phase_age_seconds{template="t",namespace="ns"}
+        values: 3660+60x20
+      - series: pangea_template_phase{template="t",namespace="ns",phase="Planning"}
+        values: 1x20
+    alert_rule_test:
+      - eval_time: 8m
+        groupname: pangea-operator-progress
+        alertname: PangeaPhaseTooLong
+        exp_alerts:
+          - exp_labels:
+              template: t
+              namespace: ns
+              severity: warning
+              remedy_mode: auto
+            exp_annotations:
+              summary: ns/t has been in one expensive phase for over an hour
+              remedy: 'auto: the reactive policy escalates a phase past its bound; PangeaPassStallUnremedied pages if the pass is also stalled'
+  - name: PangeaOperatorWedged
+    interval: 1m
+    input_series:
+      - series: pangea_operator_progress{reading="wedged"}
+        values: 1x10
+    alert_rule_test:
+      - eval_time: 3m
+        groupname: pangea-operator-progress
+        alertname: PangeaOperatorWedged
+        exp_alerts:
+          - exp_labels:
+              reading: wedged
+              severity: critical
+              remedy_mode: auto
+            exp_annotations:
+              summary: pangea-operator has pending work and no template reconcile finished inside the wedge window
+              remedy: 'auto: /healthz fails on the same gate, so the kubelet restarts the operator; PangeaOperatorRestarting pages if restarts repeat'
+  - name: PangeaProjectionStale
+    interval: 1m
+    input_series:
+      - series: pangea_operator_progress{reading="projection_timestamp_seconds"}
+        values: "0x30"
+    alert_rule_test:
+      - eval_time: 15m
+        groupname: pangea-operator-progress
+        alertname: PangeaProjectionStale
+        exp_alerts:
+          - exp_labels:
+              reading: projection_timestamp_seconds
+              severity: warning
+              remedy_mode: page
+            exp_annotations:
+              summary: pangea-operator's status projection has not ticked for over 5m
+              remedy: 'page: every projected alert is blind until it ticks; read the operator log for ''status projection'''
+  - name: PangeaAdmissionDeferring
+    interval: 1m
+    input_series:
+      - series: pangea_admission_deferred_total{scope="ws",phase="Planning"}
+        values: 0+1x120
+    alert_rule_test:
+      - eval_time: 80m
+        groupname: pangea-operator-progress
+        alertname: PangeaAdmissionDeferring
+        exp_alerts:
+          - exp_labels:
+              scope: ws
+              phase: Planning
+              severity: info
+              remedy_mode: page
+            exp_annotations:
+              summary: workspace ws has deferred Planning for an hour
+              remedy: 'page: real contention; raise the workspace concurrency budget or spread the work'
+  - name: PangeaImportLooping
+    interval: 1m
+    input_series:
+      - series: pangea_template_events_total{template="t",namespace="ns",type="Warning",reason="ImportFailed"}
+        values: 0+1x30
+    alert_rule_test:
+      - eval_time: 15m
+        groupname: pangea-operator-imports
+        alertname: PangeaImportLooping
+        exp_alerts:
+          - exp_labels:
+              template: t
+              namespace: ns
+              severity: warning
+              remedy_mode: page
+            exp_annotations:
+              summary: ns/t failed 15 imports in an hour
+              remedy: 'page: a retry cannot import an object that does not exist; fix importHints or the declared resource'
+  - name: PangeaCronJobFailing
+    interval: 1m
+    input_series:
+      - series: pangea_cronjob_consecutive_failures{namespace="default",cronjob="vars"}
+        values: 2x10
+    alert_rule_test:
+      - eval_time: 3m
+        groupname: pangea-operator-stack
+        alertname: PangeaCronJobFailing
+        exp_alerts:
+          - exp_labels:
+              namespace: default
+              cronjob: vars
+              severity: warning
+              remedy_mode: page
+            exp_annotations:
+              summary: CronJob default/vars failed 2 runs in a row
+              remedy: 'page: the job''s program is red (read the newest failed pod''s log); the CronJob retries on its schedule'
+  - name: PangeaCronJobNoSuccess
+    interval: 1m
+    input_series:
+      - series: pangea_cronjob_last_success_timestamp_seconds{namespace="default",cronjob="vars"}
+        values: "0x150"
+    alert_rule_test:
+      - eval_time: 130m
+        groupname: pangea-operator-stack
+        alertname: PangeaCronJobNoSuccess
+        exp_alerts:
+          - exp_labels:
+              namespace: default
+              cronjob: vars
+              severity: critical
+              remedy_mode: page
+            exp_annotations:
+              summary: CronJob default/vars has not succeeded for over 2h
+              remedy: 'page: fix the program the job runs; nothing downstream of it is current'
+  - name: PangeaPostgresRestartStorm
+    interval: 1m
+    input_series:
+      - series: pangea_stack_container_restarts{namespace="pangea-system",pod="p",app="pangea-postgres",container="postgres"}
+        values: 31 32 33 34 34 34 34 34
+    alert_rule_test:
+      - eval_time: 6m
+        groupname: pangea-operator-stack
+        alertname: PangeaPostgresRestartStorm
+        exp_alerts:
+          - exp_labels:
+              namespace: pangea-system
+              pod: p
+              app: pangea-postgres
+              container: postgres
+              severity: critical
+              remedy_mode: page
+            exp_annotations:
+              summary: pangea-postgres restarted 3 times in an hour
+              remedy: 'page, never auto: each restart is a crash recovery of the state store; read its log for the shutdown cause before anything restarts it again'
+  - name: PangeaPostgresNotReady
+    interval: 1m
+    input_series:
+      - series: pangea_stack_container_ready{namespace="pangea-system",pod="p",app="pangea-postgres",container="postgres"}
+        values: "0x10"
+    alert_rule_test:
+      - eval_time: 7m
+        groupname: pangea-operator-stack
+        alertname: PangeaPostgresNotReady
+        exp_alerts:
+          - exp_labels:
+              namespace: pangea-system
+              pod: p
+              app: pangea-postgres
+              container: postgres
+              severity: critical
+              remedy_mode: page
+            exp_annotations:
+              summary: pangea-postgres is not ready
+              remedy: 'page: every magma pass blocks on the state store'
+  - name: PangeaOperatorRestarting
+    interval: 1m
+    input_series:
+      - series: pangea_stack_container_restarts{namespace="pangea-system",pod="o",app="pangea-operator",container="pangea-operator"}
+        values: 0 1 2 3 3 3 3
+    alert_rule_test:
+      - eval_time: 5m
+        groupname: pangea-operator-stack
+        alertname: PangeaOperatorRestarting
+        exp_alerts:
+          - exp_labels:
+              namespace: pangea-system
+              pod: o
+              app: pangea-operator
+              container: pangea-operator
+              severity: warning
+              remedy_mode: page
+            exp_annotations:
+              summary: pangea-operator restarted 3 times in an hour
+              remedy: 'page: repeated restarts mean the liveness remedy is not curing the cause; read the previous container''s log'
+  - name: a False condition is not Ready-behind
+    interval: 1m
+    input_series:
+      - series: pangea_template_condition_generations_behind{template="t",namespace="ns",type="Ready"}
+        values: 1x30
+      - series: pangea_template_condition{template="t",namespace="ns",type="Ready",status="False"}
+        values: 1x30
+    alert_rule_test:
+      - eval_time: 15m
+        groupname: pangea-operator-truth
+        alertname: PangeaConditionBehindGeneration
+        exp_alerts: []
+  - name: one postgres restart does not page
+    interval: 1m
+    input_series:
+      - series: pangea_stack_container_restarts{namespace="pangea-system",pod="p",app="pangea-postgres",container="postgres"}
+        values: 33 34 34 34 34 34
+    alert_rule_test:
+      - eval_time: 5m
+        groupname: pangea-operator-stack
+        alertname: PangeaPostgresRestartStorm
+        exp_alerts: []
+  - name: a queued pass is not an unnamed stall
+    interval: 1m
+    input_series:
+      - series: pangea_template_stall{template="t",namespace="ns",state="queuedBehind"}
+        values: 1x10
+    alert_rule_test:
+      - eval_time: 5m
+        groupname: pangea-operator-progress
+        alertname: PangeaPassStallUnnamed
+        exp_alerts: []
+  - name: a recent success is not a missing success
+    interval: 1m
+    input_series:
+      - series: pangea_cronjob_last_success_timestamp_seconds{namespace="default",cronjob="vars"}
+        values: 0+60x150
+    alert_rule_test:
+      - eval_time: 130m
+        groupname: pangea-operator-stack
+        alertname: PangeaCronJobNoSuccess
+        exp_alerts: []

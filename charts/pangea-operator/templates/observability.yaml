@@ -1,1 +1,13 @@
-{{- include "pleme-lib.observabilityBundle" . }}
+{{- $obs := deepCopy (.Values.observability | default dict) -}}
+{{- $rules := $obs.rules | default dict -}}
+{{- $groups := $rules.groups | default list -}}
+{{- range $path := ($rules.files | default list) -}}
+{{- $doc := $.Files.Get $path | fromYaml -}}
+{{- if not $doc.groups -}}{{- fail (printf "observability.rules.files: %s holds no rule groups" $path) -}}{{- end -}}
+{{- $groups = concat $groups $doc.groups -}}
+{{- end -}}
+{{- $_ := set $rules "groups" $groups -}}
+{{- $_ := set $obs "rules" (omit $rules "files") -}}
+{{- $V := deepCopy .Values -}}
+{{- $_ := set $V "observability" $obs -}}
+{{- include "pleme-lib.observabilityBundle" (dict "Values" $V "Chart" .Chart "Release" .Release "Template" .Template "Capabilities" .Capabilities "Files" .Files) }}
