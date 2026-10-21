@@ -154,6 +154,21 @@ embedded mode and drop the compiler sidecar from the pod spec.
 {{- $_ := set $mergedValues "volumeMounts" (append $existingMounts $cacheMount) }}
 {{- end }}
 
+{{/* The shikumi file tier (enjulho: config as reconciled Helm). When
+     config.file is enabled and has data, the ConfigMap the tieredConfig mixin
+     renders is mounted at config.file.mountPath, where the operator's file
+     tier discovers `config.yaml` (default /etc/pangea/config.yaml). Env stays
+     the higher override tier. A no-op unless a consumer opts in. */}}
+{{- $cfgFile := (.Values.config | default dict).file | default dict }}
+{{- if and $cfgFile.enabled $cfgFile.data }}
+{{- $cfgVolumes := index $mergedValues "volumes" | default (list) }}
+{{- $cfgMounts := index $mergedValues "volumeMounts" | default (list) }}
+{{- $cfgVolume := dict "name" (include "pleme-lib.tieredConfig.volumeName" .) "configMap" (dict "name" (include "pleme-lib.tieredConfig.configMapName" .)) }}
+{{- $cfgMount := dict "name" (include "pleme-lib.tieredConfig.volumeName" .) "mountPath" (include "pleme-lib.tieredConfig.mountPath" .) "readOnly" true }}
+{{- $_ := set $mergedValues "volumes" (append $cfgVolumes $cfgVolume) }}
+{{- $_ := set $mergedValues "volumeMounts" (append $cfgMounts $cfgMount) }}
+{{- end }}
+
 {{/* M1 convenience surface, continued: the pg-wait initContainer
      (★★ UNREPRESENTABILITY gate — see the postgres.pgWait comment in
      values.yaml). Prepended ahead of any consumer-supplied

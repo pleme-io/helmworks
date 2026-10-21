@@ -361,16 +361,15 @@ envFrom: []
 # discovers + hot-reloads. Schema-shaped to `OperatorConfig` (see
 # pangea-operator/pangea-operator/src/config.rs).
 #
-# DESTINATION FORM — tier-honest. Today the operator resolves its config
-# through env + the pod-identity discovered tier only (its `env:` above
-# already wires POD_NAME; the executor/leader/db env is rendered by
-# `deployment.yaml`). It does NOT yet have a shikumi `ConfigStore` FILE
-# discovery. So `config.file.enabled` defaults **false** and the live
-# deployment renders byte-identical to today. Flipping it true renders the
-# ConfigMap ahead of the config.rs follow-on that teaches `OperatorConfig`
-# to discover `/etc/pangea/config.yaml` as its file tier (the
-# kustomize/env → reconciled-Helm cutover). Until then this is the
-# committed target, not a live read.
+# THE DEFAULT WAY TO CONFIGURE THE OPERATOR. The operator's shikumi
+# `OperatorConfig` folds bare → discovered → prescribed → FILE → env, and the
+# file tier reads `/etc/pangea/config.yaml`. Set `config.file.enabled: true`
+# and put the non-secret surface in `config.file.data`: the chart renders the
+# ConfigMap, mounts it where the operator discovers it, and a change is a
+# reconciled Helm revision. Env stays the higher override tier. Sections are
+# additive: a knob that is absent keeps the behavior the operator had before
+# the knob existed. Default off so the render of a chart that does not opt in
+# is unchanged.
 #
 # SECRET BOUNDARY (non-negotiable): PGPASSWORD / PANGEA_API_TOKEN /
 # PANGEA_GEM_AUTH_TOKEN are NEVER rendered here — they stay direct env /
@@ -379,7 +378,7 @@ config:
   app: pangea-operator
   configMapName: pangea-operator-config
   file:
-    enabled: false            # DESTINATION: flip true once config.rs discovers the file tier
+    enabled: false            # true renders the ConfigMap and mounts it at mountPath
     fileName: config.yaml
     mountPath: /etc/pangea
     # The non-secret OperatorConfig surface. Example shape (leave {} to
@@ -388,6 +387,7 @@ config:
     #   database: { host: pangea-database-rw..., port: 5432, user: postgres, database: pangea_state }
     #   reconcile: { workers: 4, budget_per_workspace: 4, budget_global: 16 }
     #   observability: { log_format: pretty, otel_service_name: pangea-operator }
+    #   reactive: { honor_reconcile_requests: true }
     data: {}
   # discovered tier is already wired via `env:` (POD_NAME) above; the mixin's
   # downward-API env is not injected into this chart's custom deployment.
