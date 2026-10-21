@@ -820,6 +820,10 @@ spec:
                     message:
                       description: Human-readable message.
                       type: string
+                    observedGeneration:
+                      format: int64
+                      nullable: true
+                      type: integer
                     reason:
                       description: Machine-readable reason for the condition.
                       type: string

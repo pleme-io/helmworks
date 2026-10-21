@@ -48,10 +48,10 @@ spec:
         description: Auto-generated derived type for PangeaFleetStatusSpec via `CustomResource`
         properties:
           spec:
-            description: |-
-              Cluster-scoped operator-authored fleet aggregation singleton.
+            description: 'Cluster-scoped operator-authored fleet aggregation singleton.
 
-              The operator self-creates `PangeaFleetStatus/default` at startup and refreshes its status periodically (every 30s) and on watch events from any tracked pangea CRD. Bypasses the OperatorPolicy kill-switch — fleet status is read-only observability and is especially useful while the operator is paused.
+
+              The operator self-creates `PangeaFleetStatus/default` at startup and refreshes its status periodically (every 30s) and on watch events from any tracked pangea CRD. Bypasses the OperatorPolicy kill-switch — fleet status is read-only observability and is especially useful while the operator is paused.'
             type: object
           status:
             description: Status fields populated by `fleet_status_controller`.
@@ -59,8 +59,8 @@ spec:
             properties:
               amiTests:
                 default:
-                  byPhase: {}
                   total: 0
+                  byPhase: {}
                 description: AmiTest rollup with per-phase histogram.
                 properties:
                   byPhase:
@@ -80,10 +80,10 @@ spec:
                 type: object
               architectureGems:
                 default:
-                  failed: 0
-                  loaded: 0
-                  summary: ''
                   total: 0
+                  loaded: 0
+                  failed: 0
+                  summary: ''
                 description: ArchitectureGem rollup.
                 properties:
                   failed:
@@ -111,8 +111,8 @@ spec:
                 type: object
               complianceBindings:
                 default:
-                  gated: 0
                   total: 0
+                  gated: 0
                 description: ComplianceBinding rollup. `gated` counts bindings whose status.complianceState is currently NonCompliant.
                 properties:
                   gated:
@@ -130,8 +130,8 @@ spec:
                 type: object
               complianceSchedules:
                 default:
-                  byPhase: {}
                   total: 0
+                  byPhase: {}
                 description: ComplianceSchedule rollup with per-phase histogram.
                 properties:
                   byPhase:
@@ -162,6 +162,10 @@ spec:
                     message:
                       description: Human-readable message.
                       type: string
+                    observedGeneration:
+                      format: int64
+                      nullable: true
+                      type: integer
                     reason:
                       description: Machine-readable reason for the condition.
                       type: string
@@ -181,8 +185,8 @@ spec:
                 type: array
               imagePipelines:
                 default:
-                  byPhase: {}
                   total: 0
+                  byPhase: {}
                 description: ImagePipeline rollup with per-phase histogram.
                 properties:
                   byPhase:
@@ -202,8 +206,8 @@ spec:
                 type: object
               infrastructureFlows:
                 default:
-                  byPhase: {}
                   total: 0
+                  byPhase: {}
                 description: InfrastructureFlow rollup with per-phase histogram.
                 properties:
                   byPhase:
@@ -223,11 +227,11 @@ spec:
                 type: object
               infrastructureTemplates:
                 default:
+                  total: 0
+                  ready: 0
+                  failed: 0
                   autoSuspended: 0
                   byPhase: {}
-                  failed: 0
-                  ready: 0
-                  total: 0
                 description: InfrastructureTemplate rollup with per-phase histogram.
                 properties:
                   autoSuspended:
@@ -270,8 +274,8 @@ spec:
                 type: string
               packerBuilds:
                 default:
-                  byPhase: {}
                   total: 0
+                  byPhase: {}
                 description: PackerBuild rollup with per-phase histogram.
                 properties:
                   byPhase:
@@ -291,8 +295,8 @@ spec:
                 type: object
               pangeaDashboards:
                 default:
-                  byPhase: {}
                   total: 0
+                  byPhase: {}
                 description: PangeaDashboard rollup with per-phase histogram.
                 properties:
                   byPhase:
@@ -312,8 +316,8 @@ spec:
                 type: object
               pangeaNamespaces:
                 default:
-                  ready: 0
                   total: 0
+                  ready: 0
                 description: PangeaNamespace rollup.
                 properties:
                   ready:
@@ -331,8 +335,8 @@ spec:
                 type: object
               synthesizerFormats:
                 default:
-                  byPhase: {}
                   total: 0
+                  byPhase: {}
                 description: SynthesizerFormat rollup with per-phase histogram.
                 properties:
                   byPhase:
@@ -352,9 +356,9 @@ spec:
                 type: object
               workspaceCatalogs:
                 default:
-                  summary: ''
                   total: 0
                   verified: 0
+                  summary: ''
                 description: WorkspaceCatalog rollup.
                 properties:
                   summary:
