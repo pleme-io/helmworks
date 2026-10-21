@@ -1,0 +1,52 @@
+suite: empresa-site content image with the placeholder off
+templates:
+  - templates/deployment.yaml
+  - templates/configmap-placeholder.yaml
+values:
+  - ../../charts/empresa-site/ci/lint-values.yaml
+set:
+  content:
+    placeholder:
+      enabled: false
+    image:
+      repository: registry.example/acme/site
+      tag: "2026.10.1"
+release:
+  name: acme
+  namespace: sites
+tests:
+  - it: runs the content image
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: registry.example/acme/site:2026.10.1
+
+  - it: mounts no placeholder volume
+    template: templates/deployment.yaml
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: placeholder
+            mountPath: /app/static
+            readOnly: true
+      - lengthEqual:
+          path: spec.template.spec.volumes
+          count: 2
+
+  - it: renders no placeholder ConfigMap
+    template: templates/configmap-placeholder.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: keeps the security posture
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true

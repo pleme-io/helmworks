@@ -1,0 +1,24 @@
+suite: empresa-site two hosts
+templates:
+  - templates/configmap-serve.yaml
+values:
+  - ../../charts/empresa-site/ci/lint-values.yaml
+set:
+  hosts:
+    - acme.example
+    - www.acme.example
+release:
+  name: acme
+  namespace: sites
+tests:
+  - it: lists both hosts in serve-config
+    asserts:
+      - matchRegex:
+          path: data["serve.json"]
+          pattern: '"acme.example",\s+"www.acme.example"'
+
+  - it: keeps one mapping for both hosts
+    asserts:
+      - matchRegex:
+          path: data["serve.json"]
+          pattern: '"path": "/"'

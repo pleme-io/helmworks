@@ -1,0 +1,15 @@
+{{- $target := include "empresa-site.target" . -}}
+{{- $mounts := list (dict "path" .Values.pathPrefix "target" $target "stripPrefix" (ne .Values.pathPrefix "/")) -}}
+{{- $serve := dict "company" .Values.company "hosts" .Values.hosts "service" (dict "name" (include "pleme-lib.fullname" .) "namespace" (include "pleme-lib.namespace" .) "port" (int .Values.service.port)) "mounts" $mounts -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}-serve-config
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+    app.kubernetes.io/component: serve-config
+    pleme.io/serve-config: "true"
+data:
+  serve.json: |
+    {{- toPrettyJson $serve | nindent 4 }}

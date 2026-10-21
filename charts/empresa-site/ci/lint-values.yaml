@@ -1,0 +1,3 @@
+company: acme
+hosts:
+  - acme.example

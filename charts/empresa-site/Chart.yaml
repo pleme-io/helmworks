@@ -1,0 +1,14 @@
+apiVersion: v2
+name: empresa-site
+description: One company's static site on an engenho node, with the serve mapping the exposure layer reads.
+type: application
+version: 0.1.0
+appVersion: "1.0.5"
+keywords: [static-site, empresa, engenho, hanabi]
+maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]
+dependencies:
+  - name: pleme-lib
+    version: ">=0.18.0"
+    repository: "file://../pleme-lib"
+annotations:
+  org.opencontainers.image.source: https://github.com/pleme-io/helmworks

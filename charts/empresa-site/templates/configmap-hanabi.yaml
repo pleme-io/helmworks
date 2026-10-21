@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}-hanabi
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server-config
+data:
+  config.yaml: |
+    server:
+      static_dir: /app/static
+      http_port: {{ .Values.service.port }}
+      health_port: {{ add1 (int .Values.service.port) }}
+      request_timeout_secs: 30
+      max_concurrent_connections: 1000
+    compression:
+      enable_gzip: true
+      enable_brotli: true
+    preflight:
+      enabled: false
+      critical_files: []
+      index_html_path: index.html

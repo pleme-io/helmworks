@@ -1,0 +1,76 @@
+suite: empresa-site schema rejection
+templates:
+  - templates/deployment.yaml
+release:
+  name: acme
+  namespace: sites
+tests:
+  - it: rejects a missing company
+    values:
+      - ../../charts/empresa-site/ci/lint-values.yaml
+    set:
+      company: null
+    asserts:
+      - failedTemplate:
+          errorPattern: "company"
+
+  - it: rejects a wrong type for service.port
+    values:
+      - ../../charts/empresa-site/ci/lint-values.yaml
+    set:
+      service:
+        port: "eighty"
+    asserts:
+      - failedTemplate:
+          errorPattern: "service/port"
+
+  - it: rejects an empty hosts list
+    values:
+      - ../../charts/empresa-site/ci/lint-values.yaml
+    set:
+      hosts: []
+    asserts:
+      - failedTemplate:
+          errorPattern: "hosts"
+
+  - it: rejects a latest tag
+    values:
+      - ../../charts/empresa-site/ci/lint-values.yaml
+    set:
+      server:
+        image:
+          repository: ghcr.io/pleme-io/hanabi
+          tag: latest
+    asserts:
+      - failedTemplate:
+          errorPattern: "tag"
+
+  - it: rejects a placeholder off with no content image
+    values:
+      - ../../charts/empresa-site/ci/lint-values.yaml
+    set:
+      content:
+        placeholder:
+          enabled: false
+    asserts:
+      - failedTemplate:
+          errorPattern: "content"
+
+  - it: rejects an unknown key
+    values:
+      - ../../charts/empresa-site/ci/lint-values.yaml
+    set:
+      ingress:
+        enabled: true
+    asserts:
+      - failedTemplate:
+          errorPattern: "ingress"
+
+  - it: rejects a malformed prefix
+    values:
+      - ../../charts/empresa-site/ci/lint-values.yaml
+    set:
+      pathPrefix: acme/
+    asserts:
+      - failedTemplate:
+          errorPattern: "pathPrefix"

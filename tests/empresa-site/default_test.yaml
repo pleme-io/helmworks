@@ -1,0 +1,178 @@
+suite: empresa-site default render
+templates:
+  - templates/deployment.yaml
+  - templates/service.yaml
+  - templates/serviceaccount.yaml
+  - templates/configmap-hanabi.yaml
+  - templates/configmap-placeholder.yaml
+  - templates/configmap-serve.yaml
+values:
+  - ../../charts/empresa-site/ci/lint-values.yaml
+release:
+  name: acme
+  namespace: sites
+tests:
+  - it: renders the Deployment on the pinned house server image
+    template: templates/deployment.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: acme-empresa-site
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/pleme-io/hanabi:1.0.5
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].image
+          pattern: ":latest$"
+
+  - it: runs non-root with a read-only root filesystem and no capabilities
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          value: [ALL]
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+
+  - it: sets requests and limits and execs nothing
+    template: templates/deployment.yaml
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+      - isNotNull:
+          path: spec.template.spec.containers[0].resources.limits.memory
+      - isNotNull:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+      - isNull:
+          path: spec.template.spec.containers[0].livenessProbe.exec
+      - isNull:
+          path: spec.template.spec.containers[0].readinessProbe.exec
+      - isNull:
+          path: spec.template.spec.containers[0].command
+
+  - it: probes the health port on all three probes
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /health/live
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /health/ready
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.path
+          value: /health/startup
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.port
+          value: health
+
+  - it: serves the placeholder from a read-only ConfigMap volume
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: placeholder
+            mountPath: /app/static
+            readOnly: true
+      - equal:
+          path: spec.template.spec.volumes[2].configMap.name
+          value: acme-empresa-site-placeholder
+      - equal:
+          path: spec.template.spec.volumes[2].configMap.items
+          value:
+            - key: index.html
+              path: index.html
+
+  - it: exposes the Service on the default port
+    template: templates/service.yaml
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: spec.type
+          value: ClusterIP
+      - equal:
+          path: spec.ports[0].port
+          value: 8080
+      - equal:
+          path: spec.ports[0].targetPort
+          value: http
+
+  - it: renders the placeholder page naming the company
+    template: templates/configmap-placeholder.yaml
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - matchRegex:
+          path: data["index.html"]
+          pattern: "<title>acme</title>"
+
+  - it: renders a dedicated ServiceAccount that mounts no token
+    template: templates/serviceaccount.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: acme-empresa-site
+      - equal:
+          path: automountServiceAccountToken
+          value: false
+
+  - it: configures hanabi on unprivileged ports
+    template: templates/configmap-hanabi.yaml
+    asserts:
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: "http_port: 8080"
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: "health_port: 8081"
+
+  - it: states the root mapping in serve-config
+    template: templates/configmap-serve.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: acme-empresa-site-serve-config
+      - equal:
+          path: metadata.labels["pleme.io/serve-config"]
+          value: "true"
+      - equal:
+          path: data["serve.json"]
+          value: |
+            {
+              "company": "acme",
+              "hosts": [
+                "acme.example"
+              ],
+              "mounts": [
+                {
+                  "path": "/",
+                  "stripPrefix": false,
+                  "target": "http://acme-empresa-site.sites.svc:8080"
+                }
+              ],
+              "service": {
+                "name": "acme-empresa-site",
+                "namespace": "sites",
+                "port": 8080
+              }
+            }
+
+  - it: renders no Ingress and no tunnel
+    template: templates/deployment.yaml
+    asserts:
+      - hasDocuments:
+          count: 1

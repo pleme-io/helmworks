@@ -1,0 +1,44 @@
+suite: empresa-site path prefix
+templates:
+  - templates/deployment.yaml
+  - templates/configmap-serve.yaml
+values:
+  - ../../charts/empresa-site/ci/lint-values.yaml
+set:
+  pathPrefix: /acme
+release:
+  name: acme
+  namespace: sites
+tests:
+  - it: serves the placeholder at the root and under the prefix
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[2].configMap.items
+          value:
+            - key: index.html
+              path: index.html
+            - key: index.html
+              path: acme/index.html
+
+  - it: maps the prefix to the Service port in serve-config
+    template: templates/configmap-serve.yaml
+    asserts:
+      - matchRegex:
+          path: data["serve.json"]
+          pattern: '"path": "/acme"'
+      - matchRegex:
+          path: data["serve.json"]
+          pattern: '"stripPrefix": true'
+      - matchRegex:
+          path: data["serve.json"]
+          pattern: 'http://acme-empresa-site.sites.svc:8080'
+
+  - it: nests a multi-segment prefix
+    template: templates/deployment.yaml
+    set:
+      pathPrefix: /sites/acme
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[2].configMap.items[1].path
+          value: sites/acme/index.html

@@ -150,7 +150,15 @@
             { name = "lareira-breathe-observability"; chartDir = ./charts/lareira-breathe-observability; }
             # ── dashboard-as-code workspace kind (PangeaDashboard CRs from values) ──
             { name = "lareira-pangea-dashboards"; chartDir = ./charts/lareira-pangea-dashboards; }
+            { name = "empresa-site"; chartDir = ./charts/empresa-site; }
           ];
+
+          valuesSchema = pkgs.rustPlatform.buildRustPackage {
+            pname = "helmworks-values-schema";
+            version = "0.1.0";
+            src = ./schemas;
+            cargoLock.lockFile = ./schemas/Cargo.lock;
+          };
 
           # Use substrate's mkHelmAllApps for all chart lifecycle apps
           helmApps = substrateLib.mkHelmAllApps {
@@ -913,8 +921,13 @@
           };
 
         in {
-          packages = chartPackages;
+          packages = chartPackages // { inherit valuesSchema; };
           apps = helmApps // stackApps;
+
+          checks.values-schema-fresh = pkgs.runCommand "values-schema-fresh" { } ''
+            ${valuesSchema}/bin/helmworks-values-schema --check --charts ${./charts}
+            touch $out
+          '';
 
           devShells.default = pkgs.mkShell {
             packages = [

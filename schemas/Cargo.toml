@@ -1,0 +1,17 @@
+[package]
+name = "helmworks-values-schema"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+publish = false
+description = "Typed sources of helmworks chart values.schema.json files"
+
+[[bin]]
+name = "helmworks-values-schema"
+path = "src/main.rs"
+
+[dependencies]
+helm-forge = { version = "0.1.2", default-features = false, features = ["values-schema"] }
+schemars = "0.8"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

@@ -1,0 +1,8 @@
+company: acme
+hosts:
+  - acme.example
+  - www.acme.example
+pathPrefix: /acme
+content:
+  placeholder:
+    enabled: true

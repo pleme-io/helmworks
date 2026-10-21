@@ -1,0 +1,31 @@
+pathPrefix: "/"
+
+content:
+  image:
+    repository: ""
+    tag: ""
+  placeholder:
+    enabled: true
+
+server:
+  image:
+    repository: ghcr.io/pleme-io/hanabi
+    tag: ""
+  pullPolicy: IfNotPresent
+
+service:
+  port: 8080
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 16Mi
+  limits:
+    cpu: 200m
+    memory: 64Mi
+
+nodeSelector: {}
+replicaCount: 1
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""

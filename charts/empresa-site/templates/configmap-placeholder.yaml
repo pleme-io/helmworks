@@ -1,0 +1,26 @@
+{{- if .Values.content.placeholder.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}-placeholder
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+    app.kubernetes.io/component: placeholder
+data:
+  index.html: |
+    <!doctype html>
+    <html lang="en">
+    <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ .Values.company }}</title>
+    </head>
+    <body>
+    <main>
+    <h1>{{ .Values.company }}</h1>
+    <p>Coming soon.</p>
+    </main>
+    </body>
+    </html>
+{{- end }}
