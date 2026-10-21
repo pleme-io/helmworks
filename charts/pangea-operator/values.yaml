@@ -479,6 +479,14 @@ sidecars:
 # semantics are confirmed.
 gemCacheDir: /var/pangea/gems
 
+# -- Event-driven reconcile triggers. Off preserves the original behavior: a
+# metadata-only edit never reconciles, so a settled template waits for its
+# refreshInterval tick.
+reactive:
+  # -- Treat a change of the pangea.pleme.io/reconcile-requested annotation
+  # as a reconcile trigger (PANGEA_HONOR_RECONCILE_REQUESTS).
+  honorReconcileRequests: false
+
 # -- Optional Secret carrying a GitHub auth token (PAT or App
 # installation token) used by the embedded operator's gem cache to
 # clone private ArchitectureGem source repos. When set, the operator
