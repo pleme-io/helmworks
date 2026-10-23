@@ -1,3 +1,0 @@
-image:
-  repository: registry.invalid/hardened-valkey
-  tag: "0.0.0"

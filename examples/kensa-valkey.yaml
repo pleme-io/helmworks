@@ -1,9 +1,5 @@
 fullnameOverride: kensa-valkey
 
-image:
-  repository: ""
-  tag: ""
-
 cache:
   port: 6379
   maxmemory: "128mb"

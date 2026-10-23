@@ -3,13 +3,14 @@
 
 enabled: true
 
-# -- image: no hardened Valkey image exists yet, so repository and tag are empty and the schema refuses an empty pair.
-# To build: add `hardened-valkey` to the hardened-images catalog through substrate's mkHardenedImageSet
+# -- image: the upstream default keeps existing consumers (super-cache-ci, supacharge-cache) rendering.
+# Distroless target: add `hardened-valkey` to the hardened-images catalog through substrate's mkHardenedImageSet
 # (static valkey-server from nixpkgs, no shell, writablePaths /data, non-root uid 999, entrypoint valkey-server),
-# publish it to the cluster registry, then set image.repository and image.tag to that digest-pinned tag.
+# publish it to the cluster registry, then override image.repository and image.tag with that pair.
+# cache.password.delivery include needs no shell in the image; delivery init does.
 image:
-  repository: ""
-  tag: ""
+  repository: valkey/valkey
+  tag: "8-alpine"
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []

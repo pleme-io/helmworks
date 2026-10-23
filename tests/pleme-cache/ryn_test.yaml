@@ -7,9 +7,6 @@ templates:
   - templates/guards.yaml
 values:
   - ../../examples/kensa-valkey.yaml
-set:
-  image.repository: registry.invalid/hardened-valkey
-  image.tag: "0.0.0"
 capabilities:
   apiVersions:
     - monitoring.coreos.com/v1
