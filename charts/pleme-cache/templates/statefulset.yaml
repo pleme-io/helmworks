@@ -1,3 +1,4 @@
+{{- if .Values.enabled }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -31,11 +32,11 @@ spec:
       {{- end }}
       securityContext:
         {{- include "pleme-lib.podSecurityContext" . | nindent 8 }}
-      {{- if .Values.cache.password.enabled }}
+      {{- if include "pleme-cache.initDelivery" . }}
       initContainers:
         - name: config-init
-          image: {{ .Values.image.repository }}:{{ .Values.image.tag | default "latest" }}
-          imagePullPolicy: {{ .Values.image.pullPolicy | default "Always" }}
+          image: {{ include "pleme-lib.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["sh", "-c"]
           args:
             - |
@@ -64,7 +65,7 @@ spec:
               # regression, and it is the reason to keep passwords alphanumeric.
               set -eu
               cp /config/redis.conf /tmp/redis/redis.conf
-              PASS=$(cat /credentials/{{ .Values.cache.password.key | default "REDIS_PASSWORD" }})
+              PASS=$(cat /credentials/{{ .Values.cache.password.key }})
               printf 'requirepass %s\n' "$PASS" >> /tmp/redis/redis.conf
           securityContext:
             {{- include "pleme-lib.containerSecurityContext" . | nindent 12 }}
@@ -75,17 +76,18 @@ spec:
               mountPath: /tmp/redis
             - name: credentials
               mountPath: /credentials
+              readOnly: true
       {{- end }}
       containers:
         - name: {{ include "pleme-lib.name" . }}
           image: {{ include "pleme-lib.image" . }}
-          imagePullPolicy: {{ .Values.image.pullPolicy | default "Always" }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
           {{- with .Values.command }}
           command:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           args:
-            {{- if .Values.cache.password.enabled }}
+            {{- if include "pleme-cache.initDelivery" . }}
             - /tmp/redis/redis.conf
             {{- else }}
             - /config/redis.conf
@@ -120,12 +122,22 @@ spec:
             periodSeconds: {{ .Values.health.readinessPeriod | default 5 }}
             failureThreshold: {{ .Values.health.readinessFailureThreshold | default 2 }}
           volumeMounts:
-            {{- if .Values.cache.password.enabled }}
+            {{- if include "pleme-cache.initDelivery" . }}
             - name: runtime-config
               mountPath: /tmp/redis
             {{- else }}
             - name: config
               mountPath: /config
+            {{- end }}
+            {{- if and .Values.cache.password.enabled (not (include "pleme-cache.initDelivery" .)) }}
+            - name: credentials
+              mountPath: /credentials
+              readOnly: true
+            {{- end }}
+            {{- if .Values.cache.tls.enabled }}
+            - name: tls
+              mountPath: /tls
+              readOnly: true
             {{- end }}
             {{- if .Values.cache.persistence.enabled }}
             - name: data
@@ -136,20 +148,26 @@ spec:
             {{- end }}
         {{- if .Values.exporter.enabled }}
         - name: exporter
-          image: {{ .Values.exporter.image.repository | default "oliver006/redis_exporter" }}:{{ .Values.exporter.image.tag | default "latest" }}
-          imagePullPolicy: {{ .Values.exporter.image.pullPolicy | default "Always" }}
+          image: {{ .Values.exporter.image.repository }}:{{ .Values.exporter.image.tag }}
+          imagePullPolicy: {{ .Values.exporter.image.pullPolicy }}
           ports:
             - name: metrics
               containerPort: {{ .Values.exporter.port | default 9121 }}
               protocol: TCP
-          {{- if .Values.cache.password.enabled }}
           env:
+            - name: REDIS_ADDR
+              value: {{ ternary "rediss" "redis" .Values.cache.tls.enabled }}://localhost:{{ .Values.cache.port }}
+            {{- if .Values.cache.tls.enabled }}
+            - name: REDIS_EXPORTER_SKIP_TLS_VERIFICATION
+              value: "true"
+            {{- end }}
+            {{- if .Values.cache.password.enabled }}
             - name: REDIS_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.cache.password.secretName }}
-                  key: {{ .Values.cache.password.key | default "REDIS_PASSWORD" }}
-          {{- end }}
+                  key: {{ .Values.cache.password.key }}
+            {{- end }}
           {{- with .Values.exporter.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
@@ -161,12 +179,21 @@ spec:
         - name: config
           configMap:
             name: {{ include "pleme-lib.fullname" . }}-config
-        {{- if .Values.cache.password.enabled }}
+        {{- if include "pleme-cache.initDelivery" . }}
         - name: runtime-config
           emptyDir: {}
+        {{- end }}
+        {{- if .Values.cache.password.enabled }}
         - name: credentials
           secret:
             secretName: {{ .Values.cache.password.secretName }}
+            defaultMode: 0440
+        {{- end }}
+        {{- if .Values.cache.tls.enabled }}
+        - name: tls
+          secret:
+            secretName: {{ .Values.cache.tls.secretName }}
+            defaultMode: 0440
         {{- end }}
         {{- with .Values.volumes }}
         {{- toYaml . | nindent 8 }}
@@ -203,3 +230,4 @@ spec:
           requests:
             storage: {{ .Values.cache.persistence.size | default "1Gi" }}
   {{- end }}
+{{- end }}

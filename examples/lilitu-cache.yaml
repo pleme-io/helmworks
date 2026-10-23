@@ -13,6 +13,7 @@ cache:
     enabled: true
     secretName: lilitu-cache-credentials
     key: REDIS_PASSWORD
+    delivery: init
   persistence:
     enabled: true
     size: 2Gi
@@ -22,7 +23,7 @@ exporter:
   enabled: true
   image:
     repository: oliver006/redis_exporter
-    tag: latest
+    tag: "v1.62.0"
   port: 9121
   resources:
     requests:

@@ -1,3 +1,4 @@
+{{- if .Values.enabled }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -8,7 +9,19 @@ metadata:
 data:
   redis.conf: |
     bind 0.0.0.0
-    port {{ .Values.cache.port | default 6379 }}
+    {{- if .Values.cache.tls.enabled }}
+    port 0
+    tls-port {{ .Values.cache.port }}
+    tls-cert-file /tls/tls.crt
+    tls-key-file /tls/tls.key
+    tls-ca-cert-file /tls/ca.crt
+    tls-auth-clients {{ ternary "yes" "no" .Values.cache.tls.clientAuth }}
+    {{- else }}
+    port {{ .Values.cache.port }}
+    {{- end }}
+    {{- if and .Values.cache.password.enabled (eq .Values.cache.password.delivery "include") }}
+    include /credentials/{{ .Values.cache.password.includeKey }}
+    {{- end }}
     {{- /*
       NO `requirepass` LINE HERE, and no placeholder for one.
 
@@ -43,3 +56,4 @@ data:
     {{- with .Values.cache.extraConfig }}
     {{ . | nindent 4 }}
     {{- end }}
+{{- end }}

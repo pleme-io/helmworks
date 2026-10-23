@@ -1,10 +1,16 @@
 # pleme-cache default values
 # Valkey/Redis cache with auto-generated redis.conf, optional exporter sidecar
 
+enabled: true
+
+# -- image: no hardened Valkey image exists yet, so repository and tag are empty and the schema refuses an empty pair.
+# To build: add `hardened-valkey` to the hardened-images catalog through substrate's mkHardenedImageSet
+# (static valkey-server from nixpkgs, no shell, writablePaths /data, non-root uid 999, entrypoint valkey-server),
+# publish it to the cluster registry, then set image.repository and image.tag to that digest-pinned tag.
 image:
-  repository: valkey/valkey
-  tag: "8-alpine"
-  pullPolicy: Always
+  repository: ""
+  tag: ""
+  pullPolicy: IfNotPresent
 
 imagePullSecrets: []
 nameOverride: ""
@@ -31,10 +37,20 @@ cache:
   # -- Password configuration
   password:
     enabled: false
-    # -- Secret containing the password
+    # -- Existing Secret; the chart renders no password and no Secret
     secretName: ""
-    # -- Key in the secret
-    key: REDIS_PASSWORD
+    # -- Secret key holding the bare password (client side, exporter, init delivery)
+    key: password
+    # -- include: valkey reads requirepass from includeKey, no shell in the image; init: a shell initContainer appends it
+    delivery: include
+    # -- Secret key holding the line "requirepass <password>" (include delivery)
+    includeKey: valkey-auth.conf
+  tls:
+    enabled: false
+    # -- Secret with tls.crt, tls.key and ca.crt
+    secretName: ""
+    # -- Require client certificates
+    clientAuth: false
   # -- Persistence (AOF) configuration
   persistence:
     enabled: false
@@ -49,11 +65,11 @@ cache:
 
 # -- Redis exporter sidecar
 exporter:
-  enabled: false
+  enabled: true
   image:
     repository: oliver006/redis_exporter
-    tag: latest
-    pullPolicy: Always
+    tag: "v1.62.0"
+    pullPolicy: IfNotPresent
   port: 9121
   resources:
     requests:
@@ -94,9 +110,14 @@ tolerations: []
 affinity: {}
 priorityClassName: ""
 
+serviceMonitor:
+  enabled: true
+  interval: 30s
+  scrapeTimeout: 10s
+
 monitoring:
   enabled: true
-  port: metrics
+  port: "9121"
   path: /metrics
   interval: 30s
   scrapeTimeout: 10s

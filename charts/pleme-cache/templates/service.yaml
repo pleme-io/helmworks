@@ -1,3 +1,4 @@
+{{- if .Values.enabled }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -12,5 +13,12 @@ spec:
       port: {{ .Values.cache.port | default 6379 }}
       targetPort: redis
       protocol: TCP
+    {{- if .Values.exporter.enabled }}
+    - name: metrics
+      port: {{ .Values.exporter.port }}
+      targetPort: metrics
+      protocol: TCP
+    {{- end }}
   selector:
     {{- include "pleme-lib.selectorLabels" . | nindent 4 }}
+{{- end }}

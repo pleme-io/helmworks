@@ -1,0 +1,25 @@
+{{- if .Values.enabled }}
+{{- if not .Values.image.repository }}
+{{- fail "pleme-cache: image.repository is empty. Set it to a Valkey image built through substrate's mkHardenedImageSet (distroless: no shell, no package manager) and published to the cluster registry. No such image is declared in hardened-images yet; the chart names no registry path of its own." }}
+{{- end }}
+{{- if not .Values.image.tag }}
+{{- fail "pleme-cache: image.tag is empty. Pin the tag of the hardened Valkey image." }}
+{{- end }}
+{{- if .Values.cache.password.enabled }}
+{{- if not .Values.cache.password.secretName }}
+{{- fail "pleme-cache: cache.password.enabled needs cache.password.secretName, the name of an existing Secret. The chart renders no password and no Secret." }}
+{{- end }}
+{{- if and (eq .Values.cache.password.delivery "include") (not .Values.cache.password.includeKey) }}
+{{- fail "pleme-cache: cache.password.delivery include needs cache.password.includeKey, the Secret key holding the 'requirepass <password>' line." }}
+{{- end }}
+{{- end }}
+{{- if and .Values.cache.tls.enabled (not .Values.cache.tls.secretName) }}
+{{- fail "pleme-cache: cache.tls.enabled needs cache.tls.secretName, a Secret with tls.crt, tls.key and ca.crt." }}
+{{- end }}
+{{- if and .Values.exporter.enabled (or (not .Values.exporter.image.repository) (not .Values.exporter.image.tag)) }}
+{{- fail "pleme-cache: exporter.enabled needs exporter.image.repository and exporter.image.tag." }}
+{{- end }}
+{{- if gt (int .Values.replicaCount) 1 }}
+{{- fail "pleme-cache: replicaCount > 1 renders independent unreplicated caches behind one Service. Keep replicaCount 1." }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,46 @@
+fullnameOverride: kensa-valkey
+
+image:
+  repository: ""
+  tag: ""
+
+cache:
+  port: 6379
+  maxmemory: "128mb"
+  maxmemoryPolicy: allkeys-lru
+  password:
+    enabled: true
+    secretName: kensa-valkey-auth
+    key: password
+    delivery: include
+    includeKey: valkey-auth.conf
+  tls:
+    enabled: true
+    secretName: kensa-valkey-tls
+    clientAuth: false
+  persistence:
+    enabled: false
+
+exporter:
+  enabled: true
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+networkPolicy:
+  enabled: true
+  additionalIngress:
+    - name: allow-kensa
+      rules:
+        - from:
+            - podSelector:
+                matchLabels:
+                  app.kubernetes.io/name: kensa
+          ports:
+            - port: 6379
+              protocol: TCP
