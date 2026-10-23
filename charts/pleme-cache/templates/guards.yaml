@@ -1,6 +1,6 @@
 {{- if .Values.enabled }}
 {{- if not .Values.image.repository }}
-{{- fail "pleme-cache: image.repository is empty. Set it to the Valkey image; the distroless target is a hardened-valkey image built through substrate's mkHardenedImageSet, not yet in hardened-images." }}
+{{- fail "pleme-cache: image.repository is empty. Set it to the Valkey image; the distroless target is ghcr.io/pleme-io/hardened-valkey from hardened-images." }}
 {{- end }}
 {{- if not .Values.image.tag }}
 {{- fail "pleme-cache: image.tag is empty. Pin the tag of the hardened Valkey image." }}

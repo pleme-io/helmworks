@@ -4,9 +4,9 @@
 enabled: true
 
 # -- image: the upstream default keeps existing consumers (super-cache-ci, supacharge-cache) rendering.
-# Distroless target: add `hardened-valkey` to the hardened-images catalog through substrate's mkHardenedImageSet
-# (static valkey-server from nixpkgs, no shell, writablePaths /data, non-root uid 999, entrypoint valkey-server),
-# publish it to the cluster registry, then override image.repository and image.tag with that pair.
+# Distroless target: ghcr.io/pleme-io/hardened-valkey (pleme-io/hardened-images, distroless-glibc, no shell,
+# entrypoint valkey-server, state dir /data, uid 65532). Override image.repository and image.tag with that
+# pair once the cluster registry serves it; ryn runs the same build as a `nix:` store path (examples/kensa-valkey.yaml).
 # cache.password.delivery include needs no shell in the image; delivery init does.
 image:
   repository: valkey/valkey

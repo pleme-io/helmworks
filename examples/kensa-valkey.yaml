@@ -40,3 +40,17 @@ networkPolicy:
           ports:
             - port: 6379
               protocol: TCP
+
+# Distroless image (pleme-io/hardened-images, valkeyPkg): the chart default stays upstream so existing
+# consumers keep rendering. ryn runs the hardened build as a nix closure, set in nodes/ryn/default.nix:
+#
+#   pleme.engenho.helm.releases.kensa-valkey = {
+#     chart = "${inputs.helmworks-src}/charts/pleme-cache";
+#     libraries.pleme-lib = "${inputs.helmworks-src}/charts/pleme-lib";
+#     values = {
+#       image.repository = "nix:${inputs.hardened-images.packages.${pkgs.stdenv.hostPlatform.system}.valkeyPkg}";
+#       command = [ "${inputs.hardened-images.packages.${pkgs.stdenv.hostPlatform.system}.valkeyPkg}/bin/valkey-server" ];
+#     };
+#   };
+#
+# A registry cluster sets image.repository: ghcr.io/pleme-io/hardened-valkey and image.tag to the published tag.
