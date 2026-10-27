@@ -1,0 +1,56 @@
+suite: pleme-lib bare-fixture — pleme-lib's generated values.schema.json is closed
+templates:
+  - templates/access-networkpolicy.yaml
+release:
+  name: t
+  namespace: testns
+
+tests:
+  - it: the library surface takes a declared access block
+    set:
+      pleme-lib:
+        access:
+          egress: ["api.github.com:443"]
+          writes: [/tmp]
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: a misspelled top-level key is refused
+    set:
+      pleme-lib:
+        accss: { egress: [] }
+    asserts:
+      - failedTemplate:
+          errorPattern: "additional properties 'accss' not allowed"
+
+  - it: a literal beside a secret reference is refused
+    set:
+      pleme-lib:
+        secretRefs:
+          - { name: db, store: s, key: /k, path: /p, value: hunter2 }
+    asserts:
+      - failedTemplate:
+          errorPattern: "additional properties 'value' not allowed"
+
+  - it: a relative write path is refused
+    set:
+      pleme-lib:
+        access:
+          writes: [tmp]
+    asserts:
+      - failedTemplate:
+          errorPattern: "does not match pattern"
+
+  - it: a placement without a chart version is refused
+    set:
+      pleme-lib:
+        placements:
+          - cluster: ryn
+            namespace: kensa
+            chart: { name: kensa, sourceRef: { name: charts } }
+            path: ./p
+            sourceRef: { name: nix }
+    asserts:
+      - failedTemplate:
+          errorPattern: "missing property 'version'"

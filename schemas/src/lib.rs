@@ -1,5 +1,6 @@
 pub mod empresa_site;
 pub mod pleme_cache;
+pub mod pleme_lib;
 
 use serde_json::Value;
 
@@ -15,4 +16,8 @@ pub const CHARTS: &[ChartSchema] = &[ChartSchema {
 ChartSchema {
     chart: "pleme-cache",
     generate: pleme_cache::schema,
+},
+ChartSchema {
+    chart: "pleme-lib",
+    generate: pleme_lib::schema,
 }];

@@ -1,0 +1,203 @@
+suite: pleme-lib bare-fixture — pleme-lib.access-networkpolicy (blue access.egress)
+templates:
+  - templates/access-networkpolicy.yaml
+release:
+  name: t
+  namespace: testns
+defaults: &defaults
+  image.repository: ghcr.io/x/y
+  image.tag: "1.0.0"
+
+tests:
+  - it: renders nothing when access is absent
+    set:
+      <<: *defaults
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: an empty egress is deny-all plus DNS and nothing else
+    set:
+      <<: *defaults
+      access:
+        egress: []
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: metadata.name
+          value: t-pleme-lib-bare-deny-all
+        documentIndex: 0
+      - equal:
+          path: spec.policyTypes
+          value: [Ingress, Egress]
+        documentIndex: 0
+      - equal:
+          path: metadata.name
+          value: t-pleme-lib-bare-allow-dns
+        documentIndex: 1
+      - equal:
+          path: spec.egress[0].ports
+          value:
+            - { port: 53, protocol: UDP }
+            - { port: 53, protocol: TCP }
+        documentIndex: 1
+
+  - it: a binding in the release namespace allows its port to that namespace
+    set:
+      <<: *defaults
+      access:
+        egress:
+          - { binding: cache, host: kensa-valkey, port: 6379 }
+    asserts:
+      - hasDocuments:
+          count: 3
+      - equal:
+          path: metadata.name
+          value: t-pleme-lib-bare-allow-out-binding-cache
+        documentIndex: 2
+      - equal:
+          path: spec.egress[0].to[0].namespaceSelector.matchLabels
+          value: { kubernetes.io/metadata.name: testns }
+        documentIndex: 2
+      - equal:
+          path: spec.egress[0].ports
+          value: [{ port: 6379, protocol: TCP }]
+        documentIndex: 2
+
+  - it: a binding host <svc>.<ns>.svc resolves the peer namespace, podLabels narrow it
+    set:
+      <<: *defaults
+      access:
+        egress:
+          - binding: database
+            host: kensa-pg-rw.data.svc.cluster.local
+            port: 5432
+            podLabels: { cnpg.io/cluster: kensa-pg }
+    asserts:
+      - equal:
+          path: spec.egress[0].to[0].namespaceSelector.matchLabels
+          value: { kubernetes.io/metadata.name: data }
+        documentIndex: 2
+      - equal:
+          path: spec.egress[0].to[0].podSelector.matchLabels
+          value: { cnpg.io/cluster: kensa-pg }
+        documentIndex: 2
+
+  - it: a public host:port opens that port to public addresses only
+    set:
+      <<: *defaults
+      access:
+        egress: ["api.github.com:443"]
+    asserts:
+      - equal:
+          path: metadata.name
+          value: t-pleme-lib-bare-allow-out-peer-api-github-com-443
+        documentIndex: 2
+      - equal:
+          path: spec.egress[0].to[0].ipBlock.cidr
+          value: 0.0.0.0/0
+        documentIndex: 2
+      - contains:
+          path: spec.egress[0].to[0].ipBlock.except
+          content: 10.0.0.0/8
+        documentIndex: 2
+      - equal:
+          path: spec.egress[0].ports
+          value: [{ port: 443, protocol: TCP }]
+        documentIndex: 2
+
+  - it: an IPv4 host:port opens that one address
+    set:
+      <<: *defaults
+      access:
+        egress: ["10.1.2.3:8443"]
+    asserts:
+      - equal:
+          path: spec.egress[0].to[0].ipBlock.cidr
+          value: 10.1.2.3/32
+        documentIndex: 2
+
+  - it: keeps the chart's own networkPolicy.allow.egress beside the access peers
+    set:
+      <<: *defaults
+      networkPolicy:
+        allow:
+          egress:
+            - { name: metrics, namespace: monitoring, ports: [9090] }
+      access:
+        egress:
+          - { binding: cache, host: kensa-valkey, port: 6379 }
+    asserts:
+      - hasDocuments:
+          count: 4
+      - equal:
+          path: metadata.name
+          value: t-pleme-lib-bare-allow-out-metrics
+        documentIndex: 2
+      - equal:
+          path: metadata.name
+          value: t-pleme-lib-bare-allow-out-binding-cache
+        documentIndex: 3
+
+  - it: refuses a binding with no port
+    set:
+      <<: *defaults
+      access:
+        egress:
+          - { binding: cache, host: kensa-valkey }
+    asserts:
+      - failedTemplate:
+          errorPattern: "names no port"
+
+  - it: refuses a binding whose host is not an in-cluster service name
+    set:
+      <<: *defaults
+      access:
+        egress:
+          - { binding: database, host: db.example.com, port: 5432 }
+    asserts:
+      - failedTemplate:
+          errorPattern: "not an in-cluster service name"
+
+  - it: refuses a string peer that is not host:port
+    set:
+      <<: *defaults
+      access:
+        egress: ["api.github.com"]
+    asserts:
+      - failedTemplate:
+          errorPattern: "a string peer is host:port"
+
+  - it: refuses an unknown peer field
+    set:
+      <<: *defaults
+      access:
+        egress:
+          - { binding: cache, host: kensa-valkey, port: 6379, prot: TCP }
+    asserts:
+      - failedTemplate:
+          errorPattern: "prot is not a peer field"
+
+  - it: refuses the same peer twice
+    set:
+      <<: *defaults
+      access:
+        egress:
+          - { binding: cache, host: kensa-valkey, port: 6379 }
+          - { binding: cache, host: kensa-valkey, port: 6380 }
+    asserts:
+      - failedTemplate:
+          errorPattern: "repeats the peer"
+
+  - it: refuses access beside a declared unpoliced posture
+    set:
+      <<: *defaults
+      networkPolicy:
+        unpoliced: true
+        unpolicedReason: open
+      access:
+        egress: []
+    asserts:
+      - failedTemplate:
+          errorPattern: "both unpoliced=true and enabled=true"

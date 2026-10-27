@@ -423,6 +423,9 @@ metadata:
     {{- include "pleme-lib.labels" $ | nindent 4 }}
     pleme.io/flux-layer: {{ $l.name | quote }}
     pleme.io/flux-layer-index: {{ $i | quote }}
+    {{- with $l.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
   {{- if $staged }}
   annotations:
     {{- include "pleme-lib.fluxcdPruneDisabled" $ | nindent 4 }}
@@ -509,6 +512,9 @@ metadata:
   namespace: {{ $r.namespace | default .Release.Namespace }}
   labels:
     {{- include "pleme-lib.labels" . | nindent 4 }}
+    {{- with $r.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
   {{- if or $staged $r.disableWait }}
   annotations:
     {{- if $staged }}
@@ -602,4 +608,83 @@ reference them, and the release last.
 {{- include "pleme-lib.flux.sources" . }}
 {{ include "pleme-lib.flux.layers" . }}
 {{ include "pleme-lib.flux.release" . }}
+{{- end }}
+
+{{/*
+pleme-lib.placement-release — one placement, its Flux objects
+
+A placement is where a service runs: a cluster, a namespace, a chart ref and
+the values for that place. Each renders a HelmRelease through
+pleme-lib.flux.release and a Kustomization through pleme-lib.flux.layers, so
+the Flux idiom (CreateReplace CRDs, drift detection, remediation, prune) is
+the one already above, not a second copy. Both carry the cluster and the
+placement as labels. `cluster` selects nothing by itself: the objects are
+committed under that cluster's path, which `path` names. Absent `placements`
+renders nothing.
+
+  placements:
+    - cluster: ryn
+      namespace: kensa
+      name: ""                       default <fullname>-<cluster>
+      chart:
+        name: kensa
+        version: 0.4.0               required; a placement never floats
+        sourceRef: { kind: HelmRepository, name: pleme-charts, namespace: flux-system }
+      values: {}
+      path: ./clusters/ryn/kensa     the Kustomization path
+      sourceRef: { kind: GitRepository, name: nix }
+      createNamespace: false
+      interval: ""                   optional, both objects
+
+The Flux objects land in `.Values.flux.namespace` (default flux-system); the
+HelmRelease lives in the placement's namespace and installs there.
+*/}}
+
+{{- define "pleme-lib.placement-release" -}}
+{{- $seen := dict -}}
+{{- $fluxNs := ((.Values.flux).namespace) | default "flux-system" -}}
+{{- range $i, $p := (.Values.placements | default list) -}}
+{{- if not (kindIs "map" $p) -}}
+  {{- fail (printf "placements[%d] is not a map; a placement is {cluster, namespace, chart, values, path, sourceRef}" $i) -}}
+{{- end -}}
+{{- range $k, $_ := $p -}}
+  {{- if not (has $k (list "cluster" "namespace" "name" "chart" "values" "path" "sourceRef" "createNamespace" "interval")) -}}
+    {{- fail (printf "placements[%d].%s is not a placement field; it takes cluster, namespace, name, chart, values, path, sourceRef, createNamespace and interval" $i $k) -}}
+  {{- end -}}
+{{- end -}}
+{{- range $k := list "cluster" "namespace" "path" -}}
+  {{- if not (get $p $k) -}}
+    {{- fail (printf "placements[%d].%s is required" $i $k) -}}
+  {{- end -}}
+{{- end -}}
+{{- $c := $p.chart | default dict -}}
+{{- if not (and $c.name $c.version ($c.sourceRef | default dict).name) -}}
+  {{- fail (printf "placements[%d] (%s) needs chart.name, chart.version and chart.sourceRef.name; a placement with no exact chart ref installs whatever is newest" $i $p.cluster) -}}
+{{- end -}}
+{{- if not ($p.sourceRef | default dict).name -}}
+  {{- fail (printf "placements[%d] (%s) needs sourceRef.name, the source its Kustomization applies %s from" $i $p.cluster $p.path) -}}
+{{- end -}}
+{{- if and (hasKey $p "values") (not (kindIs "map" $p.values)) -}}
+  {{- fail (printf "placements[%d] (%s) values is not a map" $i $p.cluster) -}}
+{{- end -}}
+{{- $name := $p.name | default (printf "%s-%s" (include "pleme-lib.fullname" $) $p.cluster) | trunc 63 | trimSuffix "-" -}}
+{{- $key := printf "%s/%s" $p.cluster $name -}}
+{{- if hasKey $seen $key -}}
+  {{- fail (printf "placements[%d] repeats %s; one name per cluster" $i $key) -}}
+{{- end -}}
+{{- $_ := set $seen $key true -}}
+{{- $labels := dict "pleme.io/placement" $name "pleme.io/placement-cluster" $p.cluster -}}
+{{- $release := dict "enabled" true "name" $name "namespace" $p.namespace "createNamespace" ($p.createNamespace | default false) "chart" $c "values" ($p.values | default dict) "labels" $labels -}}
+{{- $layer := dict "name" $name "path" $p.path "targetNamespace" $p.namespace "labels" $labels -}}
+{{- with $p.interval -}}
+{{- $_ := set $release "interval" . -}}
+{{- $_ := set $layer "interval" . -}}
+{{- end -}}
+{{- $flux := dict "enabled" true "namespace" $fluxNs "layers" (list $layer) "layerDefaults" (dict "sourceRef" $p.sourceRef) "release" $release -}}
+{{- $vals := omit $.Values "flux" -}}
+{{- $_ := set $vals "flux" $flux -}}
+{{- $ctx := dict "Values" $vals "Release" $.Release "Chart" $.Chart "Capabilities" $.Capabilities "Template" $.Template "Files" $.Files }}
+{{ include "pleme-lib.flux.layers" $ctx }}
+{{ include "pleme-lib.flux.release" $ctx }}
+{{- end -}}
 {{- end }}

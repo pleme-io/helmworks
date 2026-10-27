@@ -116,3 +116,40 @@ periodSeconds: {{ (.Values.startupProbe).periodSeconds | default 5 }}
 failureThreshold: {{ (.Values.startupProbe).failureThreshold | default 30 }}
 {{- end }}
 {{- end }}
+
+{{/*
+pleme-lib.service-battery-probes — the blue service battery's three probes
+
+A blue service serves /health (alive) and /ready (ready to take traffic) from
+its battery. This renders livenessProbe on /health, readinessProbe on /ready
+and a startupProbe on /health, through the three probes above, so the timing
+knobs (health.*, startupProbe.*) and the port (health.port, default http;
+startupProbe.port defaults to it) mean what they mean everywhere else. The
+paths are the battery's contract and are not read from values. Emitted at
+column 0 as three container keys.
+
+pleme-lib.deployment uses it when `health.battery: true`.
+*/}}
+{{- define "pleme-lib.service-battery-probes" -}}
+{{- $h := deepCopy (.Values.health | default dict) -}}
+{{- if and $h.type (ne $h.type "HTTPGet") -}}
+  {{- fail (printf "health.battery is set and health.type is %q; the battery serves HTTP, so drop health.type" $h.type) -}}
+{{- end -}}
+{{- $_ := set $h "type" "HTTPGet" -}}
+{{- $_ := set $h "path" "/health" -}}
+{{- $_ := set $h "readyPath" "/ready" -}}
+{{- $s := deepCopy (.Values.startupProbe | default dict) -}}
+{{- $_ := set $s "enabled" true -}}
+{{- $_ := set $s "path" "/health" -}}
+{{- $_ := set $s "port" ($s.port | default $h.port | default "http") -}}
+{{- $vals := omit .Values "health" "startupProbe" -}}
+{{- $_ := set $vals "health" $h -}}
+{{- $_ := set $vals "startupProbe" $s -}}
+{{- $ctx := dict "Values" $vals "Release" .Release "Chart" .Chart "Capabilities" .Capabilities "Template" .Template "Files" .Files -}}
+livenessProbe:
+  {{- include "pleme-lib.livenessProbe" $ctx | nindent 2 }}
+readinessProbe:
+  {{- include "pleme-lib.readinessProbe" $ctx | nindent 2 }}
+startupProbe:
+  {{- include "pleme-lib.startupProbe" $ctx | nindent 2 }}
+{{- end }}

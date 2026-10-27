@@ -151,6 +151,9 @@ spec:
           {{- end }}
           securityContext:
             {{- include "pleme-lib.containerSecurityContext" . | nindent 12 }}
+          {{- if (.Values.health).battery }}
+          {{- include "pleme-lib.service-battery-probes" . | nindent 10 }}
+          {{- else }}
           livenessProbe:
             {{- include "pleme-lib.livenessProbe" . | nindent 12 }}
           readinessProbe:
@@ -159,7 +162,8 @@ spec:
           startupProbe:
             {{- include "pleme-lib.startupProbe" . | nindent 12 }}
           {{- end }}
-          {{- with .Values.volumeMounts }}
+          {{- end }}
+          {{- with (concat (.Values.volumeMounts | default list) (include "pleme-lib.access-volumes.mounts" . | fromYamlArray) (include "pleme-lib.secret-ref.mounts" . | fromYamlArray)) }}
           volumeMounts:
             {{- toYaml . | nindent 12 }}
           {{- end }}
@@ -170,7 +174,7 @@ spec:
         {{- range .Values.sidecars }}
         - {{- toYaml . | nindent 10 }}
         {{- end }}
-      {{- with .Values.volumes }}
+      {{- with (concat (.Values.volumes | default list) (include "pleme-lib.access-volumes" . | fromYamlArray) (include "pleme-lib.secret-ref.volumes" . | fromYamlArray)) }}
       volumes:
         {{- toYaml . | nindent 8 }}
       {{- end }}

@@ -1,0 +1,186 @@
+suite: pleme-lib bare-fixture — pleme-lib.placement-release (HelmRelease + Kustomization per placement)
+templates:
+  - templates/placement-release.yaml
+release:
+  name: t
+  namespace: testns
+defaults: &defaults
+  image.repository: ghcr.io/x/y
+  image.tag: "1.0.0"
+placement: &placement
+  cluster: ryn
+  namespace: kensa
+  chart:
+    name: kensa
+    version: 0.4.0
+    sourceRef: { kind: HelmRepository, name: pleme-charts, namespace: flux-system }
+  values: { replicaCount: 2 }
+  path: ./clusters/ryn/kensa
+  sourceRef: { kind: GitRepository, name: nix }
+
+tests:
+  - it: renders nothing when placements is absent
+    set:
+      <<: *defaults
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: one placement is one Kustomization and one HelmRelease
+    set:
+      <<: *defaults
+      placements: [*placement]
+    asserts:
+      - hasDocuments:
+          count: 2
+      - isKind:
+          of: Kustomization
+        documentIndex: 0
+      - isKind:
+          of: HelmRelease
+        documentIndex: 1
+
+  - it: the Kustomization applies the placement path from its source into its namespace
+    set:
+      <<: *defaults
+      placements: [*placement]
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: metadata.name
+          value: t-pleme-lib-bare-ryn
+      - equal:
+          path: metadata.namespace
+          value: flux-system
+      - equal:
+          path: spec.path
+          value: ./clusters/ryn/kensa
+      - equal:
+          path: spec.sourceRef
+          value: { kind: GitRepository, name: nix, namespace: flux-system }
+      - equal:
+          path: spec.targetNamespace
+          value: kensa
+      - equal:
+          path: metadata.labels["pleme.io/placement-cluster"]
+          value: ryn
+      - notExists:
+          path: spec.dependsOn
+
+  - it: the HelmRelease installs the exact chart with the placement values
+    set:
+      <<: *defaults
+      placements: [*placement]
+    documentIndex: 1
+    asserts:
+      - equal:
+          path: metadata.name
+          value: t-pleme-lib-bare-ryn
+      - equal:
+          path: metadata.namespace
+          value: kensa
+      - equal:
+          path: spec.chart.spec
+          value:
+            chart: kensa
+            version: 0.4.0
+            sourceRef: { kind: HelmRepository, name: pleme-charts, namespace: flux-system }
+      - equal:
+          path: spec.values
+          value: { replicaCount: 2 }
+      - equal:
+          path: spec.install.crds
+          value: CreateReplace
+      - equal:
+          path: metadata.labels["pleme.io/placement"]
+          value: t-pleme-lib-bare-ryn
+      - equal:
+          path: metadata.labels["pleme.io/placement-cluster"]
+          value: ryn
+
+  - it: two clusters are two independent pairs
+    set:
+      <<: *defaults
+      placements:
+        - *placement
+        - cluster: plo
+          namespace: kensa
+          chart: { name: kensa, version: 0.4.0, sourceRef: { name: pleme-charts } }
+          path: ./clusters/plo/kensa
+          sourceRef: { name: nix }
+          interval: 5m
+    asserts:
+      - hasDocuments:
+          count: 4
+      - equal:
+          path: metadata.name
+          value: t-pleme-lib-bare-plo
+        documentIndex: 3
+      - equal:
+          path: spec.interval
+          value: 5m
+        documentIndex: 3
+      - notExists:
+          path: spec.dependsOn
+        documentIndex: 2
+
+  - it: refuses a placement with no chart version
+    set:
+      <<: *defaults
+      placements:
+        - cluster: ryn
+          namespace: kensa
+          chart: { name: kensa, sourceRef: { name: pleme-charts } }
+          path: ./p
+          sourceRef: { name: nix }
+    asserts:
+      - failedTemplate:
+          errorPattern: "needs chart.name, chart.version and chart.sourceRef.name"
+
+  - it: refuses a placement with no cluster
+    set:
+      <<: *defaults
+      placements:
+        - namespace: kensa
+          chart: { name: kensa, version: 0.4.0, sourceRef: { name: pleme-charts } }
+          path: ./p
+          sourceRef: { name: nix }
+    asserts:
+      - failedTemplate:
+          errorPattern: "placements\\[0\\].cluster is required"
+
+  - it: refuses a placement with no Kustomization source
+    set:
+      <<: *defaults
+      placements:
+        - cluster: ryn
+          namespace: kensa
+          chart: { name: kensa, version: 0.4.0, sourceRef: { name: pleme-charts } }
+          path: ./p
+    asserts:
+      - failedTemplate:
+          errorPattern: "needs sourceRef.name"
+
+  - it: refuses an unknown placement field
+    set:
+      <<: *defaults
+      placements:
+        - cluster: ryn
+          namespace: kensa
+          chart: { name: kensa, version: 0.4.0, sourceRef: { name: pleme-charts } }
+          path: ./p
+          sourceRef: { name: nix }
+          value: { a: 1 }
+    asserts:
+      - failedTemplate:
+          errorPattern: "placements\\[0\\].value is not a placement field"
+
+  - it: refuses the same name twice on one cluster
+    set:
+      <<: *defaults
+      placements:
+        - *placement
+        - *placement
+    asserts:
+      - failedTemplate:
+          errorPattern: "repeats ryn/t-pleme-lib-bare-ryn"

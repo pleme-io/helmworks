@@ -1,0 +1,90 @@
+suite: pleme-lib bare-fixture — pleme-lib.service-battery-probes through pleme-lib.deployment
+templates:
+  - templates/deployment.yaml
+release:
+  name: t
+  namespace: testns
+defaults: &defaults
+  image.repository: ghcr.io/x/y
+  image.tag: "1.0.0"
+
+tests:
+  - it: without health.battery the probes keep their old paths and no startup probe
+    set:
+      <<: *defaults
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /healthz
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /readyz
+      - notExists:
+          path: spec.template.spec.containers[0].startupProbe
+
+  - it: the battery probes /health, /ready and a startup probe on /health
+    set:
+      <<: *defaults
+      health: { battery: true }
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet
+          value: { path: /health, port: http }
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet
+          value: { path: /ready, port: http }
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet
+          value: { path: /health, port: http }
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.failureThreshold
+          value: 30
+
+  - it: the port and timings come from values; the paths do not
+    set:
+      <<: *defaults
+      health:
+        battery: true
+        port: admin
+        path: /healthz
+        readyPath: /readyz
+        livenessPeriod: 20
+        readinessTimeout: 3
+      startupProbe: { periodSeconds: 2, failureThreshold: 60 }
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet
+          value: { path: /health, port: admin }
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.periodSeconds
+          value: 20
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet
+          value: { path: /ready, port: admin }
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.timeoutSeconds
+          value: 3
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet
+          value: { path: /health, port: admin }
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.failureThreshold
+          value: 60
+
+  - it: a startup port of its own wins over health.port
+    set:
+      <<: *defaults
+      health: { battery: true, port: admin }
+      startupProbe: { port: 9000 }
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.port
+          value: 9000
+
+  - it: refuses a non-HTTP probe type with the battery
+    set:
+      <<: *defaults
+      health: { battery: true, type: TCPSocket }
+    asserts:
+      - failedTemplate:
+          errorPattern: "the battery serves HTTP"

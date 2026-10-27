@@ -1,0 +1,171 @@
+suite: pleme-lib bare-fixture — pleme-lib.access-volumes through pleme-lib.deployment
+templates:
+  - templates/deployment.yaml
+release:
+  name: t
+  namespace: testns
+defaults: &defaults
+  image.repository: ghcr.io/x/y
+  image.tag: "1.0.0"
+
+tests:
+  - it: absent access adds no volume and no mount
+    set:
+      <<: *defaults
+    asserts:
+      - notExists:
+          path: spec.template.spec.volumes
+      - notExists:
+          path: spec.template.spec.containers[0].volumeMounts
+
+  - it: reads mount read-only from their declared source, writes get an emptyDir or a claim
+    set:
+      <<: *defaults
+      access:
+        reads:
+          - { path: /var/run/secrets/kensa, secret: kensa-db }
+          - { path: /etc/kensa, configMap: kensa-config, items: [{ key: kensa.yaml, path: kensa.yaml }] }
+          - path: /var/run/projected
+            projected: { sources: [{ serviceAccountToken: { path: token, audience: kensa } }] }
+        writes:
+          - /tmp
+          - { path: /var/cache/kensa, sizeLimit: 64Mi, medium: Memory }
+          - { path: /var/lib/kensa, claimName: kensa-data }
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes
+          value:
+            - { name: access-read-0, secret: { secretName: kensa-db } }
+            - { name: access-read-1, configMap: { name: kensa-config, items: [{ key: kensa.yaml, path: kensa.yaml }] } }
+            - { name: access-read-2, projected: { sources: [{ serviceAccountToken: { path: token, audience: kensa } }] } }
+            - { name: access-write-0, emptyDir: {} }
+            - { name: access-write-1, emptyDir: { medium: Memory, sizeLimit: 64Mi } }
+            - { name: access-write-2, persistentVolumeClaim: { claimName: kensa-data } }
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts
+          value:
+            - { name: access-read-0, mountPath: /var/run/secrets/kensa, readOnly: true }
+            - { name: access-read-1, mountPath: /etc/kensa, readOnly: true }
+            - { name: access-read-2, mountPath: /var/run/projected, readOnly: true }
+            - { name: access-write-0, mountPath: /tmp }
+            - { name: access-write-1, mountPath: /var/cache/kensa }
+            - { name: access-write-2, mountPath: /var/lib/kensa }
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+
+  - it: an empty writes list leaves nothing writable
+    set:
+      <<: *defaults
+      access:
+        reads: [{ path: /etc/kensa, configMap: kensa-config }]
+        writes: []
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content: { name: access-write-0, mountPath: /tmp }
+      - lengthEqual:
+          path: spec.template.spec.containers[0].volumeMounts
+          count: 1
+
+  - it: keeps the chart's read-only volumeMounts beside the access mounts
+    set:
+      <<: *defaults
+      volumes: [{ name: extra, configMap: { name: x } }]
+      volumeMounts: [{ name: extra, mountPath: /etc/extra, readOnly: true }]
+      access:
+        writes: [/tmp]
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts
+          value:
+            - { name: extra, mountPath: /etc/extra, readOnly: true }
+            - { name: access-write-0, mountPath: /tmp }
+      - lengthEqual:
+          path: spec.template.spec.volumes
+          count: 2
+
+  - it: refuses a writable mount outside access.writes
+    set:
+      <<: *defaults
+      volumes: [{ name: scratch, emptyDir: {} }]
+      volumeMounts: [{ name: scratch, mountPath: /scratch }]
+      access:
+        writes: []
+    asserts:
+      - failedTemplate:
+          errorPattern: "is writable beside a declared access"
+
+  - it: refuses a writable root filesystem
+    set:
+      <<: *defaults
+      securityContext: { readOnlyRootFilesystem: false }
+      access:
+        writes: [/tmp]
+    asserts:
+      - failedTemplate:
+          errorPattern: "readOnlyRootFilesystem is false"
+
+  - it: refuses a read with no source
+    set:
+      <<: *defaults
+      access:
+        reads: [/etc/kensa]
+    asserts:
+      - failedTemplate:
+          errorPattern: "with no source"
+
+  - it: refuses a read with two sources
+    set:
+      <<: *defaults
+      access:
+        reads: [{ path: /etc/kensa, secret: a, configMap: b }]
+    asserts:
+      - failedTemplate:
+          errorPattern: "declares 2 sources"
+
+  - it: refuses a relative path
+    set:
+      <<: *defaults
+      access:
+        writes: [var/lib/kensa]
+    asserts:
+      - failedTemplate:
+          errorPattern: "is not absolute"
+
+  - it: refuses a path under /nix/store
+    set:
+      <<: *defaults
+      access:
+        reads: [{ path: /nix/store/abc-kensa, configMap: x }]
+    asserts:
+      - failedTemplate:
+          errorPattern: "under /nix/store"
+
+  - it: refuses one path both read and written
+    set:
+      <<: *defaults
+      access:
+        reads: [{ path: /var/lib/kensa, configMap: x }]
+        writes: [/var/lib/kensa/]
+    asserts:
+      - failedTemplate:
+          errorPattern: "one path is read or written, never both"
+
+  - it: refuses a claim beside emptyDir shape
+    set:
+      <<: *defaults
+      access:
+        writes: [{ path: /data, claimName: d, sizeLimit: 1Gi }]
+    asserts:
+      - failedTemplate:
+          errorPattern: "sets claimName beside sizeLimit or medium"
+
+  - it: refuses an unknown access field
+    set:
+      <<: *defaults
+      access:
+        write: [/tmp]
+    asserts:
+      - failedTemplate:
+          errorPattern: "access.write is not an access field"
