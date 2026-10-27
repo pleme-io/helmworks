@@ -1,0 +1,54 @@
+# BLUE-SERVICES — the pleme-lib primitives a blue service renders onto
+
+Status: PLAN, 2026-10-27. Measured: 151 charts, 15 with a `values.schema.json`;
+pleme-lib holds 93 `_*.tpl` files and 512 named templates, no schema of its own.
+The blue side is `blue/docs/SERVICE-ACCESS.md`, `BUILD-STACK.md` and
+`SERVICE-ARCHITECTURE.md`; the renderer is blue's haibi (`bidamas/haibi/haibi.b`).
+
+## 1. Destination
+
+A blue service's chart is values plus `include`s of pleme-lib. Every need a
+service has is a pleme-lib primitive that renders it by default: the access
+posture, the workload for its platform rung, its probes, metrics, SLO rules,
+dashboard, migration, cache, typed secrets and its Flux objects per placement.
+haibi writes data, never a manifest line. A new need is a new primitive here,
+and every blue service gets it on its next regen.
+
+## 2. Need → primitive
+
+| Need | Today | Primitive |
+|---|---|---|
+| NetworkPolicy egress per declared peer | `pleme-lib.networkpolicy.derivedAllow` (`templates/_networkpolicy.tpl`); haibi renders none | `pleme-lib.access-networkpolicy`: blue `access.egress` → `allow.egress[]`, DNS policy included (`_networkpolicy.tpl:526`) |
+| read-only volumes for `access.reads` | absent (`_deployment.tpl:173` passes `.Values.volumes` raw) | `pleme-lib.access-volumes` |
+| writable volumes only for `access.writes` | absent | the same primitive: emptyDir or PVC per declared path, nothing else writable |
+| seccomp, drop ALL, read-only root, no SA token | in `_security.tpl`, `_serviceaccount.tpl:30`; haibi's raw Deployment drops seccomp | reuse through `pleme-lib.deployment` |
+| wasm component workload | absent: no `runtimeClassName` anywhere | `pleme-lib.runtimeclass` and a `pleme-wasm-component` mode |
+| distroless image workload | an ordinary Deployment | reuse `pleme-lib.deployment` |
+| liveness, readiness, startup | `_probes.tpl`; haibi points both probes at one path | `pleme-lib.service-battery-probes`: `/health`, `/ready`, startup |
+| metrics scrape | `_servicemonitor.tpl`; haibi uses annotations | reuse ServiceMonitor |
+| SLO rules, dashboard | `_observability_bundle.tpl`, `_prometheusrule.tpl`, `_grafana.tpl`; haibi writes its own | `pleme-lib.slo-bundle`, taking shihyou's rules and dashboard as input |
+| migration | `pleme-lib.shinkaDatabaseMigration` (`_shinka.tpl`); haibi writes its own | reuse |
+| typed secrets | `_externalsecret.tpl`; haibi mounts a raw Secret | `pleme-lib.secret-ref`: a typed ref → ExternalSecret and a read-only mount |
+| cache | `charts/pleme-cache` (has a schema) | reuse |
+| Flux per placement | `_flux.tpl:418,506`, `_placement.tpl`; haibi has none | `pleme-lib.placement-release` |
+
+## 3. Order
+
+| Step | Work | Repo | Unblocks |
+|---|---|---|---|
+| H1 | `pleme-lib.access-volumes`, `pleme-lib.access-networkpolicy`, `pleme-lib.service-battery-probes`, `pleme-lib.secret-ref`, `pleme-lib.placement-release`, each with `helm unittest` cases | helmworks | 7 needs |
+| H2 | `values.schema.json` for pleme-lib's values surface (generated, closed), so engenho's schema gate checks blue charts (`nix/lib/engenho-helm-release.nix:17`) | helmworks | every chart on pleme-lib |
+| H3 | haibi renders values and includes only (`pleme-lib.deployment` and H1's primitives); its own templates shrink to shihyou data and the schema | blue | 6 needs at once; seccomp returns |
+| H4 | `pleme-lib.runtimeclass` and the `pleme-wasm-component` mode | helmworks | the wasm rung |
+| H5 | a wasm backend in engenho's kubelet that honours `runtimeClassName` (runwasi is planned, `engenho/M0-ROADMAP.md:189`) | engenho | wasm components on engenho nodes |
+
+## 4. Blockers
+
+- engenho's kubelet has no wasm backend and never reads `runtimeClassName`
+  (`engenho/engenho-kubelet/src/backend.rs`). Until H5, the wasm rung runs only
+  where a wasm runtime class exists.
+- pleme-lib, pleme-computeunit, pleme-compliance and pleme-wasm ship no values
+  schema, so a typo in values passes silently (H2).
+- On a node, `pleme.engenho.helm.releases` renders charts at build time and
+  takes library charts through `libraries`, so pleme-lib is vendored, not
+  pulled from OCI.
