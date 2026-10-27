@@ -40,7 +40,7 @@ and every blue service gets it on its next regen.
 | H2 | `values.schema.json` for pleme-lib's values surface (generated, closed), so engenho's schema gate checks blue charts (`nix/lib/engenho-helm-release.nix:17`) | helmworks | every chart on pleme-lib |
 | H3 | haibi renders values and includes only (`pleme-lib.deployment` and H1's primitives); its own templates shrink to shihyou data and the schema | blue | 6 needs at once; seccomp returns |
 | H4 | `pleme-lib.runtimeclass` and the `pleme-wasm-component` mode | helmworks | the wasm rung |
-| H5 | a wasm backend in engenho's kubelet that honours `runtimeClassName` (runwasi is planned, `engenho/M0-ROADMAP.md:189`) | engenho | wasm components on engenho nodes |
+| H5 | a wasm backend in engenho's kubelet that honours `runtimeClassName`: the engine is the existing `tatara/tatara-wasm` behind one Rust `Backend` seam (no second engine, no runwasi); every decision (component per pod, imports granted from the service's `access`, restart and supervision, readiness) is a blue bidama embedded like kensa's, under `Load::posture`. Full support: WASI preview 2 components with sockets and HTTP, memory and time limits, logs, probes | engenho, tatara | wasm components on engenho nodes |
 
 ## 4. Blockers
 
