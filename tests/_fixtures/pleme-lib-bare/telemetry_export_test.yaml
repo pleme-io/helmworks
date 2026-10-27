@@ -1,0 +1,125 @@
+suite: pleme-lib bare-fixture — pleme-lib.kenshi-labels and pleme-lib.telemetry-export
+templates:
+  - templates/deployment.yaml
+release:
+  name: t
+  namespace: testns
+defaults: &defaults
+  image.repository: ghcr.io/x/y
+  image.tag: "1.0.0"
+
+tests:
+  - it: renders no kenshi label and no telemetry env when neither is set
+    set:
+      <<: *defaults
+    asserts:
+      - notExists:
+          path: metadata.labels["kenshi.pleme.io/service"]
+      - notExists:
+          path: spec.template.spec.containers[0].env
+
+  - it: kenshi labels name the service by default and carry product and environment
+    set:
+      <<: *defaults
+      kenshi:
+        product: orders
+        environment: staging
+    asserts:
+      - equal:
+          path: metadata.labels["kenshi.pleme.io/service"]
+          value: t-pleme-lib-bare
+      - equal:
+          path: metadata.labels["kenshi.pleme.io/product"]
+          value: orders
+      - equal:
+          path: metadata.labels["kenshi.pleme.io/environment"]
+          value: staging
+
+  - it: an explicit service name wins and enabled false turns the labels off alone
+    set:
+      <<: *defaults
+      kenshi:
+        service: billing
+    asserts:
+      - equal:
+          path: metadata.labels["kenshi.pleme.io/service"]
+          value: billing
+
+  - it: kenshi enabled false renders no kenshi label
+    set:
+      <<: *defaults
+      kenshi:
+        enabled: false
+        service: billing
+    asserts:
+      - notExists:
+          path: metadata.labels["kenshi.pleme.io/service"]
+
+  - it: logs and traces with endpoints render the Vector and OTLP env
+    set:
+      <<: *defaults
+      telemetry:
+        logs:
+          endpoint: http://vector.observability:8686
+        traces:
+          endpoint: http://otel.observability:4318
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env
+          value:
+            - name: VECTOR_ENDPOINT
+              value: http://vector.observability:8686
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://otel.observability:4318
+            - name: OTEL_SERVICE_NAME
+              value: t-pleme-lib-bare
+
+  - it: logs enabled false drops only the Vector env
+    set:
+      <<: *defaults
+      telemetry:
+        logs:
+          enabled: false
+          endpoint: http://vector.observability:8686
+        traces:
+          endpoint: http://otel.observability:4318
+          serviceName: orders
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env
+          value:
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://otel.observability:4318
+            - name: OTEL_SERVICE_NAME
+              value: orders
+
+  - it: traces enabled false drops only the OTLP env and keeps the chart's own env after it
+    set:
+      <<: *defaults
+      env:
+        - name: A
+          value: "1"
+      telemetry:
+        logs:
+          endpoint: http://vector.observability:8686
+        traces:
+          enabled: false
+          endpoint: http://otel.observability:4318
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env
+          value:
+            - name: VECTOR_ENDPOINT
+              value: http://vector.observability:8686
+            - name: A
+              value: "1"
+
+  - it: an endpoint that is not an http url is refused by name
+    set:
+      <<: *defaults
+      telemetry:
+        logs:
+          endpoint: vector:8686
+    asserts:
+      - failedTemplate:
+          errorPattern: "telemetry.logs.endpoint must be an http"

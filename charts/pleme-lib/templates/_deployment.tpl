@@ -118,7 +118,8 @@ spec:
                 applied overlay's `podEnv` surface (e.g. fips overlay
                 injects FIPS-mode env vars). Aggregated via dispatch. */ -}}
           {{- $overlayEnv := include "pleme-lib.overlay.dispatchAll" (list "podEnv" .) | trim }}
-          {{- if or (or (.Values.downwardApi).enabled (gt (len (.Values.env | default list)) 0)) $overlayEnv }}
+          {{- $telemetryEnv := include "pleme-lib.telemetry-export" . | trim }}
+          {{- if or (or (.Values.downwardApi).enabled (gt (len (.Values.env | default list)) 0)) $overlayEnv $telemetryEnv }}
           env:
             {{- if (.Values.downwardApi).enabled }}
             - name: POD_NAME
@@ -136,6 +137,9 @@ spec:
             {{- end }}
             {{- if $overlayEnv }}
             {{- $overlayEnv | nindent 12 }}
+            {{- end }}
+            {{- if $telemetryEnv }}
+            {{- $telemetryEnv | nindent 12 }}
             {{- end }}
             {{- with .Values.env }}
             {{- toYaml . | nindent 12 }}

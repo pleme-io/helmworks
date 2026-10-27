@@ -2,7 +2,26 @@ apiVersion: v2
 name: pleme-lib
 description: Shared library chart for pleme-io internal services
 type: library
-version: 0.54.0
+version: 0.55.0
+# 0.55.0 (2026-10-27) -- the data and nervous-system batteries' chart side
+# (docs/BLUE-SERVICES.md H6, blue docs/SERVICE-DATA.md S1 and S3).
+#
+#   pleme-lib.kenshi-labels     `kenshi` -> kenshi.pleme.io/service (the
+#                               chart's fullname unless named), product and
+#                               environment on every object pleme-lib.labels
+#                               labels; `kenshi.enabled: false` turns them off
+#   pleme-lib.telemetry-export  `telemetry.logs.endpoint` -> VECTOR_ENDPOINT
+#                               (rogu's Vector HTTP source),
+#                               `telemetry.traces.endpoint` ->
+#                               OTEL_EXPORTER_OTLP_ENDPOINT and
+#                               OTEL_SERVICE_NAME (tsuiseki's OTLP/HTTP);
+#                               each signal off alone with `enabled: false`;
+#                               an endpoint that is not an http(s) url fails
+#
+# pleme-lib.deployment puts the telemetry env ahead of the chart's own env.
+# Additive: with neither `kenshi` nor `telemetry` set, every chart renders as
+# in 0.54.0. Both keys are closed in values.schema.json.
+#
 # 0.54.0 (2026-10-27) -- the blue-service primitives (docs/BLUE-SERVICES.md H1)
 # and a generated, closed values.schema.json (H2).
 #

@@ -46,7 +46,7 @@ and every blue service gets it on its next regen.
 | H4 | `pleme-lib.runtimeclass` and the `pleme-wasm-component` mode | helmworks | the wasm rung |
 | H5 ✅ | a wasm backend in engenho's kubelet that honours `runtimeClassName`: the engine is the existing `tatara/tatara-wasm` behind one Rust `Backend` seam (no second engine, no runwasi); every decision (component per pod, imports granted from the service's `access`, restart and supervision, readiness) is a blue bidama embedded like kensa's, under `Load::posture`. Full support: WASI preview 2 components with sockets and HTTP, memory and time limits, logs, probes (`tatara@58bf292`, `blue@abb400c` `Embedded`, `engenho@7378058` `WasmBackend` + `blue/kidou/kidou.b`). The pod contract H4 renders: `runtimeClassName: wasm`; image `nix:/nix/store/<closure>` (a `.wasm` file, or a directory with `component.wasm` or the path in annotation `wasm.pleme.io/component`); annotation `blue.pleme.io/access` holding the resolved access as JSON (`effects`, `egress` as `host:port`, `reads`, `writes`, `listen`, `exec`); without it the default access applies | engenho, tatara | wasm components on engenho nodes |
 
-| H6 | `pleme-lib.kenshi-labels` and `pleme-lib.telemetry-export`, for the data and nervous-system batteries (blue `docs/SERVICE-DATA.md` S1, S3) | helmworks | kenshi gating, log and trace export |
+| H6 ✅ | `pleme-lib.kenshi-labels` and `pleme-lib.telemetry-export`, for the data and nervous-system batteries (blue `docs/SERVICE-DATA.md` S1, S3) | helmworks | kenshi gating, log and trace export |
 
 ## 3a. Delivery: charts ship with nix (operator, 2026-10-27)
 

@@ -332,6 +332,27 @@
         }
       ]
     },
+    "Kenshi": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "environment": {
+          "pattern": "^[A-Za-z0-9]([-A-Za-z0-9_.]{0,61}[A-Za-z0-9])?$",
+          "type": "string"
+        },
+        "product": {
+          "pattern": "^[A-Za-z0-9]([-A-Za-z0-9_.]{0,61}[A-Za-z0-9])?$",
+          "type": "string"
+        },
+        "service": {
+          "pattern": "^[A-Za-z0-9]([-A-Za-z0-9_.]{0,61}[A-Za-z0-9])?$",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
     "Medium": {
       "enum": [
         "Memory"
@@ -620,6 +641,22 @@
       },
       "type": "object"
     },
+    "Signal": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "endpoint": {
+          "pattern": "^https?://[^ ]+$",
+          "type": "string"
+        },
+        "serviceName": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
     "SourceRef": {
       "additionalProperties": false,
       "properties": {
@@ -681,6 +718,18 @@
         "SecretStore"
       ],
       "type": "string"
+    },
+    "Telemetry": {
+      "additionalProperties": false,
+      "properties": {
+        "logs": {
+          "$ref": "#/definitions/Signal"
+        },
+        "traces": {
+          "$ref": "#/definitions/Signal"
+        }
+      },
+      "type": "object"
     },
     "WebhookIngress": {
       "additionalProperties": false,
@@ -862,6 +911,9 @@
       "additionalProperties": true,
       "type": "object"
     },
+    "kenshi": {
+      "$ref": "#/definitions/Kenshi"
+    },
     "lifecycle": {
       "additionalProperties": true,
       "type": "object"
@@ -1001,6 +1053,9 @@
     "strategy": {
       "additionalProperties": true,
       "type": "object"
+    },
+    "telemetry": {
+      "$ref": "#/definitions/Telemetry"
     },
     "terminationGracePeriodSeconds": {
       "format": "uint32",

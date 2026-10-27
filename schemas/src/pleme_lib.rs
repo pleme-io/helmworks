@@ -50,6 +50,8 @@ pub struct PlemeLibValues {
     pub network_policy: Option<NetworkPolicy>,
     pub access: Option<Access>,
     pub secret_refs: Option<Vec<SecretRef>>,
+    pub kenshi: Option<Kenshi>,
+    pub telemetry: Option<Telemetry>,
     pub placements: Option<Vec<Placement>>,
     pub external_secret: Option<ExternalSecret>,
     pub global: Option<Open>,
@@ -383,6 +385,34 @@ pub struct SecretRef {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
+pub struct Kenshi {
+    pub enabled: Option<bool>,
+    #[schemars(regex(pattern = "^[A-Za-z0-9]([-A-Za-z0-9_.]{0,61}[A-Za-z0-9])?$"))]
+    pub service: Option<String>,
+    #[schemars(regex(pattern = "^[A-Za-z0-9]([-A-Za-z0-9_.]{0,61}[A-Za-z0-9])?$"))]
+    pub product: Option<String>,
+    #[schemars(regex(pattern = "^[A-Za-z0-9]([-A-Za-z0-9_.]{0,61}[A-Za-z0-9])?$"))]
+    pub environment: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct Telemetry {
+    pub logs: Option<Signal>,
+    pub traces: Option<Signal>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct Signal {
+    pub enabled: Option<bool>,
+    #[schemars(regex(pattern = "^https?://[^ ]+$"))]
+    pub endpoint: Option<String>,
+    pub service_name: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct Placement {
     #[schemars(length(min = 1))]
     pub cluster: String,
@@ -484,6 +514,17 @@ mod tests {
             assert!(!props.contains_key(literal));
         }
         assert_eq!(v["definitions"]["SecretRef"]["additionalProperties"], Value::Bool(false));
+    }
+
+    #[test]
+    fn telemetry_endpoints_are_urls_and_each_signal_closes() {
+        let v = schema();
+        assert_eq!(
+            v["definitions"]["Signal"]["properties"]["endpoint"]["pattern"],
+            Value::String("^https?://[^ ]+$".into())
+        );
+        assert_eq!(v["definitions"]["Signal"]["additionalProperties"], Value::Bool(false));
+        assert_eq!(v["definitions"]["Kenshi"]["additionalProperties"], Value::Bool(false));
     }
 
     #[test]

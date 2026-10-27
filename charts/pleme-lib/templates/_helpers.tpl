@@ -68,6 +68,9 @@ app.kubernetes.io/part-of: nexus-platform
 {{- if $cl }}
 {{ $cl }}
 {{- end }}
+{{- with include "pleme-lib.kenshi-labels" . }}
+{{ . }}
+{{- end }}
 {{- with .Values.additionalLabels }}
 {{ toYaml . }}
 {{- end }}
