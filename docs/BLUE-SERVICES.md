@@ -42,6 +42,17 @@ and every blue service gets it on its next regen.
 | H4 | `pleme-lib.runtimeclass` and the `pleme-wasm-component` mode | helmworks | the wasm rung |
 | H5 | a wasm backend in engenho's kubelet that honours `runtimeClassName`: the engine is the existing `tatara/tatara-wasm` behind one Rust `Backend` seam (no second engine, no runwasi); every decision (component per pod, imports granted from the service's `access`, restart and supervision, readiness) is a blue bidama embedded like kensa's, under `Load::posture`. Full support: WASI preview 2 components with sockets and HTTP, memory and time limits, logs, probes | engenho, tatara | wasm components on engenho nodes |
 
+## 3a. Delivery: charts ship with nix (operator, 2026-10-27)
+
+Charts move as flake inputs and render at build time: blue's flake vendors
+`pleme-lib` from its `helmworks` input (`blue/flake.nix:388`, `chartLibraries`),
+and engenho renders a release from vendored charts. A chart's dependency
+names a vendored path, never an OCI registry. Publishing to GHCR is configured
+off: `auto-release.yml` uploads only on a dispatch with `publish-oci: true`,
+and no consumer depends on it. Receipt: the 2026-10-27 dispatch was refused
+`write_package` for 7 charts whose GHCR packages do not grant this repo
+Actions access, while the nix path needed nothing from GHCR.
+
 ## 4. Blockers
 
 - engenho's kubelet has no wasm backend and never reads `runtimeClassName`
