@@ -29,7 +29,11 @@ and every blue service gets it on its next regen.
 | SLO rules, dashboard | `_observability_bundle.tpl`, `_prometheusrule.tpl`, `_grafana.tpl`; haibi writes its own | `pleme-lib.slo-bundle`, taking shihyou's rules and dashboard as input |
 | migration | `pleme-lib.shinkaDatabaseMigration` (`_shinka.tpl`); haibi writes its own | reuse |
 | typed secrets | `_externalsecret.tpl`; haibi mounts a raw Secret | `pleme-lib.secret-ref`: a typed ref → ExternalSecret and a read-only mount |
-| cache | `charts/pleme-cache` (has a schema) | reuse |
+| cache | `charts/pleme-cache` (has a schema); upstream `valkey/valkey` image | reuse; a hardened Valkey image |
+| database | `pleme-cnpg-cluster`, `pleme-database`, `_pitr.tpl` | reuse as a subchart from blue `database` |
+| migration gate | kenshi reads `kenshi.pleme.io/service`; haibi emits no label | `pleme-lib.kenshi-labels` on every resource a blue service renders |
+| events | `pleme-lib.jetstream`, `charts/pleme-nats` | reuse from blue `events` |
+| logs, traces | `_observability_bundle.tpl` (metrics side only) | `pleme-lib.telemetry-export`: Vector sink and OTLP endpoint env from blue `observe` |
 | Flux per placement | `_flux.tpl:418,506`, `_placement.tpl`; haibi has none | `pleme-lib.placement-release` |
 
 ## 3. Order
@@ -41,6 +45,8 @@ and every blue service gets it on its next regen.
 | H3 | haibi renders values and includes only (`pleme-lib.deployment` and H1's primitives); its own templates shrink to shihyou data and the schema | blue | 6 needs at once; seccomp returns |
 | H4 | `pleme-lib.runtimeclass` and the `pleme-wasm-component` mode | helmworks | the wasm rung |
 | H5 | a wasm backend in engenho's kubelet that honours `runtimeClassName`: the engine is the existing `tatara/tatara-wasm` behind one Rust `Backend` seam (no second engine, no runwasi); every decision (component per pod, imports granted from the service's `access`, restart and supervision, readiness) is a blue bidama embedded like kensa's, under `Load::posture`. Full support: WASI preview 2 components with sockets and HTTP, memory and time limits, logs, probes | engenho, tatara | wasm components on engenho nodes |
+
+| H6 | `pleme-lib.kenshi-labels` and `pleme-lib.telemetry-export`, for the data and nervous-system batteries (blue `docs/SERVICE-DATA.md` S1, S3) | helmworks | kenshi gating, log and trace export |
 
 ## 3a. Delivery: charts ship with nix (operator, 2026-10-27)
 
