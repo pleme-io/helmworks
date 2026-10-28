@@ -219,6 +219,8 @@ lavaRuby:
 
 # -- Executor configuration for external tool invocation
 executor:
+  # -- PANGEA_FORBID_TOFU: a template that selects the tofu executor is refused; false allows it
+  forbidTofu: true
   tofu:
     # -- Path to OpenTofu binary inside the container
     binary: /usr/local/bin/tofu
@@ -1192,6 +1194,9 @@ githubOrgReconciliation:
   phaseTimeout:
     planning: 15m
     applying: 45m
+  # -- true: the pangea-architectures leaf set carries the org; the fat template stays declared and suspended
+  leaves:
+    enabled: false
   # suspend: intentionally absent by default — see
   # templates/github-org-repos.yaml's comment on the omitted-not-false
   # asymmetry. Set explicitly only to deliberately suspend.

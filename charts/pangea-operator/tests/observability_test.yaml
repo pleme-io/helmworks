@@ -31,6 +31,9 @@ tests:
           content:
             alert: PangeaPostgresRestartStorm
           any: true
+      - equal:
+          path: spec.groups[5].name
+          value: pangea-operator-leaves
       - notExists:
           path: spec.files
 

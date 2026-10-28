@@ -1,0 +1,54 @@
+suite: the github-org leaf cutover and the tofu ban
+templates:
+  - templates/github-org-repos.yaml
+  - templates/deployment.yaml
+release:
+  name: pangea
+  namespace: pangea-system
+tests:
+  - it: the fat template reconciles while the leaf set is off
+    template: templates/github-org-repos.yaml
+    set:
+      githubOrgReconciliation.enable: true
+    documentSelector:
+      path: kind
+      value: InfrastructureTemplate
+    asserts:
+      - notExists:
+          path: spec.suspend
+
+  - it: the fat template stays declared and suspended once the leaf set carries the org
+    template: templates/github-org-repos.yaml
+    set:
+      githubOrgReconciliation.enable: true
+      githubOrgReconciliation.leaves.enabled: true
+    documentSelector:
+      path: kind
+      value: InfrastructureTemplate
+    asserts:
+      - equal:
+          path: spec.suspend
+          value: true
+      - equal:
+          path: metadata.annotations["pangea.pleme.io/leaf-set"]
+          value: pleme-io-github-repos
+
+  - it: tofu is forbidden by default
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PANGEA_FORBID_TOFU
+            value: "true"
+
+  - it: tofu is allowed only when configured on
+    template: templates/deployment.yaml
+    set:
+      executor.forbidTofu: false
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PANGEA_FORBID_TOFU
+            value: "false"

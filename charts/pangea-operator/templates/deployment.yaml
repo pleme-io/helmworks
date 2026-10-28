@@ -63,6 +63,7 @@ embedded mode and drop the compiler sidecar from the pod spec.
 {{- $executorEnv := list
   (dict "name" "RUST_LOG" "value" (.Values.logLevel | default "pangea_operator=info"))
   (dict "name" "TOFU_BINARY" "value" (.Values.executor.tofu.binary | default "/usr/local/bin/tofu"))
+  (dict "name" "PANGEA_FORBID_TOFU" "value" (printf "%v" (dig "forbidTofu" true (.Values.executor | default dict))))
   (dict "name" "PANGEA_TIMEOUT" "value" (printf "%v" (.Values.executor.tofu.timeout | default 600)))
   (dict "name" "PACKER_BINARY" "value" (.Values.executor.packer.binary | default "/usr/local/bin/packer"))
   (dict "name" "PACKER_TIMEOUT" "value" (printf "%v" (.Values.executor.packer.timeout | default 2700)))

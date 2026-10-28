@@ -99,7 +99,7 @@ groups:
     interval: 30s
     rules:
       - alert: PangeaImportLooping
-        expr: sum by (template, namespace) (increase(pangea_template_events_total{reason="ImportFailed"}[1h])) >= 3
+        expr: sum by (template, namespace, workspace) (increase(pangea_template_events_total{reason="ImportFailed"}[1h])) >= 3
         for: 5m
         labels:
           severity: warning
@@ -155,3 +155,15 @@ groups:
         annotations:
           summary: "pangea-operator restarted {{ $value }} times in an hour"
           remedy: "page: repeated restarts mean the liveness remedy is not curing the cause; read the previous container's log"
+  - name: pangea-operator-leaves
+    interval: 30s
+    rules:
+      - alert: PangeaWorkspaceLeavesUnhealthy
+        expr: sum by (workspace, namespace, state) (pangea_workspace_leaves{state=~"failed|stalled|rate_limited|blocked"}) > 0
+        for: 15m
+        labels:
+          severity: warning
+          remedy_mode: page
+        annotations:
+          summary: "{{ $labels.namespace }}/{{ $labels.workspace }} has {{ $value }} leaves {{ $labels.state }}"
+          remedy: "page: the siblings keep converging; read the parent status.leaves for the named leaves, then each leaf's status.pass"

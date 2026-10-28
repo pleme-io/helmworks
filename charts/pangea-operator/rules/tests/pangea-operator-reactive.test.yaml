@@ -192,8 +192,10 @@ tests:
   - name: PangeaImportLooping
     interval: 1m
     input_series:
-      - series: pangea_template_events_total{template="t",namespace="ns",type="Warning",reason="ImportFailed"}
+      - series: pangea_template_events_total{template="t",namespace="ns",workspace="w",type="Warning",reason="ImportFailed"}
         values: 0+1x30
+      - series: pangea_template_events_total{template="t",namespace="ns",workspace="w",type="Warning",reason="ImportFailed",pod="b"}
+        values: 0+0x30
     alert_rule_test:
       - eval_time: 15m
         groupname: pangea-operator-imports
@@ -202,11 +204,33 @@ tests:
           - exp_labels:
               template: t
               namespace: ns
+              workspace: w
               severity: warning
               remedy_mode: page
             exp_annotations:
               summary: ns/t failed 15 imports in an hour
               remedy: 'page: a retry cannot import an object that does not exist; fix importHints or the declared resource'
+  - name: PangeaWorkspaceLeavesUnhealthy
+    interval: 1m
+    input_series:
+      - series: pangea_workspace_leaves{workspace="w",namespace="ns",state="failed"}
+        values: 2x30
+      - series: pangea_workspace_leaves{workspace="w",namespace="ns",state="ready"}
+        values: 1021x30
+    alert_rule_test:
+      - eval_time: 20m
+        groupname: pangea-operator-leaves
+        alertname: PangeaWorkspaceLeavesUnhealthy
+        exp_alerts:
+          - exp_labels:
+              workspace: w
+              namespace: ns
+              state: failed
+              severity: warning
+              remedy_mode: page
+            exp_annotations:
+              summary: ns/w has 2 leaves failed
+              remedy: 'page: the siblings keep converging; read the parent status.leaves for the named leaves, then each leaf''s status.pass'
   - name: PangeaCronJobFailing
     interval: 1m
     input_series:

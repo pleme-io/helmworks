@@ -51,6 +51,10 @@ metadata:
   labels:
     app.kubernetes.io/managed-by: {{ .Release.Service | quote }}
     pangea.pleme.io/owner: pleme-io
+  {{- if dig "leaves" "enabled" false .Values.githubOrgReconciliation }}
+  annotations:
+    pangea.pleme.io/leaf-set: {{ .Values.githubOrgReconciliation.name | default "pleme-io-github-repos" }}
+  {{- end }}
 spec:
   templateName: github-org-repos
   # lava (tatara-lisp), stated rather than sniffed — see
@@ -93,7 +97,9 @@ spec:
     phaseTimeout:
       planning: {{ .Values.githubOrgReconciliation.phaseTimeout.planning | default "15m" | quote }}
       applying: {{ .Values.githubOrgReconciliation.phaseTimeout.applying | default "45m" | quote }}
-  {{- if hasKey .Values.githubOrgReconciliation "suspend" }}
+  {{- if dig "leaves" "enabled" false .Values.githubOrgReconciliation }}
+  suspend: true
+  {{- else if hasKey .Values.githubOrgReconciliation "suspend" }}
   # Set only when a human is deliberately suspending reconciliation —
   # omitted (not `false`) is the safety property that lets a hand-set
   # suspension survive every re-render. See plo's file for the asymmetry.
