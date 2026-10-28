@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       publish-oci:
-        description: 'Publish bumped charts to ghcr.io/pleme-io/charts'
+        description: 'Publish bumped charts to ghcr.io/pleme-io/charts (runs only while flake.release.oci is true)'
         type: boolean
         default: false
 
@@ -70,9 +70,19 @@ jobs:
       # lint_failed 7 -> 0. A ceiling of 0 means any lint break fails the gate.
       lintFailureCeiling: 0
 
+  release-policy:
+    runs-on: ubuntu-latest
+    outputs:
+      oci: ${{ steps.release.outputs.oci }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@main
+      - id: release
+        run: echo "oci=$(nix eval --json .#release.oci)" >> "$GITHUB_OUTPUT"
+
   release:
-    needs: [charts]
-    if: github.event_name == 'workflow_dispatch' && inputs.publish-oci
+    needs: [charts, release-policy]
+    if: github.event_name == 'workflow_dispatch' && inputs.publish-oci && needs.release-policy.outputs.oci == 'true'
     uses: pleme-io/substrate/.github/workflows/helm-monorepo-auto-release.yml@main
     secrets: inherit
 
