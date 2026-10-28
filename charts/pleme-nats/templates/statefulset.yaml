@@ -1,6 +1,8 @@
 {{- if .Values.enabled }}
 {{- include "pleme-nats.validate" . }}
 {{- $native := eq .Values.runtime "native" }}
+{{- $file := eq (include "pleme-nats.nativeConfigMode" .) "file" }}
+{{- $configDir := include "pleme-nats.configDir" . }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -26,6 +28,9 @@ spec:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
     spec:
       serviceAccountName: {{ include "pleme-nats.serviceAccountName" . }}
+      {{- if $native }}
+      automountServiceAccountToken: false
+      {{- end }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -43,10 +48,12 @@ spec:
           {{- if $native }}
           command:
             - {{ printf "%s/bin/nats-server" (include "pleme-nats.closure" .Values.image.repository) }}
+          {{- end }}
+          {{- if and $native (not $file) }}
           args:
             {{- include "pleme-nats.nativeArgs" . | nindent 12 }}
           {{- else }}
-          args: ["-c", "/etc/nats/nats.conf"]
+          args: ["-c", {{ printf "%s/nats.conf" $configDir | quote }}]
           {{- end }}
           env:
             - name: POD_NAME
@@ -93,6 +100,11 @@ spec:
             failureThreshold: 2
           volumeMounts:
             {{- if $native }}
+            {{- if $file }}
+            - name: config
+              mountPath: {{ $configDir }}
+              readOnly: true
+            {{- end }}
             - name: jetstream
               mountPath: {{ .Values.server.jetstream.storeDir }}
             {{- else }}
@@ -136,6 +148,11 @@ spec:
 
       volumes:
         {{- if $native }}
+        {{- if $file }}
+        - name: config
+          configMap:
+            name: {{ include "pleme-nats.fullname" . }}-config
+        {{- end }}
         - name: jetstream
           hostPath:
             path: {{ .Values.server.jetstream.storeDir }}

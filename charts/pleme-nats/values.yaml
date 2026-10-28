@@ -32,6 +32,10 @@ enabled: true
 
 runtime: oci
 
+native:
+  config: file
+  volumeRoot: ""
+
 # ─── Image ──────────────────────────────────────────────────────────
 image:
   repository: nats
@@ -103,9 +107,11 @@ server:
   # runtime passes --user/--pass expanded from the same env.
   auth:
     enabled: false
+    source: secret
     secretName: ""
     userKey: user
     passwordKey: password
+    file: ""
 
   # JetStream — the durable queue layer.
   jetstream:

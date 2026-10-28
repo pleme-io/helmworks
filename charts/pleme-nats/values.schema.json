@@ -1,0 +1,825 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "native": {
+            "properties": {
+              "config": {
+                "const": "file"
+              }
+            },
+            "required": [
+              "config"
+            ]
+          },
+          "runtime": {
+            "const": "native"
+          }
+        },
+        "required": [
+          "runtime",
+          "native"
+        ]
+      },
+      "then": {
+        "properties": {
+          "native": {
+            "properties": {
+              "volumeRoot": {
+                "pattern": "^/"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "server": {
+            "properties": {
+              "auth": {
+                "properties": {
+                  "enabled": {
+                    "const": true
+                  },
+                  "source": {
+                    "const": "secret"
+                  }
+                },
+                "required": [
+                  "enabled",
+                  "source"
+                ]
+              }
+            },
+            "required": [
+              "auth"
+            ]
+          }
+        },
+        "required": [
+          "server"
+        ]
+      },
+      "then": {
+        "properties": {
+          "server": {
+            "properties": {
+              "auth": {
+                "properties": {
+                  "secretName": {
+                    "minLength": 1
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "server": {
+            "properties": {
+              "auth": {
+                "properties": {
+                  "enabled": {
+                    "const": true
+                  },
+                  "source": {
+                    "const": "file"
+                  }
+                },
+                "required": [
+                  "enabled",
+                  "source"
+                ]
+              }
+            },
+            "required": [
+              "auth"
+            ]
+          }
+        },
+        "required": [
+          "server"
+        ]
+      },
+      "then": {
+        "allOf": [
+          {
+            "properties": {
+              "native": {
+                "properties": {
+                  "config": {
+                    "const": "file"
+                  }
+                },
+                "required": [
+                  "config"
+                ]
+              },
+              "runtime": {
+                "const": "native"
+              }
+            },
+            "required": [
+              "runtime",
+              "native"
+            ]
+          }
+        ],
+        "properties": {
+          "server": {
+            "properties": {
+              "auth": {
+                "properties": {
+                  "file": {
+                    "pattern": "^/"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "AccessMode": {
+      "enum": [
+        "ReadWriteOnce",
+        "ReadWriteOncePod"
+      ],
+      "type": "string"
+    },
+    "Auth": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "file": {
+          "type": "string"
+        },
+        "passwordKey": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "secretName": {
+          "type": "string"
+        },
+        "source": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/AuthSource"
+            }
+          ],
+          "description": "secret: user and password from secretName, an authorization block on $NATS_USER and $NATS_PASSWORD. file: nats.conf includes the authorization fragment at the absolute host path file (runtime native, native.config file)."
+        },
+        "userKey": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "enabled",
+        "file",
+        "passwordKey",
+        "secretName",
+        "source",
+        "userKey"
+      ],
+      "type": "object"
+    },
+    "AuthSource": {
+      "enum": [
+        "secret",
+        "file"
+      ],
+      "type": "string"
+    },
+    "Exporter": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "image": {
+          "$ref": "#/definitions/ExporterImage"
+        },
+        "resources": {
+          "$ref": "#/definitions/Resources"
+        }
+      },
+      "required": [
+        "enabled",
+        "image",
+        "resources"
+      ],
+      "type": "object"
+    },
+    "ExporterImage": {
+      "additionalProperties": false,
+      "properties": {
+        "pullPolicy": {
+          "$ref": "#/definitions/PullPolicy"
+        },
+        "repository": {
+          "type": "string"
+        },
+        "tag": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "pullPolicy",
+        "repository",
+        "tag"
+      ],
+      "type": "object"
+    },
+    "Image": {
+      "additionalProperties": false,
+      "properties": {
+        "digest": {
+          "default": "",
+          "type": "string"
+        },
+        "pullPolicy": {
+          "$ref": "#/definitions/PullPolicy"
+        },
+        "repository": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "tag": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "pullPolicy",
+        "repository",
+        "tag"
+      ],
+      "type": "object"
+    },
+    "JetStream": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "maxFileStore": {
+          "pattern": "^[0-9]+(B|KB|MB|GB|TB|K|M|G|T)?$",
+          "type": "string"
+        },
+        "maxMemoryStore": {
+          "pattern": "^[0-9]+(B|KB|MB|GB|TB|K|M|G|T)?$",
+          "type": "string"
+        },
+        "storeDir": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "enabled",
+        "maxFileStore",
+        "maxMemoryStore",
+        "storeDir"
+      ],
+      "type": "object"
+    },
+    "Native": {
+      "additionalProperties": false,
+      "properties": {
+        "config": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/NativeConfig"
+            }
+          ],
+          "description": "file: nats-server -c reads the chart's nats.conf from the ConfigMap where engenho materializes it (every server value applies). flags: the server runs on flags alone and the file store, memory store, payload, pending and connection limits are not applied."
+        },
+        "volumeRoot": {
+          "description": "The node's engenho volume area, <engenho dataDir>/volumes. engenho writes a ConfigMap volume to <volumeRoot>/<namespace>_<pod>/<volume>, and a native process reads it at that path.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "config",
+        "volumeRoot"
+      ],
+      "type": "object"
+    },
+    "NativeConfig": {
+      "enum": [
+        "file",
+        "flags"
+      ],
+      "type": "string"
+    },
+    "NetworkPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "allowDns": {
+          "type": "boolean"
+        },
+        "allowPrometheus": {
+          "type": "boolean"
+        },
+        "allowedClientNamespaces": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "prometheusNamespaces": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "allowDns",
+        "allowPrometheus",
+        "enabled"
+      ],
+      "type": "object"
+    },
+    "Pdb": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "minAvailable": {
+          "format": "uint32",
+          "maximum": 4294967295,
+          "minimum": 0.0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "enabled",
+        "minAvailable"
+      ],
+      "type": "object"
+    },
+    "Persistence": {
+      "additionalProperties": false,
+      "properties": {
+        "accessMode": {
+          "$ref": "#/definitions/AccessMode"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "mountPath": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "size": {
+          "pattern": "^[0-9]+(\\.[0-9]+)?(k|M|G|T|Ki|Mi|Gi|Ti)$",
+          "type": "string"
+        },
+        "storageClass": {
+          "default": "",
+          "type": "string"
+        }
+      },
+      "required": [
+        "accessMode",
+        "enabled",
+        "mountPath",
+        "size"
+      ],
+      "type": "object"
+    },
+    "PrometheusRules": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "groups": {
+          "default": [],
+          "items": true,
+          "type": "array"
+        }
+      },
+      "required": [
+        "enabled"
+      ],
+      "type": "object"
+    },
+    "PullPolicy": {
+      "enum": [
+        "Always",
+        "IfNotPresent",
+        "Never"
+      ],
+      "type": "string"
+    },
+    "Resources": {
+      "additionalProperties": false,
+      "properties": {
+        "limits": {
+          "additionalProperties": true,
+          "default": {},
+          "type": "object"
+        },
+        "requests": {
+          "additionalProperties": true,
+          "default": {},
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "Runtime": {
+      "enum": [
+        "oci",
+        "native"
+      ],
+      "type": "string"
+    },
+    "Server": {
+      "additionalProperties": false,
+      "properties": {
+        "auth": {
+          "$ref": "#/definitions/Auth"
+        },
+        "clusterEnabled": {
+          "type": "boolean"
+        },
+        "extraConfig": {
+          "default": "",
+          "type": "string"
+        },
+        "host": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "jetstream": {
+          "$ref": "#/definitions/JetStream"
+        },
+        "maxConnections": {
+          "format": "uint32",
+          "maximum": 4294967295,
+          "minimum": 1.0,
+          "type": "integer"
+        },
+        "maxPayload": {
+          "pattern": "^[0-9]+(B|KB|MB|GB|TB|K|M|G|T)?$",
+          "type": "string"
+        },
+        "maxPending": {
+          "pattern": "^[0-9]+(B|KB|MB|GB|TB|K|M|G|T)?$",
+          "type": "string"
+        },
+        "monitoringPort": {
+          "format": "uint16",
+          "maximum": 65535.0,
+          "minimum": 1.0,
+          "type": "integer"
+        },
+        "pingInterval": {
+          "pattern": "^[0-9]+(ms|s|m|h)$",
+          "type": "string"
+        },
+        "port": {
+          "format": "uint16",
+          "maximum": 65535.0,
+          "minimum": 1.0,
+          "type": "integer"
+        },
+        "writeDeadline": {
+          "pattern": "^[0-9]+(ms|s|m|h)$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "auth",
+        "clusterEnabled",
+        "host",
+        "jetstream",
+        "maxConnections",
+        "maxPayload",
+        "maxPending",
+        "monitoringPort",
+        "pingInterval",
+        "port",
+        "writeDeadline"
+      ],
+      "type": "object"
+    },
+    "Service": {
+      "additionalProperties": false,
+      "properties": {
+        "clusterIP": {
+          "type": "string"
+        },
+        "ports": {
+          "$ref": "#/definitions/ServicePorts"
+        },
+        "type": {
+          "$ref": "#/definitions/ServiceType"
+        }
+      },
+      "required": [
+        "clusterIP",
+        "ports",
+        "type"
+      ],
+      "type": "object"
+    },
+    "ServiceAccount": {
+      "additionalProperties": false,
+      "properties": {
+        "annotations": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "create": {
+          "type": "boolean"
+        },
+        "name": {
+          "default": "",
+          "type": "string"
+        }
+      },
+      "required": [
+        "create"
+      ],
+      "type": "object"
+    },
+    "ServiceMonitor": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "interval": {
+          "type": "string"
+        },
+        "port": {
+          "type": "string"
+        },
+        "scrapeTimeout": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "enabled",
+        "interval",
+        "port",
+        "scrapeTimeout"
+      ],
+      "type": "object"
+    },
+    "ServicePorts": {
+      "additionalProperties": false,
+      "properties": {
+        "client": {
+          "format": "uint16",
+          "maximum": 65535.0,
+          "minimum": 1.0,
+          "type": "integer"
+        },
+        "metrics": {
+          "format": "uint16",
+          "maximum": 65535.0,
+          "minimum": 1.0,
+          "type": "integer"
+        },
+        "monitoring": {
+          "format": "uint16",
+          "maximum": 65535.0,
+          "minimum": 1.0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "client",
+        "metrics",
+        "monitoring"
+      ],
+      "type": "object"
+    },
+    "ServiceType": {
+      "enum": [
+        "ClusterIP"
+      ],
+      "type": "string"
+    },
+    "VmScrape": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "interval": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "port": {
+          "type": "string"
+        },
+        "scrapeTimeout": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "enabled",
+        "interval",
+        "path",
+        "port",
+        "scrapeTimeout"
+      ],
+      "type": "object"
+    }
+  },
+  "properties": {
+    "additionalLabels": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "default": {},
+      "type": "object"
+    },
+    "affinity": {
+      "additionalProperties": true,
+      "default": {},
+      "type": "object"
+    },
+    "annotations": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "default": {},
+      "type": "object"
+    },
+    "attestation": {
+      "additionalProperties": true,
+      "default": {},
+      "type": "object"
+    },
+    "compliance": {
+      "additionalProperties": true,
+      "default": {},
+      "type": "object"
+    },
+    "enabled": {
+      "type": "boolean"
+    },
+    "exporter": {
+      "$ref": "#/definitions/Exporter"
+    },
+    "extraEnv": {
+      "default": [],
+      "items": true,
+      "type": "array"
+    },
+    "fullnameOverride": {
+      "default": "",
+      "type": "string"
+    },
+    "global": {
+      "additionalProperties": true,
+      "default": {},
+      "type": "object"
+    },
+    "image": {
+      "$ref": "#/definitions/Image"
+    },
+    "imagePullSecrets": {
+      "default": [],
+      "items": true,
+      "type": "array"
+    },
+    "monitoring": {
+      "additionalProperties": true,
+      "default": {},
+      "type": "object"
+    },
+    "nameOverride": {
+      "default": "",
+      "type": "string"
+    },
+    "native": {
+      "$ref": "#/definitions/Native"
+    },
+    "networkPolicy": {
+      "$ref": "#/definitions/NetworkPolicy"
+    },
+    "nodeSelector": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "default": {},
+      "type": "object"
+    },
+    "pdb": {
+      "$ref": "#/definitions/Pdb"
+    },
+    "persistence": {
+      "$ref": "#/definitions/Persistence"
+    },
+    "pleme-lib": {
+      "additionalProperties": true,
+      "default": {},
+      "type": "object"
+    },
+    "podSecurityContext": {
+      "additionalProperties": true,
+      "default": {},
+      "type": "object"
+    },
+    "prometheusRules": {
+      "$ref": "#/definitions/PrometheusRules"
+    },
+    "replicaCount": {
+      "format": "uint8",
+      "maximum": 1.0,
+      "minimum": 1.0,
+      "type": "integer"
+    },
+    "resources": {
+      "$ref": "#/definitions/Resources"
+    },
+    "runtime": {
+      "$ref": "#/definitions/Runtime"
+    },
+    "securityContext": {
+      "additionalProperties": true,
+      "default": {},
+      "type": "object"
+    },
+    "server": {
+      "$ref": "#/definitions/Server"
+    },
+    "service": {
+      "$ref": "#/definitions/Service"
+    },
+    "serviceAccount": {
+      "$ref": "#/definitions/ServiceAccount"
+    },
+    "serviceMonitor": {
+      "$ref": "#/definitions/ServiceMonitor"
+    },
+    "terminationGracePeriodSeconds": {
+      "format": "uint32",
+      "maximum": 4294967295,
+      "minimum": 0.0,
+      "type": "integer"
+    },
+    "tolerations": {
+      "default": [],
+      "items": true,
+      "type": "array"
+    },
+    "vmScrape": {
+      "$ref": "#/definitions/VmScrape"
+    }
+  },
+  "required": [
+    "enabled",
+    "exporter",
+    "image",
+    "native",
+    "networkPolicy",
+    "pdb",
+    "persistence",
+    "prometheusRules",
+    "replicaCount",
+    "resources",
+    "runtime",
+    "server",
+    "service",
+    "serviceAccount",
+    "serviceMonitor",
+    "terminationGracePeriodSeconds",
+    "vmScrape"
+  ],
+  "title": "PlemeNatsValues",
+  "type": "object"
+}

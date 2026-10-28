@@ -51,10 +51,30 @@ nats-jetstream trigger expects this exact shape.
 {{- if not (has .Values.runtime (list "oci" "native")) }}
 {{- fail (printf "pleme-nats: runtime=%q is not one of oci|native" (toString .Values.runtime)) }}
 {{- end }}
-{{- if and .Values.server.auth.enabled (not .Values.server.auth.secretName) }}
+{{- $auth := .Values.server.auth }}
+{{- $source := toString ($auth.source | default "secret") }}
+{{- if not (has $source (list "secret" "file")) }}
+{{- fail (printf "pleme-nats: server.auth.source=%q is not one of secret|file" $source) }}
+{{- end }}
+{{- if and $auth.enabled (eq $source "secret") (not $auth.secretName) }}
 {{- fail "pleme-nats: server.auth.enabled needs server.auth.secretName, a Secret holding the user and password keys" }}
 {{- end }}
+{{- if and $auth.enabled (eq $source "file") }}
+{{- if ne (include "pleme-nats.nativeConfigMode" .) "file" }}
+{{- fail "pleme-nats: server.auth.source file needs runtime native with native.config file: the include is resolved from the materialized config directory" }}
+{{- end }}
+{{- if not (hasPrefix "/" (toString $auth.file)) }}
+{{- fail "pleme-nats: server.auth.source file needs server.auth.file as an absolute host path to a nats authorization fragment" }}
+{{- end }}
+{{- end }}
 {{- if eq .Values.runtime "native" }}
+{{- $mode := toString ((.Values.native | default dict).config | default "file") }}
+{{- if not (has $mode (list "file" "flags")) }}
+{{- fail (printf "pleme-nats: native.config=%q is not one of file|flags" $mode) }}
+{{- end }}
+{{- if and (eq $mode "file") (not (hasPrefix "/" (toString (.Values.native | default dict).volumeRoot))) }}
+{{- fail "pleme-nats: native.config file needs native.volumeRoot, the node's engenho volume area (<engenho dataDir>/volumes) as an absolute path: a native process has no mount namespace, so the ConfigMap is read where engenho writes it" }}
+{{- end }}
 {{- if not (include "pleme-nats.closure" .Values.image.repository) }}
 {{- fail "pleme-nats: runtime native needs image.repository = nix:/nix/store/<nats-server closure>" }}
 {{- end }}
@@ -68,7 +88,7 @@ nats-jetstream trigger expects this exact shape.
 {{- end }}
 
 {{- define "pleme-nats.authEnv" -}}
-{{- if .Values.server.auth.enabled }}
+{{- if and .Values.server.auth.enabled (eq (toString (.Values.server.auth.source | default "secret")) "secret") }}
 - name: NATS_USER
   valueFrom:
     secretKeyRef:
@@ -91,4 +111,25 @@ nats-jetstream trigger expects this exact shape.
 {{- $args = concat $args (list "--user" "$(NATS_USER)" "--pass" "$(NATS_PASSWORD)") -}}
 {{- end }}
 {{- toYaml $args }}
+{{- end }}
+
+{{- define "pleme-nats.nativeConfigMode" -}}
+{{- if eq .Values.runtime "native" -}}
+{{- toString ((.Values.native | default dict).config | default "file") -}}
+{{- else -}}
+oci
+{{- end -}}
+{{- end }}
+
+{{- define "pleme-nats.configDir" -}}
+{{- if eq (include "pleme-nats.nativeConfigMode" .) "file" -}}
+{{- printf "%s/%s_%s-0/config" (trimSuffix "/" (toString .Values.native.volumeRoot)) .Release.Namespace (include "pleme-nats.fullname" .) -}}
+{{- else -}}
+/etc/nats
+{{- end -}}
+{{- end }}
+
+{{- define "pleme-nats.authInclude" -}}
+{{- $depth := len (compact (splitList "/" (include "pleme-nats.configDir" .))) -}}
+{{- printf "%s%s" (repeat $depth "../") (trimPrefix "/" (toString .Values.server.auth.file)) -}}
 {{- end }}

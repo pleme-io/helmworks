@@ -1,6 +1,7 @@
 pub mod empresa_site;
 pub mod pleme_cache;
 pub mod pleme_lib;
+pub mod pleme_nats;
 
 use serde_json::Value;
 
@@ -20,4 +21,8 @@ ChartSchema {
 ChartSchema {
     chart: "pleme-lib",
     generate: pleme_lib::schema,
+},
+ChartSchema {
+    chart: "pleme-nats",
+    generate: pleme_nats::schema,
 }];

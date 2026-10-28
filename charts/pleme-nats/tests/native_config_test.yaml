@@ -1,0 +1,224 @@
+suite: pleme-nats native config file (one nats.conf for oci and native)
+templates:
+  - templates/statefulset.yaml
+  - templates/configmap.yaml
+release:
+  name: nats
+  namespace: pangea-system
+tests:
+  - it: the native runtime reads nats.conf from the ConfigMap at the path engenho materializes it
+    template: templates/statefulset.yaml
+    set:
+      runtime: native
+      native.volumeRoot: /Users/op/.local/share/engenho/volumes
+      image.repository: nix:/nix/store/00000000000000000000000000000000-nats-server-2.14.4
+      exporter.enabled: false
+      server.jetstream.storeDir: /Users/op/.local/share/nats/jetstream
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].command
+          value: ["/nix/store/00000000000000000000000000000000-nats-server-2.14.4/bin/nats-server"]
+      - equal:
+          path: spec.template.spec.containers[0].args
+          value: ["-c", "/Users/op/.local/share/engenho/volumes/pangea-system_nats-pleme-nats-0/config/nats.conf"]
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: config
+            mountPath: /Users/op/.local/share/engenho/volumes/pangea-system_nats-pleme-nats-0/config
+            readOnly: true
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: jetstream
+            mountPath: /Users/op/.local/share/nats/jetstream
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: config
+            configMap:
+              name: nats-pleme-nats-config
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: jetstream
+            hostPath:
+              path: /Users/op/.local/share/nats/jetstream
+              type: DirectoryOrCreate
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - notExists:
+          path: spec.volumeClaimTemplates
+
+  - it: the native config file needs the node's engenho volume root
+    template: templates/statefulset.yaml
+    set:
+      runtime: native
+      image.repository: nix:/nix/store/00000000000000000000000000000000-nats-server-2.14.4
+      exporter.enabled: false
+      server.jetstream.storeDir: /Users/op/.local/share/nats/jetstream
+    asserts:
+      - failedTemplate:
+          errorPattern: "native.volumeRoot"
+
+  - it: a relative volume root is refused
+    template: templates/statefulset.yaml
+    set:
+      runtime: native
+      native.volumeRoot: share/engenho/volumes
+      image.repository: nix:/nix/store/00000000000000000000000000000000-nats-server-2.14.4
+      exporter.enabled: false
+      server.jetstream.storeDir: /Users/op/.local/share/nats/jetstream
+    asserts:
+      - failedTemplate:
+          errorPattern: "native.volumeRoot"
+
+  - it: an unknown native config mode is refused
+    template: templates/statefulset.yaml
+    set:
+      runtime: native
+      native.config: env
+      native.volumeRoot: /v
+      image.repository: nix:/nix/store/00000000000000000000000000000000-nats-server-2.14.4
+      exporter.enabled: false
+      server.jetstream.storeDir: /Users/op/.local/share/nats/jetstream
+    asserts:
+      - failedTemplate:
+          errorPattern: "native.config"
+
+  - it: the file store, payload and memory limits reach nats.conf in the native runtime
+    template: templates/configmap.yaml
+    set:
+      runtime: native
+      native.volumeRoot: /v
+      image.repository: nix:/nix/store/00000000000000000000000000000000-nats-server-2.14.4
+      exporter.enabled: false
+      server.host: 127.0.0.1
+      server.maxPayload: 2MB
+      server.jetstream.storeDir: /Users/op/.local/share/nats/jetstream
+      server.jetstream.maxFileStore: 1GB
+      server.jetstream.maxMemoryStore: 64MB
+    asserts:
+      - matchRegex:
+          path: data["nats.conf"]
+          pattern: "listen: 127.0.0.1:4222"
+      - matchRegex:
+          path: data["nats.conf"]
+          pattern: "max_payload: 2MB"
+      - matchRegex:
+          path: data["nats.conf"]
+          pattern: "store_dir: /Users/op/.local/share/nats/jetstream"
+      - matchRegex:
+          path: data["nats.conf"]
+          pattern: "max_file_store: 1GB"
+      - matchRegex:
+          path: data["nats.conf"]
+          pattern: "max_memory_store: 64MB"
+
+  - it: the oci runtime keeps its mount, its PVC and its service-account default
+    template: templates/statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].args
+          value: ["-c", "/etc/nats/nats.conf"]
+      - notExists:
+          path: spec.template.spec.automountServiceAccountToken
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: config
+            mountPath: /etc/nats
+            readOnly: true
+
+  - it: auth from a host file includes it from nats.conf by a path relative to the config directory
+    template: templates/configmap.yaml
+    set:
+      runtime: native
+      native.volumeRoot: /Users/op/.local/share/engenho/volumes
+      image.repository: nix:/nix/store/00000000000000000000000000000000-nats-server-2.14.4
+      exporter.enabled: false
+      server.jetstream.storeDir: /Users/op/.local/share/nats/jetstream
+      server.auth.enabled: true
+      server.auth.source: file
+      server.auth.file: /Users/op/.local/state/nats/auth.conf
+    asserts:
+      - matchRegex:
+          path: data["nats.conf"]
+          pattern: 'include "\.\./\.\./\.\./\.\./\.\./\.\./\.\./\.\./Users/op/\.local/state/nats/auth\.conf"'
+      - notMatchRegex:
+          path: data["nats.conf"]
+          pattern: "NATS_USER"
+
+  - it: auth from a host file injects no Secret env
+    template: templates/statefulset.yaml
+    set:
+      runtime: native
+      native.volumeRoot: /Users/op/.local/share/engenho/volumes
+      image.repository: nix:/nix/store/00000000000000000000000000000000-nats-server-2.14.4
+      exporter.enabled: false
+      server.jetstream.storeDir: /Users/op/.local/share/nats/jetstream
+      server.auth.enabled: true
+      server.auth.source: file
+      server.auth.file: /Users/op/.local/state/nats/auth.conf
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NATS_USER
+            valueFrom:
+              secretKeyRef:
+                name: ""
+                key: user
+      - lengthEqual:
+          path: spec.template.spec.containers[0].env
+          count: 1
+
+  - it: auth from a relative host file is refused
+    template: templates/statefulset.yaml
+    set:
+      runtime: native
+      native.volumeRoot: /v
+      image.repository: nix:/nix/store/00000000000000000000000000000000-nats-server-2.14.4
+      exporter.enabled: false
+      server.jetstream.storeDir: /Users/op/.local/share/nats/jetstream
+      server.auth.enabled: true
+      server.auth.source: file
+      server.auth.file: auth.conf
+    asserts:
+      - failedTemplate:
+          errorPattern: "server.auth.file"
+
+  - it: auth from a host file is refused under the oci runtime
+    template: templates/statefulset.yaml
+    set:
+      server.auth.enabled: true
+      server.auth.source: file
+      server.auth.file: /etc/nats-auth/auth.conf
+    asserts:
+      - failedTemplate:
+          errorPattern: "/runtime.: value must be .native"
+
+  - it: auth from a host file is refused with native flags
+    template: templates/statefulset.yaml
+    set:
+      runtime: native
+      native.config: flags
+      image.repository: nix:/nix/store/00000000000000000000000000000000-nats-server-2.14.4
+      exporter.enabled: false
+      server.jetstream.storeDir: /Users/op/.local/share/nats/jetstream
+      server.auth.enabled: true
+      server.auth.source: file
+      server.auth.file: /Users/op/.local/state/nats/auth.conf
+    asserts:
+      - failedTemplate:
+          errorPattern: "/native/config.: value must be .file"
+
+  - it: an unknown auth source is refused
+    template: templates/statefulset.yaml
+    set:
+      server.auth.enabled: true
+      server.auth.source: vault
+    asserts:
+      - failedTemplate:
+          errorPattern: "server.auth.source"

@@ -60,6 +60,7 @@ tests:
     template: templates/statefulset.yaml
     set:
       runtime: native
+      native.config: flags
       image.repository: nix:/nix/store/00000000000000000000000000000000-nats-server-2.14.4
       exporter.enabled: false
       server.host: 127.0.0.1
@@ -110,6 +111,7 @@ tests:
     template: templates/statefulset.yaml
     set:
       runtime: native
+      native.config: flags
       image.repository: nix:/nix/store/00000000000000000000000000000000-nats-server-2.14.4
       exporter.enabled: false
       server.jetstream.storeDir: /Users/op/.local/share/nats/jetstream
@@ -127,6 +129,7 @@ tests:
     template: templates/statefulset.yaml
     set:
       runtime: native
+      native.config: flags
       exporter.enabled: false
     asserts:
       - failedTemplate:
@@ -136,6 +139,7 @@ tests:
     template: templates/statefulset.yaml
     set:
       runtime: native
+      native.config: flags
       image.repository: nix:/nix/store/00000000000000000000000000000000-nats-server-2.14.4
     asserts:
       - failedTemplate:
@@ -145,6 +149,7 @@ tests:
     template: templates/statefulset.yaml
     set:
       runtime: native
+      native.config: flags
       image.repository: nix:/nix/store/00000000000000000000000000000000-nats-server-2.14.4
       exporter.image.repository: nix:/nix/store/11111111111111111111111111111111-prometheus-nats-exporter-0.15.0
       server.jetstream.storeDir: /Users/op/.local/share/nats/jetstream

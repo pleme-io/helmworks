@@ -48,10 +48,14 @@ data:
     {{- end }}
 
     {{- if .Values.server.auth.enabled }}
+    {{- if eq (toString (.Values.server.auth.source | default "secret")) "file" }}
+    include "{{ include "pleme-nats.authInclude" . }}"
+    {{- else }}
     authorization {
       user: $NATS_USER
       password: $NATS_PASSWORD
     }
+    {{- end }}
     {{- end }}
 
     {{- with .Values.server.extraConfig }}
