@@ -135,6 +135,7 @@
       "type": "object"
     },
     "LeafAutoscaling": {
+      "additionalProperties": false,
       "properties": {
         "enabled": {
           "default": true,
@@ -315,37 +316,12 @@
             }
           ],
           "default": "in_process"
-        },
-        "workers": {
-          "allOf": [
-            {
-              "$ref": "#/definitions/LeafWorkers"
-            }
-          ],
-          "default": {
-            "autoscaling": {
-              "enabled": true,
-              "horizonSecs": 300,
-              "max": 4,
-              "min": 0,
-              "scaleDownStabilizationSecs": 300,
-              "target": 600
-            },
-            "derivation": {
-              "baseMi": 24,
-              "concurrency": 4,
-              "leafPeakMi": 56,
-              "providerMi": 33,
-              "providers": 1
-            },
-            "memory": "derived",
-            "replicas": 0
-          }
         }
       },
       "type": "object"
     },
     "LeafWorkers": {
+      "additionalProperties": false,
       "properties": {
         "autoscaling": {
           "allOf": [
@@ -393,6 +369,7 @@
       "type": "object"
     },
     "MemoryDerivation": {
+      "additionalProperties": false,
       "properties": {
         "baseMi": {
           "default": 24,
@@ -478,6 +455,117 @@
             "templates": {}
           },
           "description": "Per-workspace tri-state suspend."
+        }
+      },
+      "type": "object"
+    },
+    "TofuKeda": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "default": false,
+          "type": "boolean"
+        },
+        "prometheusUrl": {
+          "default": "",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "TofuPluginCache": {
+      "additionalProperties": false,
+      "properties": {
+        "accessMode": {
+          "default": "",
+          "type": "string"
+        },
+        "enabled": {
+          "default": false,
+          "type": "boolean"
+        },
+        "size": {
+          "default": "",
+          "type": "string"
+        },
+        "storageClassName": {
+          "default": "",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "TofuScaling": {
+      "additionalProperties": false,
+      "properties": {
+        "cooldownPeriod": {
+          "default": 0,
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "pollingInterval": {
+          "default": 0,
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "targetPendingPerReplica": {
+          "default": 0,
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "TofuWorkers": {
+      "additionalProperties": false,
+      "properties": {
+        "classes": {
+          "additionalProperties": true,
+          "default": {},
+          "type": "object"
+        },
+        "enabled": {
+          "default": false,
+          "type": "boolean"
+        },
+        "keda": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/TofuKeda"
+            }
+          ],
+          "default": {
+            "enabled": false,
+            "prometheusUrl": ""
+          }
+        },
+        "providerPluginCache": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/TofuPluginCache"
+            }
+          ],
+          "default": {
+            "accessMode": "",
+            "enabled": false,
+            "size": "",
+            "storageClassName": ""
+          }
+        },
+        "scaling": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/TofuScaling"
+            }
+          ],
+          "default": {
+            "cooldownPeriod": 0,
+            "pollingInterval": 0,
+            "targetPendingPerReplica": 0
+          }
         }
       },
       "type": "object"
@@ -617,28 +705,9 @@
           },
           "url": ""
         },
-        "queue": "in_process",
-        "workers": {
-          "autoscaling": {
-            "enabled": true,
-            "horizonSecs": 300,
-            "max": 4,
-            "min": 0,
-            "scaleDownStabilizationSecs": 300,
-            "target": 600
-          },
-          "derivation": {
-            "baseMi": 24,
-            "concurrency": 4,
-            "leafPeakMi": 56,
-            "providerMi": 33,
-            "providers": 1
-          },
-          "memory": "derived",
-          "replicas": 0
-        }
+        "queue": "in_process"
       },
-      "description": "Leaf work queue, leaf workers and their autoscaling (pangea-operator docs/LEAVES.md §17). queue: in_process renders no worker, no HPA and no stream."
+      "description": "Leaf work queue and its JetStream stream (pangea-operator docs/LEAVES.md §17). queue: in_process renders no worker, no HPA and no stream."
     },
     "logLevel": {
       "default": "pangea_operator=info",
@@ -698,10 +767,64 @@
       },
       "description": "PrometheusRule CR rendering toggle."
     },
+    "tofuWorkers": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/TofuWorkers"
+        }
+      ],
+      "default": {
+        "classes": {},
+        "enabled": false,
+        "keda": {
+          "enabled": false,
+          "prometheusUrl": ""
+        },
+        "providerPluginCache": {
+          "accessMode": "",
+          "enabled": false,
+          "size": "",
+          "storageClassName": ""
+        },
+        "scaling": {
+          "cooldownPeriod": 0,
+          "pollingInterval": 0,
+          "targetPendingPerReplica": 0
+        }
+      },
+      "description": "The legacy KEDA tofu worker pools (one Deployment, ScaledObject and PangeaWorkClass per class). Off by default: tofu is configured-off legacy (BACIA §9.1)."
+    },
     "useEmbeddedRuby": {
       "default": false,
       "description": "When true, operator runs the magnus+CRuby compiler in-process (no sidecar). Requires `gem_auth.token_secret.name` to be set to a non-empty Secret name.",
       "type": "boolean"
+    },
+    "workers": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/LeafWorkers"
+        }
+      ],
+      "default": {
+        "autoscaling": {
+          "enabled": true,
+          "horizonSecs": 300,
+          "max": 4,
+          "min": 0,
+          "scaleDownStabilizationSecs": 300,
+          "target": 600
+        },
+        "derivation": {
+          "baseMi": 24,
+          "concurrency": 4,
+          "leafPeakMi": 56,
+          "providerMi": 33,
+          "providers": 1
+        },
+        "memory": "derived",
+        "replicas": 0
+      },
+      "description": "Leaf workers and their autoscaling, the operator's own workers.* settings one to one (LEAVES.md §17). Rendered only with leaf.queue: jetstream and leaf.nats.url."
     }
   },
   "title": "ChartValues",

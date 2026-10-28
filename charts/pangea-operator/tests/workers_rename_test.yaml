@@ -1,0 +1,73 @@
+suite: workers scope rename (chart 0.10.0) renders what 0.9.25 rendered for the same intent
+templates:
+  - templates/scaledobjects.yaml
+  - templates/workclasses.yaml
+  - templates/deployment.yaml
+  - templates/leaf-hpa.yaml
+  - templates/leaf-jetstream.yaml
+chart:
+  version: 0.9.25
+release:
+  name: pangea-operator
+  namespace: pangea-system
+tests:
+  - it: the defaults render the same objects
+    asserts:
+      - matchSnapshot: {}
+
+  - it: the KEDA tofu pools under tofuWorkers render what workers rendered
+    set:
+      tofuWorkers.enabled: true
+      tofuWorkers.scaling.cooldownPeriod: 120
+      tofuWorkers.classes.large.enabled: false
+    asserts:
+      - matchSnapshot: {}
+      - hasDocuments:
+          count: 2
+        template: templates/scaledobjects.yaml
+      - hasDocuments:
+          count: 2
+        template: templates/workclasses.yaml
+
+  - it: the autoscaled leaf workers under workers render what leaf.workers rendered
+    set:
+      leaf.queue: jetstream
+      leaf.nats.url: nats://pangea-leaf-nats.pangea-system.svc:4222
+      leaf.credentials:
+        - name: github-pleme-io
+          cap: 4
+      workers.autoscaling.max: 6
+      workers.autoscaling.target: 900
+      workers.derivation.leafPeakMi: 80
+    asserts:
+      - matchSnapshot: {}
+      - hasDocuments:
+          count: 1
+        template: templates/leaf-hpa.yaml
+      - equal:
+          path: spec.maxReplicas
+          value: 6
+        template: templates/leaf-hpa.yaml
+
+  - it: the fixed leaf workers under workers render what leaf.workers rendered
+    set:
+      leaf.queue: jetstream
+      leaf.nats.url: nats://pangea-leaf-nats.pangea-system.svc:4222
+      leaf.credentials:
+        - name: github-pleme-io
+          cap: 4
+      workers.autoscaling.enabled: false
+      workers.replicas: 2
+      workers.memory: 1Gi
+    asserts:
+      - matchSnapshot: {}
+      - hasDocuments:
+          count: 0
+        template: templates/leaf-hpa.yaml
+      - equal:
+          path: spec.replicas
+          value: 2
+        template: templates/deployment.yaml
+        documentSelector:
+          path: metadata.name
+          value: pangea-operator-leaf-worker

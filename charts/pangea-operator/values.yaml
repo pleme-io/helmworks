@@ -776,13 +776,13 @@ attestation:
 # scale-to-zero worker pods (per-class Deployments scaled by KEDA on
 # the pangea_workunit_pending_total{work_class=...} gauge).
 #
-# Backward-compat: workers.enabled defaults false. Existing v0.2.x
+# Backward-compat: tofuWorkers.enabled defaults false. Existing v0.2.x
 # deployments keep running the inline executor with no behavior change.
 # Flip to true once the operator has emitted PangeaWorkClass CRs and
 # the matching worker pools are healthy.
 #
 # See: pangea-operator/docs/design/0003-helmworks-chart-and-breathable-workers.md
-workers:
+tofuWorkers:
   enabled: false
 
   # KEDA must be installed in the cluster (the pleme-io standard infra).
@@ -871,22 +871,23 @@ leaf:
     duplicateWindow: 10m
     ackWait: 60s
     maxDeliver: 5
-  workers:
-    replicas: 0
-    memory: derived
-    derivation:
-      baseMi: 24
-      leafPeakMi: 56
-      concurrency: 4
-      providers: 1
-      providerMi: 33
-    autoscaling:
-      enabled: true
-      min: 0
-      max: 4
-      target: 600
-      horizonSecs: 300
-      scaleDownStabilizationSecs: 300
+
+workers:
+  replicas: 0
+  memory: derived
+  derivation:
+    baseMi: 24
+    leafPeakMi: 56
+    concurrency: 4
+    providers: 1
+    providerMi: 33
+  autoscaling:
+    enabled: true
+    min: 0
+    max: 4
+    target: 600
+    horizonSecs: 300
+    scaleDownStabilizationSecs: 300
 
 # -- PrometheusRule alerts
 prometheusRules:

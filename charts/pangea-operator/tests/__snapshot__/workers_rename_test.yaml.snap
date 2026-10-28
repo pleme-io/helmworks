@@ -1,0 +1,1396 @@
+the KEDA tofu pools under tofuWorkers render what workers rendered:
+  1: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      labels:
+        app: pangea-operator
+        app.kubernetes.io/instance: pangea-operator
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: pangea-operator
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.8.17
+        helm.sh/chart: pangea-operator-0.9.25
+      name: pangea-operator
+      namespace: pangea-system
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/instance: pangea-operator
+          app.kubernetes.io/name: pangea-operator
+      strategy:
+        type: Recreate
+      template:
+        metadata:
+          annotations:
+            prometheus.io/path: /metrics
+            prometheus.io/port: "9090"
+            prometheus.io/scrape: "true"
+          labels:
+            app: pangea-operator
+            app.kubernetes.io/instance: pangea-operator
+            app.kubernetes.io/name: pangea-operator
+        spec:
+          automountServiceAccountToken: true
+          containers:
+            - env:
+                - name: POD_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
+                - name: POD_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+                - name: NODE_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: spec.nodeName
+                - name: RUST_LOG
+                  value: pangea_operator=info
+                - name: TOFU_BINARY
+                  value: /usr/local/bin/tofu
+                - name: PANGEA_FORBID_TOFU
+                  value: "true"
+                - name: PANGEA_TIMEOUT
+                  value: "600"
+                - name: PACKER_BINARY
+                  value: /usr/local/bin/packer
+                - name: PACKER_TIMEOUT
+                  value: "2700"
+                - name: PANGEA_WORKSPACE_BASE
+                  value: /var/pangea/workspaces
+                - name: COMPILER_ENDPOINT
+                  value: http://localhost:8082
+                - name: PANGEA_COMPILER_BACKEND
+                  value: lava
+                - name: PANGEA_LAVA_RUBY
+                  value: "on"
+                - name: PANGEA_GEM_CACHE_DIR
+                  value: /var/pangea/gems
+                - name: PANGEA_RUBY_WORKERS
+                  value: "1"
+                - name: PANGEA_HONOR_RECONCILE_REQUESTS
+                  value: "false"
+                - name: POD_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
+              image: ghcr.io/pleme-io/pangea-operator:0.8.17
+              imagePullPolicy: IfNotPresent
+              livenessProbe:
+                failureThreshold: 3
+                httpGet:
+                  path: /healthz
+                  port: http
+                initialDelaySeconds: 5
+                periodSeconds: 10
+                timeoutSeconds: 1
+              name: pangea-operator
+              ports:
+                - containerPort: 8080
+                  name: http
+                  protocol: TCP
+                - containerPort: 9090
+                  name: metrics
+                  protocol: TCP
+                - containerPort: 8081
+                  name: graphql
+                  protocol: TCP
+              readinessProbe:
+                failureThreshold: 2
+                httpGet:
+                  path: /readyz
+                  port: http
+                initialDelaySeconds: 5
+                periodSeconds: 5
+                timeoutSeconds: 1
+              resources:
+                limits:
+                  cpu: "1"
+                  memory: 512Mi
+                requests:
+                  cpu: 200m
+                  memory: 256Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                readOnlyRootFilesystem: true
+                seccompProfile:
+                  type: RuntimeDefault
+              startupProbe:
+                failureThreshold: 30
+                httpGet:
+                  path: /healthz
+                  port: http
+                initialDelaySeconds: 5
+                periodSeconds: 5
+              volumeMounts:
+                - mountPath: /var/pangea/workspaces
+                  name: workspaces
+                - mountPath: /tmp
+                  name: tmp
+          securityContext:
+            fsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          serviceAccountName: pangea-operator
+          terminationGracePeriodSeconds: 30
+          volumes:
+            - emptyDir:
+                sizeLimit: 2Gi
+              name: workspaces
+            - emptyDir:
+                sizeLimit: 256Mi
+              name: tmp
+  2: |
+    apiVersion: keda.sh/v1alpha1
+    kind: ScaledObject
+    metadata:
+      labels:
+        app: pangea-operator
+        app.kubernetes.io/instance: pangea-operator
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: pangea-operator
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.8.17
+        helm.sh/chart: pangea-operator-0.9.25
+        pangea.pleme.io/work-class: medium
+      name: pangea-operator-worker-medium
+    spec:
+      cooldownPeriod: 120
+      maxReplicaCount: 10
+      minReplicaCount: 0
+      pollingInterval: 15
+      scaleTargetRef:
+        apiVersion: apps/v1
+        kind: Deployment
+        name: pangea-operator-workerMedium
+      triggers:
+        - metadata:
+            metricName: pangea_workunit_pending_medium
+            query: sum(pangea_workunit_pending_total{work_class="medium"})
+            serverAddress: http://vmsingle-vm.monitoring.svc:8429
+            threshold: "1"
+          type: prometheus
+  3: |
+    apiVersion: keda.sh/v1alpha1
+    kind: ScaledObject
+    metadata:
+      labels:
+        app: pangea-operator
+        app.kubernetes.io/instance: pangea-operator
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: pangea-operator
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.8.17
+        helm.sh/chart: pangea-operator-0.9.25
+        pangea.pleme.io/work-class: small
+      name: pangea-operator-worker-small
+    spec:
+      cooldownPeriod: 120
+      maxReplicaCount: 5
+      minReplicaCount: 0
+      pollingInterval: 15
+      scaleTargetRef:
+        apiVersion: apps/v1
+        kind: Deployment
+        name: pangea-operator-workerSmall
+      triggers:
+        - metadata:
+            metricName: pangea_workunit_pending_small
+            query: sum(pangea_workunit_pending_total{work_class="small"})
+            serverAddress: http://vmsingle-vm.monitoring.svc:8429
+            threshold: "1"
+          type: prometheus
+  4: |
+    apiVersion: pangea.pleme.io/v1alpha1
+    kind: PangeaWorkClass
+    metadata:
+      labels:
+        app: pangea-operator
+        app.kubernetes.io/instance: pangea-operator
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: pangea-operator
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.8.17
+        helm.sh/chart: pangea-operator-0.9.25
+      name: medium
+    spec:
+      concurrencyPerWorker: 1
+      resources:
+        limits:
+          cpu: "2"
+          memory: 2Gi
+        requests:
+          cpu: 500m
+          memory: 1Gi
+      timeout: 15m
+      workerImage:
+        pullPolicy: IfNotPresent
+        repository: ghcr.io/pleme-io/pangea-operator-worker
+        tag: 0.8.17
+  5: |
+    apiVersion: pangea.pleme.io/v1alpha1
+    kind: PangeaWorkClass
+    metadata:
+      labels:
+        app: pangea-operator
+        app.kubernetes.io/instance: pangea-operator
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: pangea-operator
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.8.17
+        helm.sh/chart: pangea-operator-0.9.25
+      name: small
+    spec:
+      concurrencyPerWorker: 1
+      resources:
+        limits:
+          cpu: "1"
+          memory: 1Gi
+        requests:
+          cpu: 100m
+          memory: 256Mi
+      timeout: 5m
+      workerImage:
+        pullPolicy: IfNotPresent
+        repository: ghcr.io/pleme-io/pangea-operator-worker
+        tag: 0.8.17
+the autoscaled leaf workers under workers render what leaf.workers rendered:
+  1: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      labels:
+        app: pangea-operator
+        app.kubernetes.io/instance: pangea-operator
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: pangea-operator
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.8.17
+        helm.sh/chart: pangea-operator-0.9.25
+      name: pangea-operator
+      namespace: pangea-system
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/instance: pangea-operator
+          app.kubernetes.io/name: pangea-operator
+      strategy:
+        type: Recreate
+      template:
+        metadata:
+          annotations:
+            prometheus.io/path: /metrics
+            prometheus.io/port: "9090"
+            prometheus.io/scrape: "true"
+          labels:
+            app: pangea-operator
+            app.kubernetes.io/instance: pangea-operator
+            app.kubernetes.io/name: pangea-operator
+        spec:
+          automountServiceAccountToken: true
+          containers:
+            - env:
+                - name: POD_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
+                - name: POD_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+                - name: NODE_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: spec.nodeName
+                - name: RUST_LOG
+                  value: pangea_operator=info
+                - name: TOFU_BINARY
+                  value: /usr/local/bin/tofu
+                - name: PANGEA_FORBID_TOFU
+                  value: "true"
+                - name: PANGEA_TIMEOUT
+                  value: "600"
+                - name: PACKER_BINARY
+                  value: /usr/local/bin/packer
+                - name: PACKER_TIMEOUT
+                  value: "2700"
+                - name: PANGEA_WORKSPACE_BASE
+                  value: /var/pangea/workspaces
+                - name: COMPILER_ENDPOINT
+                  value: http://localhost:8082
+                - name: PANGEA_COMPILER_BACKEND
+                  value: lava
+                - name: PANGEA_LAVA_RUBY
+                  value: "on"
+                - name: PANGEA_GEM_CACHE_DIR
+                  value: /var/pangea/gems
+                - name: PANGEA_RUBY_WORKERS
+                  value: "1"
+                - name: PANGEA_HONOR_RECONCILE_REQUESTS
+                  value: "false"
+                - name: PANGEA_LEAF_QUEUE
+                  value: jetstream
+                - name: PANGEA_LEAF_NATS_URL
+                  value: nats://pangea-leaf-nats.pangea-system.svc:4222
+                - name: PANGEA_WORKERS_AUTOSCALING
+                  value: "true"
+                - name: PANGEA_WORKERS_MEMORY
+                  value: derived
+                - name: POD_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
+              image: ghcr.io/pleme-io/pangea-operator:0.8.17
+              imagePullPolicy: IfNotPresent
+              livenessProbe:
+                failureThreshold: 3
+                httpGet:
+                  path: /healthz
+                  port: http
+                initialDelaySeconds: 5
+                periodSeconds: 10
+                timeoutSeconds: 1
+              name: pangea-operator
+              ports:
+                - containerPort: 8080
+                  name: http
+                  protocol: TCP
+                - containerPort: 9090
+                  name: metrics
+                  protocol: TCP
+                - containerPort: 8081
+                  name: graphql
+                  protocol: TCP
+              readinessProbe:
+                failureThreshold: 2
+                httpGet:
+                  path: /readyz
+                  port: http
+                initialDelaySeconds: 5
+                periodSeconds: 5
+                timeoutSeconds: 1
+              resources:
+                limits:
+                  cpu: "1"
+                  memory: 512Mi
+                requests:
+                  cpu: 200m
+                  memory: 256Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                readOnlyRootFilesystem: true
+                seccompProfile:
+                  type: RuntimeDefault
+              startupProbe:
+                failureThreshold: 30
+                httpGet:
+                  path: /healthz
+                  port: http
+                initialDelaySeconds: 5
+                periodSeconds: 5
+              volumeMounts:
+                - mountPath: /var/pangea/workspaces
+                  name: workspaces
+                - mountPath: /tmp
+                  name: tmp
+          securityContext:
+            fsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          serviceAccountName: pangea-operator
+          terminationGracePeriodSeconds: 30
+          volumes:
+            - emptyDir:
+                sizeLimit: 2Gi
+              name: workspaces
+            - emptyDir:
+                sizeLimit: 256Mi
+              name: tmp
+  2: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      labels:
+        app: pangea-operator-leaf-worker
+        app.kubernetes.io/instance: pangea-operator
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: pangea-operator-leaf-worker
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.8.17
+        helm.sh/chart: pangea-operator-0.9.25
+      name: pangea-operator-leaf-worker
+      namespace: pangea-system
+    spec:
+      selector:
+        matchLabels:
+          app.kubernetes.io/instance: pangea-operator
+          app.kubernetes.io/name: pangea-operator-leaf-worker
+      strategy:
+        type: Recreate
+      template:
+        metadata:
+          annotations:
+            prometheus.io/path: /metrics
+            prometheus.io/port: "9090"
+            prometheus.io/scrape: "true"
+          labels:
+            app: pangea-operator-leaf-worker
+            app.kubernetes.io/instance: pangea-operator
+            app.kubernetes.io/name: pangea-operator-leaf-worker
+        spec:
+          automountServiceAccountToken: true
+          containers:
+            - env:
+                - name: POD_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
+                - name: POD_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+                - name: NODE_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: spec.nodeName
+                - name: RUST_LOG
+                  value: pangea_operator=info
+                - name: TOFU_BINARY
+                  value: /usr/local/bin/tofu
+                - name: PANGEA_FORBID_TOFU
+                  value: "true"
+                - name: PANGEA_TIMEOUT
+                  value: "600"
+                - name: PACKER_BINARY
+                  value: /usr/local/bin/packer
+                - name: PACKER_TIMEOUT
+                  value: "2700"
+                - name: PANGEA_WORKSPACE_BASE
+                  value: /var/pangea/workspaces
+                - name: COMPILER_ENDPOINT
+                  value: http://localhost:8082
+                - name: PANGEA_COMPILER_BACKEND
+                  value: lava
+                - name: PANGEA_LAVA_RUBY
+                  value: "on"
+                - name: PANGEA_GEM_CACHE_DIR
+                  value: /var/pangea/gems
+                - name: PANGEA_RUBY_WORKERS
+                  value: "1"
+                - name: PANGEA_HONOR_RECONCILE_REQUESTS
+                  value: "false"
+                - name: PANGEA_LEAF_QUEUE
+                  value: jetstream
+                - name: PANGEA_LEAF_NATS_URL
+                  value: nats://pangea-leaf-nats.pangea-system.svc:4222
+                - name: PANGEA_WORKERS_AUTOSCALING
+                  value: "true"
+                - name: PANGEA_WORKERS_MEMORY
+                  value: derived
+                - name: POD_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
+                - name: PANGEA_LEAF_ROLE
+                  value: worker
+              image: ghcr.io/pleme-io/pangea-operator:0.8.17
+              imagePullPolicy: IfNotPresent
+              livenessProbe:
+                failureThreshold: 3
+                httpGet:
+                  path: /healthz
+                  port: http
+                initialDelaySeconds: 5
+                periodSeconds: 10
+                timeoutSeconds: 1
+              name: pangea-operator-leaf-worker
+              ports:
+                - containerPort: 8080
+                  name: http
+                  protocol: TCP
+                - containerPort: 9090
+                  name: metrics
+                  protocol: TCP
+                - containerPort: 8081
+                  name: graphql
+                  protocol: TCP
+              readinessProbe:
+                failureThreshold: 2
+                httpGet:
+                  path: /readyz
+                  port: http
+                initialDelaySeconds: 5
+                periodSeconds: 5
+                timeoutSeconds: 1
+              resources:
+                limits:
+                  cpu: "1"
+                  memory: 566Mi
+                requests:
+                  cpu: 200m
+                  memory: 377Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                readOnlyRootFilesystem: true
+                seccompProfile:
+                  type: RuntimeDefault
+              startupProbe:
+                failureThreshold: 30
+                httpGet:
+                  path: /healthz
+                  port: http
+                initialDelaySeconds: 5
+                periodSeconds: 5
+              volumeMounts:
+                - mountPath: /var/pangea/workspaces
+                  name: workspaces
+                - mountPath: /tmp
+                  name: tmp
+          securityContext:
+            fsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          serviceAccountName: pangea-operator
+          terminationGracePeriodSeconds: 30
+          volumes:
+            - emptyDir:
+                sizeLimit: 2Gi
+              name: workspaces
+            - emptyDir:
+                sizeLimit: 256Mi
+              name: tmp
+  3: |
+    apiVersion: autoscaling/v2
+    kind: HorizontalPodAutoscaler
+    metadata:
+      labels:
+        app: pangea-operator
+        app.kubernetes.io/component: leaf-worker
+        app.kubernetes.io/instance: pangea-operator
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: pangea-operator
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.8.17
+        helm.sh/chart: pangea-operator-0.9.25
+      name: pangea-operator-leaf-worker
+      namespace: pangea-system
+    spec:
+      behavior:
+        scaleDown:
+          stabilizationWindowSeconds: 300
+      maxReplicas: 6
+      metrics:
+        - external:
+            metric:
+              name: pangea_leaf_pending_work
+            target:
+              averageValue: "900"
+              type: AverageValue
+          type: External
+      minReplicas: 0
+      scaleTargetRef:
+        apiVersion: apps/v1
+        kind: Deployment
+        name: pangea-operator-leaf-worker
+  4: |
+    apiVersion: v1
+    data:
+      consumer-PANGEA_LEAF-leaf-github-pleme-io.json: |
+        {
+          "stream_name": "PANGEA_LEAF",
+          "config": {
+            "durable_name": "leaf-github-pleme-io",
+            "ack_policy": "explicit",
+            "ack_wait": 60000000000,
+            "max_ack_pending": 4,
+            "max_deliver": 5,
+            "filter_subject": "pangea.leaf.github-pleme-io.>",
+            "replay_policy": "instant"
+          }
+        }
+      stream-PANGEA_LEAF.json: |
+        {
+          "name": "PANGEA_LEAF",
+          "subjects": ["pangea.leaf.\u003e"],
+          "retention": "workqueue",
+          "storage": "file",
+          "num_replicas": 1,
+          "max_consumers": -1,
+          "max_msgs": -1,
+          "max_msgs_per_subject": -1,
+          "max_bytes": -1,
+          "max_msg_size": -1,
+          "max_age": 0,
+          "duplicate_window": 600000000000,
+          "discard": "old"
+        }
+    kind: ConfigMap
+    metadata:
+      annotations:
+        helm.sh/hook: post-install,post-upgrade
+        helm.sh/hook-delete-policy: before-hook-creation
+        helm.sh/hook-weight: "-5"
+      labels:
+        app: pangea-operator
+        app.kubernetes.io/instance: pangea-operator
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: pangea-operator
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.8.17
+        helm.sh/chart: pangea-operator-0.9.25
+        pleme.io/jetstream-config: "true"
+      name: pangea-operator-jetstream
+      namespace: pangea-system
+  5: |
+    apiVersion: batch/v1
+    kind: Job
+    metadata:
+      annotations:
+        helm.sh/hook: post-install,post-upgrade
+        helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+        helm.sh/hook-weight: "5"
+      labels:
+        app: pangea-operator
+        app.kubernetes.io/instance: pangea-operator
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: pangea-operator
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.8.17
+        helm.sh/chart: pangea-operator-0.9.25
+        pleme.io/jetstream-init: "true"
+      name: pangea-operator-jetstream-init
+      namespace: pangea-system
+    spec:
+      backoffLimit: 3
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/component: jetstream-init
+            app.kubernetes.io/instance: pangea-operator
+            app.kubernetes.io/name: pangea-operator
+        spec:
+          containers:
+            - command:
+                - /bin/sh
+                - -ec
+                - |
+                  echo "Waiting up to ${SERVER_WAIT_SECONDS}s for NATS at ${NATS_URL}..."
+                  i=0
+                  until nats --server "${NATS_URL}" account info >/dev/null 2>&1; do
+                    i=$((i+1))
+                    if [ "$i" -ge "${SERVER_WAIT_SECONDS}" ]; then
+                      echo "Gave up waiting for NATS"
+                      exit 1
+                    fi
+                    sleep 1
+                  done
+                  echo "NATS reachable. Declaring streams..."
+                  for f in /configs/stream-*.json; do
+                    [ -f "$f" ] || continue
+                    name=$(basename "$f" .json | sed 's/^stream-//')
+                    echo "  → stream: $name"
+                    # `--force` skips interactive confirmation when the
+                    # stream already exists with a different configuration.
+                    # Idempotent upsert: try add first, fall through to
+                    # update if it already exists.
+                    nats --server "${NATS_URL}" stream add --config "$f" "$name" 2>/dev/null \
+                      || nats --server "${NATS_URL}" stream update --force --config "$f" "$name"
+                  done
+                  echo "Declaring consumers..."
+                  for f in /configs/consumer-*.json; do
+                    [ -f "$f" ] || continue
+                    base=$(basename "$f" .json | sed 's/^consumer-//')
+                    stream=$(echo "$base" | cut -d- -f1)
+                    consumer=$(echo "$base" | cut -d- -f2-)
+                    echo "  → consumer: $stream/$consumer"
+                    nats --server "${NATS_URL}" consumer add --config "$f" "$stream" "$consumer" 2>/dev/null \
+                      || nats --server "${NATS_URL}" consumer update --force --config "$f" "$stream" "$consumer"
+                  done
+                  echo "Done."
+              env:
+                - name: NATS_URL
+                  value: nats://pangea-leaf-nats.pangea-system.svc:4222
+                - name: SERVER_WAIT_SECONDS
+                  value: "120"
+                - name: HOME
+                  value: /tmp
+              image: natsio/nats-box:0.14.5
+              imagePullPolicy: IfNotPresent
+              name: jetstream-init
+              resources:
+                limits:
+                  cpu: 100m
+                  memory: 64Mi
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                readOnlyRootFilesystem: true
+              volumeMounts:
+                - mountPath: /configs
+                  name: configs
+                  readOnly: true
+                - mountPath: /tmp
+                  name: tmp
+              workingDir: /tmp
+          restartPolicy: OnFailure
+          securityContext:
+            fsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+          volumes:
+            - configMap:
+                name: pangea-operator-jetstream
+              name: configs
+            - emptyDir:
+                sizeLimit: 32Mi
+              name: tmp
+      ttlSecondsAfterFinished: 300
+the defaults render the same objects:
+  1: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      labels:
+        app: pangea-operator
+        app.kubernetes.io/instance: pangea-operator
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: pangea-operator
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.8.17
+        helm.sh/chart: pangea-operator-0.9.25
+      name: pangea-operator
+      namespace: pangea-system
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/instance: pangea-operator
+          app.kubernetes.io/name: pangea-operator
+      strategy:
+        type: Recreate
+      template:
+        metadata:
+          annotations:
+            prometheus.io/path: /metrics
+            prometheus.io/port: "9090"
+            prometheus.io/scrape: "true"
+          labels:
+            app: pangea-operator
+            app.kubernetes.io/instance: pangea-operator
+            app.kubernetes.io/name: pangea-operator
+        spec:
+          automountServiceAccountToken: true
+          containers:
+            - env:
+                - name: POD_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
+                - name: POD_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+                - name: NODE_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: spec.nodeName
+                - name: RUST_LOG
+                  value: pangea_operator=info
+                - name: TOFU_BINARY
+                  value: /usr/local/bin/tofu
+                - name: PANGEA_FORBID_TOFU
+                  value: "true"
+                - name: PANGEA_TIMEOUT
+                  value: "600"
+                - name: PACKER_BINARY
+                  value: /usr/local/bin/packer
+                - name: PACKER_TIMEOUT
+                  value: "2700"
+                - name: PANGEA_WORKSPACE_BASE
+                  value: /var/pangea/workspaces
+                - name: COMPILER_ENDPOINT
+                  value: http://localhost:8082
+                - name: PANGEA_COMPILER_BACKEND
+                  value: lava
+                - name: PANGEA_LAVA_RUBY
+                  value: "on"
+                - name: PANGEA_GEM_CACHE_DIR
+                  value: /var/pangea/gems
+                - name: PANGEA_RUBY_WORKERS
+                  value: "1"
+                - name: PANGEA_HONOR_RECONCILE_REQUESTS
+                  value: "false"
+                - name: POD_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
+              image: ghcr.io/pleme-io/pangea-operator:0.8.17
+              imagePullPolicy: IfNotPresent
+              livenessProbe:
+                failureThreshold: 3
+                httpGet:
+                  path: /healthz
+                  port: http
+                initialDelaySeconds: 5
+                periodSeconds: 10
+                timeoutSeconds: 1
+              name: pangea-operator
+              ports:
+                - containerPort: 8080
+                  name: http
+                  protocol: TCP
+                - containerPort: 9090
+                  name: metrics
+                  protocol: TCP
+                - containerPort: 8081
+                  name: graphql
+                  protocol: TCP
+              readinessProbe:
+                failureThreshold: 2
+                httpGet:
+                  path: /readyz
+                  port: http
+                initialDelaySeconds: 5
+                periodSeconds: 5
+                timeoutSeconds: 1
+              resources:
+                limits:
+                  cpu: "1"
+                  memory: 512Mi
+                requests:
+                  cpu: 200m
+                  memory: 256Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                readOnlyRootFilesystem: true
+                seccompProfile:
+                  type: RuntimeDefault
+              startupProbe:
+                failureThreshold: 30
+                httpGet:
+                  path: /healthz
+                  port: http
+                initialDelaySeconds: 5
+                periodSeconds: 5
+              volumeMounts:
+                - mountPath: /var/pangea/workspaces
+                  name: workspaces
+                - mountPath: /tmp
+                  name: tmp
+          securityContext:
+            fsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          serviceAccountName: pangea-operator
+          terminationGracePeriodSeconds: 30
+          volumes:
+            - emptyDir:
+                sizeLimit: 2Gi
+              name: workspaces
+            - emptyDir:
+                sizeLimit: 256Mi
+              name: tmp
+the fixed leaf workers under workers render what leaf.workers rendered:
+  1: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      labels:
+        app: pangea-operator
+        app.kubernetes.io/instance: pangea-operator
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: pangea-operator
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.8.17
+        helm.sh/chart: pangea-operator-0.9.25
+      name: pangea-operator
+      namespace: pangea-system
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/instance: pangea-operator
+          app.kubernetes.io/name: pangea-operator
+      strategy:
+        type: Recreate
+      template:
+        metadata:
+          annotations:
+            prometheus.io/path: /metrics
+            prometheus.io/port: "9090"
+            prometheus.io/scrape: "true"
+          labels:
+            app: pangea-operator
+            app.kubernetes.io/instance: pangea-operator
+            app.kubernetes.io/name: pangea-operator
+        spec:
+          automountServiceAccountToken: true
+          containers:
+            - env:
+                - name: POD_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
+                - name: POD_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+                - name: NODE_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: spec.nodeName
+                - name: RUST_LOG
+                  value: pangea_operator=info
+                - name: TOFU_BINARY
+                  value: /usr/local/bin/tofu
+                - name: PANGEA_FORBID_TOFU
+                  value: "true"
+                - name: PANGEA_TIMEOUT
+                  value: "600"
+                - name: PACKER_BINARY
+                  value: /usr/local/bin/packer
+                - name: PACKER_TIMEOUT
+                  value: "2700"
+                - name: PANGEA_WORKSPACE_BASE
+                  value: /var/pangea/workspaces
+                - name: COMPILER_ENDPOINT
+                  value: http://localhost:8082
+                - name: PANGEA_COMPILER_BACKEND
+                  value: lava
+                - name: PANGEA_LAVA_RUBY
+                  value: "on"
+                - name: PANGEA_GEM_CACHE_DIR
+                  value: /var/pangea/gems
+                - name: PANGEA_RUBY_WORKERS
+                  value: "1"
+                - name: PANGEA_HONOR_RECONCILE_REQUESTS
+                  value: "false"
+                - name: PANGEA_LEAF_QUEUE
+                  value: jetstream
+                - name: PANGEA_LEAF_NATS_URL
+                  value: nats://pangea-leaf-nats.pangea-system.svc:4222
+                - name: PANGEA_WORKERS_AUTOSCALING
+                  value: "false"
+                - name: PANGEA_WORKERS_MEMORY
+                  value: 1Gi
+                - name: POD_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
+              image: ghcr.io/pleme-io/pangea-operator:0.8.17
+              imagePullPolicy: IfNotPresent
+              livenessProbe:
+                failureThreshold: 3
+                httpGet:
+                  path: /healthz
+                  port: http
+                initialDelaySeconds: 5
+                periodSeconds: 10
+                timeoutSeconds: 1
+              name: pangea-operator
+              ports:
+                - containerPort: 8080
+                  name: http
+                  protocol: TCP
+                - containerPort: 9090
+                  name: metrics
+                  protocol: TCP
+                - containerPort: 8081
+                  name: graphql
+                  protocol: TCP
+              readinessProbe:
+                failureThreshold: 2
+                httpGet:
+                  path: /readyz
+                  port: http
+                initialDelaySeconds: 5
+                periodSeconds: 5
+                timeoutSeconds: 1
+              resources:
+                limits:
+                  cpu: "1"
+                  memory: 512Mi
+                requests:
+                  cpu: 200m
+                  memory: 256Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                readOnlyRootFilesystem: true
+                seccompProfile:
+                  type: RuntimeDefault
+              startupProbe:
+                failureThreshold: 30
+                httpGet:
+                  path: /healthz
+                  port: http
+                initialDelaySeconds: 5
+                periodSeconds: 5
+              volumeMounts:
+                - mountPath: /var/pangea/workspaces
+                  name: workspaces
+                - mountPath: /tmp
+                  name: tmp
+          securityContext:
+            fsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          serviceAccountName: pangea-operator
+          terminationGracePeriodSeconds: 30
+          volumes:
+            - emptyDir:
+                sizeLimit: 2Gi
+              name: workspaces
+            - emptyDir:
+                sizeLimit: 256Mi
+              name: tmp
+  2: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      labels:
+        app: pangea-operator-leaf-worker
+        app.kubernetes.io/instance: pangea-operator
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: pangea-operator-leaf-worker
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.8.17
+        helm.sh/chart: pangea-operator-0.9.25
+      name: pangea-operator-leaf-worker
+      namespace: pangea-system
+    spec:
+      replicas: 2
+      selector:
+        matchLabels:
+          app.kubernetes.io/instance: pangea-operator
+          app.kubernetes.io/name: pangea-operator-leaf-worker
+      strategy:
+        type: Recreate
+      template:
+        metadata:
+          annotations:
+            prometheus.io/path: /metrics
+            prometheus.io/port: "9090"
+            prometheus.io/scrape: "true"
+          labels:
+            app: pangea-operator-leaf-worker
+            app.kubernetes.io/instance: pangea-operator
+            app.kubernetes.io/name: pangea-operator-leaf-worker
+        spec:
+          automountServiceAccountToken: true
+          containers:
+            - env:
+                - name: POD_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
+                - name: POD_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+                - name: NODE_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: spec.nodeName
+                - name: RUST_LOG
+                  value: pangea_operator=info
+                - name: TOFU_BINARY
+                  value: /usr/local/bin/tofu
+                - name: PANGEA_FORBID_TOFU
+                  value: "true"
+                - name: PANGEA_TIMEOUT
+                  value: "600"
+                - name: PACKER_BINARY
+                  value: /usr/local/bin/packer
+                - name: PACKER_TIMEOUT
+                  value: "2700"
+                - name: PANGEA_WORKSPACE_BASE
+                  value: /var/pangea/workspaces
+                - name: COMPILER_ENDPOINT
+                  value: http://localhost:8082
+                - name: PANGEA_COMPILER_BACKEND
+                  value: lava
+                - name: PANGEA_LAVA_RUBY
+                  value: "on"
+                - name: PANGEA_GEM_CACHE_DIR
+                  value: /var/pangea/gems
+                - name: PANGEA_RUBY_WORKERS
+                  value: "1"
+                - name: PANGEA_HONOR_RECONCILE_REQUESTS
+                  value: "false"
+                - name: PANGEA_LEAF_QUEUE
+                  value: jetstream
+                - name: PANGEA_LEAF_NATS_URL
+                  value: nats://pangea-leaf-nats.pangea-system.svc:4222
+                - name: PANGEA_WORKERS_AUTOSCALING
+                  value: "false"
+                - name: PANGEA_WORKERS_MEMORY
+                  value: 1Gi
+                - name: POD_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
+                - name: PANGEA_LEAF_ROLE
+                  value: worker
+              image: ghcr.io/pleme-io/pangea-operator:0.8.17
+              imagePullPolicy: IfNotPresent
+              livenessProbe:
+                failureThreshold: 3
+                httpGet:
+                  path: /healthz
+                  port: http
+                initialDelaySeconds: 5
+                periodSeconds: 10
+                timeoutSeconds: 1
+              name: pangea-operator-leaf-worker
+              ports:
+                - containerPort: 8080
+                  name: http
+                  protocol: TCP
+                - containerPort: 9090
+                  name: metrics
+                  protocol: TCP
+                - containerPort: 8081
+                  name: graphql
+                  protocol: TCP
+              readinessProbe:
+                failureThreshold: 2
+                httpGet:
+                  path: /readyz
+                  port: http
+                initialDelaySeconds: 5
+                periodSeconds: 5
+                timeoutSeconds: 1
+              resources:
+                limits:
+                  cpu: "1"
+                  memory: 1Gi
+                requests:
+                  cpu: 200m
+                  memory: 1Gi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                readOnlyRootFilesystem: true
+                seccompProfile:
+                  type: RuntimeDefault
+              startupProbe:
+                failureThreshold: 30
+                httpGet:
+                  path: /healthz
+                  port: http
+                initialDelaySeconds: 5
+                periodSeconds: 5
+              volumeMounts:
+                - mountPath: /var/pangea/workspaces
+                  name: workspaces
+                - mountPath: /tmp
+                  name: tmp
+          securityContext:
+            fsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          serviceAccountName: pangea-operator
+          terminationGracePeriodSeconds: 30
+          volumes:
+            - emptyDir:
+                sizeLimit: 2Gi
+              name: workspaces
+            - emptyDir:
+                sizeLimit: 256Mi
+              name: tmp
+  3: |
+    apiVersion: v1
+    data:
+      consumer-PANGEA_LEAF-leaf-github-pleme-io.json: |
+        {
+          "stream_name": "PANGEA_LEAF",
+          "config": {
+            "durable_name": "leaf-github-pleme-io",
+            "ack_policy": "explicit",
+            "ack_wait": 60000000000,
+            "max_ack_pending": 4,
+            "max_deliver": 5,
+            "filter_subject": "pangea.leaf.github-pleme-io.>",
+            "replay_policy": "instant"
+          }
+        }
+      stream-PANGEA_LEAF.json: |
+        {
+          "name": "PANGEA_LEAF",
+          "subjects": ["pangea.leaf.\u003e"],
+          "retention": "workqueue",
+          "storage": "file",
+          "num_replicas": 1,
+          "max_consumers": -1,
+          "max_msgs": -1,
+          "max_msgs_per_subject": -1,
+          "max_bytes": -1,
+          "max_msg_size": -1,
+          "max_age": 0,
+          "duplicate_window": 600000000000,
+          "discard": "old"
+        }
+    kind: ConfigMap
+    metadata:
+      annotations:
+        helm.sh/hook: post-install,post-upgrade
+        helm.sh/hook-delete-policy: before-hook-creation
+        helm.sh/hook-weight: "-5"
+      labels:
+        app: pangea-operator
+        app.kubernetes.io/instance: pangea-operator
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: pangea-operator
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.8.17
+        helm.sh/chart: pangea-operator-0.9.25
+        pleme.io/jetstream-config: "true"
+      name: pangea-operator-jetstream
+      namespace: pangea-system
+  4: |
+    apiVersion: batch/v1
+    kind: Job
+    metadata:
+      annotations:
+        helm.sh/hook: post-install,post-upgrade
+        helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+        helm.sh/hook-weight: "5"
+      labels:
+        app: pangea-operator
+        app.kubernetes.io/instance: pangea-operator
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: pangea-operator
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 0.8.17
+        helm.sh/chart: pangea-operator-0.9.25
+        pleme.io/jetstream-init: "true"
+      name: pangea-operator-jetstream-init
+      namespace: pangea-system
+    spec:
+      backoffLimit: 3
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/component: jetstream-init
+            app.kubernetes.io/instance: pangea-operator
+            app.kubernetes.io/name: pangea-operator
+        spec:
+          containers:
+            - command:
+                - /bin/sh
+                - -ec
+                - |
+                  echo "Waiting up to ${SERVER_WAIT_SECONDS}s for NATS at ${NATS_URL}..."
+                  i=0
+                  until nats --server "${NATS_URL}" account info >/dev/null 2>&1; do
+                    i=$((i+1))
+                    if [ "$i" -ge "${SERVER_WAIT_SECONDS}" ]; then
+                      echo "Gave up waiting for NATS"
+                      exit 1
+                    fi
+                    sleep 1
+                  done
+                  echo "NATS reachable. Declaring streams..."
+                  for f in /configs/stream-*.json; do
+                    [ -f "$f" ] || continue
+                    name=$(basename "$f" .json | sed 's/^stream-//')
+                    echo "  → stream: $name"
+                    # `--force` skips interactive confirmation when the
+                    # stream already exists with a different configuration.
+                    # Idempotent upsert: try add first, fall through to
+                    # update if it already exists.
+                    nats --server "${NATS_URL}" stream add --config "$f" "$name" 2>/dev/null \
+                      || nats --server "${NATS_URL}" stream update --force --config "$f" "$name"
+                  done
+                  echo "Declaring consumers..."
+                  for f in /configs/consumer-*.json; do
+                    [ -f "$f" ] || continue
+                    base=$(basename "$f" .json | sed 's/^consumer-//')
+                    stream=$(echo "$base" | cut -d- -f1)
+                    consumer=$(echo "$base" | cut -d- -f2-)
+                    echo "  → consumer: $stream/$consumer"
+                    nats --server "${NATS_URL}" consumer add --config "$f" "$stream" "$consumer" 2>/dev/null \
+                      || nats --server "${NATS_URL}" consumer update --force --config "$f" "$stream" "$consumer"
+                  done
+                  echo "Done."
+              env:
+                - name: NATS_URL
+                  value: nats://pangea-leaf-nats.pangea-system.svc:4222
+                - name: SERVER_WAIT_SECONDS
+                  value: "120"
+                - name: HOME
+                  value: /tmp
+              image: natsio/nats-box:0.14.5
+              imagePullPolicy: IfNotPresent
+              name: jetstream-init
+              resources:
+                limits:
+                  cpu: 100m
+                  memory: 64Mi
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                readOnlyRootFilesystem: true
+              volumeMounts:
+                - mountPath: /configs
+                  name: configs
+                  readOnly: true
+                - mountPath: /tmp
+                  name: tmp
+              workingDir: /tmp
+          restartPolicy: OnFailure
+          securityContext:
+            fsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+          volumes:
+            - configMap:
+                name: pangea-operator-jetstream
+              name: configs
+            - emptyDir:
+                sizeLimit: 32Mi
+              name: tmp
+      ttlSecondsAfterFinished: 300

@@ -93,6 +93,8 @@ KEDA must be installed in the cluster (the Pleme-IO standard infra).
 
 ## Breathability
 
+The KEDA tofu pools below are `tofuWorkers.*` (legacy, off by default). `workers.*` is the leaf worker Deployment and its HPA (pangea-operator `docs/LEAVES.md` §17), the operator's own `workers.*` settings one to one; chart 0.10.0 renamed both scopes.
+
 | State | Resident |
 |---|---|
 | Idle (no workspaces pending) | 1 controller pod (~256 MiB) |
@@ -102,7 +104,7 @@ KEDA must be installed in the cluster (the Pleme-IO standard infra).
 
 The `cooldownPeriod` is 300s by default — workers stay around for 5
 minutes after the last claim, then scale to zero. Tune via
-`workers.scaling.cooldownPeriod`.
+`tofuWorkers.scaling.cooldownPeriod`.
 
 ## Worker classes
 
@@ -117,14 +119,14 @@ Authors set `spec.workClass` on the parent CR (defaults to
 
 ## Provider plugin cache (optional)
 
-The default value `workers.providerPluginCache.enabled: false` means
+The default value `tofuWorkers.providerPluginCache.enabled: false` means
 each worker pod re-downloads tofu provider plugins from scratch
 (adds ~10s per cold start).
 
 To share a cache across workers, set:
 
 ```yaml
-workers:
+tofuWorkers:
   providerPluginCache:
     enabled: true
     storageClassName: csi-rwx-or-equivalent

@@ -98,7 +98,7 @@ tests:
     set:
       leaf.queue: jetstream
       leaf.nats.url: nats://pleme-nats.nats.svc:4222
-      leaf.workers.memory: 1Gi
+      workers.memory: 1Gi
     documentSelector:
       path: metadata.name
       value: pangea-operator
@@ -124,7 +124,7 @@ tests:
     set:
       leaf.queue: jetstream
       leaf.nats.url: nats://n:4222
-      leaf.workers.autoscaling.enabled: false
+      workers.autoscaling.enabled: false
     documentSelector:
       path: metadata.name
       value: pangea-operator
@@ -140,7 +140,7 @@ tests:
     set:
       leaf.queue: jetstream
       leaf.nats.url: nats://n:4222
-      leaf.workers.memory: 1Gi
+      workers.memory: 1Gi
     documentSelector:
       path: metadata.name
       value: pangea-operator-leaf-worker
@@ -195,7 +195,7 @@ tests:
     set:
       leaf.queue: jetstream
       leaf.nats.url: nats://n:4222
-      leaf.workers.autoscaling.enabled: false
+      workers.autoscaling.enabled: false
     asserts:
       - hasDocuments:
           count: 0
@@ -205,8 +205,8 @@ tests:
     set:
       leaf.queue: jetstream
       leaf.nats.url: nats://n:4222
-      leaf.workers.autoscaling.enabled: false
-      leaf.workers.replicas: 2
+      workers.autoscaling.enabled: false
+      workers.replicas: 2
     documentSelector:
       path: metadata.name
       value: pangea-operator-leaf-worker
@@ -312,6 +312,6 @@ tests:
   - it: the schema refuses a memory that is neither derived nor a quantity
     template: templates/leaf-hpa.yaml
     set:
-      leaf.workers.memory: lots
+      workers.memory: lots
     asserts:
       - failedTemplate: {}

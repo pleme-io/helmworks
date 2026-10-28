@@ -1,5 +1,5 @@
 {{/*
-PangeaWorkClass CRs — one per declared class in values.workers.classes.
+PangeaWorkClass CRs — one per declared class in values.tofuWorkers.classes.
 The controller reads these to choose the worker PodTemplate when
 dispatching a PangeaWorkUnit. Authors set spec.workClass on the parent
 CR (PangeaArchitecture / InfrastructureTemplate); the controller looks
@@ -8,8 +8,8 @@ up the WorkClass by name to pick resources/timeout.
 CRD definition itself is in templates/crds/ (rendered before this file
 in helm 3's ordering).
 */}}
-{{- if and .Values.workers .Values.workers.enabled }}
-{{- range $class, $cfg := .Values.workers.classes }}
+{{- if and .Values.tofuWorkers .Values.tofuWorkers.enabled }}
+{{- range $class, $cfg := .Values.tofuWorkers.classes }}
 {{- if $cfg.enabled }}
 ---
 apiVersion: pangea.pleme.io/v1alpha1

@@ -3,7 +3,7 @@
 {{- $nats := $leaf.nats | default dict -}}
 {{- $auth := $nats.auth | default dict -}}
 {{- $js := $leaf.jetstream | default dict -}}
-{{- $workers := $leaf.workers | default dict -}}
+{{- $workers := .Values.workers | default dict -}}
 {{- $scale := $workers.autoscaling | default dict -}}
 {{- $deriv := $workers.derivation | default dict -}}
 {{- $queue := $leaf.queue | default "in_process" -}}
