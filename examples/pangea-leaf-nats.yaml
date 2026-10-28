@@ -1,0 +1,29 @@
+fullnameOverride: pangea-leaf-nats
+
+runtime: native
+
+image:
+  repository: nix:/nix/store/REPLACE-nats-server
+
+exporter:
+  enabled: false
+
+server:
+  host: 127.0.0.1
+  auth:
+    enabled: true
+    secretName: pangea-leaf-nats-auth
+  jetstream:
+    storeDir: /Users/luis.d/.local/share/pangea-leaf-nats/jetstream
+
+persistence:
+  enabled: false
+
+serviceMonitor:
+  enabled: false
+
+prometheusRules:
+  enabled: false
+
+networkPolicy:
+  enabled: false
