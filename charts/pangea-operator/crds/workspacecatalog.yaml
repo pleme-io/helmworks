@@ -311,6 +311,125 @@ spec:
                 format: date-time
                 nullable: true
                 type: string
+              leaves:
+                description: 'Rollup of the declared leaves this catalog owns: verdict `Converged | Progressing | Partial`, counts per state, and the failed, stalled, rate-limited and blocked leaves by name.'
+                nullable: true
+                properties:
+                  blocked:
+                    items:
+                      properties:
+                        by:
+                          items:
+                            type: string
+                          type: array
+                        leaf:
+                          type: string
+                      required:
+                      - by
+                      - leaf
+                      type: object
+                    type: array
+                  counts:
+                    properties:
+                      applying:
+                        format: uint32
+                        minimum: 0.0
+                        type: integer
+                      blocked:
+                        format: uint32
+                        minimum: 0.0
+                        type: integer
+                      failed:
+                        format: uint32
+                        minimum: 0.0
+                        type: integer
+                      planning:
+                        format: uint32
+                        minimum: 0.0
+                        type: integer
+                      rateLimited:
+                        format: uint32
+                        minimum: 0.0
+                        type: integer
+                      ready:
+                        format: uint32
+                        minimum: 0.0
+                        type: integer
+                      stalled:
+                        format: uint32
+                        minimum: 0.0
+                        type: integer
+                    required:
+                    - applying
+                    - blocked
+                    - failed
+                    - planning
+                    - rateLimited
+                    - ready
+                    - stalled
+                    type: object
+                  failed:
+                    items:
+                      properties:
+                        leaf:
+                          type: string
+                        reason:
+                          type: string
+                        since:
+                          nullable: true
+                          type: string
+                      required:
+                      - leaf
+                      - reason
+                      type: object
+                    type: array
+                  rateLimited:
+                    items:
+                      properties:
+                        leaf:
+                          type: string
+                        until:
+                          type: string
+                      required:
+                      - leaf
+                      - until
+                      type: object
+                    type: array
+                  stalled:
+                    items:
+                      properties:
+                        leaf:
+                          type: string
+                        since:
+                          nullable: true
+                          type: string
+                        state:
+                          type: string
+                      required:
+                      - leaf
+                      - state
+                      type: object
+                    type: array
+                  total:
+                    format: uint32
+                    minimum: 0.0
+                    type: integer
+                  truncated:
+                    default: 0
+                    format: uint32
+                    minimum: 0.0
+                    type: integer
+                  verdict:
+                    enum:
+                    - Converged
+                    - Progressing
+                    - Partial
+                    type: string
+                required:
+                - counts
+                - total
+                - verdict
+                type: object
               templateCount:
                 default: 0
                 description: Number of templates the operator has reconciled under this catalog.
