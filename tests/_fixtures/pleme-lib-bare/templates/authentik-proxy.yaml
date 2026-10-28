@@ -1,0 +1,18 @@
+{{- if .Values.proxyApp }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bp-proxy
+data:
+  blueprint.yaml: |
+    version: 1
+    metadata:
+      name: test-proxy-blueprint
+    entries:
+{{ include "pleme-lib.authentikGroup" (dict "name" "tenants") | nindent 6 }}
+{{ include "pleme-lib.authentikGroup" (dict "name" "client-example" "parent" "tenants") | nindent 6 }}
+{{ include "pleme-lib.authentikProxyApp" (dict "ctx" . "app" .Values.proxyApp) | nindent 6 }}
+{{- with .Values.outpost }}
+{{ include "pleme-lib.authentikOutpost" . | nindent 6 }}
+{{- end }}
+{{- end }}

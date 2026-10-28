@@ -75,6 +75,9 @@ list) declared before the users, plus USER-SIDE membership via
     name: {{ .name }}
   attrs:
     is_superuser: {{ .isSuperuser | default false }}
+    {{- with .parent }}
+    parent: !Find [authentik_core.group, [name, {{ . | quote }}]]
+    {{- end }}
 {{- end -}}
 
 {{/* ── user (state:present + user-side !Find membership) ──────────────────
@@ -146,6 +149,18 @@ list) declared before the users, plus USER-SIDE membership via
         url: {{ .url | quote }}
       {{- end }}
     signing_key: !Find [authentik_crypto.certificatekeypair, [name, {{ $signing | quote }}]]
+    {{- with $a.accessCodeValidity }}
+    access_code_validity: {{ . | quote }}
+    {{- end }}
+    {{- with $a.accessTokenValidity }}
+    access_token_validity: {{ . | quote }}
+    {{- end }}
+    {{- with $a.refreshTokenValidity }}
+    refresh_token_validity: {{ . | quote }}
+    {{- end }}
+    {{- with $a.subMode }}
+    sub_mode: {{ . }}
+    {{- end }}
     property_mappings:
       {{- range ($a.extraScopes | default (list "openid" "email" "profile")) }}
       - !Find [authentik_providers_oauth2.scopemapping, [scope_name, {{ . }}]]
@@ -203,4 +218,83 @@ allowed_groups: {{ join "," . | quote }}
 {{- with $s.roleAttributePath }}
 role_attribute_path: {{ . | quote }}
 {{- end }}
+{{- end -}}
+
+{{- define "pleme-lib.authentikProxyApp" -}}
+{{- $a := .app -}}
+{{- $mode := $a.mode | default "forward_single" -}}
+{{- if not (has $mode (list "proxy" "forward_single" "forward_domain")) -}}
+{{- fail (printf "pleme-lib.authentikProxyApp %s: mode %q is not one of proxy, forward_single, forward_domain" $a.slug $mode) -}}
+{{- end -}}
+{{- if and (eq $mode "forward_domain") (not $a.cookieDomain) -}}
+{{- fail (printf "pleme-lib.authentikProxyApp %s: mode forward_domain needs cookieDomain" $a.slug) -}}
+{{- end -}}
+{{- if and (eq $mode "proxy") (not $a.internalHost) -}}
+{{- fail (printf "pleme-lib.authentikProxyApp %s: mode proxy needs internalHost" $a.slug) -}}
+{{- end -}}
+{{- $authz := $a.authzFlow | default "default-provider-authorization-implicit-consent" -}}
+{{- $inval := $a.invalidationFlow | default "default-provider-invalidation-flow" -}}
+- model: authentik_providers_proxy.proxyprovider
+  id: {{ $a.slug }}-proxy
+  identifiers:
+    name: {{ $a.slug }}
+  attrs:
+    name: {{ $a.slug }}
+    authorization_flow: !Find [authentik_flows.flow, [slug, {{ $authz }}]]
+    invalidation_flow: !Find [authentik_flows.flow, [slug, {{ $inval }}]]
+    mode: {{ $mode }}
+    external_host: {{ required (printf "pleme-lib.authentikProxyApp %s: externalHost is required" $a.slug) $a.externalHost | quote }}
+    {{- with $a.internalHost }}
+    internal_host: {{ . | quote }}
+    {{- end }}
+    {{- with $a.cookieDomain }}
+    cookie_domain: {{ . | quote }}
+    {{- end }}
+    {{- with $a.accessTokenValidity }}
+    access_token_validity: {{ . | quote }}
+    {{- end }}
+    {{- with $a.skipPathRegex }}
+    skip_path_regex: {{ . | quote }}
+    {{- end }}
+- model: authentik_core.application
+  id: {{ $a.slug }}-app
+  identifiers:
+    slug: {{ $a.slug }}
+  attrs:
+    name: {{ $a.name | quote }}
+    provider: !KeyOf {{ $a.slug }}-proxy
+    meta_launch_url: {{ $a.launchUrl | default $a.externalHost | quote }}
+    policy_engine_mode: any
+- model: authentik_policies.PolicyBinding
+  id: {{ $a.slug }}-{{ $a.accessGroup }}-binding
+  identifiers:
+    target: !KeyOf {{ $a.slug }}-app
+    group: !Find [authentik_core.group, [name, {{ required (printf "pleme-lib.authentikProxyApp %s: accessGroup is required" $a.slug) $a.accessGroup }}]]
+    order: 0
+  attrs:
+    enabled: true
+    negate: false
+    timeout: 30
+{{- end -}}
+
+{{- define "pleme-lib.authentikOutpost" -}}
+- model: authentik_outposts.outpost
+  id: {{ .name }}-outpost
+  identifiers:
+    name: {{ .name }}
+  attrs:
+    name: {{ .name }}
+    type: proxy
+    providers:
+      {{- range required (printf "pleme-lib.authentikOutpost %s: providers is required" .name) .providers }}
+      - !KeyOf {{ . }}-proxy
+      {{- end }}
+    {{- with .serviceConnection }}
+    service_connection: !Find [authentik_outposts.kubernetesserviceconnection, [name, {{ . | quote }}]]
+    {{- end }}
+    config:
+      authentik_host: {{ required (printf "pleme-lib.authentikOutpost %s: authentikHost is required" .name) .authentikHost | quote }}
+      {{- with .browserHost }}
+      authentik_host_browser: {{ . | quote }}
+      {{- end }}
 {{- end -}}

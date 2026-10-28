@@ -1,0 +1,115 @@
+suite: pleme-lib bare-fixture — Authentik forward-auth, outpost, group parent, token lifetimes
+release:
+  name: t
+  namespace: authentik
+defaults: &base
+  image.repository: ghcr.io/x/y
+  image.tag: "1.0.0"
+  serviceAccount.create: true
+  proxyApp:
+    name: Status
+    slug: status
+    externalHost: https://status.example.test
+    accessGroup: tenants
+
+tests:
+  - it: renders nothing without a proxy app
+    template: templates/authentik-proxy.yaml
+    set:
+      image.repository: ghcr.io/x/y
+      image.tag: "1.0.0"
+    asserts:
+      - hasDocuments: { count: 0 }
+
+  - it: a proxy app is a forward_single provider, an application and a group binding
+    template: templates/authentik-proxy.yaml
+    set:
+      <<: *base
+    asserts:
+      - matchRegex: { path: 'data["blueprint.yaml"]', pattern: 'model: authentik_providers_proxy\.proxyprovider[\s\S]*mode: forward_single' }
+      - matchRegex: { path: 'data["blueprint.yaml"]', pattern: 'external_host: "https://status\.example\.test"' }
+      - matchRegex: { path: 'data["blueprint.yaml"]', pattern: 'provider: !KeyOf status-proxy' }
+      - matchRegex: { path: 'data["blueprint.yaml"]', pattern: 'target: !KeyOf status-app[\s\S]*name, tenants' }
+      - notMatchRegex: { path: 'data["blueprint.yaml"]', pattern: 'cookie_domain|internal_host|access_token_validity' }
+
+  - it: a group with a parent finds the parent by name; one without names none
+    template: templates/authentik-proxy.yaml
+    set:
+      <<: *base
+    asserts:
+      - matchRegex: { path: 'data["blueprint.yaml"]', pattern: 'name: client-example\s+attrs:\s+is_superuser: false\s+parent: !Find \[authentik_core\.group, \[name, "tenants"\]\]' }
+      - matchRegex: { path: 'data["blueprint.yaml"]', pattern: 'name: tenants\s+attrs:\s+is_superuser: false\s+- model' }
+
+  - it: forward_domain carries the cookie domain and the token lifetime
+    template: templates/authentik-proxy.yaml
+    set:
+      <<: *base
+      proxyApp:
+        name: Status
+        slug: status
+        externalHost: https://status.example.test
+        accessGroup: tenants
+        mode: forward_domain
+        cookieDomain: example.test
+        accessTokenValidity: hours=8
+        skipPathRegex: ^/healthz$
+    asserts:
+      - matchRegex: { path: 'data["blueprint.yaml"]', pattern: 'mode: forward_domain' }
+      - matchRegex: { path: 'data["blueprint.yaml"]', pattern: 'cookie_domain: "example\.test"' }
+      - matchRegex: { path: 'data["blueprint.yaml"]', pattern: 'access_token_validity: "hours=8"' }
+      - matchRegex: { path: 'data["blueprint.yaml"]', pattern: 'skip_path_regex: "\^/healthz\$"' }
+
+  - it: refuses forward_domain with no cookie domain
+    template: templates/authentik-proxy.yaml
+    set:
+      <<: *base
+      proxyApp: { name: S, slug: s, externalHost: https://s.test, accessGroup: tenants, mode: forward_domain }
+    asserts:
+      - failedTemplate: { errorPattern: 'mode forward_domain needs cookieDomain' }
+
+  - it: refuses an unknown mode
+    template: templates/authentik-proxy.yaml
+    set:
+      <<: *base
+      proxyApp: { name: S, slug: s, externalHost: https://s.test, accessGroup: tenants, mode: open }
+    asserts:
+      - failedTemplate: { errorPattern: 'is not one of proxy, forward_single, forward_domain' }
+
+  - it: refuses proxy mode with no internal host
+    template: templates/authentik-proxy.yaml
+    set:
+      <<: *base
+      proxyApp: { name: S, slug: s, externalHost: https://s.test, accessGroup: tenants, mode: proxy }
+    asserts:
+      - failedTemplate: { errorPattern: 'mode proxy needs internalHost' }
+
+  - it: an outpost carries its providers by key and the IdP host
+    template: templates/authentik-proxy.yaml
+    set:
+      <<: *base
+      outpost: { name: edge, providers: [status], authentikHost: https://auth.example.test }
+    asserts:
+      - matchRegex: { path: 'data["blueprint.yaml"]', pattern: 'model: authentik_outposts\.outpost[\s\S]*type: proxy[\s\S]*- !KeyOf status-proxy' }
+      - matchRegex: { path: 'data["blueprint.yaml"]', pattern: 'authentik_host: "https://auth\.example\.test"' }
+      - notMatchRegex: { path: 'data["blueprint.yaml"]', pattern: 'service_connection' }
+
+  - it: the OIDC app renders token lifetimes only when given
+    template: templates/authentik-oidc.yaml
+    set:
+      <<: *base
+      app:
+        name: App
+        slug: app
+        clientId: app
+        clientSecretEnv: APP_SECRET
+        redirectUris: [{ url: "https://app.example.test/cb" }]
+        launchUrl: https://app.example.test
+        accessGroup: tenants
+        accessTokenValidity: minutes=10
+        refreshTokenValidity: hours=8
+        subMode: hashed_user_id
+    asserts:
+      - matchRegex: { path: 'data["blueprint.yaml"]', pattern: 'access_token_validity: "minutes=10"' }
+      - matchRegex: { path: 'data["blueprint.yaml"]', pattern: 'refresh_token_validity: "hours=8"' }
+      - matchRegex: { path: 'data["blueprint.yaml"]', pattern: 'sub_mode: hashed_user_id' }
+      - notMatchRegex: { path: 'data["blueprint.yaml"]', pattern: 'access_code_validity' }

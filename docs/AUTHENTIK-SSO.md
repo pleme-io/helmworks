@@ -79,15 +79,21 @@ IdP side — emit Authentik blueprint `entries:` items (embed with `nindent 6`):
 | Template | Emits |
 |---|---|
 | `pleme-lib.authentikGroupsScope` | the singleton groups ScopeMapping (**dict** — gotcha #1). Emit **once**. |
-| `pleme-lib.authentikGroup` | a standalone group (no users list) |
+| `pleme-lib.authentikGroup` | a standalone group (no users list); `parent` (≥ 0.58.0) nests it under another group by name |
 | `pleme-lib.authentikUser` | a user (`state: present` + user-side `!Find` membership) |
 | `pleme-lib.authentikOidcApp` | one app: OAuth2Provider + Application + group→app PolicyBinding |
+| `pleme-lib.authentikProxyApp` | one forward-auth app (≥ 0.58.0): ProxyProvider (`forward_single` default, `forward_domain` needs `cookieDomain`, `proxy` needs `internalHost`) + Application + group PolicyBinding |
+| `pleme-lib.authentikOutpost` | a proxy outpost (≥ 0.58.0) that carries the named proxy apps (`providers: [<slug>]`); `serviceConnection` only where the outpost is managed |
 
 Consumer side:
 
 | Template | Emits |
 |---|---|
 | `pleme-lib.grafanaOidcIni` | Grafana `[auth.generic_oauth]` map (**`groups_attribute_path`** — gotcha #2) |
+
+`pleme-lib.authentikOidcApp` also takes `accessCodeValidity`, `accessTokenValidity`,
+`refreshTokenValidity` (Authentik duration strings, e.g. `minutes=10`) and `subMode`
+(≥ 0.58.0). Each renders only when given, so an app without them renders as before.
 
 ### Worked example — add an OIDC app to a blueprint ConfigMap
 
