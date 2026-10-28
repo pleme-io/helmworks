@@ -9,443 +9,470 @@ spec:
   group: pangea.pleme.io
   names:
     categories:
-    - pangea
+      - pangea
     kind: WorkspaceCatalog
     plural: workspacecatalogs
     shortNames:
-    - wsc
-    - wcat
+      - wsc
+      - wcat
     singular: workspacecatalog
   scope: Cluster
   versions:
-  - additionalPrinterColumns:
-    - jsonPath: .spec.source.gitRepository.url
-      name: Source
-      type: string
-    - jsonPath: .status.templateCount
-      name: Templates
-      type: integer
-    - jsonPath: .status.verified
-      name: Verified
-      type: boolean
-    - jsonPath: .metadata.creationTimestamp
-      name: Age
-      type: date
-    name: v1alpha1
-    schema:
-      openAPIV3Schema:
-        description: Auto-generated derived type for WorkspaceCatalogSpec via `CustomResource`
-        properties:
-          spec:
-            properties:
-              maxConcurrentLeaves:
-                description: How many of this workspace's templates (its leaves) may compile, plan or apply at once. Unset keeps the operator-wide per-workspace budget (`reconcile.budget_per_workspace`); a value replaces it for this workspace (a floor of 1), still bounded by the global pool. Size it by the slowest provider's rate budget, not by the leaf count.
-                format: uint32
-                minimum: 0.0
-                nullable: true
-                type: integer
-              policy:
-                default: {}
-                description: Workspace-level policy — applied to every template in the workspace unless overridden at template or resource level (cascade with safety precedence).
-                properties:
-                  approvalRouting:
-                    description: Approval routing.
-                    nullable: true
-                    properties:
-                      githubIssueTemplate:
-                        description: GitHub issue template name. Operator opens an issue in the workspace's source repo.
-                        nullable: true
-                        type: string
-                      ntfyTopic:
-                        description: ntfy topic name (homelab convention — see pleme-io alertmanager-ntfy module).
-                        nullable: true
-                        type: string
-                      slackChannel:
-                        description: Slack channel (SaaS convention — Datadog/Splunk-paired clusters).
-                        nullable: true
-                        type: string
-                    type: object
-                  driftReaction:
-                    description: Default drift reaction for every template under this workspace (overrides the gem default; can be overridden by a template-level policy).
-                    enum:
-                    - autoApply
-                    - requireApproval
-                    - refuse
-                    - alert
-                    nullable: true
-                    type: string
-                  reactive:
-                    description: Reactive policy — declarative responses for templates under this workspace when they don't reach a good state. Inherits from gem-level; overrides per-field for templates that don't declare their own. See `ReactivePolicy`.
-                    nullable: true
-                    properties:
-                      failureEscalation:
-                        description: What to do when consecutive Failed reconciles exceed threshold.
-                        nullable: true
-                        properties:
-                          maxConsecutiveFailures:
-                            default: 5
-                            description: Threshold. Default 5.
-                            format: uint32
-                            minimum: 0.0
-                            type: integer
-                          onExhaustion:
-                            default: alert
-                            description: What to do when threshold is reached.
-                            enum:
-                            - alert
-                            - suspend
-                            - page
-                            type: string
-                          routing:
-                            description: Where to route the notification.
-                            nullable: true
-                            properties:
-                              githubIssueTemplate:
-                                description: GitHub issue template name. Operator opens an issue in the workspace's source repo.
-                                nullable: true
-                                type: string
-                              ntfyTopic:
-                                description: ntfy topic name (homelab convention — see pleme-io alertmanager-ntfy module).
-                                nullable: true
-                                type: string
-                              slackChannel:
-                                description: Slack channel (SaaS convention — Datadog/Splunk-paired clusters).
-                                nullable: true
-                                type: string
-                            type: object
-                        type: object
-                      phaseTimeout:
-                        description: What to do when stuck in a non-terminal phase too long.
-                        nullable: true
-                        properties:
-                          applying:
-                            default: 30m
-                            description: '`Applying` threshold. Default `30m`.'
-                            type: string
-                          compiling:
-                            default: 5m
-                            description: How long can `Compiling` last before escalating. Format same as refreshInterval (`5m`, `30s`, `1h`). Default `5m`.
-                            type: string
-                          onTimeout:
-                            default: alert
-                            description: What to do when the threshold is exceeded.
-                            enum:
-                            - alert
-                            - suspend
-                            - page
-                            type: string
-                          planning:
-                            default: 10m
-                            description: '`Planning` threshold. Default `10m`.'
-                            type: string
-                          routing:
-                            description: Where to route the notification.
-                            nullable: true
-                            properties:
-                              githubIssueTemplate:
-                                description: GitHub issue template name. Operator opens an issue in the workspace's source repo.
-                                nullable: true
-                                type: string
-                              ntfyTopic:
-                                description: ntfy topic name (homelab convention — see pleme-io alertmanager-ntfy module).
-                                nullable: true
-                                type: string
-                              slackChannel:
-                                description: Slack channel (SaaS convention — Datadog/Splunk-paired clusters).
-                                nullable: true
-                                type: string
-                            type: object
-                        type: object
-                      verifiedBlocked:
-                        description: What to do when `Verified=False` persists past timeout.
-                        nullable: true
-                        properties:
-                          onBlocked:
-                            default: alert
-                            description: What to do when the threshold is exceeded.
-                            enum:
-                            - alert
-                            - suspend
-                            - page
-                            type: string
-                          routing:
-                            description: Where to route the notification.
-                            nullable: true
-                            properties:
-                              githubIssueTemplate:
-                                description: GitHub issue template name. Operator opens an issue in the workspace's source repo.
-                                nullable: true
-                                type: string
-                              ntfyTopic:
-                                description: ntfy topic name (homelab convention — see pleme-io alertmanager-ntfy module).
-                                nullable: true
-                                type: string
-                              slackChannel:
-                                description: Slack channel (SaaS convention — Datadog/Splunk-paired clusters).
-                                nullable: true
-                                type: string
-                            type: object
-                          timeout:
-                            default: 10m
-                            description: How long can `Verified=False` persist. Default `10m`.
-                            type: string
-                        type: object
-                    type: object
-                  reconcileInterval:
-                    description: How often the operator runs `tofu plan` to detect drift.
-                    nullable: true
-                    type: string
-                  settlingPolicy:
-                    description: Settling policy — see `architecture_gem.rs`.
-                    nullable: true
-                    properties:
-                      maxConsecutiveDriftCycles:
-                        default: 4
-                        description: After this many consecutive drift cycles, take `onExhaustion` action.
-                        format: uint32
-                        minimum: 0.0
-                        type: integer
-                      onExhaustion:
-                        default: fail
-                        description: What to do when `maxConsecutiveDriftCycles` is hit.
-                        enum:
-                        - fail
+    - additionalPrinterColumns:
+        - jsonPath: .spec.source.gitRepository.url
+          name: Source
+          type: string
+        - jsonPath: .status.templateCount
+          name: Templates
+          type: integer
+        - jsonPath: .status.verified
+          name: Verified
+          type: boolean
+        - jsonPath: .metadata.creationTimestamp
+          name: Age
+          type: date
+      name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          description: Auto-generated derived type for WorkspaceCatalogSpec via `CustomResource`
+          properties:
+            spec:
+              properties:
+                maxConcurrentLeaves:
+                  description: How many of this workspace's templates (its leaves) may compile, plan or apply at once. Unset keeps the operator-wide per-workspace budget (`reconcile.budget_per_workspace`); a value replaces it for this workspace (a floor of 1), still bounded by the global pool. Size it by the slowest provider's rate budget, not by the leaf count.
+                  format: uint32
+                  minimum: 0.0
+                  nullable: true
+                  type: integer
+                policy:
+                  default: {}
+                  description: Workspace-level policy — applied to every template in the workspace unless overridden at template or resource level (cascade with safety precedence).
+                  properties:
+                    approvalRouting:
+                      description: Approval routing.
+                      nullable: true
+                      properties:
+                        githubIssueTemplate:
+                          description: GitHub issue template name. Operator opens an issue in the workspace's source repo.
+                          nullable: true
+                          type: string
+                        ntfyTopic:
+                          description: ntfy topic name (homelab convention — see pleme-io alertmanager-ntfy module).
+                          nullable: true
+                          type: string
+                        slackChannel:
+                          description: Slack channel (SaaS convention — Datadog/Splunk-paired clusters).
+                          nullable: true
+                          type: string
+                      type: object
+                    driftReaction:
+                      description: Default drift reaction for every template under this workspace (overrides the gem default; can be overridden by a template-level policy).
+                      enum:
+                        - autoApply
+                        - requireApproval
+                        - refuse
                         - alert
-                        - retry
-                        type: string
-                    type: object
-                type: object
-              requiredGems:
-                default: []
-                description: Architecture gems this workspace's templates need. Operator refuses to advance any template under this catalog past `Verified` until every listed gem has phase `Loaded` (every expected class loaded + every fixture passed).
-                items:
-                  type: string
-                type: array
-              source:
-                description: Where the workspace lives.
-                properties:
-                  gitRepository:
-                    description: Git repository (clone-and-watch). M3 supports gitRepository only.
-                    nullable: true
+                      nullable: true
+                      type: string
+                    reactive:
+                      description: Reactive policy — declarative responses for templates under this workspace when they don't reach a good state. Inherits from gem-level; overrides per-field for templates that don't declare their own. See `ReactivePolicy`.
+                      nullable: true
+                      properties:
+                        failureEscalation:
+                          description: What to do when consecutive Failed reconciles exceed threshold.
+                          nullable: true
+                          properties:
+                            maxConsecutiveFailures:
+                              default: 5
+                              description: Threshold. Default 5.
+                              format: uint32
+                              minimum: 0.0
+                              type: integer
+                            onExhaustion:
+                              default: alert
+                              description: What to do when threshold is reached.
+                              enum:
+                                - alert
+                                - suspend
+                                - page
+                              type: string
+                            routing:
+                              description: Where to route the notification.
+                              nullable: true
+                              properties:
+                                githubIssueTemplate:
+                                  description: GitHub issue template name. Operator opens an issue in the workspace's source repo.
+                                  nullable: true
+                                  type: string
+                                ntfyTopic:
+                                  description: ntfy topic name (homelab convention — see pleme-io alertmanager-ntfy module).
+                                  nullable: true
+                                  type: string
+                                slackChannel:
+                                  description: Slack channel (SaaS convention — Datadog/Splunk-paired clusters).
+                                  nullable: true
+                                  type: string
+                              type: object
+                          type: object
+                        phaseTimeout:
+                          description: What to do when stuck in a non-terminal phase too long.
+                          nullable: true
+                          properties:
+                            applying:
+                              default: 30m
+                              description: '`Applying` threshold. Default `30m`.'
+                              type: string
+                            compiling:
+                              default: 5m
+                              description: How long can `Compiling` last before escalating. Format same as refreshInterval (`5m`, `30s`, `1h`). Default `5m`.
+                              type: string
+                            onTimeout:
+                              default: alert
+                              description: What to do when the threshold is exceeded.
+                              enum:
+                                - alert
+                                - suspend
+                                - page
+                              type: string
+                            planning:
+                              default: 10m
+                              description: '`Planning` threshold. Default `10m`.'
+                              type: string
+                            routing:
+                              description: Where to route the notification.
+                              nullable: true
+                              properties:
+                                githubIssueTemplate:
+                                  description: GitHub issue template name. Operator opens an issue in the workspace's source repo.
+                                  nullable: true
+                                  type: string
+                                ntfyTopic:
+                                  description: ntfy topic name (homelab convention — see pleme-io alertmanager-ntfy module).
+                                  nullable: true
+                                  type: string
+                                slackChannel:
+                                  description: Slack channel (SaaS convention — Datadog/Splunk-paired clusters).
+                                  nullable: true
+                                  type: string
+                              type: object
+                          type: object
+                        verifiedBlocked:
+                          description: What to do when `Verified=False` persists past timeout.
+                          nullable: true
+                          properties:
+                            onBlocked:
+                              default: alert
+                              description: What to do when the threshold is exceeded.
+                              enum:
+                                - alert
+                                - suspend
+                                - page
+                              type: string
+                            routing:
+                              description: Where to route the notification.
+                              nullable: true
+                              properties:
+                                githubIssueTemplate:
+                                  description: GitHub issue template name. Operator opens an issue in the workspace's source repo.
+                                  nullable: true
+                                  type: string
+                                ntfyTopic:
+                                  description: ntfy topic name (homelab convention — see pleme-io alertmanager-ntfy module).
+                                  nullable: true
+                                  type: string
+                                slackChannel:
+                                  description: Slack channel (SaaS convention — Datadog/Splunk-paired clusters).
+                                  nullable: true
+                                  type: string
+                              type: object
+                            timeout:
+                              default: 10m
+                              description: How long can `Verified=False` persist. Default `10m`.
+                              type: string
+                          type: object
+                      type: object
+                    reconcileInterval:
+                      description: How often the operator runs `tofu plan` to detect drift.
+                      nullable: true
+                      type: string
+                    settlingPolicy:
+                      description: Settling policy — see `architecture_gem.rs`.
+                      nullable: true
+                      properties:
+                        maxConsecutiveDriftCycles:
+                          default: 4
+                          description: After this many consecutive drift cycles, take `onExhaustion` action.
+                          format: uint32
+                          minimum: 0.0
+                          type: integer
+                        onExhaustion:
+                          default: fail
+                          description: What to do when `maxConsecutiveDriftCycles` is hit.
+                          enum:
+                            - fail
+                            - alert
+                            - retry
+                          type: string
+                      type: object
+                  type: object
+                requiredGems:
+                  default: []
+                  description: Architecture gems this workspace's templates need. Operator refuses to advance any template under this catalog past `Verified` until every listed gem has phase `Loaded` (every expected class loaded + every fixture passed).
+                  items:
+                    type: string
+                  type: array
+                source:
+                  description: Where the workspace lives.
+                  properties:
+                    gitRepository:
+                      description: Git repository (clone-and-watch). M3 supports gitRepository only.
+                      nullable: true
+                      properties:
+                        path:
+                          description: Path to the template file within the repository.
+                          type: string
+                        ref:
+                          default: main
+                          description: Git reference (branch, tag, or commit SHA).
+                          type: string
+                        secretRef:
+                          description: Reference to a Secret containing Git credentials.
+                          nullable: true
+                          properties:
+                            name:
+                              description: Name of the Secret.
+                              type: string
+                            namespace:
+                              description: Namespace of the Secret (defaults to same namespace as the resource).
+                              nullable: true
+                              type: string
+                          required:
+                            - name
+                          type: object
+                        url:
+                          description: Git repository URL.
+                          type: string
+                      required:
+                        - path
+                        - url
+                      type: object
+                    path:
+                      description: 'Subdirectory within the repo containing the workspace. Example: `workspaces/cloudflare-pleme`.'
+                      nullable: true
+                      type: string
+                  type: object
+                suspend:
+                  default: false
+                  description: Suspend reconciliation of every template under this catalog.
+                  type: boolean
+                variables:
+                  additionalProperties: true
+                  description: Workspace-default VARIABLES inherited by every template in this workspace — the Terragrunt `root.hcl` / `include` analogue (config inheritance, P1). A template's own `spec.variables` deep-merges ONTO these (innermost-wins per key; nested objects merge recursively), so a template inherits fleet/workspace defaults and overrides only what it needs. Resolved by `controller::config_cascade` at compile time, layered `PangeaNamespace.defaultVariables → this → template.spec.variables`.
+                  nullable: true
+                  type: object
+              required:
+                - source
+              type: object
+            status:
+              nullable: true
+              properties:
+                conditions:
+                  default: []
+                  description: 'Conditions: `Reachable`, `GemsLoaded`, `Verified`.'
+                  items:
+                    description: Standard kube condition shape.
                     properties:
-                      path:
-                        description: Path to the template file within the repository.
+                      lastTransitionTime:
+                        description: When the condition last transitioned.
+                        format: date-time
                         type: string
-                      ref:
-                        default: main
-                        description: Git reference (branch, tag, or commit SHA).
+                      message:
+                        description: Human-readable message.
                         type: string
-                      secretRef:
-                        description: Reference to a Secret containing Git credentials.
-                        nullable: true
+                      reason:
+                        description: Machine-readable reason.
+                        type: string
+                      status:
+                        description: '`True`, `False`, `Unknown`.'
+                        type: string
+                      type:
+                        description: Condition type — `Loaded`, `SmokeTested`, `Ready`.
+                        type: string
+                    required:
+                      - lastTransitionTime
+                      - message
+                      - reason
+                      - status
+                      - type
+                    type: object
+                  type: array
+                lastReconcileTime:
+                  description: Last reconcile timestamp.
+                  format: date-time
+                  nullable: true
+                  type: string
+                leaves:
+                  description: 'Rollup of the declared leaves this catalog owns: verdict `Converged | Progressing | Partial`, counts per state, and the failed, stalled, rate-limited and blocked leaves by name.'
+                  nullable: true
+                  properties:
+                    blocked:
+                      items:
                         properties:
-                          name:
-                            description: Name of the Secret.
+                          by:
+                            items:
+                              type: string
+                            type: array
+                          leaf:
                             type: string
-                          namespace:
-                            description: Namespace of the Secret (defaults to same namespace as the resource).
+                        required:
+                          - by
+                          - leaf
+                        type: object
+                      type: array
+                    counts:
+                      properties:
+                        applying:
+                          format: uint32
+                          minimum: 0.0
+                          type: integer
+                        blocked:
+                          format: uint32
+                          minimum: 0.0
+                          type: integer
+                        failed:
+                          format: uint32
+                          minimum: 0.0
+                          type: integer
+                        planning:
+                          format: uint32
+                          minimum: 0.0
+                          type: integer
+                        rateLimited:
+                          format: uint32
+                          minimum: 0.0
+                          type: integer
+                        ready:
+                          format: uint32
+                          minimum: 0.0
+                          type: integer
+                        stalled:
+                          format: uint32
+                          minimum: 0.0
+                          type: integer
+                      required:
+                        - applying
+                        - blocked
+                        - failed
+                        - planning
+                        - rateLimited
+                        - ready
+                        - stalled
+                      type: object
+                    failed:
+                      items:
+                        properties:
+                          leaf:
+                            type: string
+                          reason:
+                            type: string
+                          since:
                             nullable: true
                             type: string
                         required:
-                        - name
+                          - leaf
+                          - reason
                         type: object
-                      url:
-                        description: Git repository URL.
-                        type: string
-                    required:
-                    - path
-                    - url
-                    type: object
-                  path:
-                    description: 'Subdirectory within the repo containing the workspace. Example: `workspaces/cloudflare-pleme`.'
-                    nullable: true
-                    type: string
-                type: object
-              suspend:
-                default: false
-                description: Suspend reconciliation of every template under this catalog.
-                type: boolean
-              variables:
-                additionalProperties: true
-                description: Workspace-default VARIABLES inherited by every template in this workspace — the Terragrunt `root.hcl` / `include` analogue (config inheritance, P1). A template's own `spec.variables` deep-merges ONTO these (innermost-wins per key; nested objects merge recursively), so a template inherits fleet/workspace defaults and overrides only what it needs. Resolved by `controller::config_cascade` at compile time, layered `PangeaNamespace.defaultVariables → this → template.spec.variables`.
-                nullable: true
-                type: object
-            required:
-            - source
-            type: object
-          status:
-            nullable: true
-            properties:
-              conditions:
-                default: []
-                description: 'Conditions: `Reachable`, `GemsLoaded`, `Verified`.'
-                items:
-                  description: Standard kube condition shape.
-                  properties:
-                    lastTransitionTime:
-                      description: When the condition last transitioned.
-                      format: date-time
-                      type: string
-                    message:
-                      description: Human-readable message.
-                      type: string
-                    reason:
-                      description: Machine-readable reason.
-                      type: string
-                    status:
-                      description: '`True`, `False`, `Unknown`.'
-                      type: string
-                    type:
-                      description: Condition type — `Loaded`, `SmokeTested`, `Ready`.
+                      type: array
+                    rateLimited:
+                      items:
+                        properties:
+                          leaf:
+                            type: string
+                          until:
+                            type: string
+                        required:
+                          - leaf
+                          - until
+                        type: object
+                      type: array
+                    stalled:
+                      items:
+                        properties:
+                          leaf:
+                            type: string
+                          since:
+                            nullable: true
+                            type: string
+                          state:
+                            type: string
+                        required:
+                          - leaf
+                          - state
+                        type: object
+                      type: array
+                    total:
+                      format: uint32
+                      minimum: 0.0
+                      type: integer
+                    truncated:
+                      default: 0
+                      format: uint32
+                      minimum: 0.0
+                      type: integer
+                    verdict:
+                      enum:
+                        - Converged
+                        - Progressing
+                        - Partial
                       type: string
                   required:
-                  - lastTransitionTime
-                  - message
-                  - reason
-                  - status
-                  - type
+                    - counts
+                    - total
+                    - verdict
                   type: object
-                type: array
-              lastReconcileTime:
-                description: Last reconcile timestamp.
-                format: date-time
-                nullable: true
-                type: string
-              leaves:
-                description: 'Rollup of the declared leaves this catalog owns: verdict `Converged | Progressing | Partial`, counts per state, and the failed, stalled, rate-limited and blocked leaves by name.'
-                nullable: true
-                properties:
-                  blocked:
-                    items:
-                      properties:
-                        by:
-                          items:
-                            type: string
-                          type: array
-                        leaf:
-                          type: string
-                      required:
-                      - by
-                      - leaf
-                      type: object
-                    type: array
-                  counts:
+                recentEvents:
+                  items:
                     properties:
-                      applying:
+                      at:
+                        format: date-time
+                        type: string
+                      count:
+                        default: 1
                         format: uint32
                         minimum: 0.0
                         type: integer
-                      blocked:
-                        format: uint32
-                        minimum: 0.0
-                        type: integer
-                      failed:
-                        format: uint32
-                        minimum: 0.0
-                        type: integer
-                      planning:
-                        format: uint32
-                        minimum: 0.0
-                        type: integer
-                      rateLimited:
-                        format: uint32
-                        minimum: 0.0
-                        type: integer
-                      ready:
-                        format: uint32
-                        minimum: 0.0
-                        type: integer
-                      stalled:
-                        format: uint32
-                        minimum: 0.0
-                        type: integer
+                      message:
+                        type: string
+                      reason:
+                        type: string
+                      type:
+                        enum:
+                          - Normal
+                          - Warning
+                        type: string
                     required:
-                    - applying
-                    - blocked
-                    - failed
-                    - planning
-                    - rateLimited
-                    - ready
-                    - stalled
-                    type: object
-                  failed:
-                    items:
-                      properties:
-                        leaf:
-                          type: string
-                        reason:
-                          type: string
-                        since:
-                          nullable: true
-                          type: string
-                      required:
-                      - leaf
+                      - at
+                      - message
                       - reason
-                      type: object
-                    type: array
-                  rateLimited:
-                    items:
-                      properties:
-                        leaf:
-                          type: string
-                        until:
-                          type: string
-                      required:
-                      - leaf
-                      - until
-                      type: object
-                    type: array
-                  stalled:
-                    items:
-                      properties:
-                        leaf:
-                          type: string
-                        since:
-                          nullable: true
-                          type: string
-                        state:
-                          type: string
-                      required:
-                      - leaf
-                      - state
-                      type: object
-                    type: array
-                  total:
-                    format: uint32
-                    minimum: 0.0
-                    type: integer
-                  truncated:
-                    default: 0
-                    format: uint32
-                    minimum: 0.0
-                    type: integer
-                  verdict:
-                    enum:
-                    - Converged
-                    - Progressing
-                    - Partial
-                    type: string
-                required:
-                - counts
-                - total
-                - verdict
-                type: object
-              templateCount:
-                default: 0
-                description: Number of templates the operator has reconciled under this catalog.
-                format: uint32
-                minimum: 0.0
-                type: integer
-              verified:
-                default: false
-                description: Whether every required gem is `Loaded` AND the workspace itself is reachable.
-                type: boolean
-            type: object
-        required:
-        - spec
-        title: WorkspaceCatalog
-        type: object
-    served: true
-    storage: true
-    subresources:
-      status: {}
+                      - type
+                    type: object
+                  type: array
+                templateCount:
+                  default: 0
+                  description: Number of templates the operator has reconciled under this catalog.
+                  format: uint32
+                  minimum: 0.0
+                  type: integer
+                verified:
+                  default: false
+                  description: Whether every required gem is `Loaded` AND the workspace itself is reachable.
+                  type: boolean
+              type: object
+          required:
+            - spec
+          title: WorkspaceCatalog
+          type: object
+      served: true
+      storage: true
+      subresources:
+        status: {}
