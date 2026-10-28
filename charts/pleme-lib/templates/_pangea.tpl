@@ -137,6 +137,27 @@ spec:
   importHints:
     {{- toYaml . | nindent 4 }}
   {{- end }}
+  {{- with .refreshInterval }}
+  refreshInterval: {{ . | quote }}
+  {{- end }}
+  {{- if kindIs "bool" .destroyProtection }}
+  destroyProtection: {{ .destroyProtection }}
+  {{- end }}
+  {{- with .importPolicy }}
+  importPolicy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .providerCredentials }}
+  providerCredentials:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .policies }}
+  policies:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .defaultDecision }}
+  defaultDecision: {{ . | quote }}
+  {{- end }}
   source:
     inline: |
       {{- .inline | required "pleme-lib.pangea.infrastructureTemplate: `inline` is required — a template with no body reconciles to an empty plan, which reads as success" | nindent 6 }}

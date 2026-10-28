@@ -23,6 +23,19 @@ and still gets the refusal.
       "suspend"         (.Values.it).suspend
       "labels"          (.Values.it).labels
       "importHints"     (.Values.it).importHints
+      "refreshInterval" (.Values.it).refreshInterval
+      "importPolicy"    (.Values.it).importPolicy
+      "providerCredentials" (.Values.it).providerCredentials
+      "policies"        (.Values.it).policies
+      "defaultDecision" (.Values.it).defaultDecision
       "inline"          (.Values.it).inline
       "ctx"             $) }}
+{{- end }}
+{{- if hasKey .Values "itGuarded" }}
+{{- include "pleme-lib.pangea.infrastructureTemplate" (dict
+      "name"              (.Values.itGuarded).name
+      "pangeaNamespace"   (.Values.itGuarded).pangeaNamespace
+      "destroyProtection" (.Values.itGuarded).destroyProtection
+      "inline"            "{}"
+      "ctx"               $) }}
 {{- end }}

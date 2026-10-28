@@ -38,6 +38,54 @@ tests:
     asserts:
       - equal: { path: spec.suspend, value: true }
 
+  - it: carries credentials, policies, import policy and default decision
+    set:
+      it:
+        name: r1
+        pangeaNamespace: kensasec
+        inline: "{}"
+        refreshInterval: 15m
+        importPolicy: { autoOnConflict: true }
+        providerCredentials:
+          google: { secretRef: { name: gcp } }
+          porkbun: { secretRef: { name: pb } }
+        policies:
+          - name: destruction-is-never-automatic
+            decision: refuse
+            match: { actions: [delete, replace] }
+        defaultDecision: requireApproval
+    asserts:
+      - equal: { path: spec.refreshInterval, value: 15m }
+      - equal: { path: spec.importPolicy.autoOnConflict, value: true }
+      - equal: { path: spec.providerCredentials.google.secretRef.name, value: gcp }
+      - equal: { path: spec.providerCredentials.porkbun.secretRef.name, value: pb }
+      - equal: { path: "spec.policies[0].decision", value: refuse }
+      - equal: { path: "spec.policies[0].match.actions", value: [delete, replace] }
+      - equal: { path: spec.defaultDecision, value: requireApproval }
+
+  - it: omits every optional field when none is given
+    set:
+      it: { name: r1, pangeaNamespace: roteador, inline: "{}" }
+    asserts:
+      - notExists: { path: spec.providerCredentials }
+      - notExists: { path: spec.policies }
+      - notExists: { path: spec.defaultDecision }
+      - notExists: { path: spec.importPolicy }
+      - notExists: { path: spec.destroyProtection }
+      - notExists: { path: spec.refreshInterval }
+
+  - it: emits destroyProtection false when it is set false, not only when true
+    set:
+      itGuarded: { name: r2, pangeaNamespace: roteador, destroyProtection: false }
+    asserts:
+      - equal: { path: spec.destroyProtection, value: false }
+
+  - it: emits destroyProtection true when it is set true
+    set:
+      itGuarded: { name: r2, pangeaNamespace: roteador, destroyProtection: true }
+    asserts:
+      - equal: { path: spec.destroyProtection, value: true }
+
   - it: refuses a template with no pangeaNamespace
     # It is the state boundary. Defaulting it would let two unrelated
     # declarations share one state file and fight over it.
