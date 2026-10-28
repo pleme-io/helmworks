@@ -134,6 +134,300 @@
       },
       "type": "object"
     },
+    "LeafAutoscaling": {
+      "properties": {
+        "enabled": {
+          "default": true,
+          "description": "false renders no HPA and fixed workers.replicas.",
+          "type": "boolean"
+        },
+        "horizonSecs": {
+          "default": 300,
+          "description": "H: each credential's pending work is capped at its rate times H.",
+          "format": "uint32",
+          "minimum": 1.0,
+          "type": "integer"
+        },
+        "max": {
+          "default": 4,
+          "format": "uint32",
+          "minimum": 1.0,
+          "type": "integer"
+        },
+        "min": {
+          "default": 0,
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "scaleDownStabilizationSecs": {
+          "default": 300,
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "target": {
+          "default": 600,
+          "description": "T: weighted pending leaf work per replica (pangea_leaf_pending_work).",
+          "format": "uint32",
+          "minimum": 1.0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "LeafCredential": {
+      "properties": {
+        "cap": {
+          "format": "uint32",
+          "minimum": 1.0,
+          "type": "integer"
+        },
+        "name": {
+          "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "cap",
+        "name"
+      ],
+      "type": "object"
+    },
+    "LeafJetStream": {
+      "properties": {
+        "ackWait": {
+          "default": "60s",
+          "type": "string"
+        },
+        "declare": {
+          "default": true,
+          "description": "Declare the stream and consumers with the chart's init Job (an OCI nats-box image). false where the node runs no OCI image (engenho native).",
+          "type": "boolean"
+        },
+        "duplicateWindow": {
+          "default": "10m",
+          "type": "string"
+        },
+        "maxDeliver": {
+          "default": 5,
+          "format": "uint32",
+          "minimum": 1.0,
+          "type": "integer"
+        },
+        "stream": {
+          "default": "PANGEA_LEAF",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "LeafNats": {
+      "properties": {
+        "auth": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/LeafNatsAuth"
+            }
+          ],
+          "default": {
+            "passwordKey": "password",
+            "secretName": "",
+            "userKey": "user"
+          }
+        },
+        "url": {
+          "default": "",
+          "description": "nats:// URL of the JetStream broker. Empty with queue: jetstream refuses that entry alone: no worker, HPA or stream renders and the leader stays in process.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "LeafNatsAuth": {
+      "properties": {
+        "passwordKey": {
+          "default": "password",
+          "type": "string"
+        },
+        "secretName": {
+          "default": "",
+          "description": "Secret holding the broker user and password. Empty connects without auth.",
+          "type": "string"
+        },
+        "userKey": {
+          "default": "user",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "LeafQueue": {
+      "enum": [
+        "in_process",
+        "jetstream"
+      ],
+      "type": "string"
+    },
+    "LeafValues": {
+      "properties": {
+        "credentials": {
+          "default": [],
+          "description": "One durable JetStream consumer per credential, subject pangea.leaf.<name>.>, MaxAckPending = cap.",
+          "items": {
+            "$ref": "#/definitions/LeafCredential"
+          },
+          "type": "array"
+        },
+        "jetstream": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/LeafJetStream"
+            }
+          ],
+          "default": {
+            "ackWait": "60s",
+            "declare": true,
+            "duplicateWindow": "10m",
+            "maxDeliver": 5,
+            "stream": "PANGEA_LEAF"
+          }
+        },
+        "nats": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/LeafNats"
+            }
+          ],
+          "default": {
+            "auth": {
+              "passwordKey": "password",
+              "secretName": "",
+              "userKey": "user"
+            },
+            "url": ""
+          }
+        },
+        "queue": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/LeafQueue"
+            }
+          ],
+          "default": "in_process"
+        },
+        "workers": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/LeafWorkers"
+            }
+          ],
+          "default": {
+            "autoscaling": {
+              "enabled": true,
+              "horizonSecs": 300,
+              "max": 4,
+              "min": 0,
+              "scaleDownStabilizationSecs": 300,
+              "target": 600
+            },
+            "derivation": {
+              "baseMi": 24,
+              "concurrency": 4,
+              "leafPeakMi": 56,
+              "providerMi": 33,
+              "providers": 1
+            },
+            "memory": "derived",
+            "replicas": 0
+          }
+        }
+      },
+      "type": "object"
+    },
+    "LeafWorkers": {
+      "properties": {
+        "autoscaling": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/LeafAutoscaling"
+            }
+          ],
+          "default": {
+            "enabled": true,
+            "horizonSecs": 300,
+            "max": 4,
+            "min": 0,
+            "scaleDownStabilizationSecs": 300,
+            "target": 600
+          }
+        },
+        "derivation": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/MemoryDerivation"
+            }
+          ],
+          "default": {
+            "baseMi": 24,
+            "concurrency": 4,
+            "leafPeakMi": 56,
+            "providerMi": 33,
+            "providers": 1
+          }
+        },
+        "memory": {
+          "default": "derived",
+          "description": "derived: request = baseMi + concurrency * leafPeakMi + providers * providerMi, limit = 1.5 * request. A quantity sets both.",
+          "pattern": "^(derived|[1-9][0-9]*(Mi|Gi))$",
+          "type": "string"
+        },
+        "replicas": {
+          "default": 0,
+          "description": "Fixed replicas when autoscaling.enabled is false.",
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "MemoryDerivation": {
+      "properties": {
+        "baseMi": {
+          "default": 24,
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "concurrency": {
+          "default": 4,
+          "format": "uint32",
+          "minimum": 1.0,
+          "type": "integer"
+        },
+        "leafPeakMi": {
+          "default": 56,
+          "description": "Largest status.leaf.peakRssBytes in MiB; the fat-plan peak (55.6 MiB) until calibration.",
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "providerMi": {
+          "default": 33,
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "providers": {
+          "default": 1,
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
     "OperatorPolicyValues": {
       "properties": {
         "controllerSuspend": {
@@ -299,6 +593,52 @@
         "loadPath": ""
       },
       "description": "Ruby templates compiled by the lava backend's contained interpreter (PANGEA_LAVA_RUBY). On by default; enabled: false refuses them with a typed error."
+    },
+    "leaf": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/LeafValues"
+        }
+      ],
+      "default": {
+        "credentials": [],
+        "jetstream": {
+          "ackWait": "60s",
+          "declare": true,
+          "duplicateWindow": "10m",
+          "maxDeliver": 5,
+          "stream": "PANGEA_LEAF"
+        },
+        "nats": {
+          "auth": {
+            "passwordKey": "password",
+            "secretName": "",
+            "userKey": "user"
+          },
+          "url": ""
+        },
+        "queue": "in_process",
+        "workers": {
+          "autoscaling": {
+            "enabled": true,
+            "horizonSecs": 300,
+            "max": 4,
+            "min": 0,
+            "scaleDownStabilizationSecs": 300,
+            "target": 600
+          },
+          "derivation": {
+            "baseMi": 24,
+            "concurrency": 4,
+            "leafPeakMi": 56,
+            "providerMi": 33,
+            "providers": 1
+          },
+          "memory": "derived",
+          "replicas": 0
+        }
+      },
+      "description": "Leaf work queue, leaf workers and their autoscaling (pangea-operator docs/LEAVES.md §17). queue: in_process renders no worker, no HPA and no stream."
     },
     "logLevel": {
       "default": "pangea_operator=info",

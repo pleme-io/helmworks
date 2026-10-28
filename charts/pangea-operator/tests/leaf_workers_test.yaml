@@ -1,0 +1,300 @@
+suite: leaf workers, their HPA and the JetStream leaf queue (LEAVES.md C3, C4)
+templates:
+  - templates/deployment.yaml
+  - templates/leaf-hpa.yaml
+  - templates/leaf-jetstream.yaml
+release:
+  name: pangea-operator
+  namespace: pangea-system
+tests:
+  - it: the in-process queue renders the leader alone
+    template: templates/deployment.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PANGEA_LEAF_QUEUE
+            value: jetstream
+          any: true
+
+  - it: the in-process queue renders no HPA
+    template: templates/leaf-hpa.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: the in-process queue renders no stream
+    template: templates/leaf-jetstream.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: jetstream with no url refuses that entry alone, the leader is told and no worker renders
+    template: templates/deployment.yaml
+    set:
+      leaf.queue: jetstream
+    asserts:
+      - hasDocuments:
+          count: 1
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PANGEA_LEAF_QUEUE
+            value: jetstream
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PANGEA_LEAF_NATS_URL
+            value: ""
+
+  - it: jetstream with no url renders no HPA
+    template: templates/leaf-hpa.yaml
+    set:
+      leaf.queue: jetstream
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: the worker Deployment is the operator in the worker role, sized by the derived memory
+    template: templates/deployment.yaml
+    set:
+      leaf.queue: jetstream
+      leaf.nats.url: nats://pleme-nats.nats.svc:4222
+    documentSelector:
+      path: metadata.name
+      value: pangea-operator-leaf-worker
+    asserts:
+      - isKind:
+          of: Deployment
+      - notExists:
+          path: spec.replicas
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/name"]
+          value: pangea-operator-leaf-worker
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: pangea-operator
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PANGEA_LEAF_ROLE
+            value: worker
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PANGEA_LEAF_NATS_URL
+            value: nats://pleme-nats.nats.svc:4222
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 281Mi
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 422Mi
+
+  - it: the leader stays the leader beside its workers
+    template: templates/deployment.yaml
+    set:
+      leaf.queue: jetstream
+      leaf.nats.url: nats://pleme-nats.nats.svc:4222
+    documentSelector:
+      path: metadata.name
+      value: pangea-operator
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PANGEA_LEAF_SCALE_TARGET
+            value: "600"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PANGEA_LEAF_SCALE_HORIZON_SECS
+            value: "300"
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PANGEA_LEAF_ROLE
+            value: worker
+
+  - it: a fixed memory quantity sets request and limit
+    template: templates/deployment.yaml
+    set:
+      leaf.queue: jetstream
+      leaf.nats.url: nats://n:4222
+      leaf.workers.memory: 1Gi
+    documentSelector:
+      path: metadata.name
+      value: pangea-operator-leaf-worker
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 1Gi
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 1Gi
+
+  - it: the HPA scales the worker on the external pending-leaf-work metric
+    template: templates/leaf-hpa.yaml
+    set:
+      leaf.queue: jetstream
+      leaf.nats.url: nats://n:4222
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: HorizontalPodAutoscaler
+      - isAPIVersion:
+          of: autoscaling/v2
+      - equal:
+          path: spec.scaleTargetRef
+          value:
+            apiVersion: apps/v1
+            kind: Deployment
+            name: pangea-operator-leaf-worker
+      - equal:
+          path: spec.minReplicas
+          value: 0
+      - equal:
+          path: spec.maxReplicas
+          value: 4
+      - equal:
+          path: spec.metrics
+          value:
+            - type: External
+              external:
+                metric:
+                  name: pangea_leaf_pending_work
+                target:
+                  type: AverageValue
+                  averageValue: "600"
+      - equal:
+          path: spec.behavior.scaleDown.stabilizationWindowSeconds
+          value: 300
+
+  - it: autoscaling off renders no HPA
+    template: templates/leaf-hpa.yaml
+    set:
+      leaf.queue: jetstream
+      leaf.nats.url: nats://n:4222
+      leaf.workers.autoscaling.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: autoscaling off gives the worker fixed replicas
+    template: templates/deployment.yaml
+    set:
+      leaf.queue: jetstream
+      leaf.nats.url: nats://n:4222
+      leaf.workers.autoscaling.enabled: false
+      leaf.workers.replicas: 2
+    documentSelector:
+      path: metadata.name
+      value: pangea-operator-leaf-worker
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 2
+
+  - it: the stream dedupes inside a 10m window and each credential gets its own capped consumer
+    template: templates/leaf-jetstream.yaml
+    set:
+      leaf.queue: jetstream
+      leaf.nats.url: nats://n:4222
+      leaf.credentials:
+        - name: github-pleme-io
+          cap: 4
+    documentSelector:
+      path: kind
+      value: ConfigMap
+    asserts:
+      - matchRegex:
+          path: data["stream-PANGEA_LEAF.json"]
+          pattern: '"duplicate_window": 600000000000'
+      - matchRegex:
+          path: data["stream-PANGEA_LEAF.json"]
+          pattern: '"subjects": \["pangea\.leaf\.(>|\\u003e)"\]'
+      - matchRegex:
+          path: data["stream-PANGEA_LEAF.json"]
+          pattern: '"retention": "workqueue"'
+      - matchRegex:
+          path: data["consumer-PANGEA_LEAF-leaf-github-pleme-io.json"]
+          pattern: '"max_ack_pending": 4'
+      - matchRegex:
+          path: data["consumer-PANGEA_LEAF-leaf-github-pleme-io.json"]
+          pattern: '"filter_subject": "pangea.leaf.github-pleme-io.>"'
+      - matchRegex:
+          path: data["consumer-PANGEA_LEAF-leaf-github-pleme-io.json"]
+          pattern: '"ack_wait": 60000000000'
+      - matchRegex:
+          path: data["consumer-PANGEA_LEAF-leaf-github-pleme-io.json"]
+          pattern: '"max_deliver": 5'
+
+  - it: the stream init Job authenticates from the broker Secret
+    template: templates/leaf-jetstream.yaml
+    set:
+      leaf.queue: jetstream
+      leaf.nats.url: nats://n:4222
+      leaf.nats.auth.secretName: leaf-nats-auth
+    documentSelector:
+      path: kind
+      value: Job
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NATS_USER
+            valueFrom:
+              secretKeyRef:
+                name: leaf-nats-auth
+                key: user
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NATS_URL
+            value: nats://n:4222
+
+  - it: declare false leaves the stream to the node (no OCI init Job on engenho native)
+    template: templates/leaf-jetstream.yaml
+    set:
+      leaf.queue: jetstream
+      leaf.nats.url: nats://n:4222
+      leaf.jetstream.declare: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: the worker carries the broker credentials
+    template: templates/deployment.yaml
+    set:
+      leaf.queue: jetstream
+      leaf.nats.url: nats://n:4222
+      leaf.nats.auth.secretName: leaf-nats-auth
+    documentSelector:
+      path: metadata.name
+      value: pangea-operator-leaf-worker
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NATS_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: leaf-nats-auth
+                key: password
+
+  - it: the schema refuses an unknown queue
+    template: templates/leaf-hpa.yaml
+    set:
+      leaf.queue: kafka
+    asserts:
+      - failedTemplate: {}
+
+  - it: the schema refuses a memory that is neither derived nor a quantity
+    template: templates/leaf-hpa.yaml
+    set:
+      leaf.workers.memory: lots
+    asserts:
+      - failedTemplate: {}

@@ -1,0 +1,29 @@
+{{- $l := include "pangea-operator.leaf" . | fromYaml }}
+{{- if and $l.active $l.autoscaling }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "pangea-operator.leafWorkerName" . }}
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+    app.kubernetes.io/component: leaf-worker
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "pangea-operator.leafWorkerName" . }}
+  minReplicas: {{ int $l.min }}
+  maxReplicas: {{ int $l.max }}
+  metrics:
+    - type: External
+      external:
+        metric:
+          name: pangea_leaf_pending_work
+        target:
+          type: AverageValue
+          averageValue: {{ toString (int $l.target) | quote }}
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: {{ int $l.stabilizationSecs }}
+{{- end }}

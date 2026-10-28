@@ -1,0 +1,33 @@
+{{- $l := include "pangea-operator.leaf" . | fromYaml }}
+{{- if and $l.active $l.declare }}
+{{- $consumers := dict }}
+{{- range $c := $l.credentials }}
+{{- $_ := set $consumers (printf "leaf-%s" $c.name) (dict
+  "type" "pull"
+  "ackPolicy" "explicit"
+  "ackWait" $l.ackWait
+  "maxAckPending" (int $c.cap)
+  "maxDeliver" (int $l.maxDeliver)
+  "filterSubject" (printf "pangea.leaf.%s.>" $c.name)
+  "replayPolicy" "instant") }}
+{{- end }}
+{{- $js := dict
+  "enabled" true
+  "serverUrl" $l.url
+  "authSecretName" $l.authSecret
+  "authUserKey" $l.userKey
+  "authPasswordKey" $l.passwordKey
+  "streams" (dict $l.stream (dict
+    "subjects" (list "pangea.leaf.>")
+    "retention" "workqueue"
+    "storage" "file"
+    "replicas" 1
+    "duplicateWindow" $l.duplicateWindow
+    "discard" "old"))
+  "consumers" (dict $l.stream $consumers) }}
+{{- $v := deepCopy .Values }}
+{{- $_ := set $v "jetstream" $js }}
+{{- $ctx := deepCopy . }}
+{{- $_ := set $ctx "Values" $v }}
+{{- include "pleme-lib.jetstream" $ctx }}
+{{- end }}

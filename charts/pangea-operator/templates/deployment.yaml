@@ -133,6 +133,7 @@ embedded mode and drop the compiler sidecar from the pod spec.
     "name" "PANGEA_GEM_AUTH_TOKEN"
     "valueFrom" (dict "secretKeyRef" (dict "name" $gemAuthSecretName "key" $gemAuthSecretKey))) }}
 {{- end }}
+{{- $executorEnv = concat $executorEnv (include "pangea-operator.leafEnv" . | fromYamlArray) }}
 {{- $mergedValues := deepCopy .Values }}
 {{- $_ := set $mergedValues "env" (concat $executorEnv (.Values.env | default list)) }}
 
@@ -200,3 +201,4 @@ embedded mode and drop the compiler sidecar from the pod spec.
 {{- $ctx := deepCopy . }}
 {{- $_ := set $ctx "Values" $mergedValues }}
 {{- include "pleme-lib.deployment" $ctx }}
+{{- include "pangea-operator.leafWorker" (dict "root" . "values" $mergedValues) }}

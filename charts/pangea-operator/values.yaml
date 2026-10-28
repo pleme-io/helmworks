@@ -856,6 +856,38 @@ workers:
         minReplicas: 0
         maxReplicas: 3
 
+leaf:
+  queue: in_process
+  nats:
+    url: ""
+    auth:
+      secretName: ""
+      userKey: user
+      passwordKey: password
+  credentials: []
+  jetstream:
+    declare: true
+    stream: PANGEA_LEAF
+    duplicateWindow: 10m
+    ackWait: 60s
+    maxDeliver: 5
+  workers:
+    replicas: 0
+    memory: derived
+    derivation:
+      baseMi: 24
+      leafPeakMi: 56
+      concurrency: 4
+      providers: 1
+      providerMi: 33
+    autoscaling:
+      enabled: true
+      min: 0
+      max: 4
+      target: 600
+      horizonSecs: 300
+      scaleDownStabilizationSecs: 300
+
 # -- PrometheusRule alerts
 prometheusRules:
   enabled: true
