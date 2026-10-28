@@ -2,7 +2,7 @@ apiVersion: v2
 name: empresa-site
 description: One company's static site on an engenho node, with the serve mapping the exposure layer reads.
 type: application
-version: 0.1.0
+version: 0.1.1
 appVersion: "1.0.5"
 keywords: [static-site, empresa, engenho, hanabi]
 maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]

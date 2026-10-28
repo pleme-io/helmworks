@@ -297,14 +297,14 @@
           "default": "IfNotPresent"
         },
         "repository": {
-          "pattern": "^$|^[a-z0-9]([a-z0-9._-]*[a-z0-9])?(:[0-9]+)?(/[a-z0-9]([a-z0-9._-]*[a-z0-9])?)+$",
+          "pattern": "^$|^[a-z0-9]([a-z0-9._-]*[a-z0-9])?(:[0-9]+)?(/[a-z0-9]([a-z0-9._-]*[a-z0-9])?)*(@sha256:[a-f0-9]{64})?$",
           "type": "string"
         },
         "tag": {
           "not": {
             "const": "latest"
           },
-          "pattern": "^$|^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$",
+          "pattern": "^$|^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$|^sha256:[a-f0-9]{64}$",
           "type": "string"
         }
       },

@@ -87,9 +87,9 @@ pub struct PlemeCacheValues {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Image {
-    #[schemars(regex(pattern = "^$|^[a-z0-9]([a-z0-9._-]*[a-z0-9])?(:[0-9]+)?(/[a-z0-9]([a-z0-9._-]*[a-z0-9])?)+$"))]
+    #[schemars(schema_with = "crate::oci::repository")]
     pub repository: String,
-    #[schemars(regex(pattern = "^$|^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$"))]
+    #[schemars(schema_with = "crate::oci::tag")]
     pub tag: String,
     #[serde(default)]
     pub pull_policy: PullPolicy,
