@@ -98,28 +98,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      # The script needs pleme-io's tlisp stdlib (`status-of`, `exec-capture`,
-      # `log-error`, …) — verified by running it standalone, which fails with
-      # `unbound symbol status-of`. Both repos are public, so the default token
-      # is enough.
-      - uses: actions/checkout@v4
-        with:
-          repository: pleme-io/actions
-          path: .pleme-actions
-          ref: main
-      - id: src
-        shell: bash
-        run: |
-          {
-            echo 'script<<TLISP_EOF'
-            cat .pleme-actions/_tlisp-stdlib/stdlib.tlisp
-            echo
-            cat tools/bump-drift.tlisp
-            echo 'TLISP_EOF'
-          } >> "$GITHUB_OUTPUT"
       - uses: pleme-io/actions/tatara-script@main
         with:
-          script: ${{ steps.src.outputs.script }}
+          script-file: tools/bump-drift.tlisp
+          stdlib: "true"
         env:
           BASE_SHA: ${{ github.event.before }}
           HEAD_SHA: ${{ github.sha }}
