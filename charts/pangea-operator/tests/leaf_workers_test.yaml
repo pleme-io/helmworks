@@ -93,11 +93,12 @@ tests:
           path: spec.template.spec.containers[0].resources.limits.memory
           value: 422Mi
 
-  - it: the leader stays the leader beside its workers
+  - it: the leader stays the leader beside its workers and gets the settings the operator reads
     template: templates/deployment.yaml
     set:
       leaf.queue: jetstream
       leaf.nats.url: nats://pleme-nats.nats.svc:4222
+      leaf.workers.memory: 1Gi
     documentSelector:
       path: metadata.name
       value: pangea-operator
@@ -105,18 +106,34 @@ tests:
       - contains:
           path: spec.template.spec.containers[0].env
           content:
-            name: PANGEA_LEAF_SCALE_TARGET
-            value: "600"
+            name: PANGEA_WORKERS_AUTOSCALING
+            value: "true"
       - contains:
           path: spec.template.spec.containers[0].env
           content:
-            name: PANGEA_LEAF_SCALE_HORIZON_SECS
-            value: "300"
+            name: PANGEA_WORKERS_MEMORY
+            value: 1Gi
       - notContains:
           path: spec.template.spec.containers[0].env
           content:
             name: PANGEA_LEAF_ROLE
             value: worker
+
+  - it: autoscaling off reaches the operator
+    template: templates/deployment.yaml
+    set:
+      leaf.queue: jetstream
+      leaf.nats.url: nats://n:4222
+      leaf.workers.autoscaling.enabled: false
+    documentSelector:
+      path: metadata.name
+      value: pangea-operator
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PANGEA_WORKERS_AUTOSCALING
+            value: "false"
 
   - it: a fixed memory quantity sets request and limit
     template: templates/deployment.yaml

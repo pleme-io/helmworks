@@ -59,9 +59,8 @@
 {{- $env = list
   (dict "name" "PANGEA_LEAF_QUEUE" "value" "jetstream")
   (dict "name" "PANGEA_LEAF_NATS_URL" "value" $l.url)
-  (dict "name" "PANGEA_LEAF_STREAM" "value" $l.stream)
-  (dict "name" "PANGEA_LEAF_SCALE_TARGET" "value" (toString $l.target))
-  (dict "name" "PANGEA_LEAF_SCALE_HORIZON_SECS" "value" (toString $l.horizonSecs))
+  (dict "name" "PANGEA_WORKERS_AUTOSCALING" "value" (toString $l.autoscaling))
+  (dict "name" "PANGEA_WORKERS_MEMORY" "value" (toString $l.memory))
 -}}
 {{- $env = concat $env (include "pangea-operator.leafAuthEnv" $l | fromYamlArray) -}}
 {{- end -}}
