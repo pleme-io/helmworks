@@ -1,4 +1,6 @@
 {{- if .Values.enabled }}
+{{- include "pleme-nats.validate" . }}
+{{- $native := eq .Values.runtime "native" }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -38,12 +40,22 @@ spec:
         - name: nats
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if $native }}
+          command:
+            - {{ printf "%s/bin/nats-server" (include "pleme-nats.closure" .Values.image.repository) }}
+          args:
+            {{- include "pleme-nats.nativeArgs" . | nindent 12 }}
+          {{- else }}
           args: ["-c", "/etc/nats/nats.conf"]
+          {{- end }}
           env:
             - name: POD_NAME
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
+            {{- if .Values.server.auth.enabled }}
+            {{- include "pleme-nats.authEnv" . | trim | nindent 12 }}
+            {{- end }}
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -80,6 +92,10 @@ spec:
             timeoutSeconds: 3
             failureThreshold: 2
           volumeMounts:
+            {{- if $native }}
+            - name: jetstream
+              mountPath: {{ .Values.server.jetstream.storeDir }}
+            {{- else }}
             - name: config
               mountPath: /etc/nats
               readOnly: true
@@ -87,12 +103,17 @@ spec:
             - name: jetstream
               mountPath: {{ .Values.persistence.mountPath }}
             {{- end }}
+            {{- end }}
 
         {{- if .Values.exporter.enabled }}
         # ── prometheus exporter sidecar ───────────────────────────
         - name: exporter
           image: "{{ .Values.exporter.image.repository }}:{{ .Values.exporter.image.tag }}"
           imagePullPolicy: {{ .Values.exporter.image.pullPolicy }}
+          {{- if $native }}
+          command:
+            - {{ printf "%s/bin/prometheus-nats-exporter" (include "pleme-nats.closure" .Values.exporter.image.repository) }}
+          {{- end }}
           args:
             - -varz
             - -jsz=all
@@ -114,10 +135,17 @@ spec:
         {{- end }}
 
       volumes:
+        {{- if $native }}
+        - name: jetstream
+          hostPath:
+            path: {{ .Values.server.jetstream.storeDir }}
+            type: DirectoryOrCreate
+        {{- else }}
         - name: config
           configMap:
             name: {{ include "pleme-nats.fullname" . }}-config
-        {{- if not .Values.persistence.enabled }}
+        {{- end }}
+        {{- if and (not $native) (not .Values.persistence.enabled) }}
         - name: jetstream
           emptyDir:
             sizeLimit: 1Gi
@@ -136,7 +164,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
 
-  {{- if .Values.persistence.enabled }}
+  {{- if and (not $native) .Values.persistence.enabled }}
   # PVC managed by the StatefulSet — survives pod restart.
   #
   # volumeClaimTemplates is an IMMUTABLE StatefulSet field: the apiserver

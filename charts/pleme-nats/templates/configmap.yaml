@@ -10,9 +10,7 @@ handing someone an unauthenticated or silently partitioned broker.
 {{- if .Values.server.clusterEnabled }}
 {{- fail "pleme-nats: server.clusterEnabled is read by no template and renders nothing. It does not create a cluster. Remove it, or ship the cluster{} block first." }}
 {{- end }}
-{{- if .Values.server.auth.enabled }}
-{{- fail "pleme-nats: server.auth.enabled is read by no template and renders nothing -- the broker would stay OPEN while the flag claims otherwise. Supply a real authorization/accounts block via server.extraConfig, and treat the NetworkPolicy as the only access control until then." }}
-{{- end }}
+{{- include "pleme-nats.validate" . }}
 {{/*
 nats.conf — rendered into a ConfigMap and mounted at /etc/nats.
 JetStream block enables the durable on-disk queue layer.
@@ -30,8 +28,8 @@ data:
     server_name: $POD_NAME
 
     # Network
-    listen: 0.0.0.0:{{ .Values.server.port }}
-    http: 0.0.0.0:{{ .Values.server.monitoringPort }}
+    listen: {{ .Values.server.host }}:{{ .Values.server.port }}
+    http: {{ .Values.server.host }}:{{ .Values.server.monitoringPort }}
 
     # Operational tuning
     max_connections: {{ .Values.server.maxConnections }}
@@ -46,6 +44,13 @@ data:
       store_dir: {{ .Values.server.jetstream.storeDir }}
       max_memory_store: {{ .Values.server.jetstream.maxMemoryStore }}
       max_file_store: {{ .Values.server.jetstream.maxFileStore }}
+    }
+    {{- end }}
+
+    {{- if .Values.server.auth.enabled }}
+    authorization {
+      user: $NATS_USER
+      password: $NATS_PASSWORD
     }
     {{- end }}
 

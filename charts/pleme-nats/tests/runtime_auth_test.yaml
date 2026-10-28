@@ -1,0 +1,162 @@
+suite: pleme-nats runtime (oci | native) and broker auth
+templates:
+  - templates/statefulset.yaml
+  - templates/configmap.yaml
+release:
+  name: nats
+  namespace: pangea-system
+tests:
+  - it: the oci runtime reads nats.conf from the mounted ConfigMap
+    template: templates/statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].args
+          value: ["-c", "/etc/nats/nats.conf"]
+      - exists:
+          path: spec.volumeClaimTemplates
+
+  - it: auth on without a Secret is refused
+    template: templates/statefulset.yaml
+    set:
+      server.auth.enabled: true
+    asserts:
+      - failedTemplate:
+          errorPattern: "server.auth.secretName"
+
+  - it: auth on renders an authorization block from the Secret's env
+    template: templates/configmap.yaml
+    set:
+      server.auth.enabled: true
+      server.auth.secretName: nats-auth
+    asserts:
+      - matchRegex:
+          path: data["nats.conf"]
+          pattern: "authorization \\{\\s+user: \\$NATS_USER\\s+password: \\$NATS_PASSWORD\\s+\\}"
+
+  - it: auth on injects the user and password from the Secret
+    template: templates/statefulset.yaml
+    set:
+      server.auth.enabled: true
+      server.auth.secretName: nats-auth
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NATS_USER
+            valueFrom:
+              secretKeyRef:
+                name: nats-auth
+                key: user
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NATS_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: nats-auth
+                key: password
+
+  - it: the native runtime runs nats-server from its closure with flags and a host-path store
+    template: templates/statefulset.yaml
+    set:
+      runtime: native
+      image.repository: nix:/nix/store/00000000000000000000000000000000-nats-server-2.14.4
+      exporter.enabled: false
+      server.host: 127.0.0.1
+      server.jetstream.storeDir: /Users/op/.local/share/nats/jetstream
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].command
+          value: ["/nix/store/00000000000000000000000000000000-nats-server-2.14.4/bin/nats-server"]
+      - equal:
+          path: spec.template.spec.containers[0].args
+          value:
+            - --addr
+            - 127.0.0.1
+            - --port
+            - "4222"
+            - --http_port
+            - "8222"
+            - --server_name
+            - $(POD_NAME)
+            - --jetstream
+            - --store_dir
+            - /Users/op/.local/share/nats/jetstream
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: jetstream
+            hostPath:
+              path: /Users/op/.local/share/nats/jetstream
+              type: DirectoryOrCreate
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: jetstream
+            mountPath: /Users/op/.local/share/nats/jetstream
+      - notExists:
+          path: spec.volumeClaimTemplates
+      - lengthEqual:
+          path: spec.template.spec.containers
+          count: 1
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: config
+            configMap:
+              name: nats-pleme-nats-config
+
+  - it: the native runtime passes auth as flags expanded from the Secret's env
+    template: templates/statefulset.yaml
+    set:
+      runtime: native
+      image.repository: nix:/nix/store/00000000000000000000000000000000-nats-server-2.14.4
+      exporter.enabled: false
+      server.jetstream.storeDir: /Users/op/.local/share/nats/jetstream
+      server.auth.enabled: true
+      server.auth.secretName: nats-auth
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: $(NATS_USER)
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: $(NATS_PASSWORD)
+
+  - it: the native runtime refuses an image that is not a nix closure
+    template: templates/statefulset.yaml
+    set:
+      runtime: native
+      exporter.enabled: false
+    asserts:
+      - failedTemplate:
+          errorPattern: "image.repository"
+
+  - it: the native runtime refuses an exporter that is not a nix closure
+    template: templates/statefulset.yaml
+    set:
+      runtime: native
+      image.repository: nix:/nix/store/00000000000000000000000000000000-nats-server-2.14.4
+    asserts:
+      - failedTemplate:
+          errorPattern: "exporter.image.repository"
+
+  - it: the native runtime runs a nix-closure exporter beside the server
+    template: templates/statefulset.yaml
+    set:
+      runtime: native
+      image.repository: nix:/nix/store/00000000000000000000000000000000-nats-server-2.14.4
+      exporter.image.repository: nix:/nix/store/11111111111111111111111111111111-prometheus-nats-exporter-0.15.0
+      server.jetstream.storeDir: /Users/op/.local/share/nats/jetstream
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1].command
+          value: ["/nix/store/11111111111111111111111111111111-prometheus-nats-exporter-0.15.0/bin/prometheus-nats-exporter"]
+
+  - it: an unknown runtime is refused
+    template: templates/statefulset.yaml
+    set:
+      runtime: wasm
+    asserts:
+      - failedTemplate:
+          errorPattern: "runtime"

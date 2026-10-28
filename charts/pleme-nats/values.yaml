@@ -30,6 +30,8 @@ enabled: true
 # multi-node clusters. File-store JetStream sized to fit ~24h of
 # typical fleet backlog.
 
+runtime: oci
+
 # ─── Image ──────────────────────────────────────────────────────────
 image:
   repository: nats
@@ -80,6 +82,7 @@ serviceAccount:
 # upward for clusters that absorb shinryu's full delivery firehose.
 server:
   # Client port (NATS protocol)
+  host: 0.0.0.0
   port: 4222
   # HTTP monitoring port — used by the exporter sidecar AND by KEDA's
   # nats-jetstream trigger to read consumer lag.
@@ -95,12 +98,14 @@ server:
   maxPayload: "8MB"
   maxPending: "256MB"
 
-  # Auth — left disabled by default. Production fleet should run
-  # NATS Decentralized Auth (operator/account/user JWTs); add via
-  # extraConfig below when that lands. For now the namespace
-  # NetworkPolicy is the only access control.
+  # Auth — off by default. On, it needs a Secret holding the user and
+  # password; the oci runtime renders an authorization block, the native
+  # runtime passes --user/--pass expanded from the same env.
   auth:
     enabled: false
+    secretName: ""
+    userKey: user
+    passwordKey: password
 
   # JetStream — the durable queue layer.
   jetstream:

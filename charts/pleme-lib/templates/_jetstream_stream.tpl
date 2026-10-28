@@ -273,6 +273,18 @@ spec:
               value: {{ $waitSeconds | quote }}
             - name: HOME
               value: /tmp
+            {{- with (($ctx.Values.jetstream).authSecretName) }}
+            - name: NATS_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ . }}
+                  key: {{ default "user" (($ctx.Values.jetstream).authUserKey) }}
+            - name: NATS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ . }}
+                  key: {{ default "password" (($ctx.Values.jetstream).authPasswordKey) }}
+            {{- end }}
           # Idempotent upsert loop. add → update fallback handles both
           # first-install and re-runs after values changes.
           command:
