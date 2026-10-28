@@ -198,8 +198,23 @@ except:
 {{- define "pleme-lib.access.validate" -}}
 {{- if include "pleme-lib.access.declared" . -}}
 {{- range $k, $_ := .Values.access -}}
-  {{- if not (has $k (list "egress" "reads" "writes")) -}}
-    {{- fail (printf "access.%s is not an access field; access takes egress, reads and writes" $k) -}}
+  {{- if not (has $k (list "egress" "reads" "writes" "effects" "listen" "exec")) -}}
+    {{- fail (printf "access.%s is not an access field; access takes egress, reads, writes, effects, listen and exec" $k) -}}
+  {{- end -}}
+{{- end -}}
+{{- range $i, $e := (.Values.access.effects | default list) -}}
+  {{- if not (has (toString $e) (list "network" "filesystem" "clock" "entropy" "environment" "process")) -}}
+    {{- fail (printf "access.effects[%d] is %q; an effect is network, filesystem, clock, entropy, environment or process" $i (toString $e)) -}}
+  {{- end -}}
+{{- end -}}
+{{- range $i, $p := (.Values.access.listen | default list) -}}
+  {{- if or (not (or (kindIs "float64" $p) (kindIs "int64" $p) (kindIs "int" $p))) (lt (int $p) 1) (gt (int $p) 65535) -}}
+    {{- fail (printf "access.listen[%d] is %v; a listen port is an integer in 1-65535" $i $p) -}}
+  {{- end -}}
+{{- end -}}
+{{- range $i, $x := (.Values.access.exec | default list) -}}
+  {{- if not (kindIs "string" $x) -}}
+    {{- fail (printf "access.exec[%d] is %v; an exec entry names a program" $i $x) -}}
   {{- end -}}
 {{- end -}}
 {{- $_ := include "pleme-lib.access.egressAllow" . -}}

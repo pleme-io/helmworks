@@ -54,3 +54,46 @@ tests:
     asserts:
       - failedTemplate:
           errorPattern: "missing property 'version'"
+
+  - it: the library surface takes a wasm runtime and the full access block
+    set:
+      pleme-lib:
+        runtime:
+          kind: wasm
+          class: wasm
+          reason: ""
+          component: { closure: /nix/store/abc-kensa, path: component.wasm, app: share/kensa }
+        access:
+          effects: [network, clock, entropy, environment]
+          egress: ["api.github.com:443"]
+          listen: [8080]
+          exec: []
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: a runtime kind other than native or wasm is refused
+    set:
+      pleme-lib:
+        runtime: { kind: oci }
+    asserts:
+      - failedTemplate:
+          errorPattern: "runtime/kind"
+
+  - it: an effect outside the six is refused
+    set:
+      pleme-lib:
+        access:
+          effects: [gpu]
+    asserts:
+      - failedTemplate:
+          errorPattern: "effects/0"
+
+  - it: a closure outside the nix store is refused
+    set:
+      pleme-lib:
+        runtime:
+          component: { closure: /opt/kensa }
+    asserts:
+      - failedTemplate:
+          errorPattern: "does not match pattern"

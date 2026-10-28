@@ -1,0 +1,8 @@
+runtime:
+  kind: wasm
+  class: wasm
+  reason: ""
+  component:
+    closure: /nix/store/abc-kensa
+    path: component.wasm
+    app: ""

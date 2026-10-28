@@ -48,6 +48,7 @@ pub struct PlemeLibValues {
     pub monitoring: Option<Monitoring>,
     pub autoscaling: Option<Autoscaling>,
     pub network_policy: Option<NetworkPolicy>,
+    pub runtime: Option<Runtime>,
     pub access: Option<Access>,
     pub secret_refs: Option<Vec<SecretRef>>,
     pub kenshi: Option<Kenshi>,
@@ -284,9 +285,64 @@ pub struct BurnIn {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct Access {
+    pub effects: Option<Vec<Effect>>,
     pub egress: Option<Vec<Peer>>,
     pub reads: Option<Vec<Read>>,
     pub writes: Option<Vec<Write>>,
+    pub listen: Option<Vec<ListenPort>>,
+    pub exec: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum Effect {
+    Network,
+    Filesystem,
+    Clock,
+    Entropy,
+    Environment,
+    Process,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ListenPort(#[schemars(range(min = 1))] pub u16);
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum RuntimeKind {
+    Native,
+    Wasm,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub enum NativeReason {
+    #[serde(rename = "")]
+    None,
+    #[serde(rename = "process")]
+    Process,
+    #[serde(rename = "host_program")]
+    HostProgram,
+    #[serde(rename = "device")]
+    Device,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct Runtime {
+    pub kind: Option<RuntimeKind>,
+    #[schemars(regex(pattern = "^[a-z0-9]([-a-z0-9.]{0,251}[a-z0-9])?$"))]
+    pub class: Option<String>,
+    pub reason: Option<NativeReason>,
+    pub component: Option<Component>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct Component {
+    #[schemars(regex(pattern = "^$|^/nix/store/[^/]"))]
+    pub closure: Option<String>,
+    #[schemars(regex(pattern = "^$|^[^/]"))]
+    pub path: Option<String>,
+    #[schemars(regex(pattern = "^$|^[^/]"))]
+    pub app: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -525,6 +581,27 @@ mod tests {
         );
         assert_eq!(v["definitions"]["Signal"]["additionalProperties"], Value::Bool(false));
         assert_eq!(v["definitions"]["Kenshi"]["additionalProperties"], Value::Bool(false));
+    }
+
+    #[test]
+    fn the_runtime_names_two_kinds_and_three_native_reasons() {
+        let v = schema();
+        assert_eq!(v["definitions"]["Runtime"]["additionalProperties"], Value::Bool(false));
+        assert_eq!(v["definitions"]["Component"]["additionalProperties"], Value::Bool(false));
+        assert_eq!(v["definitions"]["RuntimeKind"]["enum"], json!(["native", "wasm"]));
+        assert_eq!(
+            v["definitions"]["NativeReason"]["enum"],
+            json!(["", "process", "host_program", "device"])
+        );
+    }
+
+    #[test]
+    fn access_names_the_six_effects() {
+        let v = schema();
+        assert_eq!(
+            v["definitions"]["Effect"]["enum"],
+            json!(["network", "filesystem", "clock", "entropy", "environment", "process"])
+        );
     }
 
     #[test]

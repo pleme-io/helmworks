@@ -5,9 +5,27 @@
     "Access": {
       "additionalProperties": false,
       "properties": {
+        "effects": {
+          "items": {
+            "$ref": "#/definitions/Effect"
+          },
+          "type": "array"
+        },
         "egress": {
           "items": {
             "$ref": "#/definitions/Peer"
+          },
+          "type": "array"
+        },
+        "exec": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "listen": {
+          "items": {
+            "$ref": "#/definitions/ListenPort"
           },
           "type": "array"
         },
@@ -190,6 +208,24 @@
       ],
       "type": "object"
     },
+    "Component": {
+      "additionalProperties": false,
+      "properties": {
+        "app": {
+          "pattern": "^$|^[^/]",
+          "type": "string"
+        },
+        "closure": {
+          "pattern": "^$|^/nix/store/[^/]",
+          "type": "string"
+        },
+        "path": {
+          "pattern": "^$|^[^/]",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
     "DownwardApi": {
       "additionalProperties": false,
       "properties": {
@@ -198,6 +234,17 @@
         }
       },
       "type": "object"
+    },
+    "Effect": {
+      "enum": [
+        "network",
+        "filesystem",
+        "clock",
+        "entropy",
+        "environment",
+        "process"
+      ],
+      "type": "string"
     },
     "ExternalSecret": {
       "additionalProperties": false,
@@ -353,6 +400,12 @@
       },
       "type": "object"
     },
+    "ListenPort": {
+      "format": "uint16",
+      "maximum": 65535,
+      "minimum": 1.0,
+      "type": "integer"
+    },
     "Medium": {
       "enum": [
         "Memory"
@@ -382,6 +435,15 @@
     },
     "MountPath": {
       "pattern": "^/",
+      "type": "string"
+    },
+    "NativeReason": {
+      "enum": [
+        "",
+        "process",
+        "host_program",
+        "device"
+      ],
       "type": "string"
     },
     "NetworkPolicy": {
@@ -578,6 +640,32 @@
         "path"
       ],
       "type": "object"
+    },
+    "Runtime": {
+      "additionalProperties": false,
+      "properties": {
+        "class": {
+          "pattern": "^[a-z0-9]([-a-z0-9.]{0,251}[a-z0-9])?$",
+          "type": "string"
+        },
+        "component": {
+          "$ref": "#/definitions/Component"
+        },
+        "kind": {
+          "$ref": "#/definitions/RuntimeKind"
+        },
+        "reason": {
+          "$ref": "#/definitions/NativeReason"
+        }
+      },
+      "type": "object"
+    },
+    "RuntimeKind": {
+      "enum": [
+        "native",
+        "wasm"
+      ],
+      "type": "string"
     },
     "SecretRef": {
       "additionalProperties": false,
@@ -1007,6 +1095,9 @@
       "type": "object"
     },
     "respiro": true,
+    "runtime": {
+      "$ref": "#/definitions/Runtime"
+    },
     "scaleToZero": true,
     "schedule": {
       "type": "string"

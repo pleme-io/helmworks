@@ -1,0 +1,506 @@
+suite: pleme-lib bare-fixture — pleme-lib.runtimeclass, pleme-lib.wasm-component.* and the pleme-wasm-component mode of pleme-lib.deployment
+templates:
+  - templates/deployment.yaml
+  - templates/wasm-component.yaml
+release:
+  name: t
+  namespace: testns
+defaults: &defaults
+  image.repository: ghcr.io/x/y
+  image.tag: "1.0.0"
+  ports:
+    - name: http
+      containerPort: 8080
+      protocol: TCP
+wasm: &wasm
+  image.repository: ghcr.io/x/y
+  image.tag: "1.0.0"
+  ports:
+    - name: http
+      containerPort: 8080
+      protocol: TCP
+
+tests:
+  - it: an absent runtime renders the Deployment as before
+    template: templates/deployment.yaml
+    set:
+      <<: *defaults
+      access:
+        egress:
+          - "api.github.com:443"
+          - { binding: database, host: kensa-pg-rw, port: 5432 }
+        writes: [/var/lib/kensa/tmp]
+      secretRefs:
+        - { name: db, store: vault, key: /kensa/db, path: /var/run/secrets/db }
+      telemetry:
+        logs: { endpoint: "http://vector.observability:8686" }
+      podAnnotations:
+        team: compliance
+    asserts:
+      - matchSnapshot: {}
+
+  - it: runtime native with haibi's component defaults renders the Deployment as before
+    template: templates/deployment.yaml
+    set:
+      <<: *defaults
+      runtime:
+        kind: native
+        class: wasm
+        reason: ""
+        component: { closure: "", path: component.wasm, app: "" }
+      access:
+        egress:
+          - "api.github.com:443"
+          - { binding: database, host: kensa-pg-rw, port: 5432 }
+        writes: [/var/lib/kensa/tmp]
+      podAnnotations:
+        team: compliance
+    asserts:
+      - matchSnapshot: {}
+
+  - it: runtime native with the access effects, listen and exec keys renders the Deployment as before
+    template: templates/deployment.yaml
+    set:
+      <<: *defaults
+      runtime:
+        kind: native
+        class: wasm
+        reason: ""
+        component: { closure: "", path: component.wasm, app: "" }
+      access:
+        effects: [network, clock, entropy, environment]
+        egress:
+          - "api.github.com:443"
+          - { binding: database, host: kensa-pg-rw, port: 5432 }
+        writes: [/var/lib/kensa/tmp]
+        listen: []
+        exec: []
+      podAnnotations:
+        team: compliance
+    asserts:
+      - matchSnapshot: {}
+
+  - it: runtime native names no runtime class and no native reason
+    template: templates/deployment.yaml
+    set:
+      <<: *defaults
+      runtime: { kind: native }
+    asserts:
+      - notExists:
+          path: spec.template.spec.runtimeClassName
+      - notExists:
+          path: spec.template.metadata.annotations
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/x/y:1.0.0
+
+  - it: runtime native with a reason records it as the pod annotation
+    template: templates/deployment.yaml
+    set:
+      <<: *defaults
+      runtime: { kind: native, reason: process }
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["blue.pleme.io/native-because"]
+          value: process
+      - notExists:
+          path: spec.template.spec.runtimeClassName
+
+  - it: a native reason outside the WASI gaps is refused by name
+    template: templates/deployment.yaml
+    set:
+      <<: *defaults
+      runtime: { kind: native, reason: speed }
+    asserts:
+      - failedTemplate:
+          errorPattern: 'runtime.reason is "speed"; a native fallback names its WASI gap: process, host_program or device'
+
+  - it: a runtime kind other than native or wasm is refused by name
+    template: templates/deployment.yaml
+    set:
+      <<: *defaults
+      runtime: { kind: oci }
+    asserts:
+      - failedTemplate:
+          errorPattern: 'runtime.kind is "oci"; it is native or wasm'
+
+  - it: runtime wasm renders the runtime class, the nix image and no pull policy
+    template: templates/deployment.yaml
+    values:
+      - values/wasm-runtime.yaml
+    set:
+      <<: *wasm
+    asserts:
+      - equal:
+          path: spec.template.spec.runtimeClassName
+          value: wasm
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: nix:/nix/store/abc-kensa
+      - notExists:
+          path: spec.template.spec.containers[0].imagePullPolicy
+      - notExists:
+          path: spec.template.metadata.annotations["wasm.pleme.io/component"]
+      - notExists:
+          path: spec.template.metadata.annotations["wasm.pleme.io/app"]
+      - notExists:
+          path: spec.template.metadata.annotations["blue.pleme.io/native-because"]
+
+  - it: runtime wasm takes the class the values name
+    template: templates/deployment.yaml
+    values:
+      - values/wasm-runtime.yaml
+    set:
+      <<: *wasm
+      runtime.class: wasm-sandboxed
+    asserts:
+      - equal:
+          path: spec.template.spec.runtimeClassName
+          value: wasm-sandboxed
+
+  - it: runtime wasm with no access block renders the default access with the container ports
+    template: templates/deployment.yaml
+    values:
+      - values/wasm-runtime.yaml
+    set:
+      <<: *wasm
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["blue.pleme.io/access"]
+          value: '{"effects":["network","clock","entropy","environment"],"egress":[],"exec":[],"listen":[8080],"reads":[],"writes":[]}'
+
+  - it: runtime wasm resolves the declared access into one JSON annotation
+    template: templates/deployment.yaml
+    values:
+      - values/wasm-runtime.yaml
+    set:
+      <<: *wasm
+      access:
+        effects: [network, clock, filesystem]
+        egress:
+          - "api.github.com:443"
+          - { binding: database, host: kensa-pg-rw, port: 5432 }
+        reads:
+          - { path: /etc/kensa, configMap: kensa-config }
+        writes:
+          - /var/lib/kensa/tmp
+          - { path: /var/lib/kensa, claimName: kensa-data }
+      secretRefs:
+        - { name: db, store: vault, key: /kensa/db, path: /var/run/secrets/db }
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["blue.pleme.io/access"]
+          value: '{"effects":["network","clock","filesystem"],"egress":["api.github.com:443","kensa-pg-rw:5432"],"exec":[],"listen":[8080],"reads":["/etc/kensa","/var/run/secrets/db"],"writes":["/var/lib/kensa/tmp","/var/lib/kensa"]}'
+
+  - it: a declared listen list replaces the container ports
+    template: templates/deployment.yaml
+    values:
+      - values/wasm-runtime.yaml
+    set:
+      <<: *wasm
+      access:
+        listen: [9090, 9091]
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["blue.pleme.io/access"]
+          value: '{"effects":["network","clock","entropy","environment"],"egress":[],"exec":[],"listen":[9090,9091],"reads":[],"writes":[]}'
+
+  - it: a read-only volumeMount is a read of the access
+    template: templates/deployment.yaml
+    values:
+      - values/wasm-runtime.yaml
+    set:
+      <<: *wasm
+      volumes:
+        - { name: ca, configMap: { name: ca } }
+      volumeMounts:
+        - { name: ca, mountPath: /etc/ssl/ca, readOnly: true }
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["blue.pleme.io/access"]
+          value: '{"effects":["network","clock","entropy","environment"],"egress":[],"exec":[],"listen":[8080],"reads":["/etc/ssl/ca"],"writes":[]}'
+
+  - it: runtime wasm names the component path and the app bundle
+    template: templates/deployment.yaml
+    values:
+      - values/wasm-runtime.yaml
+    set:
+      <<: *wasm
+      runtime.component.path: lib/kensa.wasm
+      runtime.component.app: share/kensa
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["wasm.pleme.io/component"]
+          value: lib/kensa.wasm
+      - equal:
+          path: spec.template.metadata.annotations["wasm.pleme.io/app"]
+          value: share/kensa
+
+  - it: runtime wasm keeps the chart's pod annotations and the httpGet probes
+    template: templates/deployment.yaml
+    values:
+      - values/wasm-runtime.yaml
+    set:
+      <<: *wasm
+      podAnnotations:
+        team: compliance
+      health: { battery: true, port: http }
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations.team
+          value: compliance
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /health
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /ready
+
+  - it: runtime wasm passes args through as the component's argv
+    template: templates/deployment.yaml
+    values:
+      - values/wasm-runtime.yaml
+    set:
+      <<: *wasm
+      args: [daemon, --declaration, /app/attestations.b]
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].args
+          value: [daemon, --declaration, /app/attestations.b]
+
+  - it: runtime wasm with no closure is refused
+    template: templates/deployment.yaml
+    values:
+      - values/wasm-runtime.yaml
+    set:
+      <<: *wasm
+      runtime.component.closure: ""
+    asserts:
+      - failedTemplate:
+          errorPattern: "runtime.component.closure is required when runtime.kind is wasm"
+
+  - it: a closure outside the nix store is refused
+    template: templates/deployment.yaml
+    values:
+      - values/wasm-runtime.yaml
+    set:
+      <<: *wasm
+      runtime.component.closure: /opt/kensa
+    asserts:
+      - failedTemplate:
+          errorPattern: 'runtime.component.closure "/opt/kensa" is not under /nix/store/'
+
+  - it: a closure that climbs out of the store is refused
+    template: templates/deployment.yaml
+    values:
+      - values/wasm-runtime.yaml
+    set:
+      <<: *wasm
+      runtime.component.closure: /nix/store/../etc
+    asserts:
+      - failedTemplate:
+          errorPattern: 'runtime.component.closure "/nix/store/../etc" contains ".."'
+
+  - it: an absolute component path is refused
+    template: templates/deployment.yaml
+    values:
+      - values/wasm-runtime.yaml
+    set:
+      <<: *wasm
+      runtime.component.path: /etc/passwd
+    asserts:
+      - failedTemplate:
+          errorPattern: 'runtime.component.path "/etc/passwd" must be a relative path inside the closure'
+
+  - it: a component path with .. is refused
+    template: templates/deployment.yaml
+    values:
+      - values/wasm-runtime.yaml
+    set:
+      <<: *wasm
+      runtime.component.path: ../other/component.wasm
+    asserts:
+      - failedTemplate:
+          errorPattern: 'runtime.component.path "../other/component.wasm" must be a relative path inside the closure'
+
+  - it: an absolute app directory is refused
+    template: templates/deployment.yaml
+    values:
+      - values/wasm-runtime.yaml
+    set:
+      <<: *wasm
+      runtime.component.app: /srv/app
+    asserts:
+      - failedTemplate:
+          errorPattern: 'runtime.component.app "/srv/app" must be a relative path inside the closure'
+
+  - it: an app directory with .. is refused
+    template: templates/deployment.yaml
+    values:
+      - values/wasm-runtime.yaml
+    set:
+      <<: *wasm
+      runtime.component.app: share/../..
+    asserts:
+      - failedTemplate:
+          errorPattern: 'runtime.component.app "share/../.." must be a relative path inside the closure'
+
+  - it: a wasm component that declares exec is refused
+    template: templates/deployment.yaml
+    values:
+      - values/wasm-runtime.yaml
+    set:
+      <<: *wasm
+      access:
+        exec: [git]
+    asserts:
+      - failedTemplate:
+          errorPattern: "a wasm component cannot run a program; set runtime.kind native with reason process"
+
+  - it: a native reason beside runtime wasm is refused
+    template: templates/deployment.yaml
+    values:
+      - values/wasm-runtime.yaml
+    set:
+      <<: *wasm
+      runtime.reason: device
+    asserts:
+      - failedTemplate:
+          errorPattern: 'runtime.reason is "device" and runtime.kind is wasm; a reason names why a service runs native'
+
+  - it: a command beside runtime wasm is refused
+    template: templates/deployment.yaml
+    values:
+      - values/wasm-runtime.yaml
+    set:
+      <<: *wasm
+      command: [/bin/kensa]
+    asserts:
+      - failedTemplate:
+          errorPattern: "runtime.kind is wasm and command is set; the component is the program, pass its arguments in args"
+
+  - it: an exec probe beside runtime wasm is refused
+    template: templates/deployment.yaml
+    values:
+      - values/wasm-runtime.yaml
+    set:
+      <<: *wasm
+      health: { type: Exec, execCommand: [true] }
+    asserts:
+      - failedTemplate:
+          errorPattern: "health.type is Exec and runtime.kind is wasm; a component's probes are httpGet"
+
+  - it: a binding peer with no host cannot become host:port
+    template: templates/deployment.yaml
+    values:
+      - values/wasm-runtime.yaml
+    set:
+      <<: *wasm
+      access:
+        egress:
+          - { binding: metrics, cidr: 10.0.0.0/8, port: 9090 }
+    asserts:
+      - failedTemplate:
+          errorPattern: 'access.egress\[0\] \(metrics\) names no host; a wasm component dials host:port'
+
+  - it: an unknown effect is refused by name
+    template: templates/deployment.yaml
+    values:
+      - values/wasm-runtime.yaml
+    set:
+      <<: *wasm
+      access:
+        effects: [network, gpu]
+    asserts:
+      - failedTemplate:
+          errorPattern: 'access.effects\[1\] is "gpu"; an effect is network, filesystem, clock, entropy, environment or process'
+
+  - it: runtime wasm with no container port leaves listen to kidou
+    template: templates/deployment.yaml
+    values:
+      - values/wasm-runtime.yaml
+    set:
+      image.repository: ghcr.io/x/y
+      image.tag: "1.0.0"
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["blue.pleme.io/access"]
+          value: '{"effects":["network","clock","entropy","environment"],"egress":[],"exec":[],"reads":[],"writes":[]}'
+
+  - it: the annotations helper renders only the native reason under runtime native
+    template: templates/wasm-component.yaml
+    set:
+      <<: *defaults
+      runtime: { kind: native, reason: host_program }
+      wasmProbe: { extraEgress: ["kensa-pg-rw:5432"] }
+    asserts:
+      - equal:
+          path: metadata.annotations
+          value:
+            blue.pleme.io/native-because: host_program
+
+  - it: runtimeclass renders nothing without runtime wasm
+    template: templates/wasm-component.yaml
+    set:
+      <<: *defaults
+      wasmProbe: { extraEgress: [] }
+    asserts:
+      - notExists:
+          path: spec.runtimeClassName
+      - notExists:
+          path: metadata.annotations
+      - equal:
+          path: spec.containers[0].image
+          value: none
+
+  - it: runtimeclass renders the class under runtime wasm
+    template: templates/wasm-component.yaml
+    values:
+      - values/wasm-runtime.yaml
+    set:
+      <<: *wasm
+      wasmProbe: { extraEgress: [] }
+    asserts:
+      - equal:
+          path: spec.runtimeClassName
+          value: wasm
+      - equal:
+          path: spec.containers[0].image
+          value: nix:/nix/store/abc-kensa
+
+  - it: runtimeclass refuses a kind other than native or wasm
+    template: templates/wasm-component.yaml
+    set:
+      <<: *defaults
+      runtime: { kind: docker }
+      wasmProbe: { extraEgress: [] }
+    asserts:
+      - failedTemplate:
+          errorPattern: 'runtime.kind is "docker"; it is native or wasm'
+
+  - it: the annotations take a chart's extra egress after the declared peers, once each
+    template: templates/wasm-component.yaml
+    values:
+      - values/wasm-runtime.yaml
+    set:
+      <<: *wasm
+      access:
+        egress: ["api.github.com:443"]
+      wasmProbe:
+        extraEgress: ["kensa-pg-rw:5432", "kensa-valkey:6379", "api.github.com:443"]
+    asserts:
+      - equal:
+          path: metadata.annotations["blue.pleme.io/access"]
+          value: '{"effects":["network","clock","entropy","environment"],"egress":["api.github.com:443","kensa-pg-rw:5432","kensa-valkey:6379"],"exec":[],"listen":[8080],"reads":[],"writes":[]}'
+
+  - it: an extra egress entry that is not host:port is refused
+    template: templates/wasm-component.yaml
+    values:
+      - values/wasm-runtime.yaml
+    set:
+      <<: *wasm
+      wasmProbe:
+        extraEgress: ["kensa-pg-rw"]
+    asserts:
+      - failedTemplate:
+          errorPattern: 'extraEgress\[0\] is "kensa-pg-rw"; an extra peer is host:port'

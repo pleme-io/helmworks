@@ -1,0 +1,17 @@
+{{- if .Values.wasmProbe }}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: wasm-probe
+  {{- with include "pleme-lib.wasm-component.annotations" (dict "ctx" . "extraEgress" .Values.wasmProbe.extraEgress) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with include "pleme-lib.runtimeclass" . }}
+  {{- . | nindent 2 }}
+  {{- end }}
+  containers:
+    - name: c
+      image: {{ include "pleme-lib.wasm-component.image" . | default "none" }}
+{{- end }}

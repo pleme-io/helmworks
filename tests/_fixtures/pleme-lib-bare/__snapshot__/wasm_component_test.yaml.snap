@@ -1,0 +1,240 @@
+an absent runtime renders the Deployment as before:
+  1: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      labels:
+        app: t-pleme-lib-bare
+        app.kubernetes.io/instance: t
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: pleme-lib-bare
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 1.0.0
+        helm.sh/chart: pleme-lib-bare-0.0.0
+      name: t-pleme-lib-bare
+      namespace: testns
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/instance: t
+          app.kubernetes.io/name: pleme-lib-bare
+      template:
+        metadata:
+          annotations:
+            team: compliance
+          labels:
+            app: t-pleme-lib-bare
+            app.kubernetes.io/instance: t
+            app.kubernetes.io/name: pleme-lib-bare
+        spec:
+          automountServiceAccountToken: true
+          containers:
+            - env:
+                - name: VECTOR_ENDPOINT
+                  value: http://vector.observability:8686
+              image: ghcr.io/x/y:1.0.0
+              imagePullPolicy: IfNotPresent
+              livenessProbe:
+                failureThreshold: 3
+                httpGet:
+                  path: /healthz
+                  port: http
+                initialDelaySeconds: 5
+                periodSeconds: 10
+                timeoutSeconds: 1
+              name: pleme-lib-bare
+              ports:
+                - containerPort: 8080
+                  name: http
+                  protocol: TCP
+              readinessProbe:
+                failureThreshold: 2
+                httpGet:
+                  path: /readyz
+                  port: http
+                initialDelaySeconds: 5
+                periodSeconds: 5
+                timeoutSeconds: 1
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                readOnlyRootFilesystem: true
+                seccompProfile:
+                  type: RuntimeDefault
+              volumeMounts:
+                - mountPath: /var/lib/kensa/tmp
+                  name: access-write-0
+                - mountPath: /var/run/secrets/db
+                  name: secret-db
+                  readOnly: true
+          securityContext:
+            fsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          serviceAccountName: default
+          terminationGracePeriodSeconds: 30
+          volumes:
+            - emptyDir: {}
+              name: access-write-0
+            - name: secret-db
+              secret:
+                secretName: db
+runtime native with haibi's component defaults renders the Deployment as before:
+  1: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      labels:
+        app: t-pleme-lib-bare
+        app.kubernetes.io/instance: t
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: pleme-lib-bare
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 1.0.0
+        helm.sh/chart: pleme-lib-bare-0.0.0
+      name: t-pleme-lib-bare
+      namespace: testns
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/instance: t
+          app.kubernetes.io/name: pleme-lib-bare
+      template:
+        metadata:
+          annotations:
+            team: compliance
+          labels:
+            app: t-pleme-lib-bare
+            app.kubernetes.io/instance: t
+            app.kubernetes.io/name: pleme-lib-bare
+        spec:
+          automountServiceAccountToken: true
+          containers:
+            - image: ghcr.io/x/y:1.0.0
+              imagePullPolicy: IfNotPresent
+              livenessProbe:
+                failureThreshold: 3
+                httpGet:
+                  path: /healthz
+                  port: http
+                initialDelaySeconds: 5
+                periodSeconds: 10
+                timeoutSeconds: 1
+              name: pleme-lib-bare
+              ports:
+                - containerPort: 8080
+                  name: http
+                  protocol: TCP
+              readinessProbe:
+                failureThreshold: 2
+                httpGet:
+                  path: /readyz
+                  port: http
+                initialDelaySeconds: 5
+                periodSeconds: 5
+                timeoutSeconds: 1
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                readOnlyRootFilesystem: true
+                seccompProfile:
+                  type: RuntimeDefault
+              volumeMounts:
+                - mountPath: /var/lib/kensa/tmp
+                  name: access-write-0
+          securityContext:
+            fsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          serviceAccountName: default
+          terminationGracePeriodSeconds: 30
+          volumes:
+            - emptyDir: {}
+              name: access-write-0
+runtime native with the access effects, listen and exec keys renders the Deployment as before:
+  1: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      labels:
+        app: t-pleme-lib-bare
+        app.kubernetes.io/instance: t
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: pleme-lib-bare
+        app.kubernetes.io/part-of: nexus-platform
+        app.kubernetes.io/version: 1.0.0
+        helm.sh/chart: pleme-lib-bare-0.0.0
+      name: t-pleme-lib-bare
+      namespace: testns
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/instance: t
+          app.kubernetes.io/name: pleme-lib-bare
+      template:
+        metadata:
+          annotations:
+            team: compliance
+          labels:
+            app: t-pleme-lib-bare
+            app.kubernetes.io/instance: t
+            app.kubernetes.io/name: pleme-lib-bare
+        spec:
+          automountServiceAccountToken: true
+          containers:
+            - image: ghcr.io/x/y:1.0.0
+              imagePullPolicy: IfNotPresent
+              livenessProbe:
+                failureThreshold: 3
+                httpGet:
+                  path: /healthz
+                  port: http
+                initialDelaySeconds: 5
+                periodSeconds: 10
+                timeoutSeconds: 1
+              name: pleme-lib-bare
+              ports:
+                - containerPort: 8080
+                  name: http
+                  protocol: TCP
+              readinessProbe:
+                failureThreshold: 2
+                httpGet:
+                  path: /readyz
+                  port: http
+                initialDelaySeconds: 5
+                periodSeconds: 5
+                timeoutSeconds: 1
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                readOnlyRootFilesystem: true
+                seccompProfile:
+                  type: RuntimeDefault
+              volumeMounts:
+                - mountPath: /var/lib/kensa/tmp
+                  name: access-write-0
+          securityContext:
+            fsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          serviceAccountName: default
+          terminationGracePeriodSeconds: 30
+          volumes:
+            - emptyDir: {}
+              name: access-write-0

@@ -16,6 +16,7 @@ fail with an explicit error.
        posture is an environment-shape decision every chart can make. No-op at
        the default posture (durable). */ -}}
 {{- include "pleme-lib.compliance.storage.posture.validate" . -}}
+{{- include "pleme-lib.wasm-component.validate" . -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -59,7 +60,9 @@ spec:
              empty, and an `annotations:` key with no entries is YAML null:
              a typed decoder refuses the whole Deployment for it (engenho's
              typed_decode gate flagged pleme-llama-server, 2026-09-28). */ -}}
-      {{- $podAnnotations := trim (printf "%s\n%s\n%s\n%s\n%s"
+      {{- $runtimeAnnotations := include "pleme-lib.wasm-component.annotations" (dict "ctx" . "extraEgress" list) }}
+      {{- $podAnnotations := trim (printf "%s\n%s\n%s\n%s\n%s\n%s"
+            $runtimeAnnotations
             (include "pleme-lib.prometheusAnnotations" .)
             (include "pleme-lib.istioAnnotations" .)
             (include "pleme-lib.compliance.annotations" .)
@@ -71,11 +74,17 @@ spec:
         {{- include "pleme-lib.istioAnnotations" . | nindent 8 }}
         {{- include "pleme-lib.compliance.annotations" . | nindent 8 }}
         {{- include "pleme-lib.compliance.audit.annotations" . | nindent 8 }}
+        {{- with $runtimeAnnotations }}
+        {{- . | nindent 8 }}
+        {{- end }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
       {{- end }}
     spec:
+      {{- with include "pleme-lib.runtimeclass" . }}
+      {{- . | nindent 6 }}
+      {{- end }}
       serviceAccountName: {{ include "pleme-lib.serviceAccountName" . }}
       automountServiceAccountToken: {{ include "pleme-lib.compliance.automountServiceAccountToken" . }}
       {{- $airgapSecrets := include "pleme-lib.compliance.airgap.imagePullSecrets" . | trim }}
@@ -100,8 +109,12 @@ spec:
       {{- end }}
       containers:
         - name: {{ include "pleme-lib.name" . }}
+          {{- with include "pleme-lib.wasm-component.image" . }}
+          image: {{ . }}
+          {{- else }}
           image: {{ include "pleme-lib.compliance.image" . }}
           imagePullPolicy: {{ include "pleme-lib.compliance.image.pullPolicy" . }}
+          {{- end }}
           {{- with .Values.command }}
           command:
             {{- toYaml . | nindent 12 }}
