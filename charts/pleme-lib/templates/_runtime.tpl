@@ -46,7 +46,7 @@ runtimeClassName: {{ (.Values.runtime).class | default "wasm" }}
 {{- if .Values.command -}}
 {{- fail "runtime.kind is wasm and command is set; the component is the program, pass its arguments in args" -}}
 {{- end -}}
-{{- if eq (toString (.Values.health).type) "Exec" -}}
+{{- if and (kindIs "map" .Values.health) (eq (toString .Values.health.type) "Exec") -}}
 {{- fail "health.type is Exec and runtime.kind is wasm; a component's probes are httpGet" -}}
 {{- end -}}
 {{- end -}}

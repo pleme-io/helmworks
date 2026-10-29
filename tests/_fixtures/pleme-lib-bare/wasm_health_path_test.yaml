@@ -1,0 +1,30 @@
+suite: pleme-lib bare-fixture — pleme-lib.wasm-component.validate takes a health probe given as a path, as blue's haibi chart gives it
+templates:
+  - templates/wasm-component.yaml
+release:
+  name: t
+  namespace: testns
+tests:
+  - it: a path health beside runtime wasm passes validation and renders the component
+    values:
+      - values/wasm-runtime.yaml
+    set:
+      health: /healthz
+      wasmProbe: { extraEgress: [] }
+    asserts:
+      - equal:
+          path: spec.runtimeClassName
+          value: wasm
+      - equal:
+          path: spec.containers[0].image
+          value: nix:/nix/store/abc-kensa
+
+  - it: a map health of type Exec beside runtime wasm is still refused
+    values:
+      - values/wasm-runtime.yaml
+    set:
+      health: { type: Exec, execCommand: [true] }
+      wasmProbe: { extraEgress: [] }
+    asserts:
+      - failedTemplate:
+          errorPattern: "health.type is Exec and runtime.kind is wasm; a component's probes are httpGet"
