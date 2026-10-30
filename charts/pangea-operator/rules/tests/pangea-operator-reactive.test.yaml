@@ -369,3 +369,49 @@ tests:
         groupname: pangea-operator-stack
         alertname: PangeaCronJobNoSuccess
         exp_alerts: []
+  - name: PangeaRolesAnywhereCertExpiring
+    interval: 5m
+    input_series:
+      - series: pangea_roles_anywhere_cert_not_after_seconds{namespace="pangea-system",cert="c"}
+        values: 1000000x40
+    alert_rule_test:
+      - eval_time: 2h
+        groupname: pangea-operator-credentials
+        alertname: PangeaRolesAnywhereCertExpiring
+        exp_alerts:
+          - exp_labels:
+              namespace: pangea-system
+              cert: c
+              severity: warning
+              remedy_mode: page
+            exp_annotations:
+              summary: pangea-system/c Roles Anywhere certificate expires in 11 days
+              remedy: 'page: reissue the leaf from the workload-identity CA, sops set workload-identity/<leaf>/tls-crt and tls-key in nix secrets.yaml, then rebuild the node that seeds the Secret'
+  - name: PangeaRolesAnywhereCertFarFromExpiry
+    interval: 5m
+    input_series:
+      - series: pangea_roles_anywhere_cert_not_after_seconds{namespace="pangea-system",cert="c"}
+        values: 90000000x40
+    alert_rule_test:
+      - eval_time: 2h
+        groupname: pangea-operator-credentials
+        alertname: PangeaRolesAnywhereCertExpiring
+        exp_alerts: []
+  - name: PangeaRolesAnywhereCertExpired
+    interval: 5m
+    input_series:
+      - series: pangea_roles_anywhere_cert_not_after_seconds{namespace="pangea-system",cert="c"}
+        values: 1000x40
+    alert_rule_test:
+      - eval_time: 30m
+        groupname: pangea-operator-credentials
+        alertname: PangeaRolesAnywhereCertExpired
+        exp_alerts:
+          - exp_labels:
+              namespace: pangea-system
+              cert: c
+              severity: critical
+              remedy_mode: page
+            exp_annotations:
+              summary: pangea-system/c Roles Anywhere certificate has expired; every leaf using it fails to sign in
+              remedy: 'page: reissue the leaf from the workload-identity CA, sops set workload-identity/<leaf>/tls-crt and tls-key in nix secrets.yaml, then rebuild the node that seeds the Secret'

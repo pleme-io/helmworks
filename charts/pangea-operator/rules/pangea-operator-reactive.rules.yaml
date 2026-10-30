@@ -167,3 +167,24 @@ groups:
         annotations:
           summary: "{{ $labels.namespace }}/{{ $labels.workspace }} has {{ $value }} leaves {{ $labels.state }}"
           remedy: "page: the siblings keep converging; read the parent status.leaves for the named leaves, then each leaf's status.pass"
+  - name: pangea-operator-credentials
+    interval: 5m
+    rules:
+      - alert: PangeaRolesAnywhereCertExpiring
+        expr: (pangea_roles_anywhere_cert_not_after_seconds - time()) / 86400 < 30
+        for: 1h
+        labels:
+          severity: warning
+          remedy_mode: page
+        annotations:
+          summary: "{{ $labels.namespace }}/{{ $labels.cert }} Roles Anywhere certificate expires in {{ printf \"%.0f\" $value }} days"
+          remedy: "page: reissue the leaf from the workload-identity CA, sops set workload-identity/<leaf>/tls-crt and tls-key in nix secrets.yaml, then rebuild the node that seeds the Secret"
+      - alert: PangeaRolesAnywhereCertExpired
+        expr: pangea_roles_anywhere_cert_not_after_seconds - time() < 0
+        for: 5m
+        labels:
+          severity: critical
+          remedy_mode: page
+        annotations:
+          summary: "{{ $labels.namespace }}/{{ $labels.cert }} Roles Anywhere certificate has expired; every leaf using it fails to sign in"
+          remedy: "page: reissue the leaf from the workload-identity CA, sops set workload-identity/<leaf>/tls-crt and tls-key in nix secrets.yaml, then rebuild the node that seeds the Secret"
