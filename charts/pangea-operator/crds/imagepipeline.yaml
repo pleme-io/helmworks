@@ -233,6 +233,26 @@ spec:
                           required:
                             - secretRef
                           type: object
+                        purelymail:
+                          description: 'Purelymail credentials. Operator-side authority: the referenced Secret holds the account API token under `api_token` (or `PURELYMAIL_API_TOKEN`), resolved into the `purelymail` provider''s configure object.'
+                          nullable: true
+                          properties:
+                            secretRef:
+                              description: Secret containing the Purelymail account API token.
+                              properties:
+                                name:
+                                  description: Name of the Secret.
+                                  type: string
+                                namespace:
+                                  description: Namespace of the Secret (defaults to same namespace as the resource).
+                                  nullable: true
+                                  type: string
+                              required:
+                                - name
+                              type: object
+                          required:
+                            - secretRef
+                          type: object
                         onePassword:
                           description: '1Password credentials. Ruby-side: the Secret''s data keys are installed verbatim as env vars; the `opadmin` provider reads `OP_SERVICE_ACCOUNT_TOKEN`.'
                           nullable: true
@@ -725,6 +745,26 @@ spec:
                           properties:
                             secretRef:
                               description: Secret containing the service-account key JSON and optional defaults.
+                              properties:
+                                name:
+                                  description: Name of the Secret.
+                                  type: string
+                                namespace:
+                                  description: Namespace of the Secret (defaults to same namespace as the resource).
+                                  nullable: true
+                                  type: string
+                              required:
+                                - name
+                              type: object
+                          required:
+                            - secretRef
+                          type: object
+                        purelymail:
+                          description: 'Purelymail credentials. Operator-side authority: the referenced Secret holds the account API token under `api_token` (or `PURELYMAIL_API_TOKEN`), resolved into the `purelymail` provider''s configure object.'
+                          nullable: true
+                          properties:
+                            secretRef:
+                              description: Secret containing the Purelymail account API token.
                               properties:
                                 name:
                                   description: Name of the Secret.
