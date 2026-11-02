@@ -415,3 +415,213 @@ tests:
             exp_annotations:
               summary: pangea-system/c Roles Anywhere certificate has expired; every leaf using it fails to sign in
               remedy: 'page: reissue the leaf from the workload-identity CA, sops set workload-identity/<leaf>/tls-crt and tls-key in nix secrets.yaml, then rebuild the node that seeds the Secret'
+  - name: PangeaTemplateFailed
+    interval: 1m
+    input_series:
+      - series: pangea_template_phase{template="t",namespace="ns",phase="Failed"}
+        values: 1x20
+      - series: pangea_template_phase{template="leaf",namespace="ns",workspace="org",phase="Failed"}
+        values: 1x20
+      - series: pangea_workspace_leaves{workspace="org",namespace="ns",state="failed"}
+        values: 1x20
+    alert_rule_test:
+      - eval_time: 10m
+        groupname: pangea-operator-sync
+        alertname: PangeaTemplateFailed
+        exp_alerts:
+          - exp_labels:
+              template: t
+              namespace: ns
+              phase: Failed
+              severity: critical
+              remedy_mode: page
+            exp_annotations:
+              summary: ns/t is in phase Failed
+              remedy: "page: read status.lastError and the operator log for the template, fix the cause, then let it reconcile; a catalog's leaves page through PangeaWorkspaceLeavesUnhealthy instead"
+  - name: PangeaTemplateNotReady
+    interval: 1m
+    input_series:
+      - series: pangea_template_condition{template="roteador-buzios",namespace="default",type="Ready",status="False"}
+        values: 1x180
+      - series: pangea_template_phase{template="roteador-buzios",namespace="default",phase="Ready"}
+        values: 1x180
+      - series: pangea_template_condition{template="d",namespace="default",type="Ready",status="False"}
+        values: 1x180
+      - series: pangea_template_phase{template="d",namespace="default",phase="Drifted"}
+        values: 1x180
+      - series: pangea_template_condition{template="ok",namespace="default",type="Ready",status="True"}
+        values: 1x180
+    alert_rule_test:
+      - eval_time: 1h50m
+        groupname: pangea-operator-sync
+        alertname: PangeaTemplateNotReady
+        exp_alerts: []
+      - eval_time: 2h30m
+        groupname: pangea-operator-sync
+        alertname: PangeaTemplateNotReady
+        exp_alerts:
+          - exp_labels:
+              template: roteador-buzios
+              namespace: default
+              type: Ready
+              status: "False"
+              severity: warning
+              remedy_mode: page
+            exp_annotations:
+              summary: default/roteador-buzios has reported Ready=False for over 2h
+              remedy: "page: read the Ready condition's reason and message, then status.pass; Failed, Drifted and Pending have their own alerts, and a suspended template is not projected"
+  - name: PangeaTemplateDriftedUnreconciled
+    interval: 1m
+    input_series:
+      - series: pangea_template_phase_age_seconds{template="roteador-buzios",namespace="default"}
+        values: 1641600+60x30
+      - series: pangea_template_phase{template="roteador-buzios",namespace="default",phase="Drifted"}
+        values: 1x30
+      - series: pangea_template_phase_age_seconds{template="fresh",namespace="default"}
+        values: 600+60x30
+      - series: pangea_template_phase{template="fresh",namespace="default",phase="Drifted"}
+        values: 1x30
+    alert_rule_test:
+      - eval_time: 10m
+        groupname: pangea-operator-sync
+        alertname: PangeaTemplateDriftedUnreconciled
+        exp_alerts:
+          - exp_labels:
+              template: roteador-buzios
+              namespace: default
+              severity: warning
+              remedy_mode: page
+            exp_annotations:
+              summary: default/roteador-buzios has been Drifted for 19d 0h 10m 0s without a reconcile
+              remedy: "page: with autoApprove false the drift waits for approval; approve the plan, set autoApprove, or undo the out-of-band change"
+  - name: PangeaTemplatePendingTooLong
+    interval: 1m
+    input_series:
+      - series: pangea_template_phase_age_seconds{template="repetidor-buzios",namespace="default"}
+        values: 7000+60x30
+      - series: pangea_template_phase{template="repetidor-buzios",namespace="default",phase="Pending"}
+        values: 1x30
+    alert_rule_test:
+      - eval_time: 5m
+        groupname: pangea-operator-sync
+        alertname: PangeaTemplatePendingTooLong
+        exp_alerts: []
+      - eval_time: 20m
+        groupname: pangea-operator-sync
+        alertname: PangeaTemplatePendingTooLong
+        exp_alerts:
+          - exp_labels:
+              template: repetidor-buzios
+              namespace: default
+              severity: warning
+              remedy_mode: page
+            exp_annotations:
+              summary: default/repetidor-buzios has been Pending for 2h 16m 40s
+              remedy: "page: no pass started; check admission (PangeaAdmissionDeferring), the source, and status.pass"
+  - name: PangeaWorkspaceLeavesNotSynced
+    interval: 1m
+    input_series:
+      - series: pangea_workspace_leaves{workspace="org",namespace="ns",state="planning"}
+        values: 2x30
+      - series: pangea_template_phase_age_seconds{template="drifted-leaf",namespace="ns",workspace="org"}
+        values: 8000x30
+      - series: pangea_template_phase{template="drifted-leaf",namespace="ns",workspace="org",phase="Drifted"}
+        values: 1x30
+      - series: pangea_template_phase_age_seconds{template="young-leaf",namespace="ns",workspace="org"}
+        values: 100x30
+      - series: pangea_template_phase{template="young-leaf",namespace="ns",workspace="org",phase="Planning"}
+        values: 1x30
+      - series: pangea_template_phase_age_seconds{template="failed-leaf",namespace="ns",workspace="org"}
+        values: 9000x30
+      - series: pangea_template_phase{template="failed-leaf",namespace="ns",workspace="org",phase="Failed"}
+        values: 1x30
+      - series: pangea_template_phase_age_seconds{template="standalone",namespace="ns"}
+        values: 9000x30
+      - series: pangea_template_phase{template="standalone",namespace="ns",phase="Drifted"}
+        values: 1x30
+    alert_rule_test:
+      - eval_time: 10m
+        groupname: pangea-operator-sync
+        alertname: PangeaWorkspaceLeavesNotSynced
+        exp_alerts:
+          - exp_labels:
+              workspace: org
+              namespace: ns
+              severity: warning
+              remedy_mode: page
+            exp_annotations:
+              summary: ns/org has 1 leaves out of Ready for over 2h
+              remedy: "page: the parent status.leaves names them; read each leaf's phase and status.pass (a Drifted leaf waits for approval when autoApprove is false)"
+  - name: PangeaWorkspaceLeavesUnlabeled
+    interval: 5m
+    input_series:
+      - series: pangea_workspace_leaves_unlabeled{workspace="pleme-io-github-repos"}
+        values: 44x90
+      - series: pangea_workspace_leaves_unlabeled{workspace="quiet"}
+        values: 0x90
+    alert_rule_test:
+      - eval_time: 5h
+        groupname: pangea-operator-sync
+        alertname: PangeaWorkspaceLeavesUnlabeled
+        exp_alerts: []
+      - eval_time: 6h30m
+        groupname: pangea-operator-sync
+        alertname: PangeaWorkspaceLeavesUnlabeled
+        exp_alerts:
+          - exp_labels:
+              workspace: pleme-io-github-repos
+              severity: warning
+              remedy_mode: page
+            exp_annotations:
+              summary: workspace pleme-io-github-repos has had unhealthy leaves past the per-leaf series cap for 6h (44 now)
+              remedy: "page: these leaves carry no per-leaf series, so no age; read the parent status.leaves"
+  - name: PangeaWorkspaceCatalogSuspended
+    interval: 1m
+    input_series:
+      - series: pangea_workspace_catalog_suspended{workspace="pleme-io-github-repos"}
+        values: 1x120
+      - series: pangea_workspace_catalog_suspended{workspace="running"}
+        values: 0x120
+    alert_rule_test:
+      - eval_time: 50m
+        groupname: pangea-operator-sync
+        alertname: PangeaWorkspaceCatalogSuspended
+        exp_alerts: []
+      - eval_time: 1h30m
+        groupname: pangea-operator-sync
+        alertname: PangeaWorkspaceCatalogSuspended
+        exp_alerts:
+          - exp_labels:
+              workspace: pleme-io-github-repos
+              severity: warning
+              remedy_mode: page
+            exp_annotations:
+              summary: WorkspaceCatalog pleme-io-github-repos has been suspended for over 1h; none of its templates reconcile
+              remedy: "page: a manual brake left on; set spec.suspend to false once its reason is gone"
+  - name: PangeaOperatorMetricsAbsent
+    interval: 1m
+    input_series:
+      - series: up{job="pangea-operator",instance="ryn:9090"}
+        values: 0x30
+    alert_rule_test:
+      - eval_time: 20m
+        groupname: pangea-operator-sync
+        alertname: PangeaOperatorMetricsAbsent
+        exp_alerts:
+          - exp_labels:
+              reading: projection_timestamp_seconds
+              severity: warning
+              remedy_mode: page
+            exp_annotations:
+              summary: pangea-operator metrics are absent; every pangea alert is blind
+              remedy: 'page: check the scrape target (up{job="pangea-operator"}), the operator pod, and whether the /metrics body finishes inside the scrape timeout'
+  - name: PangeaOperatorMetricsPresent
+    interval: 1m
+    input_series:
+      - series: pangea_operator_progress{reading="projection_timestamp_seconds"}
+        values: 1793649090+60x30
+    alert_rule_test:
+      - eval_time: 20m
+        groupname: pangea-operator-sync
+        alertname: PangeaOperatorMetricsAbsent
+        exp_alerts: []

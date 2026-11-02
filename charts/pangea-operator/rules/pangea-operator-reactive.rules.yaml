@@ -167,6 +167,81 @@ groups:
         annotations:
           summary: "{{ $labels.namespace }}/{{ $labels.workspace }} has {{ $value }} leaves {{ $labels.state }}"
           remedy: "page: the siblings keep converging; read the parent status.leaves for the named leaves, then each leaf's status.pass"
+  - name: pangea-operator-sync
+    interval: 30s
+    rules:
+      - alert: PangeaTemplateFailed
+        expr: pangea_template_phase{phase="Failed"} == 1 unless on (workspace, namespace) group by (workspace, namespace) (pangea_workspace_leaves)
+        for: 5m
+        labels:
+          severity: critical
+          remedy_mode: page
+        annotations:
+          summary: "{{ $labels.namespace }}/{{ $labels.template }} is in phase Failed"
+          remedy: "page: read status.lastError and the operator log for the template, fix the cause, then let it reconcile; a catalog's leaves page through PangeaWorkspaceLeavesUnhealthy instead"
+      - alert: PangeaTemplateNotReady
+        expr: pangea_template_condition{type="Ready",status!="True"} == 1 unless on (template, namespace, workspace) pangea_template_phase{phase=~"Failed|Drifted|Pending"} == 1 unless on (workspace, namespace) group by (workspace, namespace) (pangea_workspace_leaves)
+        for: 2h
+        labels:
+          severity: warning
+          remedy_mode: page
+        annotations:
+          summary: "{{ $labels.namespace }}/{{ $labels.template }} has reported Ready={{ $labels.status }} for over 2h"
+          remedy: "page: read the Ready condition's reason and message, then status.pass; Failed, Drifted and Pending have their own alerts, and a suspended template is not projected"
+      - alert: PangeaTemplateDriftedUnreconciled
+        expr: pangea_template_phase_age_seconds > 7200 and on (template, namespace, workspace) pangea_template_phase{phase="Drifted"} == 1 unless on (workspace, namespace) group by (workspace, namespace) (pangea_workspace_leaves)
+        for: 5m
+        labels:
+          severity: warning
+          remedy_mode: page
+        annotations:
+          summary: "{{ $labels.namespace }}/{{ $labels.template }} has been Drifted for {{ $value | humanizeDuration }} without a reconcile"
+          remedy: "page: with autoApprove false the drift waits for approval; approve the plan, set autoApprove, or undo the out-of-band change"
+      - alert: PangeaTemplatePendingTooLong
+        expr: pangea_template_phase_age_seconds > 7200 and on (template, namespace, workspace) pangea_template_phase{phase="Pending"} == 1 unless on (workspace, namespace) group by (workspace, namespace) (pangea_workspace_leaves)
+        for: 5m
+        labels:
+          severity: warning
+          remedy_mode: page
+        annotations:
+          summary: "{{ $labels.namespace }}/{{ $labels.template }} has been Pending for {{ $value | humanizeDuration }}"
+          remedy: "page: no pass started; check admission (PangeaAdmissionDeferring), the source, and status.pass"
+      - alert: PangeaWorkspaceLeavesNotSynced
+        expr: count by (workspace, namespace) (pangea_template_phase_age_seconds > 7200 and on (template, namespace, workspace) pangea_template_phase{phase!~"Ready|Failed"} == 1 and on (workspace, namespace) group by (workspace, namespace) (pangea_workspace_leaves)) > 0
+        for: 5m
+        labels:
+          severity: warning
+          remedy_mode: page
+        annotations:
+          summary: "{{ $labels.namespace }}/{{ $labels.workspace }} has {{ $value }} leaves out of Ready for over 2h"
+          remedy: "page: the parent status.leaves names them; read each leaf's phase and status.pass (a Drifted leaf waits for approval when autoApprove is false)"
+      - alert: PangeaWorkspaceLeavesUnlabeled
+        expr: pangea_workspace_leaves_unlabeled > 0
+        for: 6h
+        labels:
+          severity: warning
+          remedy_mode: page
+        annotations:
+          summary: "workspace {{ $labels.workspace }} has had unhealthy leaves past the per-leaf series cap for 6h ({{ $value }} now)"
+          remedy: "page: these leaves carry no per-leaf series, so no age; read the parent status.leaves"
+      - alert: PangeaWorkspaceCatalogSuspended
+        expr: pangea_workspace_catalog_suspended == 1
+        for: 1h
+        labels:
+          severity: warning
+          remedy_mode: page
+        annotations:
+          summary: "WorkspaceCatalog {{ $labels.workspace }} has been suspended for over 1h; none of its templates reconcile"
+          remedy: "page: a manual brake left on; set spec.suspend to false once its reason is gone"
+      - alert: PangeaOperatorMetricsAbsent
+        expr: absent(pangea_operator_progress{reading="projection_timestamp_seconds"})
+        for: 10m
+        labels:
+          severity: warning
+          remedy_mode: page
+        annotations:
+          summary: pangea-operator metrics are absent; every pangea alert is blind
+          remedy: "page: check the scrape target (up{job=\"pangea-operator\"}), the operator pod, and whether the /metrics body finishes inside the scrape timeout"
   - name: pangea-operator-credentials
     interval: 5m
     rules:
