@@ -1,0 +1,42 @@
+namespace: ""
+
+# The repository that holds the generated shards is a consumer's fact: url and
+# path are empty here, and a shard is refused at render time until both are set.
+workspace:
+  gitRepository:
+    url: ""
+    ref: main
+    path: ""
+  catalog: datadog-estate
+  pangeaNamespace: datadog-estate
+
+# Adoption safety. These defaults are deliberately the paranoid ones: the estate
+# being adopted is a live production observability estate, and the failure mode
+# for a provider with no uniqueness constraint is a silent duplicate rather than
+# a visible error.
+adoption:
+  destroyProtection: true
+  defaultDecision: requireApproval
+  refreshInterval: 30m
+
+credentials:
+  secretName: dd-provider-credentials
+  externalSecret:
+    enabled: false
+    refreshInterval: 1h
+    secretStore:
+      kind: ClusterSecretStore
+      name: ""
+    remoteRef:
+      apiKey: ""
+      appKey: ""
+
+# One InfrastructureTemplate per shard. Sharding exists because a single CR
+# carrying every importHint is a large object and the prepass runs them
+# concurrently; smaller shards fail smaller.
+#
+# `importHints` maps a terraform address to its Datadog id and comes verbatim
+# from the emitter's imports.json. WITHOUT IT the first apply CREATES a
+# duplicate of every live object, so a shard with no hints is refused at render
+# time rather than deployed and discovered later.
+shards: []

@@ -152,6 +152,7 @@
             { name = "lareira-breathe-observability"; chartDir = ./charts/lareira-breathe-observability; }
             # ── dashboard-as-code workspace kind (PangeaDashboard CRs from values) ──
             { name = "lareira-pangea-dashboards"; chartDir = ./charts/lareira-pangea-dashboards; }
+            { name = "lareira-datadog-estate"; chartDir = ./charts/lareira-datadog-estate; }
             { name = "empresa-site"; chartDir = ./charts/empresa-site; }
           ];
 
