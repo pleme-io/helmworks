@@ -1,0 +1,21 @@
+suite: pod annotations reach the pods a CronJob creates
+templates:
+  - templates/cronjob.yaml
+set:
+  schedule: "*/20 * * * *"
+  image:
+    repository: example
+    tag: "1"
+tests:
+  - it: carries a declared annotation to the job's pod template
+    set:
+      podAnnotations:
+        kakoi.pleme.io/root: because
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.metadata.annotations["kakoi.pleme.io/root"]
+          value: because
+  - it: leaves the pod template without annotations when none is declared
+    asserts:
+      - notExists:
+          path: spec.jobTemplate.spec.template.metadata.annotations

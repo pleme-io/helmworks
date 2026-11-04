@@ -32,6 +32,10 @@ spec:
         metadata:
           labels:
             {{- include "pleme-lib.selectorLabels" . | nindent 12 }}
+          {{- with .Values.podAnnotations }}
+          annotations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
         spec:
           serviceAccountName: {{ include "pleme-lib.serviceAccountName" . }}
           automountServiceAccountToken: {{ include "pleme-lib.compliance.automountServiceAccountToken" . }}
