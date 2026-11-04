@@ -12,6 +12,8 @@ spec:
       app.kubernetes.io/name: {{ $name }}
   template:
     metadata:
+      annotations:
+        kakoi.pleme.io/root: "unit-run starts as root to become the unit's own account"
       labels:
         app.kubernetes.io/name: {{ $name }}
     spec:
