@@ -16,7 +16,7 @@ description: |
   Pillar 11 alignment: this is the listener tier (server + worker
   scale to zero where idle; state tier always present + elastic).
 type: application
-version: 0.1.0
+version: 0.1.1
 appVersion: "2024.10.5"
 keywords:
   - authentik

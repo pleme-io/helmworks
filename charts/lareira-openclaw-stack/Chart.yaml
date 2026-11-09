@@ -9,7 +9,7 @@ description: |
   overlay; sub-charts can be enabled/disabled independently via
   top-level toggles.
 type: application
-version: 0.6.5
+version: 0.6.6
 appVersion: "0.6.4"
 keywords: [openclaw, fedramp-high, attestation, lareira, umbrella]
 maintainers: [{name: drzzln, email: drzzln@protonmail.com}]

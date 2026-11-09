@@ -17,7 +17,7 @@ description: >-
 
   Pattern mirrors the existing lareira-* umbrella charts in helmworks (lareira-authentik, lareira-cert-manager, lareira-keda) — one chart per opinionated cluster-deployment of a substrate primitive, with the breathability + observability + attestation defaults baked in.
 type: application
-version: 0.1.0
+version: 0.1.1
 appVersion: "0.8.15"
 home: https://github.com/pleme-io/helmworks/tree/main/charts/lareira-magma
 maintainers:

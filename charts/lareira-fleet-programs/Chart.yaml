@@ -15,7 +15,7 @@ description: |
   sync with the values file — FluxCD reconciles, the wasm-operator
   fetches every URL, compiles + caches, dispatches.
 type: application
-version: 0.1.0
+version: 0.1.1
 appVersion: "0.1.0"
 
 keywords: [fleet, programs, computeunit, wasm, lareira]

@@ -6,7 +6,7 @@ description: |
   chart for the github:pleme-io/programs/dns-reconciler tatara-lisp
   program. Replaces ExternalDNS.
 type: application
-version: 0.1.0
+version: 0.1.1
 appVersion: "0.1.0"
 keywords: [dns, controller, lareira, computeunit]
 maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]

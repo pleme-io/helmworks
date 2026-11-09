@@ -5,7 +5,7 @@ description: |
   generate thumbnail variants, write to S3, emit completion events.
   Demonstrates the `function` shape (event-driven Lambda-style).
 type: application
-version: 0.1.0
+version: 0.1.1
 appVersion: "0.1.0"
 keywords: [function, async, nats, image, thumbnail, lareira, computeunit]
 maintainers: [{ name: drzzln, email: drzzln@protonmail.com }]

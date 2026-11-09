@@ -31,7 +31,7 @@ description: >-
   same shape across Terraform, GitHub, DNS, Helm, Vault, and any future
   kind.
 type: library
-version: 0.1.0
+version: 0.1.1
 appVersion: "0.1.0"
 home: https://github.com/pleme-io/helmworks/tree/main/charts/pleme-reconciler
 maintainers:

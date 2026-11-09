@@ -11,7 +11,7 @@ description: |
   Cold-start ~3s; idle resident: 0 pods. KEDA HTTP scales 0→N→0
   with 10min cooldown — feels always-on for typical use.
 type: application
-version: 0.1.0
+version: 0.1.1
 appVersion: "0.1.0"
 
 keywords: [hello-world, example, lareira, breathable, wasm, tatara-lisp]

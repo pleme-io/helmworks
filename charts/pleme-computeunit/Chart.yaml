@@ -17,7 +17,7 @@ description: |
     function    → KEDA Trigger CR for event source
     controller  → optional policy CR alongside the ComputeUnit
 type: application
-version: 0.1.0
+version: 0.1.1
 appVersion: "0.1.0"
 
 keywords: [computeunit, wasm, tatara-lisp, lareira]
