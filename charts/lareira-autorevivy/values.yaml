@@ -76,7 +76,7 @@ serviceAccount:
 rbac:
   create: true
 
-# ── Camelot posture (CAMELOT §III non-negotiables) ────────────────────────────
+# ── Camelot posture (non-negotiables) ─────────────────────────────────────────
 nodeSelector:
   role: camelot
 tolerations:
@@ -85,7 +85,7 @@ tolerations:
     effect: NoSchedule
 imagePullSecrets: []
 
-# Breathe the controller itself (dogfood — CAMELOT §III #4: every workload carries
+# Breathe the controller itself (dogfood — every workload carries
 # a band with EXPLICIT dryRun). Only rendered when controller.enabled (no band
 # pointing at a non-existent target). Shape matches breathe.pleme.io/v1 MemoryBand.
 breatheBand:

@@ -293,7 +293,7 @@ preheat:
     autorevivyRef: camelot-self-maintenance
     outcomeChain: true
 
-# ── Camelot posture (CAMELOT §III non-negotiables). ───────────────────────────
+# ── Camelot posture (non-negotiables). ────────────────────────────────────────
 # In-cluster workloads (attic, exporter) run on camelot nodes with the camelot
 # toleration — NOT on the builder-tainted nodes (those are for build workers only).
 nodeSelector:

@@ -15,7 +15,7 @@
 > forward-auth via the `pleme-lib.compliance.authn.oidc` template
 > helper is the SSO boundary; Cloudflare Access is dropped in
 > saguão migration Phase 3. The diagram below is preserved for
-> historical context — the live shape is in `SAGUAO.md`.
+> historical context; it is not the live shape.
 
 Breathable Authentik for the rio cluster (and any pleme-io home-edge
 cluster offering SSO).
@@ -118,7 +118,7 @@ the chart is enabled.
 
 The current `clusters/rio/infrastructure/authentik/release.yaml` is a
 raw `HelmRelease` block with values inline. It violates the
-helm-first invariant from `BREATHABILITY.md §VII.7`. Migration:
+helm-first invariant. Migration:
 
 ```yaml
 # clusters/rio/infrastructure/authentik/release.yaml — NEW shape
