@@ -19,9 +19,6 @@ a different `spec.trigger`:
 | service | `service: { port, hosts }` | long-running HTTP/gRPC, scale-to-zero via KEDA HTTP |
 | controller | `watch: { group, kind }` | CRD reconciler — author K8s operators as WASM modules |
 
-See [`theory/WASM-STACK.md`](../../../theory/WASM-STACK.md) for the
-full design + examples per shape.
-
 ## Authoring paths
 
 WASM modules can be authored in any language that compiles to
@@ -65,9 +62,7 @@ spec:
 
 ## Default-OFF
 
-Like every chart in this fleet (per
-[BREATHABILITY.md §VII.7](../../../theory/BREATHABILITY.md)),
-the umbrella renders nothing until `enabled: true`. Each peer
+Like every chart in this fleet, the umbrella renders nothing until `enabled: true`. Each peer
 chart follows the same default.
 
 ## Phase A status (this scaffold)
@@ -91,7 +86,4 @@ The chart references images that need to be built + published to
 
 ## See also
 
-- [theory/WASM-STACK.md](../../../theory/WASM-STACK.md) — the runtime design (4 shapes, capabilities, breathability)
-- [theory/SCRIPTING.md](../../../theory/SCRIPTING.md) — tatara-lisp as authoring layer
-- [theory/BREATHABILITY.md](../../../theory/BREATHABILITY.md) — fleet-wide use-causes-spin-up
 - Upstream: [`wasm-platform`](https://github.com/pleme-io/wasm-platform), [`tatara-lisp`](https://github.com/pleme-io/tatara-lisp), [`cartorio`](https://github.com/pleme-io/cartorio)

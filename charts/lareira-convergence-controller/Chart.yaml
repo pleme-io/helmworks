@@ -8,7 +8,7 @@ description: |
 
   Migration phasing α (review) → β (parallel-run with Rust controller
   via Process.spec.runtime: lisp opt-in) → γ (default lisp) →
-  δ (deprecate Rust controller). See theory/WASM-RUNTIME-COMPLETE.md §III.
+  δ (deprecate Rust controller).
 type: application
 version: 0.1.0
 appVersion: "0.1.0"

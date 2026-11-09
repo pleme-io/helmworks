@@ -378,7 +378,7 @@ spec:
                     default: Ruby
                     description: "Which evaluator runs this gem. `Ruby` is the default for backward compatibility\
                       \ \u2014 every existing ArchitectureGem CR continues to validate + reconcile unchanged.\n\
-                      \n`Lisp` selects the terreno evaluator (theory/TERRENO.md M2); `Wasm` selects a\
+                      \n`Lisp` selects the terreno evaluator; `Wasm` selects a\
                       \ typed wasmtime component. Both are reserved at the schema layer today; the operator's\
                       \ prepare_gem returns a typed `NotImplemented` condition until terreno-eval lands."
                     enum:

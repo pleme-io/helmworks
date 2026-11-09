@@ -49,7 +49,7 @@
 
         doCheck = true;
         meta = {
-          description = "PVC autosize watcher (theory/BREATHABILITY.md §V)";
+          description = "PVC autosize watcher";
           license = pkgs.lib.licenses.mit;
           mainProgram = "pleme-storage-elastic";
         };
@@ -78,7 +78,7 @@
             Labels = {
               "org.opencontainers.image.source" = "https://github.com/pleme-io/helmworks";
               "org.opencontainers.image.description" =
-                "pleme-storage-elastic — PVC autosize watcher (theory/BREATHABILITY.md §V)";
+                "pleme-storage-elastic — PVC autosize watcher";
               "org.opencontainers.image.licenses" = "MIT";
               "org.opencontainers.image.version"  = version;
             };

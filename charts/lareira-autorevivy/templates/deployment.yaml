@@ -2,7 +2,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # The autorevivy coordinator controller. STUB / LiveTODO — the closed loop
 # (cron → shigoto Dag → autonomous Viggy seven-beat over the CLEAN/DEFEND/PROTECT
-# concern rows) is DESIGN (theory/AUTOREVIVY.md §VIII.2 M1). Disabled by default
+# concern rows) is DESIGN, not built. Disabled by default
 # (controller.enabled=false). Until it exists the loop runs MANUALLY over the
 # shipped MCPs; do not round this Deployment up to a running controller.
 # ─────────────────────────────────────────────────────────────────────────────

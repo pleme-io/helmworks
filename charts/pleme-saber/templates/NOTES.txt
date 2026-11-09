@@ -24,5 +24,3 @@ Public host:
   Not in this chart. rio fronts saber via the drive cloudflare-tunnel
   architecture — the public host ({app}.{cluster}.{location}.{domain}) and
   the tunnel ingress entry are declared in the k8s repo's HelmRelease.
-
-Doctrine: theory/URDUME.md (the service spine) + theory/SABER.md.

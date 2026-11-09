@@ -8,7 +8,6 @@ The camelot-scoped self-maintenance layer.
 > (`autorevivy-admission` + `pleme-lib global.autorevivy`, the breathe-admission
 > pattern one layer up) is the named destination, **off** outside camelot.
 
-Canonical doctrine: [`theory/AUTOREVIVY.md`](https://github.com/pleme-io/theory/blob/main/AUTOREVIVY.md).
 Operator handle: the `/autorevivy` skill (folds the former breathability and
 auto-remediation skills).
 

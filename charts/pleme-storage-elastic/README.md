@@ -1,8 +1,7 @@
 # pleme-storage-elastic
 
 Watcher CronJob that keeps every selected PVC at ~80% utilization.
-Implements the storage-tier breathability invariant from
-[theory/BREATHABILITY.md §V](../../../theory/BREATHABILITY.md):
+Implements the storage-tier breathability invariant:
 "storage cannot scale to zero (data persists), so the breathability
 pattern is elastic expansion at 80% utilization."
 
@@ -83,8 +82,3 @@ The default `ghcr.io/pleme-io/pleme-storage-elastic` image is a
 Nix-built distroless image containing `kubectl` + `jq` + a bash
 watcher script. Source: TODO — when the image lands, this README
 links the build flake.
-
-## See also
-
-- [theory/BREATHABILITY.md §V — elastic storage at 80%](../../../theory/BREATHABILITY.md)
-- [theory/BREATHABILITY.md §VII.7 — helm-first authoring](../../../theory/BREATHABILITY.md)

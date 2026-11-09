@@ -1,6 +1,6 @@
 {{- /*
 Breathability for porto — the carving homeostasis that makes the registry a
-fully breathable, infinitely-expandable OCI store (theory/BREATHABILITY.md).
+fully breathable, infinitely-expandable OCI store.
 
   • MemoryBand / CpuBand hold the server pods in the 80/20 utilization band by
     carving their resource limits (breathe is the sole writer when live).

@@ -4,7 +4,7 @@
 # declarative surface (the Autorevivy CRD + one Autorevivy CR + RBAC). The closed
 # coordinator controller is a STUB, DISABLED by default (controller.enabled=false):
 # the loop runs MANUALLY today over the shipped MCPs (breathe / grafana / engenho /
-# escuta). Do not round the stub up to a running controller. See theory/AUTOREVIVY.md.
+# escuta). Do not round the stub up to a running controller.
 
 # ── The Autorevivy CR this chart renders (templates/autorevivy.yaml) ──────────
 autorevivy:

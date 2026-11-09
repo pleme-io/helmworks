@@ -5,8 +5,8 @@ description: |
   the ~14 /v2/ endpoints (blob CAS + manifest/tag/referrers index + the chunked-
   upload typestate FSM) over sui-cache's content-addressed StorageBackend — the
   same store that holds Nix NARs. The naturalize(zot) build: zot's registry-
-  server capability rebuilt as native substrate, not a wrapper. See
-  theory/PORTO.md. Wraps the Rust server (sui-registry) in pleme-io conventions:
+  server capability rebuilt as native substrate, not a wrapper.
+  Wraps the Rust server (sui-registry) in pleme-io conventions:
   pleme-lib templates, enforced security baseline, NetworkPolicy, PVC-backed
   blob store, breathe StorageBand.
 type: application

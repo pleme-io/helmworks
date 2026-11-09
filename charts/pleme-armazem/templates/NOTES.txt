@@ -23,5 +23,3 @@ Point a consumer at it (e.g. hanabi's WebappS3Source.endpoint):
 
 Promote a breathe band from SHADOW to LIVE (let breathe own the limit/size):
   set breathe.<memory|cpu|storage>.dryRun=false  +  cede that field from this chart's values.
-
-Doctrine: theory/ARMAZEM.md.

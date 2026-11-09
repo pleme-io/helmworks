@@ -6,7 +6,7 @@
 # system) rather than re-declaring them — minimal new algebra.
 #
 # CAMELOT-SCOPED NOW; fleet-wide is the destination. spec.scope is the gate: the
-# running controller accepts `camelot` only. See theory/AUTOREVIVY.md §VII.
+# running controller accepts `camelot` only.
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:

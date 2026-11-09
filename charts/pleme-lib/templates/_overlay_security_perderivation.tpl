@@ -1,7 +1,6 @@
 {{/*
 Overlay: security-perderivation
 Source: super-cache-ci per-derivation security layer
-        theory/SUPER-CACHE-CI-SECURITY.md
         NIST 800-53 Rev 5 SI-7, CM-14, SR-11 (L-sign) · CM-8 (L-sbom) ·
         RA-5, SI-2 (L-cve/vex) · SR-3/4, SA-10 (L-provenance) ·
         AU-2/12 (L-transparency) · CM-14, SR-11 (L-admission)

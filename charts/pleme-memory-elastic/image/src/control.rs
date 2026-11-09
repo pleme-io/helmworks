@@ -5,8 +5,7 @@
 //! cluster. This is the heart of the bidirectional memory band controller:
 //! hold each enrolled target at the setpoint (default 80% used / 20% free) by
 //! nudging its memory *limit* in gentle, bounded steps that converge over many
-//! single-shot ticks — implementing the memory dimension of
-//! [`theory/BREATHABILITY.md`](https://github.com/pleme-io/theory).
+//! single-shot ticks — implementing the memory dimension of breathability.
 //!
 //! Two responsibilities:
 //!   1. [`decide`] — the bidirectional band law (grow / hold / shrink).

@@ -91,7 +91,7 @@ embedded mode and drop the compiler sidecar from the pod spec.
 {{- if .Values.executor.verbose }}
 {{- $executorEnv = append $executorEnv (dict "name" "PANGEA_VERBOSE" "value" "true") }}
 {{- end }}
-{{/* Magma backend wiring — per theory/MAGMA-OPERATOR-BACKEND.md §VI.
+{{/* Magma backend wiring.
      When `executor.magma.enabled` is true, PANGEA_EXECUTOR=magma
      becomes the operator-wide default backend. Per-CR override via
      `Pangea.spec.executor: magma|tofu` still wins. Requires the
@@ -105,7 +105,7 @@ embedded mode and drop the compiler sidecar from the pod spec.
 {{- if hasKey ((.Values.executor).magma) "planCheckpoint" }}
 {{- $executorEnv = append $executorEnv (dict "name" "PANGEA_MAGMA_PLAN_CHECKPOINT" "value" (printf "%v" .Values.executor.magma.planCheckpoint)) }}
 {{- end }}
-{{/* M1 convenience surface (theory/MAGMA-POSTGRES-LIFECYCLE.md M1):
+{{/* M1 convenience surface:
      when executor.magma.postgres.host or .clusterName is set, render
      the PG* env vars the operator's main.rs reads to wire its
      state-backend pool, instead of every consumer hand-authoring

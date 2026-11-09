@@ -121,6 +121,4 @@ opt-in).
 
 ## See also
 
-- [`theory/FLEET-DECLARATION.md`](https://github.com/pleme-io/theory/blob/main/FLEET-DECLARATION.md) — the design
 - [`pleme-computeunit`](../pleme-computeunit/) — per-program library chart
-- [`theory/META-FRAMEWORK.md`](https://github.com/pleme-io/theory/blob/main/META-FRAMEWORK.md) — the meta-framework

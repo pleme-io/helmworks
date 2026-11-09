@@ -120,4 +120,3 @@ next.
 - [`THREAT-MODEL.md`](./THREAT-MODEL.md) — what an attacker can and can't do
 - [`RUNBOOK.md`](./RUNBOOK.md) — operator playbooks for common tasks
 - [`CLUSTER-PREREQUISITES.md`](./CLUSTER-PREREQUISITES.md) — what must be true on the target cluster
-- [`pleme-io/theory/THEORY.md`](https://github.com/pleme-io/theory/blob/main/THEORY.md) — the wider frame

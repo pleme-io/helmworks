@@ -13,7 +13,7 @@ description: >-
   fleet-wide is the named destination. Peer of lareira-breathe-observability.
   Tier-honest: the CRD + CR + RBAC ship deployable; the closed coordinator controller
   is a stub (controller.enabled=false by default) — the loop runs MANUALLY today over
-  the shipped MCPs. See theory/AUTOREVIVY.md.
+  the shipped MCPs.
 type: application
 version: 0.1.1
 appVersion: "0.1.0"
@@ -26,7 +26,7 @@ keywords:
   - camelot
   - live-tune
   - escalating-by-discoverability
-home: https://github.com/pleme-io/theory/blob/main/AUTOREVIVY.md
+home: https://github.com/pleme-io/helmworks/tree/main/charts/lareira-autorevivy
 sources:
   - https://github.com/pleme-io/helmworks
 maintainers:

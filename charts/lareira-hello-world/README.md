@@ -24,9 +24,7 @@ helm install hello-world ./charts/lareira-hello-world \
   --set 'pleme-computeunit.enabled=true'
 ```
 
-Or via FluxCD per
-[`theory/FLEET-DECLARATION.md`](https://github.com/pleme-io/theory/blob/main/FLEET-DECLARATION.md)
-by adding to the cluster's `programs/release.yaml` programs list.
+Or via FluxCD, by adding to the cluster's `programs/release.yaml` programs list.
 
 ## Test
 
@@ -69,4 +67,3 @@ pod restarts with new config.
 
 - [`pleme-io/programs/hello-world`](https://github.com/pleme-io/programs/tree/main/hello-world) — source
 - [`pleme-computeunit`](../pleme-computeunit/) — library chart
-- [`theory/META-FRAMEWORK.md`](https://github.com/pleme-io/theory/blob/main/META-FRAMEWORK.md) — the meta-framework hello-world exemplifies

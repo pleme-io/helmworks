@@ -15,7 +15,7 @@ Operators mount the ConfigMap + read this key at startup. Schema
 mirrors what `serde_json::from_value::<DriftPolicy>(...)` accepts on
 the Rust side.
 
-Per theory/CONVERGENCE-SUBSTRATE.md §IV.1 + magma-drift docs.
+Per the magma-drift docs.
 */}}
 {{- define "pleme-reconciler.driftPolicyConfigMap" -}}
 {{- $policy := .Values.reconciler.driftPolicy | default dict -}}

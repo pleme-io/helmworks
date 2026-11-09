@@ -6,7 +6,7 @@ description: |
   helm-first analog of the loose `kubectl apply -f computeunit.yaml`
   shape; consumers depend on this and supply per-program values.
 
-  Per theory/BREATHABILITY.md §VII.7: every in-cluster workload goes
+  Every in-cluster workload goes
   through Helm; raw HelmRelease blocks (or kubectl apply) bypass the
   pleme-lib invariants this chart encodes.
 

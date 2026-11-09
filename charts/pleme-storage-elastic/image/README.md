@@ -1,8 +1,7 @@
 # pleme-storage-elastic watcher image
 
 Source for the container image referenced by the
-[pleme-storage-elastic chart](../). Implements the PVC autosize logic
-from [theory/BREATHABILITY.md §V](../../../../theory/BREATHABILITY.md):
+[pleme-storage-elastic chart](../). Implements the PVC autosize logic:
 keep watched PVCs at ~80% utilization, expand by `EXPAND_FACTOR`
 (default 1.25) when triggered, never shrink, hard ceiling at `MAX_SIZE`.
 

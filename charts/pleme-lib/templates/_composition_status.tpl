@@ -2,8 +2,7 @@
 pleme-lib.composition — Crossplane Composition pipeline helpers.
 
 Renders a function-kcl pipeline step with `target: XR` for typed
-status reflection (the canonical pattern documented in
-pleme-io/theory/CROSSPLANE-COMPOSITION-STATUS.md).
+status reflection (the canonical pattern).
 
 The 6-item contract for the consumer-authored KCL source:
 
@@ -71,9 +70,9 @@ Validated reference impl:
     spec:
       # `target: XR` — function-kcl reads items[0] from the KCL
       # output and uses it as the new desired XR. The status fields
-      # propagate to <xr-kind>.status via server-side apply. See
-      # pleme-io/theory/CROSSPLANE-COMPOSITION-STATUS.md for the
-      # 6-item contract this KCL source must satisfy.
+      # propagate to <xr-kind>.status via server-side apply. The
+      # KCL source must satisfy the 6-item contract at the top of
+      # this file.
       target: XR
       source: |
 {{ $src | indent 8 }}

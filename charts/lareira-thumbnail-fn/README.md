@@ -1,8 +1,6 @@
 # lareira-thumbnail-fn
 
 Event-driven thumbnail generator. Demonstrates the **function shape**
-formalized in
-[`theory/WASM-PACKAGING.md` §IV.1](https://github.com/pleme-io/theory/blob/main/WASM-PACKAGING.md)
 — AWS-Lambda-async-style invocation but running in your own cluster
 with cold-start ~3s vs ~30s for container Lambdas.
 
@@ -22,4 +20,3 @@ the function can't keep up with upload rate — operators can raise
 ## See also
 
 - [`pleme-computeunit`](../pleme-computeunit/) — library chart
-- [`theory/WASM-PACKAGING.md` §IV.1](https://github.com/pleme-io/theory/blob/main/WASM-PACKAGING.md) — function shape

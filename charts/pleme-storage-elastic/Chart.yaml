@@ -3,7 +3,7 @@ name: pleme-storage-elastic
 description: |
   Elastic PVC autosize watcher — keeps every watched PVC at ~80%
   utilization (configurable target + step + max). Implements the
-  storage-tier breathability invariant from theory/BREATHABILITY.md §V:
+  storage-tier breathability invariant:
   "storage cannot scale to zero (data persists), so the breathability
   pattern is elastic expansion at 80% utilization."
 

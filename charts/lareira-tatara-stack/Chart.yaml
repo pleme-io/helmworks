@@ -14,8 +14,6 @@ description: |
                               scripts to WASM + auto-submits CRs)
     lareira-openclaw        — attestation-gated artifact registry
 
-  See theory/WASM-STACK.md for the full design.
-
   Default-OFF.
 type: application
 version: 0.1.0

@@ -5,7 +5,7 @@ edition = "2024"
 rust-version = "1.89"
 license = "MIT"
 authors = ["drzzln <drzzln@protonmail.com>"]
-description = "Bidirectional memory-limit band controller — the memory dimension of theory/BREATHABILITY.md"
+description = "Bidirectional memory-limit band controller — the memory dimension of breathability"
 repository = "https://github.com/pleme-io/helmworks"
 
 [[bin]]

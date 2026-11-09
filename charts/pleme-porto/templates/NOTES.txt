@@ -25,7 +25,7 @@ auth is M3):
 Promote a breathe band from SHADOW to LIVE (let breathe own the limit/size):
   set breathe.<memory|cpu|storage>.dryRun=false  +  cede that field from this chart's values.
 
-Honest gaps (theory/PORTO.md §5 — the Care, never rounded up):
+Honest gaps (never rounded up):
   • The image ghcr.io/pleme-io/porto lands only when porto's AUTO-RELEASE image
     build (AXIS A) merges — until then the pod is ImagePullBackOff.
   • porto has NO /health/* or /metrics endpoint yet — probes hit `GET /v2/` (the
@@ -35,5 +35,3 @@ Honest gaps (theory/PORTO.md §5 — the Care, never rounded up):
     the destination — pending-porto: config-file-loader).
   • The M0 manifest/tag/referrers index is in-memory; a restart loses it until
     the durable sui-store backend lands.
-
-Doctrine: theory/PORTO.md.

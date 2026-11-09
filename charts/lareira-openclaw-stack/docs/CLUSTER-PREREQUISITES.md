@@ -134,7 +134,7 @@ gateway.
 ### 8. Saguão fleet identity (optional but recommended)
 If the cluster is part of the saguão fleet, the store hostname
 `store.<cluster>.<location>.quero.cloud` is allocated by `passaporte`
-and gated by `vigia` automatically. See `theory/SAGUAO.md`.
+and gated by `vigia` automatically.
 
 ### 9. Encrypted log pipeline
 Vector → VictoriaLogs (homelab) or Vector → Splunk HEC (SaaS). Required

@@ -8,8 +8,6 @@ it needs and owns the lifecycle. This decouples broker upgrades from
 consumer schema changes and keeps the stream shape close to the code
 that depends on it.
 
-See: pleme-io/theory/RATE-LIMITED-CONSUMERS.md §IV-L1.
-
 ────────────────────────────────────────────────────────────────────
 USAGE
 ────────────────────────────────────────────────────────────────────

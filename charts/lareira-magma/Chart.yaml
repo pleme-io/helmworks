@@ -15,7 +15,7 @@ description: >-
 
     persist BLAKE3 chains across pod restarts
 
-  Per theory/MAGMA-OPERATOR-BACKEND.md + theory/CONVERGENCE-SUBSTRATE.md. Pattern mirrors the existing lareira-* umbrella charts in helmworks (lareira-authentik, lareira-cert-manager, lareira-keda) — one chart per opinionated cluster-deployment of a substrate primitive, with the breathability + observability + attestation defaults baked in.
+  Pattern mirrors the existing lareira-* umbrella charts in helmworks (lareira-authentik, lareira-cert-manager, lareira-keda) — one chart per opinionated cluster-deployment of a substrate primitive, with the breathability + observability + attestation defaults baked in.
 type: application
 version: 0.1.0
 appVersion: "0.8.15"

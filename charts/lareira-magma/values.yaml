@@ -1,8 +1,7 @@
 ## lareira-magma — umbrella for the magma convergence substrate.
 ## Values delegated to subcharts via the dependency import-values
-## machinery; here we set the conventional defaults that match
-## theory/MAGMA-OPERATOR-BACKEND.md §VI (canonical dual-backend
-## selection model).
+## machinery; here we set the conventional defaults of the canonical dual-backend
+## selection model.
 
 ## ── pangea-operator subchart overrides ─────────────────────────
 ## Pre-flip the magma backend on. Per-CR `spec.executor` still wins

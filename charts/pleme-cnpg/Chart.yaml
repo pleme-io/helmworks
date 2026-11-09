@@ -28,9 +28,8 @@ description: |-
   cascade into PVC deletion. Recovery from accidental delete is then
   always at-most a re-install, never a re-init.
 
-  Companion runbook + adoption playbook:
+  Companion runbook:
     k8s/clusters/rio/infrastructure/pangea-database/RESTORE-RUNBOOK.md
-    theory/CHART-ADOPTION-PLAYBOOK.md   (multi-commit migration safety)
 type: application
 version: 0.1.1
 appVersion: "1.0"

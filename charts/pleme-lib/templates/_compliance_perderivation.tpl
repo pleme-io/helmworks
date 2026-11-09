@@ -27,8 +27,7 @@ verifyImages) encapsulated behind typed config — the same pattern as the
 compliance.baseline toggle. pleme-io content is reserved for the four
 tested voids Sigstore/SLSA leave open: offline/air-gapped inclusion
 verification, a re-derivable compliance proof, the BLAKE3 content-hash↔
-Nix-store binding, and eBPF kernel-time enforcement. See
-theory/SUPER-CACHE-CI-SECURITY.md.
+Nix-store binding, and eBPF kernel-time enforcement.
 
 Keys are NEVER plaintext — every signing/cosign key is a cofre / ESO
 SecretRef (name + key), matching the shipped cofre SecretRef discipline.

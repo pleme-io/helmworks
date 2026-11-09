@@ -16,8 +16,6 @@ the routing → label mapping via
 Metric assumed: `magma_drift_classified_total{kind, severity}` —
 emitted by magma-drift's typed K8s-events-and-metrics adapter (the
 operator-side wiring lands alongside).
-
-Per theory/CONVERGENCE-SUBSTRATE.md §IV.1 + IV.3.
 */}}
 {{- define "pleme-reconciler.prometheusRule" -}}
 {{- $pr := .Values.reconciler.prometheusRule | default dict -}}

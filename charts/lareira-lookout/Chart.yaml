@@ -1,8 +1,8 @@
 apiVersion: v2
 name: lareira-lookout
 description: |
-  Lookout — the INFRA plane of the single-declaration observation vantage
-  (theory/LOOKOUT.md). A self-contained, breathable Grafana face that watches
+  Lookout — the INFRA plane of the single-declaration observation vantage.
+  A self-contained, breathable Grafana face that watches
   one-or-many lareira/tendril feeder meshes: it authors its OWN Grafana
   Deployment + datasource provisioning computed from the declared feeders
   (it does NOT wrap a metrics-stack subchart Grafana — a Helm parent cannot

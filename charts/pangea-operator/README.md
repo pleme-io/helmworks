@@ -87,8 +87,6 @@ ignored — the chart drops the compiler sidecar entirely. The trade is:
 - ⚠️  Single-replica only (CRuby GVL constraint; not a regression
    over today's deployment which is also single-replica).
 
-See `theory/PANGEA-WORKSPACE-RECONCILIATION.md` § M8 for the design.
-
 KEDA must be installed in the cluster (the Pleme-IO standard infra).
 
 ## Breathability

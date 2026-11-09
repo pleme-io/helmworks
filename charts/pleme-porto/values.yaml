@@ -1,5 +1,5 @@
 # pleme-porto default values
-# porto — the pleme-io-native OCI registry server (theory/PORTO.md). M0 ships the
+# porto — the pleme-io-native OCI registry server. M0 ships the
 # sui-cache-backed store over a PVC: a dedicated PersistentVolume becomes the
 # durable blob CAS an OCI /v2/ registry serves. The server is a Rust binary
 # (sui-registry) over axum; the bytes an image push writes and the bytes a pull
@@ -43,7 +43,7 @@ porto:
 # --- Persistence ----------------------------------------------------------
 # porto's durable blob CAS (sui-cache StorageBackend rooted here). Durability is
 # the StorageClass's — porto does not replicate at M0 (the M0 store tier;
-# theory/PORTO.md §4: sui-store is the durable transactional destination).
+# sui-store is the durable transactional destination).
 persistence:
   enabled: true
   # storageClass: local-path   # rio uses local-path-provisioner
@@ -118,7 +118,7 @@ tests:
   enabled: true
   image: curlimages/curl:8.11.1
 
-# --- Breathability / carving (theory/BREATHABILITY.md) --------------------
+# --- Breathability / carving ----------------------------------------------
 # What makes porto a fully breathable, infinitely-expandable OCI store. breathe
 # holds the server in the 80/20 utilization band by carving its limits
 # (memory/cpu) and GROWS the blob-store PVC before it fills (storage). SHADOW-

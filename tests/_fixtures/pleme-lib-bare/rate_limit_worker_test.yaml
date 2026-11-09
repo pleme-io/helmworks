@@ -1,7 +1,6 @@
 suite: pleme-lib bare-fixture — pleme-lib.rate-limit-worker.* family
 # Exercises every named template in the rate-limited-consumer (samba) family:
 #   .config .deployment .service .servicemonitor .networkpolicy .alerts
-# Pattern reference: pleme-io/theory/RATE-LIMITED-CONSUMERS.md §IV-L1.
 templates:
   - templates/rate-limit-worker-config.yaml
   - templates/rate-limit-worker-deployment.yaml

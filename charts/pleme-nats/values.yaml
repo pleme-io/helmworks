@@ -10,8 +10,6 @@ enabled: true
 # Cilium-style identity: the broker is shared infrastructure; each
 # consumer owns its own queue config lifecycle.
 #
-# See: pleme-io/theory/RATE-LIMITED-CONSUMERS.md §IV-L2.
-#
 # Topology:
 #
 #   producers ──► JetStream stream ──► [pull consumer w/ rate limit] ──► sinks

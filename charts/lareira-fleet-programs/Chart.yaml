@@ -14,8 +14,6 @@ description: |
   The cluster reaches "perfect state" when this Helm release is in
   sync with the values file — FluxCD reconciles, the wasm-operator
   fetches every URL, compiles + caches, dispatches.
-
-  See theory/FLEET-DECLARATION.md for the full design.
 type: application
 version: 0.1.0
 appVersion: "0.1.0"

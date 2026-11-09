@@ -1,8 +1,7 @@
 # lareira-fleet-attestation-sweep
 
-One-shot fleet attestation re-verification. Pattern from
-[cookbook](https://github.com/pleme-io/theory/blob/main/WASM-PATTERNS.md)
-§I (drift-detection at the attestation layer).
+One-shot fleet attestation re-verification: drift detection at the
+attestation layer.
 
 Useful for periodic compliance audits or after a tameshi key
 rotation. The program is the `oneShot` shape — applies once, runs

@@ -1,4 +1,4 @@
-# lareira-lookout — the INFRA plane of a Lookout (theory/LOOKOUT.md).
+# lareira-lookout — the INFRA plane of a Lookout.
 # A breathable Grafana face over its feeder meshes. GENERIC / borealis-free —
 # consumer-specific hosts/feeders/secrets live only in the consumer's private
 # values, never in this chart.
@@ -84,7 +84,7 @@ serviceAccount:
   create: true
   name: ""                   # defaults to the fullname
 
-# ── Dashboards: ENJULHO-style (theory/ENJULHO.md + dashboard-as-code). ─────────
+# ── Dashboards: ENJULHO-style (dashboard-as-code). ─────────────────────────────
 # Dashboards are NEVER hand-authored JSON. They are PangeaDashboard CRDs the
 # pangea-operator compiles to Grafana JSON and delivers as sidecar-labelled
 # ConfigMaps. This face's Grafana runs the dashboard SIDECAR so those compiled

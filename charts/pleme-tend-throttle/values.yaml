@@ -6,8 +6,6 @@ enabled: true
 # rate-limited-consumer pattern. Every concern is delegated to a
 # pleme-lib library template; this chart's job is just to set values.
 #
-# See: pleme-io/theory/RATE-LIMITED-CONSUMERS.md §IV-L4.
-#
 # Compounding payoff:
 #
 #   This chart   =      ~1 line per template + values.yaml

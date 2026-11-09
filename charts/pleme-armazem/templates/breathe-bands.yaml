@@ -1,6 +1,6 @@
 {{- /*
 Breathability for armázem — the carving homeostasis that makes the gateway a
-fully breathable, infinitely-expandable S3 interface (theory/BREATHABILITY.md).
+fully breathable, infinitely-expandable S3 interface.
 
   • MemoryBand / CpuBand hold the gateway pods in the 80/20 utilization band by
     carving their resource limits (breathe is the sole writer when live).

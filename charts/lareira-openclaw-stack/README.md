@@ -89,5 +89,4 @@ deploy. There is no half-compliant state.
 
 - `pleme-io/helmworks/docs/COMPLIANCE-PROOF.md` — the proof
 - `pleme-io/helmworks/docs/COMPLIANCE-OVERLAYS-DESIGN.md` — design spec
-- `pleme-io/theory/CONSTRUCTIVE-SUBSTRATE-ENGINEERING.md` — frame
 - `pleme-io/skills/compliant-skill-store/SKILL.md` — author/operator workflow

@@ -5,7 +5,7 @@ edition = "2024"
 rust-version = "1.89"
 license = "MIT"
 authors = ["drzzln <drzzln@protonmail.com>"]
-description = "PVC autosize watcher implementing theory/BREATHABILITY.md §V"
+description = "PVC autosize watcher implementing elastic storage at 80% utilization"
 repository = "https://github.com/pleme-io/helmworks"
 
 [[bin]]

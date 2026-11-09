@@ -1,5 +1,5 @@
 # lareira-pvc-autoresizer — values for the PVC autosize watcher.
-# Defaults match the rio cluster (theory/BREATHABILITY.md §V).
+# Defaults match the rio cluster.
 
 pleme-computeunit:
   enabled: false

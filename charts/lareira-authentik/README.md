@@ -1,8 +1,7 @@
 # lareira-authentik chart
 
 > **★★ Saguão Phase 1 implementation of `passaporte`.** This chart is
-> the deployable for the **passaporte** primitive of saguão (see
-> [`pleme-io/theory/SAGUAO.md`](../../../theory/SAGUAO.md) §III.1). It
+> the deployable for the **passaporte** primitive of saguão. It
 > will be **renamed `lareira-passaporte`** when the typed Rust
 > wrapper crate (`pleme-io/passaporte`) ships and authors values
 > for it. The `goauthentik/authentik` upstream dependency does not
@@ -112,7 +111,7 @@ the chart is enabled.
 - Server is breathable (Pillar 11 — JIT Infrastructure).
 - ServiceMonitor + PrometheusRule wired by default (Pillar 11 —
   mandatory alert layer).
-- Helm-first authoring (theory/BREATHABILITY.md §VII.7) — wraps
+- Helm-first authoring — wraps
   upstream, no raw HelmRelease in the FluxCD tree.
 
 ## Replacing the raw HelmRelease
@@ -151,7 +150,5 @@ lines of inline upstream config.
 
 ## See also
 
-- [theory/BREATHABILITY.md §II](../../../theory/BREATHABILITY.md) — listener tier vs on-demand work tier vs state tier.
-- [theory/BREATHABILITY.md §VII.7](../../../theory/BREATHABILITY.md) — helm-first authoring invariant.
 - [pangea-architectures CloudflareZeroTrustAccess](../../../pangea-architectures/lib/pangea/architectures/cloudflare_zero_trust_access.rb) — edge SSO architecture (Pangea-rendered, applied by Terraform).
 - [Authentik upstream chart](https://artifacthub.io/packages/helm/goauthentik/authentik) — what we wrap.

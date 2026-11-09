@@ -3,7 +3,6 @@ pleme-lib.rate-limit-worker — render a complete rate-limited
 consumer worker (Deployment + ConfigMap + Service + ServiceMonitor +
 NetworkPolicy + PrometheusRule alerts) from a stable values surface.
 
-Pattern: see pleme-io/theory/RATE-LIMITED-CONSUMERS.md §IV-L1.
 Implementation depends on: pleme-io/samba (Rust crate exposing the
 UpstreamApi trait + LeakyBucket + JetStreamPullWorker).
 

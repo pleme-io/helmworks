@@ -14,8 +14,6 @@ inside `labels:` blocks via:
     labels:
       …
       {{- include "pleme-reconciler.attestationLabels" . | nindent 4 }}
-
-Per theory/CONVERGENCE-SUBSTRATE.md §IV.3.
 */}}
 {{- define "pleme-reconciler.attestationLabels" -}}
 {{- $att := .Values.reconciler.attestation | default dict -}}

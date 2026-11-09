@@ -5,9 +5,8 @@ module) as a `ComputeUnit` on the
 [`lareira-wasm-platform`](../lareira-wasm-platform/) runtime.
 
 The Helm-first analog of the loose `kubectl apply -f computeunit.yaml`
-shape — required by
-[`theory/BREATHABILITY.md` §VII.7](https://github.com/pleme-io/theory/blob/main/BREATHABILITY.md)
-which mandates that every in-cluster workload goes through Helm.
+shape — required by the helm-first invariant, which mandates that
+every in-cluster workload goes through Helm.
 
 ## What it emits
 
@@ -76,8 +75,5 @@ shape detection, validation, and observability wiring for free.
 
 ## See also
 
-- [theory/BREATHABILITY.md §VII.7](https://github.com/pleme-io/theory/blob/main/BREATHABILITY.md) — the helm-first invariant
-- [theory/WASM-STACK.md](https://github.com/pleme-io/theory/blob/main/WASM-STACK.md) — the runtime
-- [theory/WASM-PACKAGING.md](https://github.com/pleme-io/theory/blob/main/WASM-PACKAGING.md) — module URL grammar
 - [`lareira-wasm-platform`](../lareira-wasm-platform/) — the operator
 - [`lareira-pvc-autoresizer`](../lareira-pvc-autoresizer/) — first consumer

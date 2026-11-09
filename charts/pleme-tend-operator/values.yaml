@@ -358,8 +358,6 @@ throttle:
 # (per-input HEAD on the policy's repo) to org enumeration (per-repo
 # HEAD across the entire org) — broader coverage at the same fleet-
 # wide ≤10% GitHub API budget.
-#
-# See pleme-io/theory/RATE-LIMITED-CONSUMERS.md §V.
 fleetWatch:
   enabled: false
   # GitHub org to enumerate. Tend's existing token must have

@@ -103,8 +103,8 @@ rbac:
     - apiGroups: ["pangea.pleme.io"]
       resources: ["pangeafleetstatuses", "pangeafleetstatuses/status"]
       verbs: ["get", "list", "watch", "create", "patch", "update"]
-    # ── 0.8.19: ReconciliationLoop (roda — the loop-granularity axis,
-    # theory/RECONCILIATION-TOPOLOGY.md §II). Cluster-scoped; the
+    # ── 0.8.19: ReconciliationLoop (roda — the loop-granularity axis).
+    # Cluster-scoped; the
     # reconciliation_loop_controller lists InfrastructureTemplates fleet-wide
     # to resolve each loop's membership + writes the loop's status.
     - apiGroups: ["pangea.pleme.io"]
@@ -249,8 +249,7 @@ executor:
   # `executor_magma` cargo feature, the controller routes per-CR
   # to MagmaExecutor — no fork+exec, no tofu subprocess. Per-CR
   # opt-in via `Pangea.spec.executor: magma`; this flag is the
-  # operator-wide default. Both backends ship side by side per
-  # theory/MAGMA-OPERATOR-BACKEND.md §VI.
+  # operator-wide default. Both backends ship side by side.
   magma:
     # -- Enable the magma backend at all. When true, the operator
     # pod receives `PANGEA_EXECUTOR=magma` as the default backend
@@ -267,7 +266,7 @@ executor:
     # the operator's MagmaExecutorConfig once that ships.
     planCheckpoint: true
 
-    # -- Convenience surface (theory/MAGMA-POSTGRES-LIFECYCLE.md M1):
+    # -- Convenience surface:
     # when `host` or `clusterName` is set, the chart renders the
     # PGHOST/PGPORT/PGUSER/PGDATABASE/PGPASSWORD env vars AND a
     # pg-wait initContainer automatically, instead of every consumer
@@ -281,8 +280,7 @@ executor:
       # namespace. When set and `host` is empty, the chart DERIVES
       # `host` as `<clusterName>-rw.<namespace>.svc.cluster.local`
       # — CNPG's own deterministic Service-naming convention (fleet
-      # doctrine: theory/CONFIGURATION-MANAGEMENT.md §IX confirms
-      # "discovery" here always means confirming a well-known,
+      # doctrine: "discovery" here always means confirming a well-known,
       # deterministic name, never enumerating by label — there is no
       # live cluster-introspection primitive in the fleet for this and
       # reaching for one would be reinventing a name Kubernetes'
@@ -414,7 +412,6 @@ compilerEndpoint: http://localhost:8082
 #   - operator pod becomes single-container.
 # Operator binary MUST be built with `--features embedded_ruby`
 # (CI publishes that variant under tag suffix `-embedded`).
-# See theory/PANGEA-WORKSPACE-RECONCILIATION.md M8.4 + M8.5.
 useEmbeddedRuby: false
 
 # -- Ruby compile isolation strategy. Only consulted when useEmbeddedRuby=true.

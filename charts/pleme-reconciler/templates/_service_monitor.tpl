@@ -7,8 +7,6 @@ metrics port. Skipped when `reconciler.serviceMonitor.enabled: false`.
 Selector contract: the consumer's Service must carry the labels
 `magma.pleme.io/reconciler=<kind>` for this ServiceMonitor to find
 it. The convention pairs with `Reconciler::kind()` on the Rust side.
-
-Per theory/CONVERGENCE-SUBSTRATE.md §IV.3.
 */}}
 {{- define "pleme-reconciler.serviceMonitor" -}}
 {{- $sm := .Values.reconciler.serviceMonitor | default dict -}}

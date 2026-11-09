@@ -1,6 +1,6 @@
 //! `pleme-storage-elastic` — PVC autosize watcher.
 //!
-//! Implements [`theory/BREATHABILITY.md` §V](https://github.com/pleme-io/theory):
+//! Implements elastic storage:
 //! keep watched PVCs at ~80% utilization, expand by `expand_factor`
 //! (default 1.25) when triggered, never shrink. Hard ceiling at
 //! `max_size` is the circuit breaker.
@@ -26,7 +26,7 @@ use tracing::{error, info};
 const ANNOTATION_LAST_EXPANSION: &str = "pleme.pleme.io/last-expansion-epoch";
 
 #[derive(Parser, Debug)]
-#[command(version, about = "PVC autosize watcher (theory/BREATHABILITY.md §V)")]
+#[command(version, about = "PVC autosize watcher")]
 struct Args {
     /// Fraction of capacity that triggers expansion (0–1).
     #[arg(long, env, default_value_t = 0.80)]
