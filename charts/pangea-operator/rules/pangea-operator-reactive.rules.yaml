@@ -285,7 +285,7 @@ groups:
           summary: "{{ $labels.target_namespace }}/{{ $labels.name }} failed {{ printf \"%.0f\" $value }} reconciles in an hour ({{ $labels.reason }})"
           remedy: "page: the requeue retries a cause that does not clear; read status.lastError and the operator log for the template, fix the source or its credentials"
       - alert: PangeaTemplateStallLoop
-        expr: sum by (template, namespace, state) (increase(pangea_template_stalls_total[6h])) >= 3
+        expr: sum by (template, namespace, state) (increase(pangea_template_stalls_total[6h])) >= 3 unless on () count(sum by (template, namespace) (increase(pangea_template_stalls_total[6h])) >= 3) > 10
         for: 10m
         labels:
           severity: warning
@@ -293,6 +293,15 @@ groups:
         annotations:
           summary: "{{ $labels.namespace }}/{{ $labels.template }} stalled {{ printf \"%.0f\" $value }} times in 6h ({{ $labels.state }})"
           remedy: "page: each re-dispatch clears the stall but the next pass stalls again; read status.pass and the in-flight provider RPC for the cause"
+      - alert: PangeaStallLoopWidespread
+        expr: count(sum by (template, namespace) (increase(pangea_template_stalls_total[6h])) >= 3) > 10
+        for: 10m
+        labels:
+          severity: warning
+          remedy_mode: page
+        annotations:
+          summary: "{{ $value }} templates stalled 3 or more times each in the last 6h"
+          remedy: "page: one cause behind many templates (provider, state store, operator saturation); read pangea_template_stalls_total by state on the pangea-operator dashboard, fix the shared cause, not single templates"
       - alert: PangeaStallStorm
         expr: sum(increase(pangea_template_stalls_total[1h])) > 100
         for: 30m

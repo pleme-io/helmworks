@@ -72,6 +72,46 @@ tests:
             exp_annotations:
               summary: pleme/leaf-d stalled 3 times in 6h (noProgress)
               remedy: "page: each re-dispatch clears the stall but the next pass stalls again; read status.pass and the in-flight provider RPC for the cause"
+  - name: PangeaStallLoopWidespread replaces eleven per-template alerts
+    interval: 1m
+    input_series:
+      - series: pangea_template_stalls_total{template="leaf-w00",namespace="pleme",state="heartbeatLost"}
+        values: 0x30 1x30 2x30 3x60
+      - series: pangea_template_stalls_total{template="leaf-w01",namespace="pleme",state="heartbeatLost"}
+        values: 0x30 1x30 2x30 3x60
+      - series: pangea_template_stalls_total{template="leaf-w02",namespace="pleme",state="heartbeatLost"}
+        values: 0x30 1x30 2x30 3x60
+      - series: pangea_template_stalls_total{template="leaf-w03",namespace="pleme",state="heartbeatLost"}
+        values: 0x30 1x30 2x30 3x60
+      - series: pangea_template_stalls_total{template="leaf-w04",namespace="pleme",state="heartbeatLost"}
+        values: 0x30 1x30 2x30 3x60
+      - series: pangea_template_stalls_total{template="leaf-w05",namespace="pleme",state="heartbeatLost"}
+        values: 0x30 1x30 2x30 3x60
+      - series: pangea_template_stalls_total{template="leaf-w06",namespace="pleme",state="heartbeatLost"}
+        values: 0x30 1x30 2x30 3x60
+      - series: pangea_template_stalls_total{template="leaf-w07",namespace="pleme",state="heartbeatLost"}
+        values: 0x30 1x30 2x30 3x60
+      - series: pangea_template_stalls_total{template="leaf-w08",namespace="pleme",state="heartbeatLost"}
+        values: 0x30 1x30 2x30 3x60
+      - series: pangea_template_stalls_total{template="leaf-w09",namespace="pleme",state="heartbeatLost"}
+        values: 0x30 1x30 2x30 3x60
+      - series: pangea_template_stalls_total{template="leaf-w10",namespace="pleme",state="heartbeatLost"}
+        values: 0x30 1x30 2x30 3x60
+    alert_rule_test:
+      - eval_time: 2h
+        groupname: pangea-operator-errors
+        alertname: PangeaStallLoopWidespread
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              remedy_mode: page
+            exp_annotations:
+              summary: 11 templates stalled 3 or more times each in the last 6h
+              remedy: "page: one cause behind many templates (provider, state store, operator saturation); read pangea_template_stalls_total by state on the pangea-operator dashboard, fix the shared cause, not single templates"
+      - eval_time: 2h
+        groupname: pangea-operator-errors
+        alertname: PangeaTemplateStallLoop
+        exp_alerts: []
   - name: PangeaStallStorm
     interval: 1m
     input_series:
