@@ -1,0 +1,115 @@
+rule_files:
+  - ../pangea-operator-history.rules.yaml
+evaluation_interval: 1h
+tests:
+  - name: daily rollups
+    interval: 1h
+    input_series:
+      - series: pangea_reconciliation_errors_total{error_type="template",reason="compilation",name="leaf-a",target_namespace="pleme"}
+        values: 0+2x48
+      - series: pangea_reconciliation_errors_total{error_type="template",reason="compilation",name="leaf-b",target_namespace="pleme"}
+        values: 0+1x48
+      - series: pangea_reconciliation_errors_total{error_type="template",reason="kube_conflict",name="leaf-c",target_namespace="pleme"}
+        values: 0x48
+      - series: pangea_controller_reconciliations_total{controller="template",result="ok"}
+        values: 0+100x48
+      - series: pangea_template_stalls_total{template="leaf-d",namespace="pleme",state="noProgress"}
+        values: 0+1x48
+      - series: pangea_template_stalls_total{template="leaf-e",namespace="pleme",state="noProgress"}
+        values: 0x48
+      - series: pangea_settling_failures_total{template="leaf-a",target_namespace="pleme",reason="timeout"}
+        values: 0+1x48
+      - series: pangea_source_freshness_check_failures_total
+        values: 0+3x48
+      - series: pangea_leaf_plan_seconds_bucket{workspace="w",le="5"}
+        values: 0+5x48
+      - series: pangea_leaf_plan_seconds_bucket{workspace="w",le="10"}
+        values: 0+10x48
+      - series: pangea_leaf_plan_seconds_bucket{workspace="w",le="+Inf"}
+        values: 0+10x48
+      - series: pangea_leaf_plan_seconds_count{workspace="w"}
+        values: 0+10x48
+      - series: pangea_compilation_duration_seconds_bucket{le="1"}
+        values: 0+10x48
+      - series: pangea_compilation_duration_seconds_bucket{le="+Inf"}
+        values: 0+10x48
+      - series: pangea_reconciliation_duration_seconds_bucket{le="5"}
+        values: 0+10x48
+      - series: pangea_reconciliation_duration_seconds_bucket{le="+Inf"}
+        values: 0+10x48
+      - series: pangea_workspace_leaves{workspace="w",namespace="pleme",state="ready"}
+        values: 1042x48
+      - series: pangea_templates_by_phase{phase="Ready"}
+        values: 1048x48
+      - series: pangea_compile_queue_depth
+        values: 0x10 7 0x37
+    metricsql_expr_test:
+      - expr: pangea:reconcile_errors:increase1d
+        eval_time: 30h
+        exp_samples:
+          - labels: 'pangea:reconcile_errors:increase1d{error_type="template",reason="compilation"}'
+            value: 72
+          - labels: 'pangea:reconcile_errors:increase1d{error_type="template",reason="kube_conflict"}'
+            value: 0
+      - expr: pangea:reconcile_errors_by_object:increase1d
+        eval_time: 30h
+        exp_samples:
+          - labels: 'pangea:reconcile_errors_by_object:increase1d{error_type="template",reason="compilation",name="leaf-a",target_namespace="pleme"}'
+            value: 48
+          - labels: 'pangea:reconcile_errors_by_object:increase1d{error_type="template",reason="compilation",name="leaf-b",target_namespace="pleme"}'
+            value: 24
+      - expr: pangea:reconciles:increase1d
+        eval_time: 30h
+        exp_samples:
+          - labels: 'pangea:reconciles:increase1d{controller="template",result="ok"}'
+            value: 2400
+      - expr: pangea:template_stalls:increase1d
+        eval_time: 30h
+        exp_samples:
+          - labels: 'pangea:template_stalls:increase1d{state="noProgress"}'
+            value: 24
+      - expr: pangea:template_stalls_by_template:increase1d
+        eval_time: 30h
+        exp_samples:
+          - labels: 'pangea:template_stalls_by_template:increase1d{template="leaf-d",namespace="pleme"}'
+            value: 24
+      - expr: pangea:settling_failures:increase1d
+        eval_time: 30h
+        exp_samples:
+          - labels: 'pangea:settling_failures:increase1d{reason="timeout"}'
+            value: 24
+      - expr: pangea:source_freshness_failures:increase1d
+        eval_time: 30h
+        exp_samples:
+          - labels: 'pangea:source_freshness_failures:increase1d'
+            value: 72
+      - expr: pangea:leaf_plans:increase1d
+        eval_time: 30h
+        exp_samples:
+          - labels: 'pangea:leaf_plans:increase1d{workspace="w"}'
+            value: 240
+      - expr: pangea:leaf_plan_seconds:p50_1d
+        eval_time: 30h
+        exp_samples:
+          - labels: 'pangea:leaf_plan_seconds:p50_1d{workspace="w"}'
+            value: 5
+      - expr: pangea:leaf_plan_seconds:p95_1d
+        eval_time: 30h
+        exp_samples:
+          - labels: 'pangea:leaf_plan_seconds:p95_1d{workspace="w"}'
+            value: 9.5
+      - expr: pangea:workspace_leaves:sum
+        eval_time: 30h
+        exp_samples:
+          - labels: 'pangea:workspace_leaves:sum{workspace="w",state="ready"}'
+            value: 1042
+      - expr: pangea:templates_by_phase:sum
+        eval_time: 30h
+        exp_samples:
+          - labels: 'pangea:templates_by_phase:sum{phase="Ready"}'
+            value: 1048
+      - expr: pangea:compile_queue_depth:max1d
+        eval_time: 30h
+        exp_samples:
+          - labels: 'pangea:compile_queue_depth:max1d'
+            value: 7

@@ -263,3 +263,74 @@ groups:
         annotations:
           summary: "{{ $labels.namespace }}/{{ $labels.cert }} Roles Anywhere certificate has expired; every leaf using it fails to sign in"
           remedy: "page: reissue the leaf from the workload-identity CA, sops set workload-identity/<leaf>/tls-crt and tls-key in nix secrets.yaml, then rebuild the node that seeds the Secret"
+  - name: pangea-operator-errors
+    interval: 1m
+    rules:
+      - alert: PangeaReconcileErrors
+        expr: sum by (error_type, reason) (increase(pangea_reconciliation_errors_total[1h])) > 0
+        for: 1h
+        labels:
+          severity: warning
+          remedy_mode: page
+        annotations:
+          summary: "{{ $labels.error_type }} reconciles failed {{ printf \"%.0f\" $value }} times in the last hour ({{ $labels.reason }}), every hour for an hour"
+          remedy: "page: the environment is not error-free; open the pangea-operator dashboard's errors row for the failing objects, then read each one's status.lastError"
+      - alert: PangeaTemplateErrorLoop
+        expr: sum by (name, target_namespace, reason) (increase(pangea_reconciliation_errors_total{error_type="template"}[1h])) >= 6
+        for: 30m
+        labels:
+          severity: warning
+          remedy_mode: page
+        annotations:
+          summary: "{{ $labels.target_namespace }}/{{ $labels.name }} failed {{ printf \"%.0f\" $value }} reconciles in an hour ({{ $labels.reason }})"
+          remedy: "page: the requeue retries a cause that does not clear; read status.lastError and the operator log for the template, fix the source or its credentials"
+      - alert: PangeaTemplateStallLoop
+        expr: sum by (template, namespace, state) (increase(pangea_template_stalls_total[6h])) >= 3
+        for: 10m
+        labels:
+          severity: warning
+          remedy_mode: page
+        annotations:
+          summary: "{{ $labels.namespace }}/{{ $labels.template }} stalled {{ printf \"%.0f\" $value }} times in 6h ({{ $labels.state }})"
+          remedy: "page: each re-dispatch clears the stall but the next pass stalls again; read status.pass and the in-flight provider RPC for the cause"
+      - alert: PangeaStallStorm
+        expr: sum(increase(pangea_template_stalls_total[1h])) > 100
+        for: 30m
+        labels:
+          severity: critical
+          remedy_mode: page
+        annotations:
+          summary: "pangea templates entered Stalled {{ printf \"%.0f\" $value }} times in the last hour"
+          remedy: "page: a fleet-wide cause (provider rate limit, state store, operator saturation); read pangea_template_stalls_total by state and the compile queue depth before touching single templates"
+      - alert: PangeaCompileFailing
+        expr: pangea_template_consecutive_compile_failures >= 3
+        for: 15m
+        labels:
+          severity: warning
+          remedy_mode: page
+        annotations:
+          summary: "{{ $labels.target_namespace }}/{{ $labels.name }} failed {{ $value }} compiles in a row"
+          remedy: "page: the template source does not compile; read status.lastError, fix the source in pangea-architectures, and let the next pass compile it"
+      - alert: PangeaPassHeartbeatUnwatched
+        expr: pangea_template_pass_heartbeat_age_seconds > 300 and on (template, namespace, workspace) pangea_template_pass{kind=~"planning|applying"} == 1 unless on (template, namespace, workspace) pangea_template_stall == 1
+        for: 10m
+        labels:
+          severity: critical
+          remedy_mode: page
+        annotations:
+          summary: "{{ $labels.namespace }}/{{ $labels.template }} pass has not beaten for {{ $value }}s and the watchdog has not named a stall"
+          remedy: "page: the pass watchdog is blind to this pass; read status.pass and the operator log, then restart the pass by bumping spec"
+  - name: pangea-operator-latency
+    interval: 5m
+    rules:
+      - record: pangea:leaf_plan_seconds:p95_1h
+        expr: histogram_quantile(0.95, sum by (le, workspace) (rate(pangea_leaf_plan_seconds_bucket[1h])))
+      - alert: PangeaLeafPlanRegressed
+        expr: pangea:leaf_plan_seconds:p95_1h > 2 * quantile_over_time(0.5, pangea:leaf_plan_seconds:p95_1h[7d] offset 1h) and pangea:leaf_plan_seconds:p95_1h > 30
+        for: 1h
+        labels:
+          severity: warning
+          remedy_mode: page
+        annotations:
+          summary: "workspace {{ $labels.workspace }} leaf plan p95 is {{ printf \"%.0f\" $value }}s, over twice its 7-day median"
+          remedy: "page: plans got slower; compare provider RPC latency (pangea_provider_rpc_seconds) and the compile queue depth, then the operator change that landed when the curve moved"

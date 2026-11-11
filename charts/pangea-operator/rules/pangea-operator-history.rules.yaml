@@ -1,0 +1,36 @@
+groups:
+  - name: pangea-operator-history
+    interval: 1h
+    rules:
+      - record: pangea:reconcile_errors:increase1d
+        expr: sum by (error_type, reason) (increase(pangea_reconciliation_errors_total[1d]))
+      - record: pangea:reconcile_errors_by_object:increase1d
+        expr: sum by (error_type, reason, name, target_namespace) (increase(pangea_reconciliation_errors_total[1d])) > 0
+      - record: pangea:reconciles:increase1d
+        expr: sum by (controller, result) (increase(pangea_controller_reconciliations_total[1d]))
+      - record: pangea:template_stalls:increase1d
+        expr: sum by (state) (increase(pangea_template_stalls_total[1d]))
+      - record: pangea:template_stalls_by_template:increase1d
+        expr: sum by (template, namespace) (increase(pangea_template_stalls_total[1d])) > 0
+      - record: pangea:settling_failures:increase1d
+        expr: sum by (reason) (increase(pangea_settling_failures_total[1d]))
+      - record: pangea:source_freshness_failures:increase1d
+        expr: sum(increase(pangea_source_freshness_check_failures_total[1d]))
+      - record: pangea:leaf_plans:increase1d
+        expr: sum by (workspace) (increase(pangea_leaf_plan_seconds_count[1d]))
+      - record: pangea:leaf_plan_seconds:p50_1d
+        expr: histogram_quantile(0.5, sum by (le, workspace) (increase(pangea_leaf_plan_seconds_bucket[1d])))
+      - record: pangea:leaf_plan_seconds:p95_1d
+        expr: histogram_quantile(0.95, sum by (le, workspace) (increase(pangea_leaf_plan_seconds_bucket[1d])))
+      - record: pangea:leaf_plan_seconds:p99_1d
+        expr: histogram_quantile(0.99, sum by (le, workspace) (increase(pangea_leaf_plan_seconds_bucket[1d])))
+      - record: pangea:compilation_seconds:p95_1d
+        expr: histogram_quantile(0.95, sum by (le) (increase(pangea_compilation_duration_seconds_bucket[1d])))
+      - record: pangea:reconciliation_seconds:p95_1d
+        expr: histogram_quantile(0.95, sum by (le) (increase(pangea_reconciliation_duration_seconds_bucket[1d])))
+      - record: pangea:workspace_leaves:sum
+        expr: sum by (workspace, state) (pangea_workspace_leaves)
+      - record: pangea:templates_by_phase:sum
+        expr: sum by (phase) (pangea_templates_by_phase)
+      - record: pangea:compile_queue_depth:max1d
+        expr: max(max_over_time(pangea_compile_queue_depth[1d]))

@@ -1,0 +1,170 @@
+rule_files:
+  - ../pangea-operator-reactive.rules.yaml
+evaluation_interval: 1m
+tests:
+  - name: PangeaReconcileErrors
+    interval: 1m
+    input_series:
+      - series: pangea_reconciliation_errors_total{error_type="template",reason="compilation",name="leaf-a",target_namespace="pleme"}
+        values: 0+1x180
+    alert_rule_test:
+      - eval_time: 2h30m
+        groupname: pangea-operator-errors
+        alertname: PangeaReconcileErrors
+        exp_alerts:
+          - exp_labels:
+              error_type: template
+              reason: compilation
+              severity: warning
+              remedy_mode: page
+            exp_annotations:
+              summary: template reconciles failed 60 times in the last hour (compilation), every hour for an hour
+              remedy: "page: the environment is not error-free; open the pangea-operator dashboard's errors row for the failing objects, then read each one's status.lastError"
+  - name: PangeaReconcileErrors quiet once the errors stop
+    interval: 1m
+    input_series:
+      - series: pangea_reconciliation_errors_total{error_type="template",reason="compilation",name="leaf-a",target_namespace="pleme"}
+        values: 0+1x60 60+0x240
+    alert_rule_test:
+      - eval_time: 4h
+        groupname: pangea-operator-errors
+        alertname: PangeaReconcileErrors
+        exp_alerts: []
+  - name: PangeaTemplateErrorLoop
+    interval: 1m
+    input_series:
+      - series: pangea_reconciliation_errors_total{error_type="template",reason="kube_conflict",name="leaf-b",target_namespace="pleme"}
+        values: 0+1x150
+      - series: pangea_reconciliation_errors_total{error_type="template",reason="kube_conflict",name="leaf-c",target_namespace="pleme"}
+        values: 0+0x150
+    alert_rule_test:
+      - eval_time: 2h
+        groupname: pangea-operator-errors
+        alertname: PangeaTemplateErrorLoop
+        exp_alerts:
+          - exp_labels:
+              name: leaf-b
+              target_namespace: pleme
+              reason: kube_conflict
+              severity: warning
+              remedy_mode: page
+            exp_annotations:
+              summary: pleme/leaf-b failed 60 reconciles in an hour (kube_conflict)
+              remedy: "page: the requeue retries a cause that does not clear; read status.lastError and the operator log for the template, fix the source or its credentials"
+  - name: PangeaTemplateStallLoop
+    interval: 1m
+    input_series:
+      - series: pangea_template_stalls_total{template="leaf-d",namespace="pleme",state="noProgress"}
+        values: 0x30 1x30 2x30 3x60
+      - series: pangea_template_stalls_total{template="leaf-e",namespace="pleme",state="noProgress"}
+        values: 0x30 1x120
+    alert_rule_test:
+      - eval_time: 2h
+        groupname: pangea-operator-errors
+        alertname: PangeaTemplateStallLoop
+        exp_alerts:
+          - exp_labels:
+              template: leaf-d
+              namespace: pleme
+              state: noProgress
+              severity: warning
+              remedy_mode: page
+            exp_annotations:
+              summary: pleme/leaf-d stalled 3 times in 6h (noProgress)
+              remedy: "page: each re-dispatch clears the stall but the next pass stalls again; read status.pass and the in-flight provider RPC for the cause"
+  - name: PangeaStallStorm
+    interval: 1m
+    input_series:
+      - series: pangea_template_stalls_total{template="leaf-f",namespace="pleme",state="heartbeatLost"}
+        values: 0+2x120
+      - series: pangea_template_stalls_total{template="leaf-g",namespace="pleme",state="noProgress"}
+        values: 0+1x120
+    alert_rule_test:
+      - eval_time: 1h45m
+        groupname: pangea-operator-errors
+        alertname: PangeaStallStorm
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              remedy_mode: page
+            exp_annotations:
+              summary: pangea templates entered Stalled 180 times in the last hour
+              remedy: "page: a fleet-wide cause (provider rate limit, state store, operator saturation); read pangea_template_stalls_total by state and the compile queue depth before touching single templates"
+  - name: PangeaCompileFailing
+    interval: 1m
+    input_series:
+      - series: pangea_template_consecutive_compile_failures{name="leaf-h",target_namespace="pleme"}
+        values: 1x5 2x5 3x30
+      - series: pangea_template_consecutive_compile_failures{name="leaf-i",target_namespace="pleme"}
+        values: 2x40
+    alert_rule_test:
+      - eval_time: 30m
+        groupname: pangea-operator-errors
+        alertname: PangeaCompileFailing
+        exp_alerts:
+          - exp_labels:
+              name: leaf-h
+              target_namespace: pleme
+              severity: warning
+              remedy_mode: page
+            exp_annotations:
+              summary: pleme/leaf-h failed 3 compiles in a row
+              remedy: "page: the template source does not compile; read status.lastError, fix the source in pangea-architectures, and let the next pass compile it"
+  - name: PangeaPassHeartbeatUnwatched
+    interval: 1m
+    input_series:
+      - series: pangea_template_pass_heartbeat_age_seconds{template="leaf-j",namespace="pleme",workspace="w"}
+        values: 600x30
+      - series: pangea_template_pass{template="leaf-j",namespace="pleme",workspace="w",kind="applying"}
+        values: 1x30
+      - series: pangea_template_pass_heartbeat_age_seconds{template="leaf-k",namespace="pleme",workspace="w"}
+        values: 600x30
+      - series: pangea_template_pass{template="leaf-k",namespace="pleme",workspace="w",kind="applying"}
+        values: 1x30
+      - series: pangea_template_stall{template="leaf-k",namespace="pleme",workspace="w",state="heartbeatLost"}
+        values: 1x30
+      - series: pangea_template_pass_heartbeat_age_seconds{template="leaf-l",namespace="pleme",workspace="w"}
+        values: 9000x30
+      - series: pangea_template_pass{template="leaf-l",namespace="pleme",workspace="w",kind="settled"}
+        values: 1x30
+    alert_rule_test:
+      - eval_time: 15m
+        groupname: pangea-operator-errors
+        alertname: PangeaPassHeartbeatUnwatched
+        exp_alerts:
+          - exp_labels:
+              template: leaf-j
+              namespace: pleme
+              workspace: w
+              severity: critical
+              remedy_mode: page
+            exp_annotations:
+              summary: pleme/leaf-j pass has not beaten for 600s and the watchdog has not named a stall
+              remedy: "page: the pass watchdog is blind to this pass; read status.pass and the operator log, then restart the pass by bumping spec"
+  - name: PangeaLeafPlanRegressed
+    interval: 5m
+    input_series:
+      - series: pangea_leaf_plan_seconds_bucket{workspace="w",le="5"}
+        values: 0x2060
+      - series: pangea_leaf_plan_seconds_bucket{workspace="w",le="10"}
+        values: 0+10x2016 20160+0x44
+      - series: pangea_leaf_plan_seconds_bucket{workspace="w",le="120"}
+        values: 0+10x2060
+      - series: pangea_leaf_plan_seconds_bucket{workspace="w",le="+Inf"}
+        values: 0+10x2060
+    alert_rule_test:
+      - eval_time: 7d3h
+        groupname: pangea-operator-latency
+        alertname: PangeaLeafPlanRegressed
+        exp_alerts:
+          - exp_labels:
+              workspace: w
+              severity: warning
+              remedy_mode: page
+            exp_annotations:
+              summary: workspace w leaf plan p95 is 114s, over twice its 7-day median
+              remedy: "page: plans got slower; compare provider RPC latency (pangea_provider_rpc_seconds) and the compile queue depth, then the operator change that landed when the curve moved"
+      - eval_time: 6d
+        groupname: pangea-operator-latency
+        alertname: PangeaLeafPlanRegressed
+        exp_alerts: []
