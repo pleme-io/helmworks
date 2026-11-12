@@ -1,0 +1,36 @@
+suite: the github-org CronJob's pod carries caller-declared annotations and pod security context
+templates:
+  - templates/github-org-repos-cronjob.yaml
+release:
+  name: pangea
+  namespace: pangea-system
+tests:
+  - it: a pod declares neither by default
+    set:
+      githubOrgReconciliation.enable: true
+      githubOrgReconciliation.cronJob.image: nix:/nix/store/x-resolve
+    asserts:
+      - notExists:
+          path: spec.jobTemplate.spec.template.metadata.annotations
+      - notExists:
+          path: spec.jobTemplate.spec.template.spec.securityContext
+
+  - it: a native node's root grant reaches the pod
+    set:
+      githubOrgReconciliation.enable: true
+      githubOrgReconciliation.cronJob.image: nix:/nix/store/x-resolve
+      githubOrgReconciliation.cronJob.podAnnotations:
+        kakoi.pleme.io/root: reads the node kubeconfig
+      githubOrgReconciliation.cronJob.podSecurityContext:
+        runAsUser: 0
+        runAsGroup: 0
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.metadata.annotations["kakoi.pleme.io/root"]
+          value: reads the node kubeconfig
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.securityContext.runAsUser
+          value: 0
+      - equal:
+          path: spec.jobTemplate.spec.template.metadata.labels["pangea.pleme.io/owner"]
+          value: pleme-io

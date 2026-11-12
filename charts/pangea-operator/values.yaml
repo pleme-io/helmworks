@@ -1260,6 +1260,8 @@ githubOrgReconciliation:
     # volumes: []
     # securityContext: {}
     # resources: {}
+    podAnnotations: {}
+    podSecurityContext: {}
 
 operatorPolicy:
   # Whether to ship the singleton `OperatorPolicy/default` CR. Set to

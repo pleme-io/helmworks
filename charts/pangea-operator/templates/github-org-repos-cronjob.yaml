@@ -39,8 +39,16 @@ spec:
           labels:
             app.kubernetes.io/managed-by: {{ .Release.Service | quote }}
             pangea.pleme.io/owner: pleme-io
+          {{- with $cj.podAnnotations }}
+          annotations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
         spec:
           restartPolicy: Never
+          {{- with $cj.podSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           # ★ NO `| default true` HERE — Sprig's `default` treats the
           # BOOLEAN `false` as empty and silently substitutes the default,
           # which is exactly backwards for a field whose whole point is to
