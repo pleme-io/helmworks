@@ -625,3 +625,79 @@ tests:
         groupname: pangea-operator-sync
         alertname: PangeaOperatorMetricsAbsent
         exp_alerts: []
+  - name: postgres restarts while its host wakes do not page
+    interval: 1m
+    input_series:
+      - series: pleme:target_host_settling{job="pangea-operator",instance="ryn:9090",node="ryn"}
+        values: 1x10
+      - series: pangea_stack_container_restarts{job="pangea-operator",instance="ryn:9090",namespace="pangea-system",pod="p",app="pangea-postgres",container="postgres"}
+        values: 31 32 33 34 34 34 34 34
+    alert_rule_test:
+      - eval_time: 6m
+        groupname: pangea-operator-stack
+        alertname: PangeaPostgresRestartStorm
+        exp_alerts: []
+      - eval_time: 40m
+        groupname: pangea-operator-stack
+        alertname: PangeaPostgresRestartStorm
+        exp_alerts: []
+  - name: postgres restarts two hours after its host woke page
+    interval: 1m
+    input_series:
+      - series: pleme:target_host_settling{job="pangea-operator",instance="ryn:9090",node="ryn"}
+        values: 1x10
+      - series: pangea_stack_container_restarts{job="pangea-operator",instance="ryn:9090",namespace="pangea-system",pod="p",app="pangea-postgres",container="postgres"}
+        values: 31x129 32 33 34 34 34 34 34
+    alert_rule_test:
+      - eval_time: 136m
+        groupname: pangea-operator-stack
+        alertname: PangeaPostgresRestartStorm
+        exp_alerts:
+          - exp_labels:
+              job: pangea-operator
+              instance: ryn:9090
+              namespace: pangea-system
+              pod: p
+              app: pangea-postgres
+              container: postgres
+              severity: critical
+              remedy_mode: page
+            exp_annotations:
+              summary: pangea-postgres restarted 3 times in an hour
+              remedy: 'page, never auto: each restart is a crash recovery of the state store; read its log for the shutdown cause before anything restarts it again'
+  - name: operator restarts while its host wakes do not page
+    interval: 1m
+    input_series:
+      - series: pleme:target_host_settling{job="pangea-operator",instance="ryn:9090",node="ryn"}
+        values: 1x10
+      - series: pangea_stack_container_restarts{job="pangea-operator",instance="ryn:9090",namespace="pangea-system",pod="o",app="pangea-operator",container="pangea-operator"}
+        values: 0 1 2 3 3 3 3
+    alert_rule_test:
+      - eval_time: 5m
+        groupname: pangea-operator-stack
+        alertname: PangeaOperatorRestarting
+        exp_alerts: []
+  - name: postgres not ready while its host wakes does not page
+    interval: 1m
+    input_series:
+      - series: pleme:target_host_settling{job="pangea-operator",instance="ryn:9090",node="ryn"}
+        values: 1x10
+      - series: pangea_stack_container_ready{job="pangea-operator",instance="ryn:9090",namespace="pangea-system",pod="p",app="pangea-postgres",container="postgres"}
+        values: "0x10"
+    alert_rule_test:
+      - eval_time: 7m
+        groupname: pangea-operator-stack
+        alertname: PangeaPostgresNotReady
+        exp_alerts: []
+  - name: operator metrics absent while its host is away do not page
+    interval: 1m
+    input_series:
+      - series: up{job="pangea-operator",instance="ryn:9090",node="ryn"}
+        values: 0x30
+      - series: pleme:target_host_settling{job="pangea-operator",instance="ryn:9090",node="ryn"}
+        values: 1x30
+    alert_rule_test:
+      - eval_time: 20m
+        groupname: pangea-operator-sync
+        alertname: PangeaOperatorMetricsAbsent
+        exp_alerts: []

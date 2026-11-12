@@ -78,7 +78,7 @@ groups:
           summary: pangea-operator has pending work and no template reconcile finished inside the wedge window
           remedy: "auto: /healthz fails on the same gate, so the kubelet restarts the operator; PangeaOperatorRestarting pages if restarts repeat"
       - alert: PangeaProjectionStale
-        expr: time() - pangea_operator_progress{reading="projection_timestamp_seconds"} > 300
+        expr: time() - pangea_operator_progress{reading="projection_timestamp_seconds"} > 300 unless on (job, instance) pleme:target_host_settling
         for: 5m
         labels:
           severity: warning
@@ -129,7 +129,7 @@ groups:
           summary: "CronJob {{ $labels.namespace }}/{{ $labels.cronjob }} has not succeeded for over 2h"
           remedy: "page: fix the program the job runs; nothing downstream of it is current"
       - alert: PangeaPostgresRestartStorm
-        expr: increase(pangea_stack_container_restarts{app="pangea-postgres"}[1h]) >= 3
+        expr: increase(pangea_stack_container_restarts{app="pangea-postgres"}[1h]) >= 3 unless on (job, instance) max_over_time(pleme:target_host_settling[1h])
         for: 1m
         labels:
           severity: critical
@@ -138,7 +138,7 @@ groups:
           summary: "pangea-postgres restarted {{ $value }} times in an hour"
           remedy: "page, never auto: each restart is a crash recovery of the state store; read its log for the shutdown cause before anything restarts it again"
       - alert: PangeaPostgresNotReady
-        expr: pangea_stack_container_ready{app="pangea-postgres"} == 0
+        expr: pangea_stack_container_ready{app="pangea-postgres"} == 0 unless on (job, instance) pleme:target_host_settling
         for: 5m
         labels:
           severity: critical
@@ -147,7 +147,7 @@ groups:
           summary: pangea-postgres is not ready
           remedy: "page: every magma pass blocks on the state store"
       - alert: PangeaOperatorRestarting
-        expr: increase(pangea_stack_container_restarts{app="pangea-operator"}[1h]) >= 3
+        expr: increase(pangea_stack_container_restarts{app="pangea-operator"}[1h]) >= 3 unless on (job, instance) max_over_time(pleme:target_host_settling[1h])
         for: 1m
         labels:
           severity: warning
@@ -234,7 +234,7 @@ groups:
           summary: "WorkspaceCatalog {{ $labels.workspace }} has been suspended for over 1h; none of its templates reconcile"
           remedy: "page: a manual brake left on; set spec.suspend to false once its reason is gone"
       - alert: PangeaOperatorMetricsAbsent
-        expr: absent(pangea_operator_progress{reading="projection_timestamp_seconds"})
+        expr: absent(pangea_operator_progress{reading="projection_timestamp_seconds"}) unless on () pleme:target_host_settling{job="pangea-operator"}
         for: 10m
         labels:
           severity: warning
