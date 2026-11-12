@@ -64,3 +64,29 @@ tests:
     asserts:
       - failedTemplate:
           errorPattern: "replicaCount is 0"
+
+  - it: the pg-wait init container keeps its non-root default
+    template: templates/deployment.yaml
+    set:
+      executor.magma.enabled: true
+      executor.magma.postgres.host: 127.0.0.1
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.runAsNonRoot
+          value: true
+
+  - it: a node whose pod runs as root under a grant sets pg-wait's security context too
+    template: templates/deployment.yaml
+    set:
+      executor.magma.enabled: true
+      executor.magma.postgres.host: 127.0.0.1
+      executor.magma.postgres.pgWait.securityContext:
+        runAsNonRoot: false
+        allowPrivilegeEscalation: false
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: pg-wait
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.runAsNonRoot
+          value: false

@@ -187,11 +187,11 @@ embedded mode and drop the compiler sidecar from the pod spec.
         "-d" ($magmaPg.database | default "pangea_state")
         "-U" "postgres"
         "-t" (printf "%v" (($magmaPg.pgWait).timeoutSeconds | default 10)))
-    "securityContext" (dict
+    "securityContext" (($magmaPg.pgWait).securityContext | default (dict
         "allowPrivilegeEscalation" false
         "runAsNonRoot" true
         "capabilities" (dict "drop" (list "ALL"))
-        "seccompProfile" (dict "type" "RuntimeDefault"))
+        "seccompProfile" (dict "type" "RuntimeDefault")))
     "resources" (($magmaPg.pgWait).resources | default (dict
         "requests" (dict "cpu" "10m" "memory" "16Mi")
         "limits" (dict "cpu" "50m" "memory" "32Mi"))) }}
