@@ -1,3 +1,4 @@
+{{- if .Values.controlPlane.enabled }}
 {{/*
 The derived half of github-org-repos.yaml's CR: a CronJob that resolves
 org.yaml against live GitHub and patches the result into the
@@ -91,4 +92,5 @@ spec:
           volumes:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+{{- end }}
 {{- end }}

@@ -1,3 +1,4 @@
+{{- if .Values.controlPlane.enabled }}
 {{/*
 KEDA ScaledObjects — one per worker class. Each scales the matching
 pangea-worker Deployment based on Pangea's `pangea_workunit_pending_total`
@@ -42,6 +43,7 @@ spec:
         # exposes one labelled gauge series per WorkUnit class.
         query: |-
           sum(pangea_workunit_pending_total{work_class="{{ $class }}"})
+{{- end }}
 {{- end }}
 {{- end }}
 {{- end }}

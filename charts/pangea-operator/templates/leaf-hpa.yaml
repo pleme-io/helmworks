@@ -1,3 +1,4 @@
+{{- if .Values.controlPlane.enabled }}
 {{- $l := include "pangea-operator.leaf" . | fromYaml }}
 {{- if and $l.active $l.autoscaling }}
 apiVersion: autoscaling/v2
@@ -26,4 +27,5 @@ spec:
   behavior:
     scaleDown:
       stabilizationWindowSeconds: {{ int $l.stabilizationSecs }}
+{{- end }}
 {{- end }}

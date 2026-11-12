@@ -1,3 +1,4 @@
+{{- if .Values.controlPlane.enabled }}
 {{/*
 The pleme-io GitHub-org InfrastructureTemplate CR — the STABLE half only
 (identity, dialect, credentials, policy). `spec.variables` is deliberately
@@ -105,4 +106,5 @@ spec:
   # suspension survive every re-render. See plo's file for the asymmetry.
   suspend: {{ .Values.githubOrgReconciliation.suspend }}
   {{- end }}
+{{- end }}
 {{- end }}

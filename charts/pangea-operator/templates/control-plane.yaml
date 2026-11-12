@@ -1,0 +1,3 @@
+{{- if and .Values.controlPlane.enabled (eq (int .Values.replicaCount) 0) }}
+{{- fail "controlPlane.enabled is true and replicaCount is 0: the CRs, CronJob and leaves would stand with no operator to reconcile them. Turn the whole stack off with controlPlane.enabled=false." }}
+{{- end }}

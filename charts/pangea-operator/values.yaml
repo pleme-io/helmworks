@@ -1,4 +1,10 @@
 # -- Number of replicas (singleton operator)
+# The whole control plane, as one value: false renders no object at all
+# (operator, CronJob, CRs, policy, observability), true renders the full set.
+# A node turns its control plane off with this, never piece by piece.
+controlPlane:
+  enabled: true
+
 replicaCount: 1
 
 image:

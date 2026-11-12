@@ -1,3 +1,4 @@
+{{- if .Values.controlPlane.enabled }}
 {{- $obs := deepCopy (.Values.observability | default dict) -}}
 {{- $rules := $obs.rules | default dict -}}
 {{- $groups := $rules.groups | default list -}}
@@ -11,3 +12,4 @@
 {{- $V := deepCopy .Values -}}
 {{- $_ := set $V "observability" $obs -}}
 {{- include "pleme-lib.observabilityBundle" (dict "Values" $V "Chart" .Chart "Release" .Release "Template" .Template "Capabilities" .Capabilities "Files" .Files) }}
+{{- end }}

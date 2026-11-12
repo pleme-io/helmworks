@@ -1,3 +1,4 @@
+{{- if .Values.controlPlane.enabled }}
 {{- $l := include "pangea-operator.leaf" . | fromYaml }}
 {{- if and $l.active $l.declare }}
 {{- $consumers := dict }}
@@ -30,4 +31,5 @@
 {{- $ctx := deepCopy . }}
 {{- $_ := set $ctx "Values" $v }}
 {{- include "pleme-lib.jetstream" $ctx }}
+{{- end }}
 {{- end }}

@@ -1,3 +1,4 @@
+{{- if .Values.controlPlane.enabled }}
 {{- if .Values.rbac.create }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -23,4 +24,5 @@ subjects:
   - kind: ServiceAccount
     name: {{ include "pleme-lib.serviceAccountName" . }}
     namespace: {{ include "pleme-lib.namespace" . }}
+{{- end }}
 {{- end }}

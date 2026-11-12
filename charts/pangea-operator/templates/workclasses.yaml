@@ -1,3 +1,4 @@
+{{- if .Values.controlPlane.enabled }}
 {{/*
 PangeaWorkClass CRs — one per declared class in values.tofuWorkers.classes.
 The controller reads these to choose the worker PodTemplate when
@@ -32,6 +33,7 @@ spec:
     pullPolicy: {{ default "IfNotPresent" $cfg.image.pullPolicy | quote }}
   timeout: {{ default "15m" $cfg.timeout | quote }}
   concurrencyPerWorker: {{ default 1 $cfg.concurrencyPerWorker }}
+{{- end }}
 {{- end }}
 {{- end }}
 {{- end }}

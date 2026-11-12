@@ -1,0 +1,66 @@
+suite: one value turns the whole control plane on or off
+templates:
+  - templates/breathe.yaml
+  - templates/configmap.yaml
+  - templates/deployment.yaml
+  - templates/github-org-repos-cronjob.yaml
+  - templates/github-org-repos.yaml
+  - templates/istio.yaml
+  - templates/leaf-hpa.yaml
+  - templates/leaf-jetstream.yaml
+  - templates/networkpolicy.yaml
+  - templates/observability.yaml
+  - templates/operator-policy.yaml
+  - templates/pdb.yaml
+  - templates/rbac.yaml
+  - templates/scaledobjects.yaml
+  - templates/service.yaml
+  - templates/serviceaccount.yaml
+  - templates/tiered-config.yaml
+  - templates/workclasses.yaml
+  - templates/control-plane.yaml
+release:
+  name: pangea
+  namespace: pangea-system
+tests:
+  - it: off renders no object from any template, whatever else is declared
+    set:
+      controlPlane.enabled: false
+      githubOrgReconciliation.enable: true
+      githubOrgReconciliation.leaves.enabled: true
+      githubOrgReconciliation.cronJob.image: nix:/nix/store/x-resolve
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: on renders the operator
+    template: templates/deployment.yaml
+    asserts:
+      - containsDocument:
+          kind: Deployment
+          apiVersion: apps/v1
+
+  - it: on renders the CronJob and the CR when the org is declared
+    template: templates/github-org-repos-cronjob.yaml
+    set:
+      githubOrgReconciliation.enable: true
+      githubOrgReconciliation.cronJob.image: nix:/nix/store/x-resolve
+    asserts:
+      - containsDocument:
+          kind: CronJob
+          apiVersion: batch/v1
+
+  - it: on renders the OperatorPolicy
+    template: templates/operator-policy.yaml
+    asserts:
+      - containsDocument:
+          kind: OperatorPolicy
+          apiVersion: pangea.pleme.io/v1alpha1
+
+  - it: on with no operator replica is refused
+    template: templates/control-plane.yaml
+    set:
+      replicaCount: 0
+    asserts:
+      - failedTemplate:
+          errorPattern: "replicaCount is 0"

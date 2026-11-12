@@ -1,3 +1,4 @@
+{{- if .Values.controlPlane.enabled }}
 {{/*
 Custom deployment that injects executor env vars into the pleme-lib deployment.
 We prepend the executor env vars to .Values.env before calling pleme-lib.
@@ -202,3 +203,4 @@ embedded mode and drop the compiler sidecar from the pod spec.
 {{- $_ := set $ctx "Values" $mergedValues }}
 {{- include "pleme-lib.deployment" $ctx }}
 {{- include "pangea-operator.leafWorker" (dict "root" . "values" $mergedValues) }}
+{{- end }}

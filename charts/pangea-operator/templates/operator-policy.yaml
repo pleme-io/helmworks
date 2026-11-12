@@ -1,3 +1,4 @@
+{{- if .Values.controlPlane.enabled }}
 {{- /*
   Default OperatorPolicy/default — the singleton fleet-wide kill-switch.
 
@@ -88,3 +89,4 @@ spec:
     {{- end }}
   {{- end }}
 {{- end -}}
+{{- end }}

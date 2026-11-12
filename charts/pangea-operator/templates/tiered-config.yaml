@@ -1,3 +1,4 @@
+{{- if .Values.controlPlane.enabled }}
 {{/*
 Tiered progressive-discovery config — the file tier of the operator's shikumi
 OperatorConfig, rendered as a reconciled ConfigMap (enjulho: config-as-Helm).
@@ -9,3 +10,4 @@ follow-on (the env → reconciled-Helm cutover). Secrets are NEVER rendered here
 (see the mixin header + values.yaml `config:` doc).
 */}}
 {{- include "pleme-lib.tieredConfig.configMap" . }}
+{{- end }}
