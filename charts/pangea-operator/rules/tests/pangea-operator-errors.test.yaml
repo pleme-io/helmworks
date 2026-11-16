@@ -167,6 +167,12 @@ tests:
         values: 9000x30
       - series: pangea_template_pass{template="leaf-l",namespace="pleme",workspace="w",kind="settled"}
         values: 1x30
+      - series: pangea_template_pass_heartbeat_age_seconds{template="leaf-m",namespace="pleme",workspace="w"}
+        values: 600x30
+      - series: pangea_template_pass{template="leaf-m",namespace="pleme",workspace="w",kind="planning"}
+        values: 1x30
+      - series: pangea_template_pass_parked{template="leaf-m",namespace="pleme"}
+        values: 1x30
     alert_rule_test:
       - eval_time: 15m
         groupname: pangea-operator-errors

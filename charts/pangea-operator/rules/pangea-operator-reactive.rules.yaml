@@ -321,7 +321,7 @@ groups:
           summary: "{{ $labels.target_namespace }}/{{ $labels.name }} failed {{ $value }} compiles in a row"
           remedy: "page: the template source does not compile; read status.lastError, fix the source in pangea-architectures, and let the next pass compile it"
       - alert: PangeaPassHeartbeatUnwatched
-        expr: pangea_template_pass_heartbeat_age_seconds > 300 and on (template, namespace, workspace) pangea_template_pass{kind=~"planning|applying"} == 1 unless on (template, namespace, workspace) pangea_template_stall == 1
+        expr: pangea_template_pass_heartbeat_age_seconds > 300 and on (template, namespace, workspace) pangea_template_pass{kind=~"planning|applying"} == 1 unless on (template, namespace, workspace) pangea_template_stall == 1 unless on (template, namespace) pangea_template_pass_parked == 1
         for: 10m
         labels:
           severity: critical
