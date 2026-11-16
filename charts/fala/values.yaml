@@ -1,0 +1,26 @@
+# fala default values
+# Local TTS: piper pt_BR behind a blue HTTP face. The image (piper + the blue
+# runtime + fala.b's `servir` verb) is BUILT BY NIX — pending first build; do
+# not point this at a third-party image.
+
+image:
+  repository: ghcr.io/pleme-io/fala
+  tag: latest
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+service:
+  port: 8080
+
+resources:
+  limits:
+    memory: 1Gi
+  requests:
+    memory: 256Mi
+
+voice:
+  model: pt_BR-faber-medium
+
+# The batch face (render a directory on a schedule) ships as the NixOS module
+# `pleme.nixos.fala` — this chart is the on-demand HTTP face.
