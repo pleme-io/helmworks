@@ -262,9 +262,16 @@ spec:
             type: File
         {{- end }}
         - name: data
+          {{- /* `emptyDir:` with nothing under it renders YAML NULL (`emptyDir: null`).
+                 Tolerated by real Kubernetes, refused by engenho's typed parser
+                 (InvalidVolumeSource: a volume with no source arm) — measured on
+                 rio 2026-11-19, where the fleet-vector DaemonSet sat Pending on
+                 exactly this. The `{}` is explicit, not decoration. */}}
           emptyDir:
             {{- if .Values.breathing.enabled }}
             sizeLimit: 6Gi
+            {{- else }}
+            {}
             {{- end }}
         {{- else if and (eq .Values.mode "statefulset") .Values.statefulset.persistence.enabled }}
         {{/* volumeClaimTemplates below handles data volume */}}
