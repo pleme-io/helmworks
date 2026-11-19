@@ -1,0 +1,39 @@
+{{- if .Values.enabled }}
+{{/*
+RBAC for kubernetes_logs source — Vector needs read access to pods and namespaces.
+Only created when kubernetes_logs ingestion is enabled.
+*/}}
+{{- if or .Values.ingestion.kubernetes_logs.enabled .Values.ingestion.kubernetes_events.enabled }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "namespaces", "nodes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "pleme-lib.fullname" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "pleme-lib.serviceAccountName" . }}
+    namespace: {{ include "pleme-lib.namespace" . }}
+{{- end }}
+{{- end }}

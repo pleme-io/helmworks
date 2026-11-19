@@ -1,0 +1,288 @@
+{{- if .Values.enabled }}
+{{/*
+Three-mode workload: DaemonSet (node agent), Deployment (aggregator), or StatefulSet (buffered).
+DaemonSet runs as root for /var/log access. Others use pleme-lib security baseline.
+Consumer mode forces Deployment regardless of mode setting.
+*/}}
+apiVersion: apps/v1
+{{- if eq (include "pleme-vector.isConsumer" .) "true" }}
+kind: Deployment
+{{- else if eq .Values.mode "daemonset" }}
+kind: DaemonSet
+{{- else if eq .Values.mode "statefulset" }}
+kind: StatefulSet
+{{- else }}
+kind: Deployment
+{{- end }}
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+spec:
+  {{- if ne .Values.mode "daemonset" }}
+  {{- if and .Values.breathing.enabled (eq (include "pleme-vector.isConsumer" .) "true") }}
+  replicas: 0
+  {{- else }}
+  replicas: {{ .Values.replicaCount | default 1 }}
+  {{- end }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "pleme-lib.selectorLabels" . | nindent 6 }}
+  {{- if ne .Values.mode "daemonset" }}
+  strategy:
+    type: RollingUpdate
+  {{- else }}
+  updateStrategy:
+    type: RollingUpdate
+  {{- end }}
+  template:
+    metadata:
+      labels:
+        {{- include "pleme-lib.selectorLabels" . | nindent 8 }}
+      annotations:
+        {{- include "pleme-lib.prometheusAnnotations" . | nindent 8 }}
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "pleme-lib.serviceAccountName" . }}
+      {{- if and (eq .Values.mode "daemonset") (ne (include "pleme-vector.isConsumer" .) "true") }}
+      # DaemonSet needs root for /var/log access
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
+      {{- else }}
+      securityContext:
+        {{- include "pleme-lib.podSecurityContext" . | nindent 8 }}
+      {{- end }}
+      {{- if eq (include "pleme-vector.isConsumer" .) "true" }}
+      initContainers:
+        - name: create-stream
+          image: natsio/nats-box:0.14.3
+          command: ["sh", "-c"]
+          args:
+            - |
+              nats stream add {{ .Values.delivery.nats.stream.name }} \
+                --subjects "{{ .Values.delivery.nats.subject.logs }}.>,{{ .Values.delivery.nats.subject.metrics }}.>" \
+                --retention limits --storage file \
+                --max-bytes 10737418240 --max-age 72h \
+                --replicas 1 --discard old \
+                --dupe-window {{ if .Values.delivery_exactly_once.enabled }}{{ .Values.delivery_exactly_once.dedup_window }}{{ else }}2m{{ end }} \
+                --defaults --server {{ .Values.delivery.nats.url }} || true
+          env:
+            - name: NATS_URL
+              value: {{ .Values.delivery.nats.url | quote }}
+      {{- end }}
+      containers:
+        - name: vector
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - --config-yaml
+            - /etc/vector/vector.yaml
+          ports:
+            {{- toYaml .Values.ports | nindent 12 }}
+            {{- if .Values.ingestion.statsd.enabled }}
+            - name: statsd
+              containerPort: 8125
+              protocol: UDP
+            {{- end }}
+            {{- if .Values.ingestion.http_server.enabled }}
+            - name: http-in
+              containerPort: 8080
+              protocol: TCP
+            {{- end }}
+            {{- if .Values.ingestion.burst_forge_http.enabled }}
+            - name: burst-forge
+              containerPort: 9500
+              protocol: TCP
+            {{- end }}
+            {{- if .Values.ingestion.splunk_hec.enabled }}
+            - name: hec
+              containerPort: {{ .Values.ingestion.splunk_hec.port | default 8088 }}
+              protocol: TCP
+            {{- end }}
+            {{- if .Values.processing.vector_source.enabled }}
+            - name: vector-grpc
+              containerPort: 6000
+              protocol: TCP
+            {{- end }}
+            {{- if .Values.ingestion_opentelemetry.enabled }}
+            - name: otlp-grpc
+              containerPort: 4317
+              protocol: TCP
+            - name: otlp-http
+              containerPort: 4318
+              protocol: TCP
+            {{- end }}
+          env:
+            - name: VECTOR_SELF_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: VECTOR_SELF_POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: VECTOR_SELF_POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            {{- if .Values.sink.datadog.enabled }}
+            {{- if .Values.sink.datadog.api_key_secret }}
+            - name: DATADOG_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.sink.datadog.api_key_secret }}
+                  key: api-key
+            {{- end }}
+            {{- end }}
+            {{- if .Values.sink.splunk_hec.enabled }}
+            {{- if .Values.sink.splunk_hec.token_secret }}
+            - name: SPLUNK_HEC_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.sink.splunk_hec.token_secret }}
+                  key: token
+            {{- end }}
+            {{- end }}
+            {{- /* extraEnv passthrough — inject arbitrary env (literal or
+                   secretRef) for custom sinks/sources. E.g. a clickhouse
+                   custom sink referencing ${CLICKHOUSE_PASSWORD} from a
+                   cofre/k8s Secret instead of a literal password in values. */}}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          {{- if and (eq .Values.mode "daemonset") (ne (include "pleme-vector.isConsumer" .) "true") }}
+          securityContext:
+            readOnlyRootFilesystem: true
+          {{- else }}
+          securityContext:
+            {{- include "pleme-lib.containerSecurityContext" . | nindent 12 }}
+          {{- end }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.health.path }}
+              port: api
+            initialDelaySeconds: {{ .Values.health.livenessInitialDelay }}
+            periodSeconds: {{ .Values.health.livenessPeriod }}
+            failureThreshold: {{ .Values.health.livenessFailureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.health.readyPath }}
+              port: api
+            initialDelaySeconds: {{ .Values.health.readinessInitialDelay }}
+            periodSeconds: {{ .Values.health.readinessPeriod }}
+            failureThreshold: {{ .Values.health.readinessFailureThreshold }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/vector
+              readOnly: true
+            - name: data
+              mountPath: /var/lib/vector
+            - name: tmp
+              mountPath: /tmp
+            {{- if and (eq .Values.mode "daemonset") (ne (include "pleme-vector.isConsumer" .) "true") }}
+            - name: var-log-pods
+              mountPath: /var/log/pods
+              readOnly: true
+            - name: var-log-containers
+              mountPath: /var/log/containers
+              readOnly: true
+            {{- if .Values.ingestion.journald.enabled }}
+            - name: var-log-journal
+              mountPath: /var/log/journal
+              readOnly: true
+            - name: run-log-journal
+              mountPath: /run/log/journal
+              readOnly: true
+            - name: machine-id
+              mountPath: /etc/machine-id
+              readOnly: true
+            {{- end }}
+            {{- end }}
+            {{- if .Values.sink.file.enabled }}
+            - name: file-output
+              mountPath: {{ dir .Values.sink.file.path }}
+            {{- end }}
+            {{- if le (int .Values.faucet.level) 3 }}
+            - name: faucet-output
+              mountPath: /var/lib/vector/faucet
+            {{- end }}
+      {{- if and (eq .Values.mode "daemonset") (ne (include "pleme-vector.isConsumer" .) "true") }}
+      tolerations:
+        {{- if .Values.daemonset.tolerateAll }}
+        - operator: Exists
+        {{- end }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: 30
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "pleme-lib.fullname" . }}-config
+        - name: tmp
+          emptyDir: {}
+        {{- if and (eq .Values.mode "daemonset") (ne (include "pleme-vector.isConsumer" .) "true") }}
+        - name: var-log-pods
+          hostPath:
+            path: {{ .Values.daemonset.hostPaths.pods }}
+        - name: var-log-containers
+          hostPath:
+            path: {{ .Values.daemonset.hostPaths.containers }}
+        {{- if .Values.ingestion.journald.enabled }}
+        - name: var-log-journal
+          hostPath:
+            path: {{ .Values.daemonset.hostPaths.journal }}
+            type: DirectoryOrCreate
+        - name: run-log-journal
+          hostPath:
+            path: {{ .Values.daemonset.hostPaths.journalRun }}
+            type: DirectoryOrCreate
+        - name: machine-id
+          hostPath:
+            path: {{ .Values.daemonset.hostPaths.machineId }}
+            type: File
+        {{- end }}
+        - name: data
+          emptyDir:
+            {{- if .Values.breathing.enabled }}
+            sizeLimit: 6Gi
+            {{- end }}
+        {{- else if and (eq .Values.mode "statefulset") .Values.statefulset.persistence.enabled }}
+        {{/* volumeClaimTemplates below handles data volume */}}
+        {{- else }}
+        - name: data
+          emptyDir: {}
+        {{- end }}
+        {{- if .Values.sink.file.enabled }}
+        - name: file-output
+          emptyDir: {}
+        {{- end }}
+        {{- if le (int .Values.faucet.level) 3 }}
+        - name: faucet-output
+          emptyDir: {}
+        {{- end }}
+  {{- if and (eq .Values.mode "statefulset") .Values.statefulset.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- if .Values.statefulset.persistence.storageClass }}
+        storageClassName: {{ .Values.statefulset.persistence.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.statefulset.persistence.size }}
+  {{- end }}
+{{- end }}

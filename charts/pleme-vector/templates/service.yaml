@@ -1,0 +1,63 @@
+{{- if .Values.enabled }}
+{{/*
+Custom service — extends pleme-lib with conditional ports for optional sources.
+*/}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type | default "ClusterIP" }}
+  selector:
+    {{- include "pleme-lib.selectorLabels" . | nindent 4 }}
+  ports:
+    {{- range .Values.service.ports }}
+    - name: {{ .name }}
+      port: {{ .port }}
+      targetPort: {{ .targetPort }}
+      protocol: {{ .protocol | default "TCP" }}
+    {{- end }}
+    {{- if .Values.ingestion.statsd.enabled }}
+    - name: statsd
+      port: 8125
+      targetPort: 8125
+      protocol: UDP
+    {{- end }}
+    {{- if .Values.ingestion.http_server.enabled }}
+    - name: http-in
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+    {{- end }}
+    {{- if .Values.ingestion.burst_forge_http.enabled }}
+    - name: burst-forge
+      port: 9500
+      targetPort: 9500
+      protocol: TCP
+    {{- end }}
+    {{- if .Values.ingestion.splunk_hec.enabled }}
+    - name: hec
+      port: {{ .Values.ingestion.splunk_hec.port | default 8088 }}
+      targetPort: hec
+      protocol: TCP
+    {{- end }}
+    {{- if .Values.processing.vector_source.enabled }}
+    - name: vector-grpc
+      port: 6000
+      targetPort: 6000
+      protocol: TCP
+    {{- end }}
+    {{- if .Values.ingestion_opentelemetry.enabled }}
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+      protocol: TCP
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318
+      protocol: TCP
+    {{- end }}
+{{- end }}

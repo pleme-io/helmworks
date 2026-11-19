@@ -1,0 +1,53 @@
+{{- if .Values.enabled }}
+{{/*
+KEDA ScaledObject for event-driven auto-scaling.
+Scales consumer Deployment based on NATS JetStream consumer lag.
+Requires KEDA operator installed in cluster.
+
+In breathing mode:
+- minReplicaCount overridden to 0 (scale-to-zero)
+- cooldownPeriod from breathing.consumer.sleep_after_secs
+- Activation threshold from breathing.consumer.wake_threshold
+- When NATS is at 0 replicas, its monitoring endpoint is unreachable,
+  so KEDA treats it as "no activation event" → consumer stays at 0.
+  This provides implicit dependency ordering without an orchestrator.
+*/}}
+{{- if or (eq .Values.autoscaling.type "keda") .Values.breathing.enabled }}
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    name: {{ include "pleme-lib.fullname" . }}
+  pollingInterval: {{ .Values.autoscaling.keda.polling_interval | default 15 }}
+  {{- if .Values.breathing.enabled }}
+  cooldownPeriod: {{ .Values.breathing.consumer.sleep_after_secs }}
+  minReplicaCount: {{ .Values.breathing.consumer.min_replicas }}
+  maxReplicaCount: {{ .Values.breathing.consumer.max_replicas }}
+  triggers:
+    - type: nats-jetstream
+      metadata:
+        natsServerMonitoringEndpoint: "nats-vector.{{ include "pleme-lib.namespace" . }}.svc:8222"
+        stream: {{ .Values.delivery.nats.stream.name | quote }}
+        consumer: {{ .Values.delivery.nats.consumer.name | quote }}
+        lagThreshold: {{ .Values.breathing.consumer.scale_threshold | quote }}
+        activationLagThreshold: {{ .Values.breathing.consumer.wake_threshold | quote }}
+  {{- else }}
+  cooldownPeriod: {{ .Values.autoscaling.keda.cooldown_period }}
+  minReplicaCount: {{ .Values.autoscaling.min_replicas }}
+  maxReplicaCount: {{ .Values.autoscaling.max_replicas }}
+  triggers:
+    {{- range .Values.autoscaling.keda.triggers }}
+    - type: {{ .type }}
+      metadata:
+        {{- range $k, $v := .metadata }}
+        {{ $k }}: {{ $v | quote }}
+        {{- end }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+{{- end }}

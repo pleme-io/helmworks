@@ -1,0 +1,1617 @@
+{{- if .Values.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}-config
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+data:
+  vector.yaml: |
+    # Auto-generated from pleme-vector values — do not edit directly
+    # Faucet level: {{ .Values.faucet.level }}
+
+    {{- if .Values.api.enabled }}
+    api:
+      enabled: true
+      address: {{ .Values.api.address | quote }}
+    {{- end }}
+
+    # ════════════════════════════════════════════════════════════════
+    # SOURCES — consumer reads from NATS; others collect normally
+    # ════════════════════════════════════════════════════════════════
+    sources:
+    {{- if eq (include "pleme-vector.isConsumer" .) "true" }}
+      {{- /* image.tag pins vector 0.41.1, whose `nats` SOURCE is CORE-NATS ONLY.  */}}
+      {{- /* It has no `jetstream` option at all (added upstream in v0.50.0, PR    */}}
+      {{- /* #23554) and its can_acknowledge() returns false. Durable JetStream    */}}
+      {{- /* pull-consumption is therefore NOT EXPRESSIBLE on the pinned image --  */}}
+      {{- /* not misspelled, absent -- so it is not emitted. `queue` gives a       */}}
+      {{- /* core-NATS queue-group subscription instead.                          */}}
+      {{- /*                                                                       */}}
+      {{- /* `durable_name` never existed on this source in ANY version; the       */}}
+      {{- /* v0.50+ key is `consumer`. And `connection_name` is REQUIRED in every  */}}
+      {{- /* version -- a latent second defect the jetstream error was masking,    */}}
+      {{- /* since serde reports the unknown-field error before the missing-field  */}}
+      {{- /* one. Removing jetstream alone would have moved the failure, not       */}}
+      {{- /* fixed it.                                                            */}}
+      {{- /*                                                                       */}}
+      {{- /* ★ ESCALATION, recorded rather than papered over: this makes the       */}}
+      {{- /* consumer LOAD, not GUARANTEED. On the pinned image the consumer path  */}}
+      {{- /* is core NATS -- no acks, no replay -- so values.yaml's "guaranteed:   */}}
+      {{- /* zero-loss" is not backed by this binary on the consumer side, and     */}}
+      {{- /* the KEDA nats-jetstream scaler will find no consumer to measure.      */}}
+      {{- /* Restoring the real intent needs image >= v0.50.0 AND a `nats consumer */}}
+      {{- /* add` in the init container, which only runs `nats stream add` today.  */}}
+      nats_logs:
+        type: nats
+        url: {{ .Values.delivery.nats.url | quote }}
+        connection_name: {{ printf "%s-logs" (include "pleme-lib.fullname" .) | quote }}
+        subject: {{ printf "%s.>" .Values.delivery.nats.subject.logs | quote }}
+        queue: {{ .Values.delivery.nats.consumer.name | quote }}
+        decoding:
+          codec: json
+      nats_metrics:
+        type: nats
+        url: {{ .Values.delivery.nats.url | quote }}
+        connection_name: {{ printf "%s-metrics" (include "pleme-lib.fullname" .) | quote }}
+        subject: {{ printf "%s.>" .Values.delivery.nats.subject.metrics | quote }}
+        queue: {{ .Values.delivery.nats.consumer.name | quote }}
+        decoding:
+          codec: json
+      internal_metrics:
+        type: internal_metrics
+        scrape_interval_secs: 15
+    {{- else }}
+      {{- if .Values.ingestion.kubernetes_logs.enabled }}
+      kubernetes_logs:
+        type: kubernetes_logs
+        auto_partial_merge: {{ .Values.ingestion.kubernetes_logs.auto_partial_merge }}
+        {{- with .Values.ingestion.kubernetes_logs.exclude_paths }}
+        exclude_paths_glob_patterns:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+      {{- end }}
+
+      {{- /* Host-level systemd journal — node/kubelet/containerd/kernel events
+             a container's own stdout/stderr never carries. Execs journalctl
+             as a subprocess (REQUIRES a systemd-capable image; the default
+             image.tag above is Alpine, which has none). */}}
+      {{- if .Values.ingestion.journald.enabled }}
+      journald:
+        type: journald
+        current_boot_only: {{ .Values.ingestion.journald.current_boot_only }}
+        since_now: {{ .Values.ingestion.journald.since_now }}
+        journal_directory: {{ .Values.ingestion.journald.journal_directory | quote }}
+        {{- with .Values.ingestion.journald.exclude_units }}
+        exclude_units:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+      {{- end }}
+
+      {{- if .Values.ingestion.internal_metrics.enabled }}
+      internal_metrics:
+        type: internal_metrics
+        scrape_interval_secs: {{ .Values.ingestion.internal_metrics.scrape_interval_secs }}
+      {{- end }}
+
+      {{- if .Values.ingestion.statsd.enabled }}
+      statsd:
+        type: statsd
+        address: {{ .Values.ingestion.statsd.address | quote }}
+        mode: udp
+      {{- end }}
+
+      {{- if .Values.ingestion.hubble.enabled }}
+      hubble_flows:
+        type: http_client
+        endpoint: {{ printf "http://%s/v1/flows" .Values.ingestion.hubble.endpoint | quote }}
+        method: GET
+        decoding:
+          codec: json
+      {{- end }}
+
+      {{- if .Values.ingestion.prometheus_scrape.enabled }}
+      {{- range $i, $target := .Values.ingestion.prometheus_scrape.targets }}
+      prometheus_scrape_{{ $i }}:
+        type: prometheus_scrape
+        endpoints:
+          - {{ $target.endpoint | quote }}
+        scrape_interval_secs: {{ $target.scrape_interval_secs | default 15 }}
+      {{- end }}
+      {{- end }}
+
+      {{- if .Values.ingestion.http_server.enabled }}
+      http_server:
+        type: http_server
+        address: {{ .Values.ingestion.http_server.address | quote }}
+        encoding: json
+      {{- end }}
+
+      {{- if .Values.ingestion.kubernetes_events.enabled }}
+      kubernetes_events:
+        type: prometheus_scrape
+        endpoints:
+          - {{ .Values.ingestion.kubernetes_events.endpoint | quote }}
+        scrape_interval_secs: {{ .Values.ingestion.kubernetes_events.scrape_interval_secs }}
+      {{- end }}
+
+      {{- if .Values.ingestion.burst_forge_http.enabled }}
+      burst_forge_http:
+        type: http_server
+        address: {{ .Values.ingestion.burst_forge_http.address | quote }}
+        strict_mode: false
+        decoding:
+          codec: json
+      {{- end }}
+
+      {{- if .Values.processing.vector_source.enabled }}
+      vector_source:
+        type: vector
+        address: {{ .Values.processing.vector_source.address | quote }}
+      {{- end }}
+
+      {{- /* Splunk HEC receiver — the Splunk drop-in ingress. First-class so the
+             container/service port auto-exposes (deployment.yaml / service.yaml)
+             and a Splunk-shaped stream lands without hand-wiring ingestion.custom. */}}
+      {{- if .Values.ingestion.splunk_hec.enabled }}
+      splunk_hec:
+        type: splunk_hec
+        address: {{ .Values.ingestion.splunk_hec.address | quote }}
+        {{- with .Values.ingestion.splunk_hec.valid_tokens }}
+        valid_tokens:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+      {{- end }}
+
+      {{- if .Values.ingestion_opentelemetry.enabled }}
+      opentelemetry:
+        type: opentelemetry
+        grpc:
+          address: {{ .Values.ingestion_opentelemetry.grpc_address | quote }}
+        http:
+          address: {{ .Values.ingestion_opentelemetry.http_address | quote }}
+      {{- end }}
+
+      {{- if .Values.ingestion.pprof_capture.enabled }}
+      {{- range .Values.ingestion.pprof_capture.targets }}
+      pprof_{{ .name }}:
+        type: exec
+        mode: scheduled
+        scheduled:
+          exec_interval_secs: {{ $.Values.ingestion.pprof_capture.interval_secs }}
+        command:
+          - sh
+          - -c
+          - 'curl -sf {{ .url | quote }} 2>/dev/null | head -1 || echo "pprof_unavailable"'
+        decoding:
+          codec: bytes
+      {{- end }}
+      {{- end }}
+
+      {{- if .Values.ingestion.kubernetes_events_raw.enabled }}
+      kubernetes_events_raw:
+        type: exec
+        mode: scheduled
+        scheduled:
+          exec_interval_secs: 30
+        command:
+          - sh
+          - -c
+          - |
+            kubectl get events \
+              {{- range .Values.ingestion.kubernetes_events_raw.namespaces }}
+              -n {{ . }} \
+              {{- end }}
+              --sort-by='.lastTimestamp' \
+              -o json \
+              --field-selector type!=Normal \
+              2>/dev/null | jq -c '.items[]' 2>/dev/null || echo '{}'
+        decoding:
+          codec: json
+      {{- end }}
+
+      {{- with .Values.ingestion.custom }}
+      {{- toYaml . | nindent 6 }}
+      {{- end }}
+    {{- end }}{{/* end consumer else block */}}
+
+    {{- /* ★ NATS IS A LOG-TYPED TRANSPORT IN VECTOR. The nats source and sink   */}}
+    {{- /* both carry DataType::Log, so wiring internal_metrics (Metric) into a  */}}
+    {{- /* nats sink -- or a nats source into prometheus_remote_write (Metric)   */}}
+    {{- /* -- is a hard type error:                                             */}}
+    {{- /*   x Data type mismatch between internal_metrics (Metric) and          */}}
+    {{- /*     nats_metrics (Log)                                               */}}
+    {{- /* This was masked until now by the jetstream schema errors above; those */}}
+    {{- /* aborted the parse before the graph was ever type-checked.            */}}
+    {{- /*                                                                       */}}
+    {{- /* The round trip IS expressible on the pinned 0.41.1: metric_to_log on  */}}
+    {{- /* the producer, log_to_metric with `all_metrics: true` on the consumer  */}}
+    {{- /* (src/transforms/log_to_metric.rs:75), which is its exact inverse.     */}}
+    {{- /*                                                                       */}}
+    {{- /* Consumers therefore need a transforms: block too -- so the guard is   */}}
+    {{- /* widened and the LOG CHAIN keeps its original non-consumer condition   */}}
+    {{- /* on the inner branch. A second top-level `transforms:` key would be a  */}}
+    {{- /* duplicate mapping key, which is why this widens rather than appends.  */}}
+    {{- /* ★ HIGHEST-SEVERITY FINDING OF THE TOGGLE SWEEP, now unrepresentable.
+           `sink.loki.enabled=false` used to discard 100% of logs: the chain
+           still rendered, victoria_logs_msg became terminal with nothing
+           consuming it, Vector emitted ONE warning and exited 0. A validated
+           config that throws away every log line. Collecting logs with nowhere
+           to put them is never intentional, so it is now a template error
+           instead of a warning nobody reads. */}}
+    {{- if and (ne (include "pleme-vector.logSourceNames" .) "") (ne (include "pleme-vector.hasLogSink" .) "true") }}
+    {{- fail "log sources are enabled but NO log sink is: every log event would be collected and silently discarded. Enable one of sink.loki / sink.file_output / sink.console_debug / sink.blackhole / sink.datadog / sink.splunk_hec / sink.analytics, or disable the log sources." }}
+    {{- end }}
+    {{- /* fleetShipping ships the node's journal through the log chain; both
+           guards below name the legal config rather than rendering a broken
+           one. A missing journald source would leave fleet_line with a
+           non-existent input; a sub-level-2 faucet or consumer role renders
+           no chain for fleet_line to consume. */}}
+    {{- if and .Values.fleetShipping.enabled (not .Values.ingestion.journald.enabled) }}
+    {{- fail "fleetShipping.enabled=true but ingestion.journald.enabled=false: the fleet plane ships the node's journal and has no other source. Set ingestion.journald.enabled=true (and a -debian image tag; see values.yaml)." }}
+    {{- end }}
+    {{- if and .Values.fleetShipping.enabled (or (lt (int .Values.faucet.level) 2) (eq (include "pleme-vector.isConsumer" .) "true")) }}
+    {{- fail "fleetShipping.enabled=true needs the log chain: set faucet.level >= 2 and a non-consumer delivery role (standalone or producer)." }}
+    {{- end }}
+    {{- $isConsumer := eq (include "pleme-vector.isConsumer" .) "true" }}
+    {{- $renderLogChain := and (ge (int .Values.faucet.level) 2) (not $isConsumer) }}
+    {{- $renderMetricDecode := and $isConsumer .Values.sink.victoriametrics.enabled }}
+    {{- if or $renderLogChain $renderMetricDecode }}
+    # ════════════════════════════════════════════════════════════════
+    # TRANSFORMS — log chain at faucet levels 2-4; metric decode for consumers
+    # ════════════════════════════════════════════════════════════════
+    transforms:
+      {{- if $renderMetricDecode }}
+      # Reverses the producer's metric_to_log so victoriametrics receives
+      # Metric events, not the Log events NATS actually carries.
+      nats_metrics_decode:
+        type: log_to_metric
+        inputs:
+          - nats_metrics
+        # `metrics` carries no #[serde(default)] on the pinned 0.41.1
+        # (src/transforms/log_to_metric.rs:47), so it is required even though
+        # `all_metrics: true` supersedes it entirely -- the transform checks
+        # all_metrics first (:812) and never reads this list. An empty list is
+        # the honest way to satisfy a required field whose value is unused.
+        metrics: []
+        all_metrics: true
+      {{- end }}
+      {{- if $renderLogChain }}
+      {{- $logSources := include "pleme-vector.logSourceNames" . }}
+      {{- if and .Values.transform.kubernetes_metadata.enabled (ne $logSources "") }}
+      k8s_enrich:
+        type: remap
+        inputs:
+          {{- range splitList ", " $logSources }}
+          - {{ . }}
+          {{- end }}
+        source: |
+          .namespace = string(del(.kubernetes.pod_namespace)) ?? "unknown"
+          .pod = string(del(.kubernetes.pod_name)) ?? "unknown"
+          .container = string(del(.kubernetes.container_name)) ?? "unknown"
+          .app = string(del(.kubernetes.pod_labels."app.kubernetes.io/name")) ?? .container
+          .cluster = {{ .Values.cluster | quote }}
+          .environment = {{ .Values.environment | quote }}
+      {{- end }}
+
+      {{- if and .Values.transform.json_parse.enabled (ne $logSources "") }}
+      json_parse:
+        type: remap
+        inputs:
+          {{- if .Values.transform.kubernetes_metadata.enabled }}
+          - k8s_enrich
+          {{- else }}
+          {{- range splitList ", " $logSources }}
+          - {{ . }}
+          {{- end }}
+          {{- end }}
+        source: |
+          msg = string(.message) ?? ""
+          parsed, parse_err = parse_json(msg)
+          if parse_err == null {
+            ., _merge_err = merge(., parsed)
+          }
+        {{- if $.Values.delivery_dlq.enabled }}
+        {{- /* The `.dropped` port EXISTS only when reroute_dropped is set     */}}
+        {{- /* (src/transforms/remap.rs:391-398), and an event only reaches it */}}
+        {{- /* when drop_on_error/drop_on_abort also fire (:645-655). Without  */}}
+        {{- /* all three, dlq_sink consumed a port that does not exist; with   */}}
+        {{- /* only the first, it would be a permanently EMPTY dead-letter     */}}
+        {{- /* queue, which is the more dangerous of the two failures.        */}}
+        drop_on_error: true
+        drop_on_abort: true
+        reroute_dropped: true
+        {{- end }}
+      {{- end }}
+
+      {{- if and .Values.transform.log_level_normalize.enabled (ne $logSources "") }}
+      log_level_normalize:
+        type: remap
+        inputs:
+          {{- if .Values.transform.json_parse.enabled }}
+          - json_parse
+          {{- else if .Values.transform.kubernetes_metadata.enabled }}
+          - k8s_enrich
+          {{- else }}
+          {{- $logSources := include "pleme-vector.logSourceNames" . }}
+          {{- range splitList ", " $logSources }}
+          - {{ . }}
+          {{- end }}
+          {{- end }}
+        source: |
+          raw_level = to_string(.level) ?? ""
+          {{- if .Values.transform.log_level_normalize.deriveFromMessage }}
+          # Derive the level from message CONTENT when the log carries no
+          # structured `.level` field. Plain-text / klog / syslog-prefixed apps
+          # (e.g. akeyless emits `<prog>[pid]: PANIC: ...`) otherwise all collapse
+          # to "info", blinding the error/fatal/panic board panels. Only fires
+          # when `.level` is absent — JSON-logging apps keep their own level.
+          if raw_level == "" {
+            m = to_string(.message) ?? ""
+            # 1) syslog / "LEVEL: msg" prefix (akeyless: `]: PANIC: ...`)
+            prefix, prefix_err = parse_regex(m, r'(?i)(?:^|\]:\s|\s)(?P<lvl>panic|fatal|error|err|warn|warning|info|debug|trace):\s')
+            if prefix_err == null {
+              raw_level = downcase(to_string(prefix.lvl))
+            } else if match(m, r'(?i)\bpanic\b') {
+              raw_level = "panic"
+            } else if match(m, r'(?i)\bfatal\b') {
+              raw_level = "fatal"
+            } else if match(m, r'(?i)\berror\b') || match(m, r'^E[0-9]{4}') {
+              raw_level = "error"
+            } else if match(m, r'(?i)\bwarn(ing)?\b') || match(m, r'^W[0-9]{4}') {
+              raw_level = "warn"
+            } else if match(m, r'(?i)\b(debug|trace)\b') {
+              raw_level = "debug"
+            }
+          }
+          {{- end }}
+          level = downcase(raw_level)
+          # Terminal levels kept DISTINCT so the boards can filter
+          # level:error|fatal|panic (previously fatal/panic folded into "error").
+          if includes(["warn", "warning"], level) {
+            .level = "warn"
+          } else if level == "panic" {
+            .level = "panic"
+          } else if includes(["fatal", "critical"], level) {
+            .level = "fatal"
+          } else if includes(["err", "error"], level) {
+            .level = "error"
+          } else if includes(["dbg", "debug", "trace"], level) {
+            .level = "debug"
+          } else {
+            .level = "info"
+          }
+      {{- end }}
+
+      {{- if and .Values.transform.akeyless_event_detect.enabled (ne $logSources "") }}
+      akeyless_event_detect:
+        type: remap
+        inputs:
+          {{- /* Hardcoded-PRIOR chain (never `lastLogTransform`, which returns   */}}
+          {{- /* a transform DOWNSTREAM of akeyless_event_detect — experiment_tag */}}
+          {{- /* or product_detect — closing the loop back onto this node).       */}}
+          {{- /*                                                                  */}}
+          {{- /* This is the THIRD instance of one bug. Commit 01d91ed converted  */}}
+          {{- /* experiment_tag (:399) and product_detect (:433) off              */}}
+          {{- /* lastLogTransform for exactly this reason and left comments       */}}
+          {{- /* saying so, but missed this one -- the last remaining member of   */}}
+          {{- /* the lastLogTransform ordering cascade that is also IN that       */}}
+          {{- /* cascade. The five other lastLogTransform call sites (:324, :347, */}}
+          {{- /* :482, :495, :506) are NOT members of the cascade and so can      */}}
+          {{- /* never self-reference; they are correct as they stand.            */}}
+          {{- if .Values.transform.log_level_normalize.enabled }}
+          - log_level_normalize
+          {{- else if .Values.transform.json_parse.enabled }}
+          - json_parse
+          {{- else if .Values.transform.kubernetes_metadata.enabled }}
+          - k8s_enrich
+          {{- else }}
+          {{- range splitList ", " $logSources }}
+          - {{ . }}
+          {{- end }}
+          {{- end }}
+        source: |
+          msg = string(.message) ?? ""
+          {{- range $event, $pattern := .Values.transform.akeyless_event_detect.patterns }}
+          if contains(msg, {{ $pattern | quote }}) {
+            .event_type = {{ $event | quote }}
+          }
+          {{- end }}
+      {{- end }}
+
+      {{- if and .Values.transform.akeyless_gw_log_parse.enabled (ne $logSources "") }}
+      akeyless_gw_log_parse:
+        type: remap
+        inputs:
+          {{- /* Hardcoded-PRIOR, never lastLogTransform: this transform is now
+                 IN that cascade, so reading it here would make the node its own
+                 input. Third instance of the bug that made akeyless_event_detect
+                 cyclic; the pattern is now used everywhere it belongs. */}}
+          {{- if .Values.transform.akeyless_event_detect.enabled }}
+          - akeyless_event_detect
+          {{- else if .Values.transform.log_level_normalize.enabled }}
+          - log_level_normalize
+          {{- else if .Values.transform.json_parse.enabled }}
+          - json_parse
+          {{- else if .Values.transform.kubernetes_metadata.enabled }}
+          - k8s_enrich
+          {{- else }}
+          {{- range splitList ", " $logSources }}
+          - {{ . }}
+          {{- end }}
+          {{- end }}
+        source: |
+          if exists(.kubernetes) && .kubernetes.container_name == "akeyless-api-gw" {
+            msg = string(.message) ?? ""
+            parsed, err = parse_regex(msg, r'request_duration=(?P<dur>\d+)ms')
+            if err == null { .gw_request_duration_ms = to_int!(parsed.dur) }
+            parsed2, err2 = parse_regex(msg, r'operation=(?P<op>\w+)')
+            if err2 == null { .gw_operation = parsed2.op }
+          }
+      {{- end }}
+
+      {{- if and .Values.transform.akeyless_wh_log_parse.enabled (ne $logSources "") }}
+      akeyless_wh_log_parse:
+        type: remap
+        inputs:
+          {{- /* Hardcoded-PRIOR: see akeyless_gw_log_parse above. */}}
+          {{- if .Values.transform.akeyless_gw_log_parse.enabled }}
+          - akeyless_gw_log_parse
+          {{- else if .Values.transform.akeyless_event_detect.enabled }}
+          - akeyless_event_detect
+          {{- else if .Values.transform.log_level_normalize.enabled }}
+          - log_level_normalize
+          {{- else if .Values.transform.json_parse.enabled }}
+          - json_parse
+          {{- else if .Values.transform.kubernetes_metadata.enabled }}
+          - k8s_enrich
+          {{- else }}
+          {{- range splitList ", " $logSources }}
+          - {{ . }}
+          {{- end }}
+          {{- end }}
+        source: |
+          if exists(.kubernetes) && .kubernetes.container_name == "akeyless-secrets-injection" {
+            msg = string(.message) ?? ""
+            parsed, err = parse_regex(msg, r'duration.*?(?P<dur>\d+)')
+            if err == null { .wh_admission_duration_ms = to_int!(parsed.dur) }
+          }
+      {{- end }}
+
+      {{- /* Coupled to its source: this transform's only input is
+             `hubble_flows`, so enabling it without ingestion.hubble emitted a
+             dangling input and Vector refused the whole config. The transform
+             is meaningless without the source, so the source gates it. */}}
+      {{- if and .Values.transform.hubble_flow_enrich.enabled .Values.ingestion.hubble.enabled }}
+      hubble_flow_enrich:
+        type: remap
+        inputs:
+          - hubble_flows
+        source: |
+          .source_type = "hubble"
+          .verdict = string(.verdict) ?? "unknown"
+          .src_namespace = .source.namespace ?? "unknown"
+          .src_pod = .source.pod_name ?? ""
+          .dst_namespace = .destination.namespace ?? "unknown"
+          .dst_pod = .destination.pod_name ?? ""
+          .dst_port = .destination.port ?? 0
+          .protocol = if exists(.l4.TCP) { "TCP" } else if exists(.l4.UDP) { "UDP" } else { "other" }
+          .flow_direction = string(.traffic_direction) ?? "unknown"
+          # Tag Akeyless-related flows
+          if starts_with(string!(.dst_pod), "akeyless-") || starts_with(string!(.src_pod), "akeyless-") {
+            .akeyless_flow = true
+          }
+          # Extract DNS query info
+          if exists(.l7) && exists(.l7.dns) {
+            .dns_query = .l7.dns.query ?? ""
+            .dns_rcode = .l7.dns.rcode ?? 0
+            .l7_type = "DNS"
+          }
+          # Extract HTTP info
+          if exists(.l7) && exists(.l7.http) {
+            .http_method = .l7.http.method ?? ""
+            .http_url = .l7.http.url ?? ""
+            .http_code = .l7.http.code ?? 0
+            .l7_type = "HTTP"
+          }
+      {{- end }}
+
+      {{- if and .Values.transform.experiment_tag.enabled (ne $logSources "") }}
+      experiment_tag:
+        type: remap
+        inputs:
+          {{- /* DERIVED prior, not a hand-rolled chain: see logChainPrior in
+                 _helpers.tpl. The hand-rolled version here skipped the akeyless
+                 parsers, so they enriched events nothing consumed. */}}
+          {{- range splitList ", " (include "pleme-vector.logChainPrior" (dict "stage" "experiment_tag" "ctx" $)) }}
+          - {{ . }}
+          {{- end }}
+        source: |
+          {{- if .Values.transform.experiment_tag.experiment_id }}
+          .experiment_id = {{ .Values.transform.experiment_tag.experiment_id | quote }}
+          {{- else }}
+          # Only set from annotations if not already present (preserves burst-forge HTTP values)
+          if !exists(.experiment_id) || string!(.experiment_id) == "" {
+            .experiment_id = string(del(.kubernetes.pod_annotations."burst-forge.pleme.io/experiment-id")) ?? ""
+          }
+          {{- end }}
+          if !exists(.scenario) || string!(.scenario) == "" {
+            .scenario = string(del(.kubernetes.pod_annotations."burst-forge.pleme.io/scenario")) ?? ""
+          }
+      {{- end }}
+
+      {{- if and .Values.transform.product_detect.enabled (ne $logSources "") }}
+      product_detect:
+        type: remap
+        inputs:
+          {{- /* DERIVED prior -- see logChainPrior in _helpers.tpl. */}}
+          {{- range splitList ", " (include "pleme-vector.logChainPrior" (dict "stage" "product_detect" "ctx" $)) }}
+          - {{ . }}
+          {{- end }}
+        source: |
+          ns = string(.namespace) ?? ""
+          if starts_with(ns, "lilitu") {
+            .product = "lilitu"
+          } else if starts_with(ns, "novaskyn") {
+            .product = "novaskyn"
+          } else if starts_with(ns, "akeyless") {
+            .product = "akeyless"
+          } else {
+            .product = "infrastructure"
+          }
+      {{- end }}
+
+      {{- /* Same coupling as hubble_flow_enrich above: its only input is
+             `burst_forge_http`. */}}
+      {{- if and .Values.transform.burst_forge_enrich.enabled .Values.ingestion.burst_forge_http.enabled }}
+      burst_forge_enrich:
+        type: remap
+        inputs:
+          - burst_forge_http
+        source: |
+          .event_source = "burst-forge"
+          if exists(.replicas_requested) { .burst_replicas = .replicas_requested }
+          if exists(.pods_running) { .burst_running = .pods_running }
+          if exists(.pods_injected) { .burst_injected = .pods_injected }
+          if exists(.injection_success_rate) { .burst_success_rate = .injection_success_rate }
+          if exists(.time_to_first_ready_ms) { .burst_first_ready_ms = .time_to_first_ready_ms }
+          if exists(.time_to_all_ready_ms) { .burst_ready_ms = .time_to_all_ready_ms }
+          if exists(.admission_rate_pods_per_sec) { .burst_admission_rate = .admission_rate_pods_per_sec }
+          if exists(.gateway_throughput_pods_per_sec) { .burst_gw_throughput = .gateway_throughput_pods_per_sec }
+      {{- end }}
+
+      {{- /* `routes` is {} by default, and an empty `route:` mapping renders as
+             a bare key -- which Vector reads as a unit value, not an empty map:
+               x transforms.route_split.route: invalid type: unit value
+             So enabling the toggle alone broke the config. Gate on having at
+             least one route. */}}
+      {{- /* ★ ROUTING IS NOT WIRED, AND NOW SAYS SO. route_split emits one
+             named output port per route, and NO sink in this chart consumes
+             any of them -- so every routed event, plus everything landing in
+             `._unmatched`, was discarded while the config validated clean.
+             That is not a defect with a small fix: consuming them needs a sink
+             per route, which is a feature this chart never had. Failing at
+             template time is the honest state until it does. */}}
+      {{- if and .Values.transform.route.enabled (gt (len .Values.transform.route.routes) 0) }}
+      {{- fail "transform.route emits named output ports that NO sink in this chart consumes, so every routed event would be silently discarded. Routing needs a sink per route, which is unimplemented. Set transform.route.enabled=false, or use transform.filter (which is wired) if you only need to drop events." }}
+      {{- end }}
+      {{- /* Kept, not deleted (★★ MODULARIZE, DON'T DELETE): the emission is
+             correct, only its consumers are missing. It is unreachable while
+             the guard above fires -- with routes populated that `fail` wins,
+             and with routes empty this condition is false -- so reviving it is
+             deleting one guard once the sinks exist, not rewriting this. */}}
+      {{- if and .Values.transform.route.enabled (ne $logSources "") (gt (len .Values.transform.route.routes) 0) }}
+      route_split:
+        type: route
+        inputs:
+          {{- with include "pleme-vector.lastLogTransform" . }}
+          - {{ . }}
+          {{- end }}
+        route:
+          {{- range $name, $condition := .Values.transform.route.routes }}
+          {{ $name }}: {{ $condition | quote }}
+          {{- end }}
+      {{- end }}
+
+      {{- if and .Values.transform.filter.enabled (ne $logSources "") }}
+      filter_events:
+        type: filter
+        inputs:
+          {{- with include "pleme-vector.lastLogTransform" . }}
+          - {{ . }}
+          {{- end }}
+        condition: {{ .Values.transform.filter.condition | quote }}
+      {{- end }}
+
+      {{- /* ── Exactly-Once: add message ID for NATS dedup ────── */}}
+      {{- if and .Values.delivery_exactly_once.enabled (ne $logSources "") }}
+      exactly_once_id:
+        type: remap
+        inputs:
+          {{- /* postFilter, not lastLogTransform: otherwise enabling both the
+                 filter and exactly-once routed the UNFILTERED stream onward
+                 and left filter_events dangling. */}}
+          {{- with include "pleme-vector.postFilterOutput" . }}
+          - {{ . }}
+          {{- end }}
+        source: |
+          ._msg_id = uuid_v4()
+      {{- end }}
+
+      {{- /* ── VictoriaLogs `_msg`: guarantee the canonical message field ── */}}
+      {{- /* Terminal log transform (consumes preMsgOutput so it sits AFTER     */}}
+      {{- /* every other transform incl. exactly_once_id). Sets _msg from the   */}}
+      {{- /* first present messageField, only when absent — idempotent, and     */}}
+      {{- /* harmless for non-VLogs sinks. Kills the "missing _msg field" warn. */}}
+      {{- if and .Values.transform.victoria_logs_msg.enabled (ne $logSources "") }}
+      victoria_logs_msg:
+        type: remap
+        inputs:
+          {{- with include "pleme-vector.preMsgOutput" . }}
+          - {{ . }}
+          {{- end }}
+        source: |
+          if !exists(._msg) || (to_string(._msg) ?? "") == "" {
+            # NOTE: `string()` (fallible) — NOT `to_string()` (infallible). A
+            # missing candidate path is `null`; `to_string(null)` succeeds with
+            # "" so `??` would short-circuit and leave `_msg` empty. `string(null)`
+            # ERRORS, so `??` correctly falls through to the next messageField.
+            ._msg = {{ range .Values.transform.victoria_logs_msg.messageFields }}string({{ . }}) ?? {{ end }}""
+          }
+      {{- end }}
+
+      {{- /* `_last_transform` / `_sources` are resolved here rather than dumped
+             raw. A `toYaml` passthrough emitted those aliases LITERALLY, so an
+             operator copying the documented idiom from processing.vector_sinks
+             (where it does resolve) got:
+               x Input "_last_transform" for transform "x" doesn't match any components
+             The alias works in some places and not others purely by which code
+             path emitted it, which is exactly the kind of inconsistency a typed
+             generator removes. Every other key passes through untouched. */}}
+      {{- range $cname, $ccfg := .Values.transform.custom }}
+      {{ $cname }}:
+        {{- range $k, $v := $ccfg }}
+        {{- if eq $k "inputs" }}
+        inputs:
+          {{- range $v }}
+          {{- $r := include "pleme-vector.resolveInput" (dict "input" . "ctx" $) }}
+          {{- range splitList ", " $r }}
+          - {{ . }}
+          {{- end }}
+          {{- end }}
+        {{- else }}
+        {{ $k }}: {{- toYaml $v | nindent 10 }}
+        {{- end }}
+        {{- end }}
+      {{- end }}
+
+      {{- /* ── Analytics Normalization (shinryu-mcp DataFusion) ──── */}}
+      {{- /* Gated on its ONLY consumer, the analytics file sink. Enabling it
+             alone produced a transform nothing read -- the work was done and
+             thrown away, reported as a warning and exit 0. */}}
+      {{- if and .Values.transform.analytics_normalize.enabled .Values.sink.analytics.enabled }}
+      analytics_normalize:
+        type: remap
+        inputs:
+          {{- with include "pleme-vector.finalOutput" . }}
+          - {{ . }}
+          {{- end }}
+          {{- if .Values.transform.hubble_flow_enrich.enabled }}
+          - hubble_flow_enrich
+          {{- end }}
+          {{- if and .Values.transform.burst_forge_enrich.enabled .Values.ingestion.burst_forge_http.enabled }}
+          - burst_forge_enrich
+          {{- end }}
+          - internal_metrics
+        source: |
+          # Classify signal type (robust: check burst-forge events first)
+          if exists(.event_type) && includes(["MATRIX_START", "MATRIX_COMPLETE", "PHASE_COMPLETE", "POLL_TICK", "GATE_RESULT", "MILESTONE", "BURST_COMPLETE", "SCENARIO_COMPLETE", "POD_STATE_DETAIL"], string(.event_type) ?? "") {
+            .signal_type = "event"
+          } else if exists(.source_type) && string!(.source_type) == "hubble" {
+            .signal_type = "flow"
+          } else if exists(.metric_name) || exists(.metric_value) {
+            .signal_type = "metric"
+          } else {
+            .signal_type = "log"
+          }
+          # Normalize timestamp to epoch milliseconds for fast JOINs
+          if .timestamp != null {
+            ts, err = parse_timestamp(to_string(.timestamp) ?? "", format: "%+")
+            if err == null {
+              .timestamp_ms = to_unix_timestamp(ts, unit: "milliseconds")
+            }
+          } else {
+            .timestamp_ms = to_unix_timestamp(now(), unit: "milliseconds")
+          }
+          # Identify source
+          .source = string(del(.source_type)) ?? "unknown"
+          # Preserve full JSON for schema-flexible fallback
+          .raw = encode_json(.)
+      {{- end }}
+
+      {{- /* ── Delivery Tier Classification ──────────────────────── */}}
+      {{- if .Values.delivery_tiers.enabled }}
+      delivery_classify:
+        type: remap
+        inputs:
+          {{- with include "pleme-vector.finalOutput" . }}
+          - {{ . }}
+          {{- end }}
+        source: |
+          {{- range .Values.delivery_tiers.tier1_guaranteed.conditions }}
+          if {{ . }} {
+            ._delivery_tier = "tier1"
+          } else
+          {{- end }}
+          {{- range .Values.delivery_tiers.tier2_durable.conditions }}
+          if {{ . }} {
+            ._delivery_tier = "tier2"
+          } else
+          {{- end }}
+          {
+            ._delivery_tier = "tier3"
+          }
+      delivery_route:
+        type: route
+        inputs:
+          - delivery_classify
+        route:
+          tier1: '._delivery_tier == "tier1"'
+          tier2: '._delivery_tier == "tier2"'
+          tier3: '._delivery_tier == "tier3"'
+      {{- end }}
+
+      {{- /* Producer side of the metric/log round trip: NATS carries Log, so   */}}
+      {{- /* Metric events must be converted before the nats_metrics sink.      */}}
+      {{- if and (eq (include "pleme-vector.isProducer" .) "true") .Values.delivery.nats.subject.metrics }}
+      nats_metrics_encode:
+        type: metric_to_log
+        inputs:
+          - internal_metrics
+          {{- if .Values.ingestion.prometheus_scrape.enabled }}
+          {{- range $i, $target := .Values.ingestion.prometheus_scrape.targets }}
+          - prometheus_scrape_{{ $i }}
+          {{- end }}
+          {{- end }}
+          {{- if .Values.ingestion.kubernetes_events.enabled }}
+          - kubernetes_events
+          {{- end }}
+      {{- end }}
+
+      {{- /* ── Fleet log line: the fleet plane's canonical shape ──────── */}}
+      {{- /* This is the Helm twin of lib/fleet-vector.nix's `line` remap and
+             the nix host unit's journal_lines transform — identical VRL, so
+             plo's VictoriaLogs consumer (monitoring-plane.nix) cannot tell a
+             pod-shipped line from a host-shipped one. Consumes finalOutput
+             (so it sits AFTER the chain, and the chain's terminal transform
+             is no longer dangling when fleet_logs is the only log sink) and
+             REPLACES the whole event, so upstream chain transforms are
+             harmless but wasted — a fleet-shipping node normally turns them
+             off. drop_on_abort mirrors the host unit: filtered lines are
+             dropped, not errored. */}}
+      {{- if .Values.fleetShipping.enabled }}
+      fleet_line:
+        type: remap
+        drop_on_abort: true
+        inputs:
+          {{- with include "pleme-vector.finalOutput" . }}
+          - {{ . }}
+          {{- end }}
+        source: |
+          prio = to_int(.PRIORITY) ?? 6
+          if prio > {{ .Values.fleetShipping.minPriority }} { abort }
+          . = {
+            "timestamp": .timestamp,
+            "host": {{ .Values.fleetShipping.host | quote }},
+            "source": "journald",
+            "unit": string(._SYSTEMD_UNIT) ?? string(.SYSLOG_IDENTIFIER) ?? "kernel",
+            "message": string(.message) ?? "",
+            "priority": prio
+          }
+      {{- end }}
+
+      {{- /* ══ PROCESSING LAYER TRANSFORMS ════════════════════════════════ */}}
+      {{- /* These five were emitted ~450 lines below, inside the `sinks:`     */}}
+      {{- /* mapping, because the PROCESSING LAYER banner claimed "rendered at */}}
+      {{- /* ALL faucet levels" and the only way to honour that was to place   */}}
+      {{- /* the region after the transforms: block closed. `sample`, `filter`,*/}}
+      {{- /* `reduce` and `route` are TRANSFORMS, so Vector rejected the whole */}}
+      {{- /* config -- `unknown variant reduce` was merely the first one its   */}}
+      {{- /* sink enum happened to reach.                                     */}}
+      {{- /*                                                                   */}}
+      {{- /* They live here now, which retires that "all faucet levels" claim: */}}
+      {{- /* their inputs come from the log chain via resolveInput/finalOutput,*/}}
+      {{- /* so they were never meaningful without it. The matching SINKS are  */}}
+      {{- /* gated on $renderLogChain for the same reason.                    */}}
+
+      {{- if .Values.processing.traffic_ops.sample.enabled }}
+      {{- $sampleInput := include "pleme-vector.resolveInput" (dict "input" .Values.processing.traffic_ops.sample.source "ctx" .) }}
+      traffic_sample:
+        type: sample
+        inputs:
+          {{- if contains ", " $sampleInput }}
+          {{- range splitList ", " $sampleInput }}
+          - {{ . }}
+          {{- end }}
+          {{- else }}
+          - {{ $sampleInput }}
+          {{- end }}
+        rate: {{ .Values.processing.traffic_ops.sample.rate }}
+        {{- if .Values.processing.traffic_ops.sample.exclude_filter }}
+        exclude:
+          type: vrl
+          source: {{ .Values.processing.traffic_ops.sample.exclude_filter | quote }}
+        {{- end }}
+      {{- end }}
+
+      {{- range .Values.processing.traffic_ops.filters }}
+      {{- $filterInput := include "pleme-vector.resolveInput" (dict "input" .source "ctx" $) }}
+      traffic_filter_{{ .name }}:
+        type: filter
+        inputs:
+          {{- if contains ", " $filterInput }}
+          {{- range splitList ", " $filterInput }}
+          - {{ . }}
+          {{- end }}
+          {{- else }}
+          - {{ $filterInput }}
+          {{- end }}
+        condition:
+          type: vrl
+          source: {{ .condition | quote }}
+      {{- end }}
+
+      {{- if .Values.processing.traffic_ops.aggregate.enabled }}
+      {{- $aggInput := include "pleme-vector.resolveInput" (dict "input" .Values.processing.traffic_ops.aggregate.source "ctx" .) }}
+      traffic_aggregate:
+        type: reduce
+        inputs:
+          {{- if contains ", " $aggInput }}
+          {{- range splitList ", " $aggInput }}
+          - {{ . }}
+          {{- end }}
+          {{- else }}
+          - {{ $aggInput }}
+          {{- end }}
+        group_by:
+          {{- toYaml .Values.processing.traffic_ops.aggregate.group_by | nindent 10 }}
+        expire_after_ms: {{ mul .Values.processing.traffic_ops.aggregate.window_secs 1000 }}
+        merge_strategies:
+          {{- toYaml .Values.processing.traffic_ops.aggregate.merge_strategies | nindent 10 }}
+      {{- end }}
+
+      {{- range .Values.stream_processing.windows }}
+      {{- $winInput := include "pleme-vector.resolveInput" (dict "input" (.source | default "_last_transform") "ctx" $) }}
+      stream_window_{{ .name }}:
+        type: reduce
+        inputs:
+          - {{ $winInput }}
+        group_by:
+          {{- toYaml .group_by | nindent 10 }}
+        expire_after_ms: {{ mul .window_secs 1000 }}
+        merge_strategies:
+          {{- toYaml .merge_strategies | nindent 10 }}
+      {{- end }}
+
+      {{- /* Same class as route_split above: `tenants` is {} by default, so
+             `multi_tenant.enabled=true` alone emitted an empty `route:` and
+             Vector refused the config. */}}
+      {{- if and .Values.multi_tenant.enabled (gt (len .Values.multi_tenant.tenants) 0) }}
+      tenant_route:
+        type: route
+        inputs:
+          {{- with include "pleme-vector.finalOutput" . }}
+          - {{ . }}
+          {{- end }}
+        route:
+          {{- range $tenant, $cfg := .Values.multi_tenant.tenants }}
+          {{ $tenant }}: '{{ $.Values.multi_tenant.field }} == "{{ $tenant }}"'
+          {{- end }}
+      {{- end }}
+      {{- end }}{{/* end $renderLogChain */}}
+    {{- end }}
+
+    # ════════════════════════════════════════════════════════════════
+    # SINKS — controlled by faucet level
+    # ════════════════════════════════════════════════════════════════
+    sinks:
+    {{- if le (int .Values.faucet.level) 1 }}
+      # ── Faucet Level 1: Ingestion Verification ──────────────────
+      faucet_console:
+        type: console
+        inputs:
+          {{- $sources := include "pleme-vector.sourceNames" . }}
+          {{- range splitList "," $sources }}
+          - {{ . }}
+          {{- end }}
+        encoding:
+          codec: {{ .Values.faucet.console.encoding }}
+        target: {{ .Values.faucet.console.target }}
+      faucet_blackhole:
+        type: blackhole
+        inputs:
+          {{- range splitList "," $sources }}
+          - {{ . }}
+          {{- end }}
+        print_interval_secs: {{ .Values.faucet.blackhole.print_interval_secs }}
+
+    {{- else if le (int .Values.faucet.level) 2 }}
+      # ── Faucet Level 2: Transform Verification ──────────────────
+      faucet_console:
+        type: console
+        inputs:
+          {{- with include "pleme-vector.finalOutput" . }}
+          - {{ . }}
+          {{- end }}
+          {{- if and .Values.transform.burst_forge_enrich.enabled .Values.ingestion.burst_forge_http.enabled }}
+          - burst_forge_enrich
+          {{- end }}
+        encoding:
+          codec: {{ .Values.faucet.console.encoding }}
+        target: {{ .Values.faucet.console.target }}
+      {{- /* Metrics still need a real sink even at level 2 */}}
+      {{- /* Consumes metricsInputs, not a hardcoded `internal_metrics`. The
+             hardcode was two defects at once: disabling that source left the
+             sink naming a component that does not exist, AND the other metric
+             sources (prometheus_scrape_<i>, kubernetes_events) were collected
+             and silently discarded because nothing consumed them. The guard on
+             a non-empty input list keeps the sink from rendering an empty
+             `inputs:`, which Vector reads as a unit value. */}}
+      {{- if and .Values.sink.prometheus_exporter.enabled (ne (include "pleme-vector.metricsInputs" .) "") }}
+      prometheus_internal:
+        type: prometheus_exporter
+        inputs:
+          {{- include "pleme-vector.metricsInputs" . | nindent 10 }}
+        address: "0.0.0.0:{{ .Values.sink.prometheus_exporter.ports.internal }}"
+      {{- end }}
+      {{- /* statsd is a source with no consumer at levels 2-3 unless this
+             exists: prometheus_custom lived only in the level-4 block, so
+             enabling statsd at a verification level scraped app telemetry and
+             threw it away (`~ Source "statsd" has no consumers`, exit 0). Its
+             own port, deliberately separate from vector's internal metrics. */}}
+      {{- if .Values.ingestion.statsd.enabled }}
+      prometheus_custom:
+        type: prometheus_exporter
+        inputs:
+          - statsd
+        address: "0.0.0.0:{{ .Values.sink.prometheus_exporter.ports.custom }}"
+        suppress_timestamp: true
+      {{- end }}
+
+    {{- else if le (int .Values.faucet.level) 3 }}
+      # ── Faucet Level 3: Sink Verification (file output) ─────────
+      faucet_file:
+        type: file
+        inputs:
+          {{- with include "pleme-vector.finalOutput" . }}
+          - {{ . }}
+          {{- end }}
+          {{- if and .Values.transform.burst_forge_enrich.enabled .Values.ingestion.burst_forge_http.enabled }}
+          - burst_forge_enrich
+          {{- end }}
+        path: {{ .Values.faucet.file.path | quote }}
+        encoding:
+          codec: json
+      {{- /* Metrics sinks still active at level 3 */}}
+      {{- if .Values.sink.victoriametrics.enabled }}
+      victoriametrics:
+        type: prometheus_remote_write
+        inputs:
+          {{- include "pleme-vector.metricsInputs" . | nindent 10 }}
+        endpoint: {{ printf "%s/api/v1/write" .Values.sink.victoriametrics.endpoint | quote }}
+      {{- end }}
+      {{- /* Consumes metricsInputs, not a hardcoded `internal_metrics`. The
+             hardcode was two defects at once: disabling that source left the
+             sink naming a component that does not exist, AND the other metric
+             sources (prometheus_scrape_<i>, kubernetes_events) were collected
+             and silently discarded because nothing consumed them. The guard on
+             a non-empty input list keeps the sink from rendering an empty
+             `inputs:`, which Vector reads as a unit value. */}}
+      {{- if and .Values.sink.prometheus_exporter.enabled (ne (include "pleme-vector.metricsInputs" .) "") }}
+      prometheus_internal:
+        type: prometheus_exporter
+        inputs:
+          {{- include "pleme-vector.metricsInputs" . | nindent 10 }}
+        address: "0.0.0.0:{{ .Values.sink.prometheus_exporter.ports.internal }}"
+      {{- end }}
+      {{- /* statsd is a source with no consumer at levels 2-3 unless this
+             exists: prometheus_custom lived only in the level-4 block, so
+             enabling statsd at a verification level scraped app telemetry and
+             threw it away (`~ Source "statsd" has no consumers`, exit 0). Its
+             own port, deliberately separate from vector's internal metrics. */}}
+      {{- if .Values.ingestion.statsd.enabled }}
+      prometheus_custom:
+        type: prometheus_exporter
+        inputs:
+          - statsd
+        address: "0.0.0.0:{{ .Values.sink.prometheus_exporter.ports.custom }}"
+        suppress_timestamp: true
+      {{- end }}
+
+    {{- else }}
+      # ── Faucet Level 4: Production ──────────────────────────────
+
+      {{- if eq (include "pleme-vector.isProducer" .) "true" }}
+      # ── Guaranteed Producer: write to NATS JetStream ────────────
+      nats_logs:
+        type: nats
+        url: {{ .Values.delivery.nats.url | quote }}
+        subject: {{ printf "%s.%s" .Values.delivery.nats.subject.logs .Values.cluster | quote }}
+        encoding:
+          codec: {{ .Values.delivery.nats.encoding.codec }}
+        {{- /* `jetstream` on the nats SINK is a BOOLEAN on the pinned 0.41.1     */}}
+        {{- /* (bool-or-struct from v0.49.0 on, so `true` is correct on both).    */}}
+        {{- /* There is no `stream` field on the nats sink in ANY version -- the  */}}
+        {{- /* target stream is bound SERVER-SIDE by subject, which the           */}}
+        {{- /* create-stream init container already declares from                */}}
+        {{- /* delivery.nats.stream.name. That value therefore stays live; it is  */}}
+        {{- /* consumed by deployment.yaml's `nats stream add` and by the KEDA    */}}
+        {{- /* scaler, just not here.                                            */}}
+        jetstream: true
+        inputs:
+          {{- with include "pleme-vector.finalOutput" . }}
+          - {{ . }}
+          {{- end }}
+          {{- if and .Values.transform.burst_forge_enrich.enabled .Values.ingestion.burst_forge_http.enabled }}
+          - burst_forge_enrich
+          {{- end }}
+      nats_metrics:
+        type: nats
+        url: {{ .Values.delivery.nats.url | quote }}
+        subject: {{ printf "%s.%s" .Values.delivery.nats.subject.metrics .Values.cluster | quote }}
+        encoding:
+          codec: {{ .Values.delivery.nats.encoding.codec }}
+        {{- /* See nats_logs above: sink `jetstream` is a bool, `stream` is not */}}
+        {{- /* a sink-side field in any version.                               */}}
+        jetstream: true
+        inputs:
+          {{- /* NOT the raw Metric sources: nats carries Log. See the           */}}
+          {{- /* nats_metrics_encode transform for why.                          */}}
+          - nats_metrics_encode
+      {{- /* Consumes metricsInputs, not a hardcoded `internal_metrics`. The
+             hardcode was two defects at once: disabling that source left the
+             sink naming a component that does not exist, AND the other metric
+             sources (prometheus_scrape_<i>, kubernetes_events) were collected
+             and silently discarded because nothing consumed them. The guard on
+             a non-empty input list keeps the sink from rendering an empty
+             `inputs:`, which Vector reads as a unit value. */}}
+      {{- if and .Values.sink.prometheus_exporter.enabled (ne (include "pleme-vector.metricsInputs" .) "") }}
+      prometheus_internal:
+        type: prometheus_exporter
+        inputs:
+          {{- include "pleme-vector.metricsInputs" . | nindent 10 }}
+        address: "0.0.0.0:{{ .Values.sink.prometheus_exporter.ports.internal }}"
+      {{- end }}
+
+      {{- else if eq (include "pleme-vector.isConsumer" .) "true" }}
+      # ── Guaranteed Consumer: final sinks with delivery-aware config
+      {{- if .Values.sink.loki.enabled }}
+      loki:
+        type: loki
+        inputs:
+          - nats_logs
+        endpoint: {{ .Values.sink.loki.endpoint | quote }}
+        encoding:
+          codec: json
+        batch:
+          max_bytes: {{ int64 .Values.sink.loki.batch_max_bytes }}
+          timeout_secs: {{ int64 .Values.sink.loki.batch_timeout_secs }}
+        labels:
+          {{- range .Values.sink.loki.labels }}
+          {{ . }}: "{{`{{ `}}{{ . }}{{` }}`}}"
+          {{- end }}
+        acknowledgements:
+          enabled: true
+        buffer:
+          type: disk
+          max_size: 2147483648
+          when_full: block
+        request:
+          retry_max_duration_secs: 3600
+      {{- end }}
+      {{- if .Values.sink.victoriametrics.enabled }}
+      victoriametrics:
+        type: prometheus_remote_write
+        inputs:
+          {{- /* NOT the raw nats_metrics source: it emits Log, this sink wants  */}}
+          {{- /* Metric. nats_metrics_decode reverses the producer's encode.     */}}
+          - nats_metrics_decode
+        endpoint: {{ printf "%s/api/v1/write" .Values.sink.victoriametrics.endpoint | quote }}
+        acknowledgements:
+          enabled: true
+        buffer:
+          type: disk
+          max_size: 2147483648
+          when_full: block
+      {{- end }}
+      {{- /* Consumes metricsInputs, not a hardcoded `internal_metrics`. The
+             hardcode was two defects at once: disabling that source left the
+             sink naming a component that does not exist, AND the other metric
+             sources (prometheus_scrape_<i>, kubernetes_events) were collected
+             and silently discarded because nothing consumed them. The guard on
+             a non-empty input list keeps the sink from rendering an empty
+             `inputs:`, which Vector reads as a unit value. */}}
+      {{- if and .Values.sink.prometheus_exporter.enabled (ne (include "pleme-vector.metricsInputs" .) "") }}
+      prometheus_internal:
+        type: prometheus_exporter
+        inputs:
+          {{- include "pleme-vector.metricsInputs" . | nindent 10 }}
+        address: "0.0.0.0:{{ .Values.sink.prometheus_exporter.ports.internal }}"
+      {{- end }}
+      {{- if .Values.sink.datadog.enabled }}
+      datadog_logs:
+        type: datadog_logs
+        inputs:
+          - nats_logs
+        default_api_key: "${DATADOG_API_KEY}"
+        site: {{ .Values.sink.datadog.site | quote }}
+        acknowledgements:
+          enabled: true
+      {{- end }}
+      {{- if .Values.sink.file.enabled }}
+      file_output:
+        type: file
+        inputs:
+          - nats_logs
+        path: {{ .Values.sink.file.path | quote }}
+        encoding:
+          codec: json
+      {{- end }}
+
+      {{- else }}
+      # ── Standalone / best_effort / durable: normal sinks ────────
+
+      {{- if .Values.delivery_tiers.enabled }}
+      # ── Tiered Delivery: separate sink chains per tier ────────
+      {{- if .Values.sink.loki.enabled }}
+      loki_tier1:
+        type: loki
+        inputs:
+          - delivery_route.tier1
+        endpoint: {{ .Values.sink.loki.endpoint | quote }}
+        encoding:
+          codec: json
+        labels:
+          {{- range .Values.sink.loki.labels }}
+          {{ . }}: "{{`{{ `}}{{ . }}{{` }}`}}"
+          {{- end }}
+        buffer:
+          type: disk
+          max_size: {{ int64 .Values.delivery_tiers.tier1_guaranteed.buffer.max_size }}
+          when_full: {{ .Values.delivery_tiers.tier1_guaranteed.buffer.when_full }}
+        acknowledgements:
+          enabled: true
+        request:
+          retry_max_duration_secs: 3600
+      loki_tier2:
+        type: loki
+        inputs:
+          - delivery_route.tier2
+        endpoint: {{ .Values.sink.loki.endpoint | quote }}
+        encoding:
+          codec: json
+        labels:
+          {{- range .Values.sink.loki.labels }}
+          {{ . }}: "{{`{{ `}}{{ . }}{{` }}`}}"
+          {{- end }}
+        buffer:
+          type: disk
+          max_size: {{ int64 .Values.delivery_tiers.tier2_durable.buffer.max_size }}
+          when_full: {{ .Values.delivery_tiers.tier2_durable.buffer.when_full }}
+        acknowledgements:
+          enabled: true
+        request:
+          retry_max_duration_secs: 3600
+      loki_tier3:
+        type: loki
+        inputs:
+          - delivery_route.tier3
+        endpoint: {{ .Values.sink.loki.endpoint | quote }}
+        encoding:
+          codec: json
+        labels:
+          {{- range .Values.sink.loki.labels }}
+          {{ . }}: "{{`{{ `}}{{ . }}{{` }}`}}"
+          {{- end }}
+        buffer:
+          type: {{ .Values.delivery_tiers.tier3_best_effort.buffer.type }}
+          max_events: {{ int64 .Values.delivery_tiers.tier3_best_effort.buffer.max_events }}
+          when_full: {{ .Values.delivery_tiers.tier3_best_effort.buffer.when_full }}
+      {{- end }}
+
+      {{- if .Values.sink.victoriametrics.enabled }}
+      victoriametrics_direct:
+        type: prometheus_remote_write
+        inputs:
+          {{- include "pleme-vector.metricsInputs" . | nindent 10 }}
+        endpoint: {{ printf "%s/api/v1/write" .Values.sink.victoriametrics.endpoint | quote }}
+        buffer:
+          type: memory
+          max_events: 5000
+          when_full: drop_newest
+      {{- end }}
+
+      {{- /* Consumes metricsInputs, not a hardcoded `internal_metrics`. The
+             hardcode was two defects at once: disabling that source left the
+             sink naming a component that does not exist, AND the other metric
+             sources (prometheus_scrape_<i>, kubernetes_events) were collected
+             and silently discarded because nothing consumed them. The guard on
+             a non-empty input list keeps the sink from rendering an empty
+             `inputs:`, which Vector reads as a unit value. */}}
+      {{- if and .Values.sink.prometheus_exporter.enabled (ne (include "pleme-vector.metricsInputs" .) "") }}
+      prometheus_internal:
+        type: prometheus_exporter
+        inputs:
+          {{- include "pleme-vector.metricsInputs" . | nindent 10 }}
+        address: "0.0.0.0:{{ .Values.sink.prometheus_exporter.ports.internal }}"
+      {{- end }}
+
+      {{- else }}
+      # ── Non-tiered: single delivery guarantee for all sinks ──
+      {{- if .Values.sink.loki.enabled }}
+      loki:
+        type: loki
+        inputs:
+          {{- with include "pleme-vector.finalOutput" . }}
+          - {{ . }}
+          {{- end }}
+          {{- if and .Values.transform.burst_forge_enrich.enabled .Values.ingestion.burst_forge_http.enabled }}
+          - burst_forge_enrich
+          {{- end }}
+        endpoint: {{ .Values.sink.loki.endpoint | quote }}
+        encoding:
+          codec: json
+        batch:
+          max_bytes: {{ int64 .Values.sink.loki.batch_max_bytes }}
+          timeout_secs: {{ int64 .Values.sink.loki.batch_timeout_secs }}
+        labels:
+          {{- range .Values.sink.loki.labels }}
+          {{ . }}: "{{`{{ `}}{{ . }}{{` }}`}}"
+          {{- end }}
+{{- include "pleme-vector.deliveryBufferConfig" . }}
+{{- include "pleme-vector.deliveryAckConfig" . }}
+{{- include "pleme-vector.deliveryRetryConfig" . }}
+      {{- end }}
+
+      {{- if .Values.sink.victoriametrics.enabled }}
+      victoriametrics:
+        type: prometheus_remote_write
+        inputs:
+          {{- include "pleme-vector.metricsInputs" . | nindent 10 }}
+        endpoint: {{ printf "%s/api/v1/write" .Values.sink.victoriametrics.endpoint | quote }}
+      {{- end }}
+
+      {{- /* Consumes metricsInputs, not a hardcoded `internal_metrics`. The
+             hardcode was two defects at once: disabling that source left the
+             sink naming a component that does not exist, AND the other metric
+             sources (prometheus_scrape_<i>, kubernetes_events) were collected
+             and silently discarded because nothing consumed them. The guard on
+             a non-empty input list keeps the sink from rendering an empty
+             `inputs:`, which Vector reads as a unit value. */}}
+      {{- if and .Values.sink.prometheus_exporter.enabled (ne (include "pleme-vector.metricsInputs" .) "") }}
+      prometheus_internal:
+        type: prometheus_exporter
+        inputs:
+          {{- include "pleme-vector.metricsInputs" . | nindent 10 }}
+        address: "0.0.0.0:{{ .Values.sink.prometheus_exporter.ports.internal }}"
+      {{- end }}
+      {{- /* Its OWN guard, not nested inside prometheus_internal's: statsd is a
+             separate source on a separate port, so an empty metricsInputs (e.g.
+             internal_metrics disabled) must not take it down and orphan statsd. */}}
+      {{- if and .Values.sink.prometheus_exporter.enabled .Values.ingestion.statsd.enabled }}
+      prometheus_custom:
+        type: prometheus_exporter
+        inputs:
+          - statsd
+        address: "0.0.0.0:{{ .Values.sink.prometheus_exporter.ports.custom }}"
+        suppress_timestamp: true
+      {{- end }}
+
+      {{- if .Values.sink.datadog.enabled }}
+      datadog_logs:
+        type: datadog_logs
+        inputs:
+          {{- with include "pleme-vector.finalOutput" . }}
+          - {{ . }}
+          {{- end }}
+        default_api_key: "${DATADOG_API_KEY}"
+        site: {{ .Values.sink.datadog.site | quote }}
+      {{- end }}
+
+      {{- if .Values.sink.splunk_hec.enabled }}
+      splunk_hec:
+        type: splunk_hec_logs
+        inputs:
+          {{- with include "pleme-vector.finalOutput" . }}
+          - {{ . }}
+          {{- end }}
+        endpoint: {{ .Values.sink.splunk_hec.endpoint | quote }}
+        default_token: "${SPLUNK_HEC_TOKEN}"
+        encoding:
+          codec: json
+      {{- end }}
+
+      {{- if .Values.sink.file.enabled }}
+      file_output:
+        type: file
+        inputs:
+          {{- with include "pleme-vector.finalOutput" . }}
+          - {{ . }}
+          {{- end }}
+          {{- if and .Values.transform.burst_forge_enrich.enabled .Values.ingestion.burst_forge_http.enabled }}
+          - burst_forge_enrich
+          {{- end }}
+        path: {{ .Values.sink.file.path | quote }}
+        encoding:
+          codec: json
+      {{- end }}
+
+      {{- if .Values.sink.console_debug.enabled }}
+      console_debug:
+        type: console
+        inputs:
+          {{- with include "pleme-vector.finalOutput" . }}
+          - {{ . }}
+          {{- end }}
+        encoding:
+          codec: json
+        target: {{ .Values.sink.console_debug.target }}
+      {{- end }}
+
+      {{- if .Values.sink.blackhole.enabled }}
+      blackhole:
+        type: blackhole
+        inputs:
+          {{- with include "pleme-vector.finalOutput" . }}
+          - {{ . }}
+          {{- end }}
+        print_interval_secs: {{ .Values.sink.blackhole.print_interval_secs }}
+      {{- end }}
+
+      {{- /* `_last_transform` / `_sources` are resolved here rather than dumped
+             raw. A `toYaml` passthrough emitted those aliases LITERALLY, so an
+             operator copying the documented idiom from processing.vector_sinks
+             (where it does resolve) got:
+               x Input "_last_transform" for sink "x" doesn't match any components
+             The alias works in some places and not others purely by which code
+             path emitted it, which is exactly the kind of inconsistency a typed
+             generator removes. Every other key passes through untouched. */}}
+      {{- range $cname, $ccfg := .Values.sink.custom }}
+      {{ $cname }}:
+        {{- range $k, $v := $ccfg }}
+        {{- if eq $k "inputs" }}
+        inputs:
+          {{- range $v }}
+          {{- $r := include "pleme-vector.resolveInput" (dict "input" . "ctx" $) }}
+          {{- range splitList ", " $r }}
+          - {{ . }}
+          {{- end }}
+          {{- end }}
+        {{- else }}
+        {{ $k }}: {{- toYaml $v | nindent 10 }}
+        {{- end }}
+        {{- end }}
+      {{- end }}
+      {{- end }}{{/* end tiered/non-tiered conditional */}}
+      {{- end }}{{/* end producer/consumer/standalone conditional */}}
+    {{- end }}{{/* end faucet level conditional */}}
+
+    {{/* ════════════════════════════════════════════════════════════════ */}}
+    {{/* PROCESSING LAYER — traffic ops, taps, vector sinks               */}}
+    {{/* Rendered at ALL faucet levels. Non-destructive fan-out.           */}}
+    {{/* ════════════════════════════════════════════════════════════════ */}}
+
+      {{- /* traffic_sample / traffic_filter_* / traffic_aggregate USED TO BE   */}}
+      {{- /* emitted here. They are `sample`, `filter` and `reduce` -- all      */}}
+      {{- /* TRANSFORMS -- and this region is inside the `sinks:` mapping, so   */}}
+      {{- /* Vector rejected the whole config:                                 */}}
+      {{- /*   x unknown variant `reduce`, expected one of `amqp`, ...         */}}
+      {{- /* They now live in the transforms: block above. See the note there. */}}
+
+      {{- /* ── Fleet log sink: NATS JetStream, fleet.logs.<host> ─────── */}}
+      {{- /* The Helm twin of lib/fleet-vector.nix's `natsSink`: jetstream
+             bool (see the nats_logs note above — correct on the pinned
+             0.41.1 and on every later version), json encoding, healthcheck
+             off (the stream is bound server-side by subject; a client-side
+             health probe would only flap during NATS restarts), and a disk
+             buffer that HOLDS lines while the fleet NATS is unreachable —
+             drop_newest beyond bufferBytes, exactly like the host unit. No
+             connection_name: not a nats SINK field on the pinned image, and
+             the host already names the connection by its subject. */}}
+      {{- if .Values.fleetShipping.enabled }}
+      fleet_logs:
+        type: nats
+        inputs:
+          - fleet_line
+        url: {{ .Values.fleetShipping.natsUrl | quote }}
+        subject: {{ printf "%s.%s" .Values.fleetShipping.subjectPrefix .Values.fleetShipping.host | quote }}
+        jetstream: true
+        encoding:
+          codec: json
+        healthcheck:
+          enabled: false
+        buffer:
+          type: disk
+          max_size: {{ int .Values.fleetShipping.bufferBytes }}
+          when_full: drop_newest
+      {{- end }}
+
+      {{- /* ── Traffic Ops: Mirror sink (direct fan-out, no transform) */}}
+      {{- if .Values.processing.traffic_ops.mirror.enabled }}
+      {{- $mirrorInput := include "pleme-vector.resolveInput" (dict "input" .Values.processing.traffic_ops.mirror.source "ctx" .) }}
+      {{- include "pleme-vector.trafficOpSink" (dict "name" "traffic_mirror" "inputName" $mirrorInput "destType" .Values.processing.traffic_ops.mirror.destination.type "dest" .Values.processing.traffic_ops.mirror.destination "labels" .Values.processing.traffic_ops.mirror.labels "ctx" .) }}
+      {{- end }}
+
+      {{- /* ── Traffic Ops: Sample sink ───────────────────────────── */}}
+      {{- if .Values.processing.traffic_ops.sample.enabled }}
+      {{- include "pleme-vector.trafficOpSink" (dict "name" "traffic_sample_sink" "inputName" "traffic_sample" "destType" .Values.processing.traffic_ops.sample.destination.type "dest" .Values.processing.traffic_ops.sample.destination "labels" .Values.processing.traffic_ops.sample.labels "ctx" .) }}
+      {{- end }}
+
+      {{- /* ── Traffic Ops: Filter sinks (with per-filter delivery tier) */}}
+      {{- range .Values.processing.traffic_ops.filters }}
+      {{- include "pleme-vector.trafficOpSink" (dict "name" (printf "traffic_filter_%s_sink" .name) "inputName" (printf "traffic_filter_%s" .name) "destType" .destination.type "dest" .destination "labels" .labels "deliveryTier" (.delivery_tier | default "") "ctx" $) }}
+      {{- end }}
+
+      {{- /* ── Traffic Ops: Aggregate sink ────────────────────────── */}}
+      {{- if .Values.processing.traffic_ops.aggregate.enabled }}
+      {{- include "pleme-vector.trafficOpSink" (dict "name" "traffic_aggregate_sink" "inputName" "traffic_aggregate" "destType" .Values.processing.traffic_ops.aggregate.destination.type "dest" .Values.processing.traffic_ops.aggregate.destination "labels" .Values.processing.traffic_ops.aggregate.labels "ctx" .) }}
+      {{- end }}
+
+      {{- /* ── Tap sinks ─────────────────────────────────────────── */}}
+      {{- if .Values.processing.tap.enabled }}
+      {{- range $point, $cfg := .Values.processing.tap.points }}
+      {{- if $cfg.enabled }}
+      {{- $tapInput := include "pleme-vector.tapPointInput" (dict "point" $point "ctx" $) }}
+      {{- if $tapInput }}
+      {{- /* Skip transform-based taps at faucet level 1 */}}
+      {{- if or (eq $point "pre_transform") (ge (int $.Values.faucet.level) 2) }}
+      {{- include "pleme-vector.trafficOpSink" (dict "name" (printf "tap_%s" $point) "inputName" $tapInput "destType" $.Values.processing.tap.destination.type "dest" $.Values.processing.tap.destination "labels" (dict "tap_point" $point) "ctx" $) }}
+      {{- end }}
+      {{- end }}
+      {{- end }}
+      {{- end }}
+      {{- end }}
+
+      {{- /* ── Vector sinks: forward to downstream instances ──────── */}}
+      {{- range .Values.processing.vector_sinks }}
+      {{- /* An entry without `inputs` rendered an empty `inputs:` key, which
+             Vector reads as a unit value rather than an empty list. Failing at
+             template time names the offending entry; the runtime error did
+             not. */}}
+      {{- if not .inputs }}
+      {{- fail (printf "processing.vector_sinks entry %q has no `inputs`; a vector sink with nothing to forward is not a valid component." .name) }}
+      {{- end }}
+      vector_{{ .name }}:
+        type: vector
+        inputs:
+          {{- range .inputs }}
+          {{- $resolved := include "pleme-vector.resolveInput" (dict "input" . "ctx" $) }}
+          {{- if contains ", " $resolved }}
+          {{- range splitList ", " $resolved }}
+          - {{ . }}
+          {{- end }}
+          {{- else }}
+          - {{ $resolved }}
+          {{- end }}
+          {{- end }}
+        address: {{ .address | quote }}
+        {{- if .compress }}
+        compression: true
+        {{- end }}
+      {{- end }}
+
+      {{- /* ── Dead Letter Queue sink ─────────────────────────────── */}}
+      {{- /* Gated on json_parse because it is the ONLY producer of a       */}}
+      {{- /* `.dropped` port here. Vector's `filter` transform carries only */}}
+      {{- /* `condition` and is deny_unknown_fields                         */}}
+      {{- /* (src/transforms/filter.rs:19-29) -- it has no reroute_dropped  */}}
+      {{- /* and can never expose `filter_events.dropped`. The gate also    */}}
+      {{- /* removes a second latent bug: with delivery_dlq on and          */}}
+      {{- /* json_parse off, this used to render an EMPTY inputs: list,     */}}
+      {{- /* which Vector also rejects.                                     */}}
+      {{- if and .Values.delivery_dlq.enabled .Values.transform.json_parse.enabled }}
+      dlq_sink:
+        type: nats
+        url: {{ .Values.delivery_dlq.nats.url | quote }}
+        subject: {{ .Values.delivery_dlq.nats.subject | quote }}
+        encoding:
+          codec: json
+        {{- /* See nats_logs above: sink `jetstream` is a bool. */}}
+        jetstream: true
+        inputs:
+          - json_parse.dropped
+      {{- end }}
+
+      {{- /* ── Stream Processing window SINKS ───────────────────── */}}
+      {{- /* The stream_window_* `reduce` TRANSFORMS moved to transforms:. */}}
+      {{- range .Values.stream_processing.windows }}
+      {{- $destType := "victoriametrics" }}
+      {{- if .destination }}{{ $destType = (.destination.type | default "victoriametrics") }}{{ end }}
+      {{- if eq $destType "victoriametrics" }}
+      stream_window_{{ .name }}_sink:
+        type: prometheus_remote_write
+        inputs:
+          - stream_window_{{ .name }}
+        endpoint: {{ printf "%s/api/v1/write" ($.Values.sink.victoriametrics.endpoint | default "http://victoriametrics:8428") | quote }}
+      {{- else }}
+      {{- include "pleme-vector.trafficOpSink" (dict "name" (printf "stream_window_%s_sink" .name) "inputName" (printf "stream_window_%s" .name) "destType" $destType "dest" .destination "labels" (dict "stream_window" .name) "ctx" $) }}
+      {{- end }}
+      {{- end }}
+
+      {{- /* ── Multi-Tenant SINKS (tenant_route lives in transforms:) ── */}}
+      {{- if .Values.multi_tenant.enabled }}
+      {{- range $tenant, $cfg := .Values.multi_tenant.tenants }}
+      tenant_{{ $tenant }}_sink:
+        type: loki
+        inputs:
+          - tenant_route.{{ $tenant }}
+        endpoint: {{ $.Values.sink.loki.endpoint | quote }}
+        encoding:
+          codec: json
+        labels:
+          tenant: {{ $tenant | quote }}
+          namespace: "{{`{{ namespace }}`}}"
+          app: "{{`{{ app }}`}}"
+          level: "{{`{{ level }}`}}"
+          cluster: {{ $.Values.cluster | quote }}
+      {{- end }}
+      {{- end }}
+
+      {{- /* ── Analytics file sink (shinryu-mcp DataFusion) ──────── */}}
+      {{- if .Values.sink.analytics.enabled }}
+      analytics:
+        type: file
+        inputs:
+          {{- if .Values.transform.analytics_normalize.enabled }}
+          - analytics_normalize
+          {{- else }}
+          {{- with include "pleme-vector.finalOutput" . }}
+          - {{ . }}
+          {{- end }}
+          {{- end }}
+        path: {{ .Values.sink.analytics.path | quote }}
+        encoding:
+          codec: json
+      {{- end }}
+
+      {{- /* ── Tempo trace sink ───────────────────────────────────── */}}
+      {{- /* ★ THIS FEATURE CANNOT WORK ON THE PINNED IMAGE, AND FAILS LOUDLY
+             RATHER THAN SILENTLY. `type: opentelemetry` is not a SINK in
+             Vector 0.41.1 -- the sink was added by 2e606e651 (#21866,
+             2024-11-26), well after this tag:
+               x unknown variant `opentelemetry`, expected one of amqp, ...
+             It also emitted an empty `inputs:` whenever the otel SOURCE was
+             off, which Vector reads as a unit value.
+             Enabling it therefore produced a config that could not load, in
+             two different ways, with no warning until Vector refused to
+             start. A `fail` moves that to `helm template`, where the operator
+             finds out before deploying rather than after.
+             Delete this guard when image.tag moves to a release that has the
+             sink -- do not delete it to make a render pass. */}}
+      {{- if .Values.sink_tempo.enabled }}
+      {{- fail "sink_tempo is not supported on this chart's pinned Vector image: `type: opentelemetry` is not a sink in 0.41.1 (added upstream in #21866, after this tag). Set sink_tempo.enabled=false, or bump image.tag to a version that ships the opentelemetry sink." }}
+      {{- end }}
+
+      {{- /* ★ The opentelemetry source has exactly two output ports in 0.41.1 --
+             `logs` and `traces` (src/sources/opentelemetry/mod.rs:290-291) --
+             and BOTH must be consumed. `logs` joins the log chain. `traces`
+             has nowhere to go, because the only traces sink is sink_tempo,
+             which cannot run on this image at all (see the guard above).
+             Leaving the port dangling would collect spans and throw them away
+             while `vector validate` exits 0 -- the exact class this chart was
+             just cleared of, and it does not get an exemption for being
+             inconvenient to fix. So the discard is DECLARED: an explicit
+             blackhole says "traces are dropped here", `print_interval_secs`
+             makes the volume observable, and a reader can see the decision
+             instead of inferring it from a missing edge.
+             When image.tag gains the opentelemetry sink, this is deleted and
+             sink_tempo consumes the port instead. */}}
+      {{- if .Values.ingestion_opentelemetry.enabled }}
+      opentelemetry_traces_discard:
+        type: blackhole
+        inputs:
+          - opentelemetry.traces
+        print_interval_secs: 300
+      {{- end }}
+{{- end }}

@@ -1,0 +1,754 @@
+# Master toggle: setting enabled=false renders no resources, allowing
+# Flux/Helm to deprovision the workload via a single value override.
+enabled: true
+
+# ── Faucet Control ────────────────────────────────────────────────
+# Progressive observability levels:
+#   1 = sources → console + blackhole (ingestion verification)
+#   2 = sources → transforms → console (transform verification)
+#   3 = sources → transforms → file (sink verification)
+#   4 = sources → transforms → real sinks (production)
+faucet:
+  level: 4
+  console:
+    target: stdout
+    encoding: json
+  blackhole:
+    print_interval_secs: 5
+  file:
+    path: "/var/lib/vector/faucet/%Y-%m-%d-%H.jsonl"
+
+# ── Deployment Mode ───────────────────────────────────────────────
+# daemonset: node-level log collection (default)
+# deployment: aggregator receiving from agents
+# statefulset: buffered processing with persistence
+mode: daemonset
+
+image:
+  repository: timberio/vector
+  tag: "0.41.1-alpine"
+  pullPolicy: IfNotPresent
+
+replicaCount: 1  # ignored in daemonset mode
+
+# extraEnv — arbitrary env passthrough (literal or secretRef) for custom
+# sources/sinks. E.g. inject CLICKHOUSE_PASSWORD from a Secret for a clickhouse
+# custom sink instead of a literal password in values.
+extraEnv: []
+#  - name: CLICKHOUSE_PASSWORD
+#    valueFrom:
+#      secretKeyRef: { name: clickhouse-auth, key: clickhouse-password }
+
+# ── Layer 1: Ingestion (Sources) ─────────────────────────────────
+ingestion:
+  # Kubernetes pod log collection (daemonset mode)
+  kubernetes_logs:
+    enabled: true
+    auto_partial_merge: true
+    exclude_paths:
+      - "/var/log/pods/kube-system_*/**"
+      - "/var/log/pods/flux-system_*/**"
+
+  # Host-level systemd journal collection (daemonset mode) — node/kubelet/
+  # containerd/kernel events that never pass through any container's own
+  # stdout/stderr, e.g. an abrupt containerd/kubelet bounce that simultaneously
+  # kills several unrelated pods with no application-level log line to explain
+  # it (the class of event kubernetes_logs structurally cannot see). Vector's
+  # journald source execs the host's `journalctl` binary as a subprocess —
+  # REQUIRES a systemd-capable image (the default image.tag above is Alpine,
+  # which has no systemd/journalctl at all; set image.tag to a `-debian`
+  # variant, e.g. "0.41.1-debian", wherever this is enabled).
+  journald:
+    enabled: false
+    current_boot_only: true
+    # Start from NOW rather than replaying the boot: without this, every
+    # pod restart re-ships the whole current boot's journal (duplicates
+    # in the fleet log plane). The nix host unit
+    # (modules/pleme/nixos/log-shipping.nix) sets since_now=true for the
+    # same reason.
+    since_now: false
+    # Matches the hostPath mount below (daemonset.hostPaths.journal) — Vector's
+    # journald source otherwise falls back to journalctl's own default search
+    # paths, which won't find a differently-mounted host journal.
+    journal_directory: /var/log/journal
+    exclude_units: []
+
+  # Vector self-monitoring metrics
+  internal_metrics:
+    enabled: true
+    scrape_interval_secs: 15
+
+  # StatsD receiver for application telemetry
+  statsd:
+    enabled: false
+    address: "0.0.0.0:8125"
+
+  # Cilium Hubble flow log collection
+  hubble:
+    enabled: false
+    endpoint: "hubble-relay.kube-system.svc:4245"
+
+  # Prometheus scrape targets
+  prometheus_scrape:
+    enabled: false
+    targets: []
+    # - endpoint: "http://service:port/metrics"
+    #   scrape_interval_secs: 10
+
+  # HTTP server for receiving from sidecars/agents
+  http_server:
+    enabled: false
+    address: "0.0.0.0:8080"
+
+  # Splunk HEC receiver — a Splunk drop-in ingress (POST /services/collector with
+  # `Authorization: Splunk <token>`). First-class so the container + service port
+  # auto-expose. Pair with a clickhouse custom sink to make ClickHouse the
+  # Splunk-replacement analytics store.
+  splunk_hec:
+    enabled: false
+    address: "0.0.0.0:8088"
+    port: 8088
+    valid_tokens: []
+
+  # Kubernetes Events via kube-state-metrics scraping
+  kubernetes_events:
+    enabled: false
+    endpoint: "http://kube-state-metrics.kube-system.svc:8080/metrics"
+    scrape_interval_secs: 10
+
+  # burst-forge structured events via HTTP POST
+  burst_forge_http:
+    enabled: false
+    address: "0.0.0.0:9500"
+
+  # pprof periodic capture — curls Go pprof endpoints via exec source
+  pprof_capture:
+    enabled: false
+    interval_secs: 30
+    targets: []
+    # - name: gw_goroutines
+    #   url: "http://akeyless-gw.akeyless-system.svc:38888/debug/pprof/goroutine?debug=2"
+    # - name: gw_heap
+    #   url: "http://akeyless-gw.akeyless-system.svc:38888/debug/pprof/heap"
+
+  # K8s Events API — raw event objects via exec source
+  kubernetes_events_raw:
+    enabled: false
+    namespaces:
+      - scale-test
+      - akeyless-system
+
+  # Raw YAML passthrough for any Vector source
+  custom: {}
+
+# ── Layer 2: Transformation ──────────────────────────────────────
+transform:
+  # Extract Kubernetes metadata from log events
+  kubernetes_metadata:
+    enabled: true
+
+  # Parse JSON-formatted log messages
+  json_parse:
+    enabled: true
+
+  # Normalize log levels to standard set
+  log_level_normalize:
+    enabled: true
+    # When a log line carries no structured `level` field (plain-text, klog, or
+    # syslog-prefixed apps — e.g. akeyless emits `<prog>[pid]: PANIC: ...`),
+    # derive the level by scanning the message: a `LEVEL:` prefix first, then a
+    # keyword scan (panic/fatal/error/warn/debug) + klog `E####`/`W####`. Only
+    # fires when `.level` is absent, so JSON-logging apps are unaffected. Terminal
+    # levels panic/fatal/error/warn/debug/info are preserved DISTINCTLY (the
+    # error-log board panels filter level:error|fatal|panic). Default on: without
+    # it every non-JSON line collapses to "info" and the error panels stay dark.
+    deriveFromMessage: true
+
+  # Tag events with experiment context (scale-test)
+  experiment_tag:
+    enabled: false
+    experiment_id: ""
+
+  # Detect product from namespace prefix
+  product_detect:
+    enabled: true
+
+  # `schema_normalize` was REMOVED here and from _helpers.tpl. It was a knob
+  # with no implementation: the lastLogTransform cascade returned its name but
+  # configmap.yaml never emitted a matching transform, so enabling it produced
+  # a config Vector refuses to start ("Input schema_normalize ... doesn't match
+  # any components"). It shipped in the chart's first commit and was never
+  # built. Removed rather than implemented, because writing an OTel
+  # semantic-conventions mapping is new feature work on a chart scheduled for
+  # replacement by a typed generator.
+
+  # Guarantee a `_msg` field for VictoriaLogs ingestion. VictoriaLogs uses
+  # `_msg` as its canonical, searchable message field and emits a per-line
+  # warning ("missing _msg field") + leaves the line unsearchable-as-message
+  # when it's absent. Vector's kubernetes_logs source puts the line in
+  # `.message` (and json_parse lifts a structured `.fields.message`), neither of
+  # which VLogs maps automatically. This terminal remap sets `._msg` from the
+  # first present `messageFields` entry, only when `_msg` isn't already set — so
+  # it's idempotent and harmless for non-VLogs sinks (Loki/Splunk/Datadog ignore
+  # the extra field). Default on: every cluster shipping to VLogs needs it, and
+  # it never hurts the others.
+  victoria_logs_msg:
+    enabled: true
+    # Candidate source fields, in priority order — the first present string wins,
+    # coalesced with `string()` (fallible: a missing path errors and falls through
+    # to the next field; `to_string()` must NOT be used here — it succeeds with ""
+    # on a null path and short-circuits the fallback, leaving `_msg` empty).
+    # `.fields.message` is the human message of a JSON-tracing app (after
+    # json_parse merges it to root); `.message` is the raw log line (always
+    # present for kubernetes_logs). `.MESSAGE` is journald's own field name
+    # (Vector's journald source preserves the journal's uppercase field
+    # names verbatim) — harmless to list unconditionally, falls through when
+    # journald ingestion is disabled.
+    messageFields:
+      - .fields.message
+      - .message
+      - .MESSAGE
+
+  # Akeyless GW/WH event classification
+  akeyless_event_detect:
+    enabled: false
+    patterns:
+      subprocess_kill: "cmd.Run() failed with signal: killed"
+      connectivity_lost: "lost connectivity"
+      connectivity_resumed: "connectivity resumed"
+
+  # burst-forge JSON enrichment
+  burst_forge_enrich:
+    enabled: false
+
+  # Hubble flow enrichment — extract verdict, source/dest, DNS, tag Akeyless flows
+  hubble_flow_enrich:
+    enabled: false
+
+  # Akeyless GW structured log field extraction
+  akeyless_gw_log_parse:
+    enabled: false
+
+  # Akeyless WH admission timing extraction
+  akeyless_wh_log_parse:
+    enabled: false
+
+  # Analytics normalization — maps all signals to unified schema for DataFusion
+  analytics_normalize:
+    enabled: false
+
+  # Conditional routing (split events to different pipelines)
+  route:
+    enabled: false
+    routes: {}
+    # errors: '.level == "error"'
+    # burst_events: 'exists(.event_type)'
+
+  # Selective filtering (events matching condition are kept)
+  filter:
+    enabled: false
+    condition: ""
+    # `reroute_dropped` was REMOVED: it rendered nowhere (zero hits in
+    # configmap.yaml) and CANNOT render -- Vector's `filter` transform carries
+    # only `condition` and is deny_unknown_fields
+    # (src/transforms/filter.rs:19-29), so it has no `.dropped` output port in
+    # any version and the key would be a hard parse error. Only `remap` exposes
+    # that port, via its own reroute_dropped. Deleting this changes no rendered
+    # output; the value was never read.
+
+  # Raw YAML passthrough for any Vector transform
+  custom: {}
+
+# ── Layer 3: Sinking (Delivery) ──────────────────────────────────
+sink:
+  # Loki log aggregation
+  loki:
+    enabled: true
+    endpoint: "http://loki.observability.svc.cluster.local:3100"
+    batch_max_bytes: 1048576
+    batch_timeout_secs: 1
+    labels:
+      - namespace
+      - app
+      - pod
+      - level
+      - cluster
+      - environment
+
+  # VictoriaMetrics / Prometheus remote write
+  victoriametrics:
+    enabled: false
+    endpoint: "http://victoriametrics.observability.svc.cluster.local:8428"
+
+  # Prometheus exporter (Vector internal + custom metrics)
+  prometheus_exporter:
+    enabled: true
+    ports:
+      internal: 9090
+      custom: 9091
+
+  # Datadog
+  datadog:
+    enabled: false
+    api_key_secret: ""
+    site: "datadoghq.com"
+
+  # Splunk HEC
+  splunk_hec:
+    enabled: false
+    endpoint: ""
+    token_secret: ""
+
+  # File output (JSON lines)
+  file:
+    enabled: false
+    path: "/var/log/vector/output/%Y-%m-%d.jsonl"
+
+  # Analytics sink — Bronze tier NDJSON for shinryu-mcp data lakehouse
+  # Bronze → Silver (Parquet) → Gold (materialized views) managed by shinryu-mcp
+  analytics:
+    enabled: false
+    path: "/var/lib/vector/analytics/bronze/signal_type={{ signal_type }}/%Y-%m-%d/%H.json"
+    batch_max_bytes: 10485760    # 10MB per file
+    batch_timeout_secs: 30
+
+  # Debug console sink (prints events to Vector pod stdout)
+  console_debug:
+    enabled: false
+    target: stdout
+
+  # Blackhole sink (drops events, measures throughput only)
+  blackhole:
+    enabled: false
+    print_interval_secs: 5
+
+  # Raw YAML passthrough for any Vector sink
+  custom: {}
+
+# ── Fleet Log Shipping ────────────────────────────────────────────
+# Ship this node's systemd journal to the fleet's NATS JetStream log
+# plane (subject fleet.logs.<host>), in the fleet's canonical line
+# shape {timestamp, host, source, unit, message, priority}. This is the
+# Helm twin of the nix host unit (modules/pleme/nixos/log-shipping.nix
+# + lib/fleet-vector.nix): the same VRL, the same sink shape, the same
+# disk-buffer-on-unreachable-NATS semantics, so a node can move its
+# log shipping from a host systemd unit to a DaemonSet pod (or back)
+# without the consuming plane (plo's VictoriaLogs) seeing any schema
+# change. REQUIRES ingestion.journald.enabled (the template fails
+# otherwise) and a systemd-capable image (set image.tag to a -debian
+# variant — see ingestion.journald above).
+fleetShipping:
+  enabled: false
+  # The fleet node name reported in every line and in the subject.
+  host: ""
+  # The fleet NATS; on the fleet this is plo's nats entry
+  # (lib/exposure.nix), reached over the tailnet/LAN.
+  natsUrl: "nats://plo.pleme.internal:4222"
+  # Subject = <prefix>.<host>; consumers bind server-side by subject.
+  subjectPrefix: "fleet.logs"
+  # The least urgent journal priority shipped (6 = info; 7 adds debug).
+  # Mirrors pleme.nixos.logShipping.minPriority.
+  minPriority: 6
+  # Disk buffer holding lines while NATS is unreachable; beyond it the
+  # newest lines are dropped. Mirrors pleme.nixos.logShipping.bufferBytes.
+  bufferBytes: 1073741824
+
+# ── Delivery Guarantees ───────────────────────────────────────────
+# Controls buffer behavior, acknowledgements, and NATS interposition.
+# Orthogonal to sink selection: sink controls WHERE, delivery controls HOW.
+delivery:
+  # best_effort: memory/disk buffer, drop on overflow (default)
+  # durable: disk buffer + backpressure + acks + infinite retries
+  # guaranteed: NATS JetStream in the critical path (zero-loss)
+  guarantee: best_effort
+
+  # Role for guaranteed mode:
+  #   standalone: both processing + delivery in one instance (default)
+  #   producer: sources → transforms → NATS sink (DaemonSet)
+  #   consumer: NATS source → final sinks (Deployment)
+  role: standalone
+
+  # Buffer config (best_effort and durable)
+  buffer:
+    type: disk
+    max_size: 536870912       # 512MB
+    when_full: drop_newest    # drop_newest | block
+
+  # Retry config (durable and guaranteed)
+  retry:
+    max_duration_secs: 30
+    initial_backoff_secs: 1
+    max_backoff_secs: 300
+
+  # Sink acknowledgements (durable and guaranteed)
+  acknowledgements: false
+
+  # NATS JetStream (guaranteed level only)
+  nats:
+    url: "nats://nats-vector.observability.svc:4222"
+    subject:
+      logs: "vector.logs"
+      metrics: "vector.metrics"
+    encoding:
+      codec: json
+    stream:
+      name: "VECTOR_DELIVERY"
+    consumer:
+      name: "vector-delivery"
+      ack_wait: "30s"
+      max_deliver: -1
+
+# ── Cluster Context ──────────────────────────────────────────────
+cluster: "default"
+environment: "production"
+
+# ── Standard pleme-lib values ────────────────────────────────────
+ports:
+  - name: api
+    containerPort: 8686
+    protocol: TCP
+  - name: metrics
+    containerPort: 9090
+    protocol: TCP
+  - name: metrics-custom
+    containerPort: 9091
+    protocol: TCP
+
+service:
+  type: ClusterIP
+  ports:
+    - name: api
+      port: 8686
+      targetPort: api
+      protocol: TCP
+    - name: metrics
+      port: 9090
+      targetPort: metrics
+      protocol: TCP
+    - name: metrics-custom
+      port: 9091
+      targetPort: metrics-custom
+      protocol: TCP
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+monitoring:
+  enabled: true
+  port: metrics
+  path: /metrics
+  interval: 30s
+
+networkPolicy:
+  enabled: true
+  allowPrometheus: true
+  allowDns: true
+  additionalEgress: []
+
+health:
+  path: /health
+  readyPath: /health
+  port: api
+  livenessInitialDelay: 10
+  livenessPeriod: 15
+  livenessFailureThreshold: 3
+  readinessInitialDelay: 5
+  readinessPeriod: 5
+  readinessFailureThreshold: 2
+
+attestation:
+  enabled: false
+
+# ── DaemonSet-specific ───────────────────────────────────────────
+daemonset:
+  tolerateAll: true
+  hostPaths:
+    pods: /var/log/pods
+    containers: /var/log/containers
+    docker: /var/lib/docker
+    # Only mounted when ingestion.journald.enabled — persistent + volatile
+    # journal storage (a node may use either depending on its own journald
+    # config) plus machine-id (journald partitions journal files per-machine;
+    # without the host's real one, the containerized journalctl may not
+    # correctly locate/filter the mounted journal).
+    journal: /var/log/journal
+    journalRun: /run/log/journal
+    machineId: /etc/machine-id
+
+# ── StatefulSet-specific ─────────────────────────────────────────
+statefulset:
+  persistence:
+    enabled: false
+    size: 10Gi
+    storageClass: ""
+
+# ── Processing Layer ──────────────────────────────────────────────
+# Traffic engineering: tap, mirror, sample, filter, aggregate, chain.
+# All operations are non-destructive — they fan out from pipeline
+# points without affecting the main data flow.
+processing:
+  # Receive events from upstream Vector instances (gRPC)
+  vector_source:
+    enabled: false
+    address: "0.0.0.0:6000"
+
+  # Forward events to downstream Vector instances
+  vector_sinks: []
+  # - name: aggregator
+  #   address: "vector-aggregator.observability.svc:6000"
+  #   inputs: ["_last_transform"]
+  #   compress: true
+
+  # ── Tap: observe events at named pipeline points ─────────────
+  tap:
+    enabled: false
+    destination:
+      type: loki   # loki | vector | file | console
+      vector:
+        address: "vector-tap.observability.svc:6000"
+      loki:
+        endpoint: "http://loki.observability.svc.cluster.local:3100"
+        batch_max_bytes: 524288
+        batch_timeout_secs: 2
+      file:
+        base_path: "/var/lib/vector/tap"
+      console:
+        target: stdout
+    points:
+      pre_transform:       { enabled: false }
+      post_k8s_enrich:     { enabled: false }
+      post_json_parse:     { enabled: false }
+      post_normalize:      { enabled: false }
+      post_event_detect:   { enabled: false }
+      post_experiment_tag: { enabled: false }
+      post_product_detect: { enabled: false }
+      post_transform:      { enabled: false }
+
+  # ── Traffic Operations ───────────────────────────────────────
+  traffic_ops:
+    # Mirror: duplicate 100% of events to a parallel destination
+    mirror:
+      enabled: false
+      source: "_last_transform"
+      destination:
+        type: loki
+        loki:
+          endpoint: "http://loki.observability.svc.cluster.local:3100"
+        vector:
+          address: ""
+        file:
+          path: "/var/lib/vector/mirror/%Y-%m-%d.jsonl"
+        console:
+          target: stdout
+      labels:
+        traffic_op: "mirror"
+
+    # Sample: probabilistically route 1/N events
+    sample:
+      enabled: false
+      source: "_last_transform"
+      rate: 10                # keep 1 in N events
+      exclude_filter: ""      # VRL: matching events always pass (not sampled)
+      destination:
+        type: loki
+        loki:
+          endpoint: "http://loki.observability.svc.cluster.local:3100"
+        vector:
+          address: ""
+        file:
+          path: "/var/lib/vector/sample/%Y-%m-%d.jsonl"
+        console:
+          target: stdout
+      labels:
+        traffic_op: "sample"
+
+    # Filters: route matching events to destinations (multiple independent)
+    filters: []
+    # - name: errors_only
+    #   source: "_last_transform"
+    #   condition: '.level == "error" || .level == "fatal"'
+    #   destination:
+    #     type: loki
+    #     loki:
+    #       endpoint: "http://loki.observability.svc.cluster.local:3100"
+    #   labels:
+    #     traffic_op: "filter"
+    #     filter_name: "errors_only"
+    # - name: gw_subprocess_kills
+    #   source: "_last_transform"
+    #   condition: 'match(string!(.message), r''signal: killed'')'
+    #   destination:
+    #     type: file
+    #     file:
+    #       path: "/var/lib/vector/filters/subprocess-kills.jsonl"
+    #   labels:
+    #     traffic_op: "filter"
+    #     filter_name: "gw_subprocess_kills"
+
+    # Aggregate: window-based event reduction
+    aggregate:
+      enabled: false
+      source: "_last_transform"
+      group_by:
+        - namespace
+        - app
+        - level
+      window_secs: 60
+      merge_strategies:
+        message: "discard"
+        level: "retain"
+      destination:
+        type: loki
+        loki:
+          endpoint: "http://loki.observability.svc.cluster.local:3100"
+        vector:
+          address: ""
+        file:
+          path: "/var/lib/vector/aggregate/%Y-%m-%d.jsonl"
+        console:
+          target: stdout
+      labels:
+        traffic_op: "aggregate"
+
+# ── Breathing Mode (Zero-to-Hot) ──────────────────────────────────
+# When enabled, the platform sleeps at zero and wakes on data pressure.
+# Vector DaemonSet is the sentinel (always on, ~50m CPU per node).
+# NATS + consumers scale 0→N via KEDA, cool back to 0 when idle.
+# Data safety: Vector 5GB disk buffer bridges the NATS wake-up window.
+breathing:
+  enabled: false
+  vector:
+    buffer_size: 5368709120     # 5GB disk buffer (bridge during wake-up)
+    when_full: block            # backpressure, never drop data
+  nats:
+    min_replicas: 0
+    max_replicas: 1
+    wake_threshold: "1"         # buffer events to trigger wake
+    scale_threshold: "100"      # buffer events for full scale
+    sleep_after_secs: 900       # 15 min idle → sleep
+  consumer:
+    min_replicas: 0
+    max_replicas: 10
+    wake_threshold: "1"         # NATS lag to trigger wake
+    scale_threshold: "1000"     # NATS lag for full scale
+    sleep_after_secs: 300       # 5 min drain → sleep
+
+# ── Auto-Scaling ─────────────────────────────────────────────────
+# KEDA event-driven auto-scaling from NATS consumer lag.
+# Requires KEDA operator installed in cluster.
+autoscaling:
+  type: none  # none | keda
+  min_replicas: 1
+  max_replicas: 10
+  keda:
+    polling_interval: 15
+    cooldown_period: 300
+    triggers:
+      - type: nats-jetstream
+        metadata:
+          natsServerMonitoringEndpoint: "nats-vector.observability.svc:8222"
+          stream: "VECTOR_DELIVERY"
+          consumer: "vector-delivery"
+          lagThreshold: "1000"
+          activationLagThreshold: "10"
+
+# ── Per-Signal Delivery Tiers ─────────────────────────────────────
+# Classifies events into tiers with different delivery guarantees.
+# Tier 1 (guaranteed): NATS JetStream for irreplaceable events
+# Tier 2 (durable): disk buffer + backpressure for important data
+# Tier 3 (best_effort): memory buffer for regenerable metrics
+delivery_tiers:
+  enabled: false
+  tier1_guaranteed:
+    conditions:
+      - 'exists(.event_source) && .event_source == "burst-forge"'
+      - 'exists(.event_type) && includes(["subprocess_kill", "connectivity_lost", "connectivity_resumed"], string!(.event_type))'
+      - 'exists(.verdict) && .verdict == "DROPPED"'
+    buffer:
+      type: disk
+      max_size: 2147483648      # 2GB
+      when_full: block
+    nats_subject: "vector.tier1"
+  tier2_durable:
+    conditions:
+      - 'exists(.kubernetes)'
+      - 'exists(.source_type) && .source_type == "hubble"'
+    buffer:
+      type: disk
+      max_size: 5368709120      # 5GB
+      when_full: block
+  tier3_best_effort:
+    buffer:
+      type: memory
+      max_events: 10000
+      when_full: drop_newest
+
+# ── Dead Letter Queue ────────────────────────────────────────────
+# Failed/dropped events route to NATS DLQ stream instead of being lost.
+delivery_dlq:
+  enabled: false
+  nats:
+    url: "nats://nats-vector.observability.svc:4222"
+    subject: "vector.dlq"
+    stream: "VECTOR_DLQ"
+  retention: "168h"  # 7 days
+
+# ── Exactly-Once Delivery ────────────────────────────────────────
+# NATS JetStream dedup window + Vector message ID.
+delivery_exactly_once:
+  enabled: false
+  dedup_window: "2m"
+
+# ── Stream Processing ────────────────────────────────────────────
+# Multiple named aggregation windows for real-time analytics.
+stream_processing:
+  windows: []
+  # - name: pod_injection_rate
+  #   source: "_last_transform"
+  #   group_by: [namespace, app]
+  #   window_secs: 30
+  #   merge_strategies:
+  #     pods_injected: "sum"
+  #     injection_success_rate: "avg"
+  #   destination:
+  #     type: victoriametrics
+  # - name: error_rate_per_service
+  #   source: "_last_transform"
+  #   group_by: [namespace, app, level]
+  #   window_secs: 60
+  #   merge_strategies:
+  #     message: "count"
+  #   destination:
+  #     type: loki
+
+# ── Multi-Tenant Isolation ───────────────────────────────────────
+# Route events to tenant-scoped NATS subjects and sinks.
+multi_tenant:
+  enabled: false
+  field: ".product"  # VRL field to partition on
+  tenants: {}
+  # lilitu:
+  #   sink: loki
+  # akeyless:
+  #   sink: loki
+
+# ── Unified Telemetry ────────────────────────────────────────────
+# OpenTelemetry source for traces + Tempo sink.
+ingestion_opentelemetry:
+  enabled: false
+  grpc_address: "0.0.0.0:4317"
+  http_address: "0.0.0.0:4318"
+
+sink_tempo:
+  enabled: false
+  endpoint: "http://tempo.observability.svc.cluster.local:4317"
+
+# ── Vector API ───────────────────────────────────────────────────
+api:
+  enabled: true
+  address: "0.0.0.0:8686"

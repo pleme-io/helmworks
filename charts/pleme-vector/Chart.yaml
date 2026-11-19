@@ -1,0 +1,11 @@
+apiVersion: v2
+name: pleme-vector
+description: Composable Vector data delivery — ingestion, transformation, sinking layers with pleme-lib patterns
+type: application
+version: "0.6.0"
+appVersion: "0.41.1"
+
+dependencies:
+  - name: pleme-lib
+    version: ">=0.18.0"
+    repository: "file://../pleme-lib"

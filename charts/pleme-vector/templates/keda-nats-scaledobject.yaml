@@ -1,0 +1,38 @@
+{{- if .Values.enabled }}
+{{/*
+KEDA ScaledObject for NATS wake-up in breathing mode.
+Scales NATS StatefulSet from 0→1 when Vector's Prometheus metrics
+show buffered events (data waiting to be delivered).
+
+Breathing dependency chain:
+  1. Vector buffers to disk (5GB, blocks on full)
+  2. KEDA detects buffer_events > 0 → scales NATS 0→1
+  3. NATS starts serving → consumer KEDA trigger becomes reachable
+  4. Consumer scales 0→N based on NATS consumer lag
+*/}}
+{{- if .Values.breathing.enabled }}
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "pleme-lib.fullname" . }}-nats-wake
+  namespace: {{ include "pleme-lib.namespace" . }}
+  labels:
+    {{- include "pleme-lib.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: StatefulSet
+    name: nats-vector
+  pollingInterval: 15
+  cooldownPeriod: {{ .Values.breathing.nats.sleep_after_secs }}
+  minReplicaCount: {{ .Values.breathing.nats.min_replicas }}
+  maxReplicaCount: {{ .Values.breathing.nats.max_replicas }}
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: "http://{{ include "pleme-lib.fullname" . }}.{{ include "pleme-lib.namespace" . }}.svc:{{ .Values.sink.prometheus_exporter.ports.internal }}"
+        query: "sum(vector_buffer_events{component_kind=\"sink\"})"
+        threshold: {{ .Values.breathing.nats.scale_threshold | quote }}
+        activationThreshold: {{ .Values.breathing.nats.wake_threshold | quote }}
+{{- end }}
+{{- end }}

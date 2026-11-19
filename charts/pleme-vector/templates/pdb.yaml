@@ -1,0 +1,9 @@
+{{- if .Values.enabled }}
+{{/*
+PDB only applies to Deployment and StatefulSet modes.
+DaemonSets run one pod per node — PDB is not meaningful.
+*/}}
+{{- if ne .Values.mode "daemonset" }}
+{{- include "pleme-lib.pdb" . }}
+{{- end }}
+{{- end }}
