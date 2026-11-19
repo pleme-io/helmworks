@@ -185,12 +185,18 @@ spec:
             - name: tmp
               mountPath: /tmp
             {{- if and (eq .Values.mode "daemonset") (ne (include "pleme-vector.isConsumer" .) "true") }}
+            {{- /* Gated on kubernetes_logs, not just daemonset mode: a pod-log
+                   mount with the source off is dead weight AND a hostPath a
+                   journald-only node (engenho's deny-by-default hostPath
+                   policy) would have to allowlist for nothing. */}}
+            {{- if .Values.ingestion.kubernetes_logs.enabled }}
             - name: var-log-pods
               mountPath: /var/log/pods
               readOnly: true
             - name: var-log-containers
               mountPath: /var/log/containers
               readOnly: true
+            {{- end }}
             {{- if .Values.ingestion.journald.enabled }}
             - name: var-log-journal
               mountPath: /var/log/journal
@@ -233,12 +239,14 @@ spec:
         - name: tmp
           emptyDir: {}
         {{- if and (eq .Values.mode "daemonset") (ne (include "pleme-vector.isConsumer" .) "true") }}
+        {{- if .Values.ingestion.kubernetes_logs.enabled }}
         - name: var-log-pods
           hostPath:
             path: {{ .Values.daemonset.hostPaths.pods }}
         - name: var-log-containers
           hostPath:
             path: {{ .Values.daemonset.hostPaths.containers }}
+        {{- end }}
         {{- if .Values.ingestion.journald.enabled }}
         - name: var-log-journal
           hostPath:
