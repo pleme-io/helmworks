@@ -20,4 +20,11 @@ on:
 jobs:
   publish:
     uses: pleme-io/flows/.github/workflows/charts-publish.yml@main
+    with:
+      # This repository is PUBLIC, and an org runner group answering
+      # allows_public_repositories=false can never dispatch its jobs. The
+      # helmworks-release pool (nix repo, ci-server profile) is registered
+      # to THIS repository alone — the one-repo registration a public repo
+      # can reach — and its job tokens carry packages:write for the push.
+      runner: pleme-helmworks-release
     secrets: inherit
