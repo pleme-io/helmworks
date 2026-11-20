@@ -1,0 +1,69 @@
+# chart-publish — publish to oci://ghcr.io/pleme-io/charts every chart whose
+# files changed in the push, and nothing else.
+#
+# This is the automated private delivery path the fleet was missing: until
+# 2026-11-20 the published copy in this repo reached clusters only through a
+# GitRepository (public, unpinned), because the OCI registry's pull secret
+# held a dead PAT and publishing needed a human PAT. Both are solved
+# elsewhere: nodes refresh the pull secret by App mint
+# (pleme.nixos.ghcrPullSecret, nix repo), and this workflow pushes with the
+# App installation token minted on the runner host (token-source: app) —
+# no PAT exists anywhere in the chain.
+#
+# Changed-only: a chart whose files did not move is not re-pushed, so a docs
+# commit cannot resurrect an old version over the registry's.
+#
+# NOTE: pushes 403 until the org grants the App access to the
+# ghcr.io/pleme-io/charts package (org Settings → Packages → add the
+# org-posture App) — the run fails loudly, which is the correct behaviour
+# for a pipeline waiting on a grant, not silently skipping.
+name: chart-publish
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "charts/**"
+
+jobs:
+  changes:
+    name: Changed charts
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - id: set
+        run: |
+          set -euo pipefail
+          before="${{ github.event.before }}"
+          if [ -z "$before" ] || [ "$before" = "0000000000000000000000000000000000000000" ]; then
+            before="HEAD~1"
+          fi
+          # Chart dirs whose files changed; only dirs that hold a Chart.yaml.
+          dirs=$(git diff --name-only "$before" "${{ github.sha }}" -- charts/ \
+            | cut -d/ -f2 | sort -u \
+            | while read -r d; do [ -f "charts/$d/Chart.yaml" ] && echo "$d"; done)
+          matrix=$(printf '%s\n' "$dirs" | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          echo "publishing: $matrix"
+
+  publish:
+    name: Publish
+    needs: changes
+    if: needs.changes.outputs.matrix != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        chart: ${{ fromJson(needs.changes.outputs.matrix) }}
+    uses: pleme-io/flows/.github/workflows/helm-publish.yml@main
+    with:
+      chartPath: ./charts/${{ matrix.chart }}
+      registry: oci://ghcr.io/pleme-io/charts
+      # A self-hosted runner: the host mints the App installation token
+      # (token-source: app), the zero-PAT rung of registry-login.
+      runner: pleme-private
+      token-source: app
+    secrets: inherit
