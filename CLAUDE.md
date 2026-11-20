@@ -2,6 +2,15 @@
 
 > **★★★ CSE / Knowable Construction.** This repo operates under **Constructive Substrate Engineering**. The Compounding Directive (operational rules: solve once, load-bearing fixes only, idiom-first, models stay current, direction beats velocity) is in the org-level pleme-io/CLAUDE.md ★★★ section. Read it before non-trivial changes.
 
+> **★★ THIS IS THE PUBLISHED-CHARTS HOME, and its delivery is canonical**:
+> [`k8s/docs/chart-delivery.md`](https://github.com/pleme-io/k8s/blob/main/docs/chart-delivery.md).
+> A push touching `charts/**` publishes the changed charts to
+> oci://ghcr.io/pleme-io/charts automatically (`chart-publish.yml`, the
+> pattern's reference caller — a one-liner over flows' `charts-publish`).
+> New chart repos copy that file unchanged. Library discipline: dev homes
+> (helmworks-\*) pin pleme-lib by lock against THIS repo's version, never a
+> hand-vendored tgz.
+
 
 Reusable Helm chart library for pleme-io internal services.
 
