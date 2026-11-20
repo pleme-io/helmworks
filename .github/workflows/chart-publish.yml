@@ -2,10 +2,11 @@
 #
 # The pattern lives in pleme-io/flows (charts-publish → helm-publish →
 # registry-login): changed charts publish to oci://ghcr.io/pleme-io/charts
-# with the App installation token minted on the runner host (no PAT in the
-# path), unchanged charts are not re-pushed. This file was the pattern's
-# first home (2026-11-20) and is kept as the reference caller: defaults in
-# the reusable match this repo exactly, so only the trigger is stated here.
+# with this repo's own GITHUB_TOKEN (ghcr rejects App installation tokens
+# outright — measured 2026-11-20), unchanged charts are not re-pushed.
+# This file was the pattern's first home (2026-11-20) and is kept as the
+# reference caller: defaults in the reusable match this repo exactly, so
+# only the trigger is stated here.
 #
 # A new chart repo copies this file, changes nothing, and gets the same
 # delivery path.
