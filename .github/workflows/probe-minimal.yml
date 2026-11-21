@@ -1,0 +1,13 @@
+# Temporary bisect probe (2026-11-21, 2nd): single-job call to helm-publish
+# at CURRENT main, versus the working 8591a84 — isolates my charts/backend
+# edits from the two-job caller shape. Deleted after the verdict.
+name: probe-minimal
+on: workflow_dispatch
+jobs:
+  p:
+    uses: pleme-io/flows/.github/workflows/helm-publish.yml@main
+    with:
+      chartPath: ./charts
+      charts: pleme-vector
+      runner: pleme-helmworks-release
+    secrets: inherit
