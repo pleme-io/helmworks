@@ -1,14 +1,16 @@
 # Chart delivery trigger — the whole repo-specific surface is this file.
 #
-# Flat on purpose (measured 2026-11-21): GitHub startup_fails a reusable
-# workflow called from a reusable workflow with a matrix, so the composed
-# flows/charts-publish (changes + matrix publish) cannot run from here.
-# The shape is detect (actions/changed-charts) + publish (flows/helm-publish
-# at depth 2), and a new chart repo copies this file and changes nothing.
+# Flat and matrix-FREE on purpose (measured 2026-11-21): GitHub
+# startup_fails a job that combines `uses:` with `strategy.matrix` —
+# runs 44861052761, 44862261383, 44862322663 — so the changed-only loop
+# lives inside actions/helm-oci-publish (charts input), and this caller
+# is one detect job (actions/changed-charts) + one publish call
+# (flows/helm-publish at depth 2). A new chart repo copies this file and
+# changes nothing.
 #
 # Credential: this repo's own GITHUB_TOKEN (ghcr rejects App installation
-# tokens outright — measured 2026-11-20); the package this creates inherits
-# this repository's access (org default ON). First publish lands private —
+# tokens outright — measured 2026-11-20); a package this repo creates
+# inherits its access (org default ON). First publish lands private —
 # flip it public once on the package settings page so pulls are anonymous.
 name: chart-publish
 
@@ -27,7 +29,7 @@ jobs:
     name: Changed charts
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.set.outputs.matrix }}
+      names: ${{ steps.set.outputs.names }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -40,11 +42,7 @@ jobs:
   publish:
     name: Publish
     needs: changes
-    if: needs.changes.outputs.matrix != '[]'
-    strategy:
-      fail-fast: false
-      matrix:
-        chart: ${{ fromJson(needs.changes.outputs.matrix) }}
+    if: needs.changes.outputs.names != ''
     uses: pleme-io/flows/.github/workflows/helm-publish.yml@main
     with:
       # This repository is PUBLIC, and an org runner group answering
@@ -52,6 +50,7 @@ jobs:
       # helmworks-release pool (nix repo, ci-server profile) is registered
       # to THIS repository alone — the one-repo registration a public repo
       # can reach — and its job tokens carry packages:write for the push.
-      chartPath: ./charts/${{ matrix.chart }}
+      chartPath: ./charts
+      charts: ${{ needs.changes.outputs.names }}
       runner: pleme-helmworks-release
     secrets: inherit
