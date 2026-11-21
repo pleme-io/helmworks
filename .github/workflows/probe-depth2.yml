@@ -1,0 +1,12 @@
+# Temporary bisect probe (2026-11-21): does a DIRECT depth-2 call to
+# helm-publish resolve where the depth-3 chain startup_fails? Deleted
+# after the verdict.
+name: probe-depth2
+on: workflow_dispatch
+jobs:
+  p:
+    uses: pleme-io/flows/.github/workflows/helm-publish.yml@main
+    with:
+      chartPath: ./charts/pleme-vector
+      runner: pleme-helmworks-release
+    secrets: inherit
