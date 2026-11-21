@@ -1,31 +1,57 @@
 # Chart delivery trigger — the whole repo-specific surface is this file.
 #
-# The pattern lives in pleme-io/flows (charts-publish → helm-publish →
-# registry-login): changed charts publish to oci://ghcr.io/pleme-io/charts
-# with this repo's own GITHUB_TOKEN (ghcr rejects App installation tokens
-# outright — measured 2026-11-20), unchanged charts are not re-pushed.
-# This file was the pattern's first home (2026-11-20) and is kept as the
-# reference caller: defaults in the reusable match this repo exactly, so
-# only the trigger is stated here.
+# Flat on purpose (measured 2026-11-21): GitHub startup_fails a reusable
+# workflow called from a reusable workflow with a matrix, so the composed
+# flows/charts-publish (changes + matrix publish) cannot run from here.
+# The shape is detect (actions/changed-charts) + publish (flows/helm-publish
+# at depth 2), and a new chart repo copies this file and changes nothing.
 #
-# A new chart repo copies this file, changes nothing, and gets the same
-# delivery path.
+# Credential: this repo's own GITHUB_TOKEN (ghcr rejects App installation
+# tokens outright — measured 2026-11-20); the package this creates inherits
+# this repository's access (org default ON). First publish lands private —
+# flip it public once on the package settings page so pulls are anonymous.
 name: chart-publish
+
+permissions:
+  contents: read
 
 on:
   push:
     branches: [main]
     paths:
       - "charts/**"
+  workflow_dispatch: {}
 
 jobs:
+  changes:
+    name: Changed charts
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - id: set
+        uses: pleme-io/actions/changed-charts@main
+        with:
+          before: ${{ github.event.before }}
+
   publish:
-    uses: pleme-io/flows/.github/workflows/charts-publish.yml@main
+    name: Publish
+    needs: changes
+    if: needs.changes.outputs.matrix != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        chart: ${{ fromJson(needs.changes.outputs.matrix) }}
+    uses: pleme-io/flows/.github/workflows/helm-publish.yml@main
     with:
       # This repository is PUBLIC, and an org runner group answering
       # allows_public_repositories=false can never dispatch its jobs. The
       # helmworks-release pool (nix repo, ci-server profile) is registered
       # to THIS repository alone — the one-repo registration a public repo
       # can reach — and its job tokens carry packages:write for the push.
+      chartPath: ./charts/${{ matrix.chart }}
       runner: pleme-helmworks-release
     secrets: inherit
