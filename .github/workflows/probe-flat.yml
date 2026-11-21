@@ -1,0 +1,22 @@
+# Temporary bisect (2026-11-21): two-job shape with needs but WITHOUT the
+# `if:`/outputs expression on the uses-job. Deleted after the verdict.
+name: probe-flat
+on: workflow_dispatch
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      names: ${{ steps.set.outputs.names }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 2 }
+      - id: set
+        run: echo "names=pleme-vector" >> "$GITHUB_OUTPUT"
+  publish:
+    needs: changes
+    uses: pleme-io/flows/.github/workflows/helm-publish.yml@main
+    with:
+      chartPath: ./charts
+      charts: ${{ needs.changes.outputs.names }}
+      runner: pleme-helmworks-release
+    secrets: inherit
