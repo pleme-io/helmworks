@@ -1,4 +1,4 @@
-# delivery probe 2 2026-11-21: re-run after the full-ref sibling fix
+# delivery probe 3 2026-11-21: nix backend (no docker on the runner)
 apiVersion: v2
 name: pleme-vector
 description: Composable Vector data delivery — ingestion, transformation, sinking layers with pleme-lib patterns
