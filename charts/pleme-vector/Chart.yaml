@@ -1,4 +1,4 @@
-# delivery probe 2026-11-20: first GITHUB_TOKEN push via the helmworks-release pool
+# delivery probe 2 2026-11-21: re-run after the full-ref sibling fix
 apiVersion: v2
 name: pleme-vector
 description: Composable Vector data delivery — ingestion, transformation, sinking layers with pleme-lib patterns
