@@ -11,5 +11,5 @@ jobs:
     with:
       chartPath: ./charts/pleme-microservice
       version: 0.6.0-ci1
-      runner: pleme-helmworks-release
+      runner: ubuntu-latest
     secrets: inherit
